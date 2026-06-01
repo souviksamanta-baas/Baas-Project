@@ -86,3 +86,4 @@ For KAN-13, this work is complete when:
 - [Environment Variables](environment.md)
 - [Tenant Isolation and RLS](tenant-rls.md)
 - [Auth and Organization Onboarding](auth-onboarding.md)
+- [WhatsApp Webhook](whatsapp-webhook.md)

@@ -32,11 +32,15 @@ These values must never be bundled into mobile/client code.
 
 | Variable | Purpose | Allowed locations |
 | --- | --- | --- |
+| `API_PORT` | Local/API server port for the NestJS API | API server, local dev |
 | `SUPABASE_URL` | Supabase API URL for server processes | API server, jobs, CI |
 | `SUPABASE_PROJECT_REF` | Project reference for Supabase CLI workflows | Local dev, CI |
 | `SUPABASE_SERVICE_ROLE_KEY` | Bypasses RLS for trusted backend operations | API server, backend jobs, CI secret store |
 | `SUPABASE_ACCESS_TOKEN` | Supabase CLI automation token | Local dev, CI secret store |
 | `SUPABASE_DB_PASSWORD` | Database password for migration workflows when needed | Local dev, CI secret store |
+| `WHATSAPP_VERIFY_TOKEN` | Meta webhook setup token checked by `GET /webhooks/whatsapp` | API server, deployment secret store |
+| `WHATSAPP_APP_SECRET` | Meta app secret used to validate `x-hub-signature-256` | API server, deployment secret store |
+| `WHATSAPP_WEBHOOK_PATH` | Documented webhook path for deployment routing | API server, local dev |
 | `SUPABASE_AUTH_SMS_PROVIDER` | Name of the hosted SMS provider configured for phone OTP | Supabase dashboard or deployment notes only |
 | `SUPABASE_AUTH_SMS_PROVIDER_SECRET` | Provider token/password/API key for phone OTP | Supabase dashboard secret storage only |
 
@@ -73,6 +77,21 @@ Rules:
 - Do not log OTP codes, full phone numbers, or SMS provider responses with
   credentials.
 - Use E.164 phone numbers in client and test data.
+
+## WhatsApp Webhook Secret Handling
+
+The Phase 0 webhook API reads Meta verification and signature secrets only from
+server environment variables.
+
+Rules:
+
+- `WHATSAPP_VERIFY_TOKEN` must be generated per environment and configured in
+  the Meta webhook setup screen.
+- `WHATSAPP_APP_SECRET` must be available only to the NestJS API process.
+- Never expose WhatsApp secrets to Expo/mobile builds or client logs.
+- Validate `x-hub-signature-256` whenever `WHATSAPP_APP_SECRET` is configured.
+- In production, the API rejects webhook requests if `WHATSAPP_APP_SECRET` is
+  missing.
 
 ## Local Files
 
