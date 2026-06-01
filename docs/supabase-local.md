@@ -88,3 +88,4 @@ For KAN-13, this work is complete when:
 - [Auth and Organization Onboarding](auth-onboarding.md)
 - [WhatsApp Webhook](whatsapp-webhook.md)
 - [Mobile Owner App](mobile-app.md)
+- [Workspace and Dependency Management](workspace-dependencies.md)
