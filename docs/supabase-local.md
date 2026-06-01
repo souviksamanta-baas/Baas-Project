@@ -71,6 +71,7 @@ supabase db pull
 - Never commit `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_ACCESS_TOKEN`, database passwords, or generated local credentials.
 - Client code may use `EXPO_PUBLIC_SUPABASE_URL` and a publishable key.
 - Server code and CI may use service-role credentials only from secret storage.
+- See [Environment Variables](environment.md) for the full local, CI, and deployed variable inventory.
 
 ## Verification
 
