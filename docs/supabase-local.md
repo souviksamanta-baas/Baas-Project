@@ -90,3 +90,4 @@ For KAN-13, this work is complete when:
 - [Mobile Owner App](mobile-app.md)
 - [Workspace and Dependency Management](workspace-dependencies.md)
 - [CI and Migration Workflow](ci.md)
+- [NestJS API Scaffold and Deployment](api-deployment.md)

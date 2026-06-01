@@ -36,6 +36,7 @@ These values must never be bundled into mobile/client code.
 | Variable | Purpose | Allowed locations |
 | --- | --- | --- |
 | `API_PORT` | Local/API server port for the NestJS API | API server, local dev |
+| `PORT` | Platform-provided API server port | Deployment runtime |
 | `SUPABASE_URL` | Supabase API URL for server processes | API server, jobs, CI |
 | `SUPABASE_PROJECT_REF` | Project reference for Supabase CLI workflows | Local dev, CI |
 | `SUPABASE_SERVICE_ROLE_KEY` | Bypasses RLS for trusted backend operations | API server, backend jobs, CI secret store |
@@ -46,6 +47,9 @@ These values must never be bundled into mobile/client code.
 | `WHATSAPP_WEBHOOK_PATH` | Documented webhook path for deployment routing | API server, local dev |
 | `SUPABASE_AUTH_SMS_PROVIDER` | Name of the hosted SMS provider configured for phone OTP | Supabase dashboard or deployment notes only |
 | `SUPABASE_AUTH_SMS_PROVIDER_SECRET` | Provider token/password/API key for phone OTP | Supabase dashboard secret storage only |
+
+The API reads `API_PORT`, then `PORT`, then falls back to `3000`. Railway usually
+provides `PORT` automatically.
 
 ## Service-Role Handling
 

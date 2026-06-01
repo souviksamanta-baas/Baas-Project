@@ -17,7 +17,7 @@ async function bootstrap(): Promise<void> {
   app.use(json({ verify: saveRawBody }));
   app.use(urlencoded({ extended: true, verify: saveRawBody }));
 
-  const port = Number(process.env.API_PORT ?? 3000);
+  const port = Number(process.env.API_PORT ?? process.env.PORT ?? 3000);
   await app.listen(port);
 }
 
