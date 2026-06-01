@@ -89,3 +89,4 @@ For KAN-13, this work is complete when:
 - [WhatsApp Webhook](whatsapp-webhook.md)
 - [Mobile Owner App](mobile-app.md)
 - [Workspace and Dependency Management](workspace-dependencies.md)
+- [CI and Migration Workflow](ci.md)

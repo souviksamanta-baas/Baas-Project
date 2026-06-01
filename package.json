@@ -8,10 +8,20 @@
   ],
   "scripts": {
     "build": "npm run build -w @baas/api",
+    "ci:verify": "npm run lint && npm run validate:migrations && npm run typecheck && npm test && npm run build && npm run validate:mobile",
     "dev:api": "npm run dev -w @baas/api",
     "dev:mobile": "npm run start -w @baas/mobile",
+    "lint": "eslint .",
     "start:api": "npm run start -w @baas/api",
     "test": "npm run test -w @baas/api",
-    "typecheck": "npm run typecheck -w @baas/api && npm run typecheck -w @baas/mobile"
+    "typecheck": "npm run typecheck -w @baas/api && npm run typecheck -w @baas/mobile",
+    "validate:migrations": "node scripts/validate-migrations.mjs",
+    "validate:mobile": "expo config apps/mobile --type public"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.4.1",
+    "globals": "^17.6.0",
+    "typescript-eslint": "^8.60.1"
   }
 }

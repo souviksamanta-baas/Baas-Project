@@ -111,12 +111,17 @@ Fill placeholders locally. Do not commit `.env.local`.
 
 CI should read secrets from the CI provider, not from committed files.
 
-Recommended CI variables:
+GitHub Actions uses these repository variables and secrets for migration dry-runs
+and manual deploys:
 
-- `SUPABASE_PROJECT_REF`
-- `SUPABASE_ACCESS_TOKEN`
-- `SUPABASE_DB_PASSWORD` when direct database operations are required
-- `SUPABASE_SERVICE_ROLE_KEY` only for trusted server-side integration tests
+| Name | Type | Purpose |
+| --- | --- | --- |
+| `SUPABASE_PROJECT_REF` | Repository variable | Hosted Supabase project ref used by `supabase link`. |
+| `SUPABASE_ACCESS_TOKEN` | Repository secret | Supabase CLI access token. |
+| `SUPABASE_DB_PASSWORD` | Repository secret | Hosted database password used by Supabase CLI migration commands. |
+
+`SUPABASE_SERVICE_ROLE_KEY` should only be added to CI for trusted server-side
+integration tests that explicitly need privileged backend access.
 
 Deployment platforms should define:
 
