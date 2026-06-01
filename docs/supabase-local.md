@@ -80,3 +80,9 @@ For KAN-13, this work is complete when:
 - `supabase/config.toml` exists.
 - `supabase/migrations/` exists and is tracked.
 - Local reset/apply commands are documented in this file.
+
+## Related Guides
+
+- [Environment Variables](environment.md)
+- [Tenant Isolation and RLS](tenant-rls.md)
+- [Auth and Organization Onboarding](auth-onboarding.md)
