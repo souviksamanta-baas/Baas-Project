@@ -1,0 +1,24 @@
+{
+  "expo": {
+    "name": "BaaS Owner",
+    "slug": "baas-owner",
+    "scheme": "baas-owner",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#0f172a"
+      }
+    },
+    "extra": {
+      "phase": "0"
+    }
+  }
+}

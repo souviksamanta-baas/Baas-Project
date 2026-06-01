@@ -5,21 +5,29 @@
   "scripts": {
     "build": "tsc -p apps/api/tsconfig.build.json",
     "dev:api": "tsx watch apps/api/src/main.ts",
+    "dev:mobile": "expo start apps/mobile",
     "start:api": "tsx apps/api/src/main.ts",
     "test": "vitest run",
-    "typecheck": "tsc -p apps/api/tsconfig.json --noEmit"
+    "typecheck": "tsc -p apps/api/tsconfig.json --noEmit && tsc -p apps/mobile/tsconfig.json --noEmit"
   },
   "dependencies": {
     "@nestjs/common": "latest",
     "@nestjs/core": "latest",
     "@nestjs/platform-express": "latest",
+    "@react-native-async-storage/async-storage": "latest",
+    "@supabase/supabase-js": "latest",
+    "expo": "latest",
     "express": "latest",
+    "react": "latest",
+    "react-native": "latest",
+    "react-native-url-polyfill": "latest",
     "reflect-metadata": "latest",
     "rxjs": "latest"
   },
   "devDependencies": {
     "@types/express": "latest",
     "@types/node": "latest",
+    "@types/react": "^19.2.16",
     "tsx": "latest",
     "typescript": "latest",
     "vitest": "latest"

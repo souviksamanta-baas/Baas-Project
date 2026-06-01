@@ -26,6 +26,9 @@ from environment configuration instead of hardcoded in source files.
 | `EXPO_PUBLIC_SUPABASE_ANON_KEY` | Legacy anon key for client requests | Use only if a library or integration requires the legacy JWT key |
 | `EXPO_PUBLIC_AUTH_OTP_CHANNEL` | OTP channel used by the mobile app | Phase 0 default: `sms` |
 
+The Expo app in `apps/mobile` must only use `EXPO_PUBLIC_*` variables. Server-only
+values below must never be referenced from mobile source files.
+
 ## Server-Only Variables
 
 These values must never be bundled into mobile/client code.
