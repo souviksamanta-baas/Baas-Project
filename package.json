@@ -6,6 +6,10 @@
     "apps/api",
     "apps/mobile"
   ],
+  "engines": {
+    "node": "22.x",
+    "npm": ">=10"
+  },
   "scripts": {
     "build": "npm run build -w @baas/api",
     "ci:verify": "npm run lint && npm run validate:migrations && npm run typecheck && npm test && npm run build && npm run validate:mobile",

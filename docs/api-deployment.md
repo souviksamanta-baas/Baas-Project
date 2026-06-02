@@ -83,6 +83,12 @@ public build environments.
 
 The initial deployment target is Railway, configured in `railway.json`.
 
+Runtime selection:
+
+- Root `package.json` declares `engines.node = 22.x`.
+- `.node-version` also declares `22` for Railway/Railpack-style runtime detection.
+- CI already uses Node 22, so Railway and CI run the same Node major version.
+
 Build command:
 
 ```bash
