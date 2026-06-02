@@ -1,0 +1,108 @@
+import { StyleSheet } from 'react-native';
+
+export const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#0f172a',
+  },
+  container: {
+    flexGrow: 1,
+    padding: 24,
+  },
+  eyebrow: {
+    color: '#38bdf8',
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+  },
+  title: {
+    color: '#f8fafc',
+    fontSize: 34,
+    fontWeight: '800',
+    marginBottom: 24,
+    marginTop: 8,
+  },
+  card: {
+    backgroundColor: '#f8fafc',
+    borderRadius: 24,
+    gap: 16,
+    padding: 20,
+  },
+  heading: {
+    color: '#0f172a',
+    fontSize: 24,
+    fontWeight: '800',
+  },
+  bodyText: {
+    color: '#475569',
+    fontSize: 16,
+    lineHeight: 24,
+  },
+  input: {
+    backgroundColor: '#ffffff',
+    borderColor: '#cbd5e1',
+    borderRadius: 14,
+    borderWidth: 1,
+    color: '#0f172a',
+    fontSize: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  primaryButton: {
+    alignItems: 'center',
+    backgroundColor: '#2563eb',
+    borderRadius: 14,
+    paddingVertical: 14,
+  },
+  disabledButton: {
+    opacity: 0.5,
+  },
+  primaryButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  secondaryButton: {
+    alignItems: 'center',
+    borderColor: '#cbd5e1',
+    borderRadius: 14,
+    borderWidth: 1,
+    paddingVertical: 14,
+  },
+  secondaryButtonText: {
+    color: '#334155',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  metricsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  metric: {
+    backgroundColor: '#e0f2fe',
+    borderRadius: 16,
+    minWidth: '47%',
+    padding: 14,
+  },
+  metricValue: {
+    color: '#0f172a',
+    fontSize: 24,
+    fontWeight: '800',
+  },
+  metricLabel: {
+    color: '#475569',
+    fontSize: 13,
+    fontWeight: '600',
+    marginTop: 4,
+  },
+  emptyState: {
+    backgroundColor: '#f1f5f9',
+    borderRadius: 14,
+    color: '#334155',
+    fontSize: 15,
+    lineHeight: 22,
+    padding: 12,
+  },
+});

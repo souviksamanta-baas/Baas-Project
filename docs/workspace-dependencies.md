@@ -109,6 +109,33 @@ npm run dev:api
 npm run dev:mobile
 ```
 
+Create a clean audit archive from tracked source files only:
+
+```bash
+npm run audit:archive
+```
+
+To write the archive to a specific path:
+
+```bash
+npm run audit:archive -- --output /tmp/baas-mvp-audit.zip
+```
+
+## Archive and Backup Policy
+
+Do not commit, audit, or back up generated dependency and build folders:
+
+- `node_modules/`
+- `dist/`
+- `build/`
+- `.expo/`
+- workspace-level generated output such as `apps/api/dist/`
+
+These folders are intentionally ignored and can be regenerated with `npm install`,
+`npm run build`, or Expo tooling. Audits and backups should use `npm run
+audit:archive`, which builds a ZIP from `git archive` so only tracked repository
+source is included.
+
 ## Verification
 
 The cleanup was verified with:
@@ -119,6 +146,8 @@ The cleanup was verified with:
 - `npm run build`
 - Expo config validation for `apps/mobile`
 - Search confirming no remaining `"latest"` dependency specs in package manifests
+- `git ls-files 'node_modules/*' 'dist/*' 'apps/*/dist/*'` to confirm generated
+  dependency/build folders are not tracked
 
 `npm audit` still reports 10 moderate findings through Expo CLI transitive
 `uuid`/`xcode` dependencies. The available npm fix requires `--force` and would

@@ -12,11 +12,15 @@ render the empty owner dashboard.
 
 | Path | Purpose |
 | --- | --- |
-| `apps/mobile/App.tsx` | Phase 0 login, OTP verification, onboarding, and dashboard UI. |
+| `apps/mobile/App.tsx` | App composition and state-based route rendering. |
 | `apps/mobile/app.json` | Expo app metadata. |
 | `apps/mobile/tsconfig.json` | Mobile TypeScript configuration. |
 | `apps/mobile/src/lib/supabase.ts` | Supabase client configured for React Native. |
 | `apps/mobile/src/features/onboarding.ts` | Calls onboarding/dashboard RPCs. |
+| `apps/mobile/src/hooks/useOwnerSession.ts` | Owner session, OTP, onboarding, dashboard, and sign-out state. |
+| `apps/mobile/src/screens/*` | Loading, login, OTP, onboarding, and dashboard screen components. |
+| `apps/mobile/src/components/*` | Reusable button and metric components. |
+| `apps/mobile/src/services/auth.ts` | Supabase auth operation wrappers. |
 | `apps/mobile/src/types/dashboard.ts` | Dashboard bootstrap response type. |
 
 ## Supabase Client
@@ -32,7 +36,8 @@ or any server-only variables.
 
 ## Navigation Flow
 
-Phase 0 keeps navigation intentionally simple and state-based:
+Phase 0 keeps navigation intentionally simple and state-based, but Phase 1 split
+the shell into maintainable boundaries before the MVP screens expand:
 
 1. `loading`: checks the current Supabase session.
 2. `login`: requests a phone OTP with `supabase.auth.signInWithOtp`.
@@ -40,7 +45,19 @@ Phase 0 keeps navigation intentionally simple and state-based:
 4. `onboarding`: calls `create_organization_with_owner` when no org exists.
 5. `dashboard`: calls `get_owner_dashboard` and renders the empty owner state.
 
-This can be replaced with a router once more screens are added in Phase 1.
+`App.tsx` now focuses on app composition and route selection. It delegates:
+
+| Path | Responsibility |
+| --- | --- |
+| `apps/mobile/src/screens/` | Route-level UI for loading, login, OTP verification, onboarding, and dashboard. |
+| `apps/mobile/src/components/` | Reusable UI primitives such as buttons and metric cards. |
+| `apps/mobile/src/hooks/useOwnerSession.ts` | Session bootstrapping, route state, OTP actions, onboarding, dashboard loading, and sign-out behavior. |
+| `apps/mobile/src/services/auth.ts` | Supabase auth operations used by the owner session hook. |
+| `apps/mobile/src/features/onboarding.ts` | Supabase RPC calls for organization creation and owner dashboard data. |
+| `apps/mobile/src/styles.ts` | Shared Phase 0/1 style primitives. |
+
+This structure can be replaced with a router once more screens are added in Phase
+2, while keeping screens, hooks, services, and reusable components separate.
 
 ## Empty Dashboard
 
@@ -86,3 +103,5 @@ For KAN-9, completion is verified when:
 - Organization creation calls the Phase 0 onboarding RPC.
 - Dashboard renders the Phase 0 empty state after onboarding.
 - No server-only secrets are bundled in mobile source.
+- `App.tsx` delegates screen rendering to `src/screens`.
+- Session and onboarding behavior live in `src/hooks/useOwnerSession.ts`.

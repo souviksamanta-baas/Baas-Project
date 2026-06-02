@@ -13,6 +13,7 @@ service-role database access, and future job triggers.
 | --- | --- |
 | `apps/api/src/main.ts` | NestJS bootstrap and raw-body parsing for webhook signatures. |
 | `apps/api/src/app.module.ts` | API module wiring controllers and providers. |
+| `apps/api/src/domains/*` | Phase 1 domain module boundaries for Phase 2 MVP growth. |
 | `apps/api/src/health.controller.ts` | `GET /health` endpoint for local and deployment checks. |
 | `apps/api/src/supabase/supabase.service.ts` | Server-only Supabase service-role client wrapper. |
 | `apps/api/src/webhooks/whatsapp/*` | Phase 0 WhatsApp webhook verification and inbound parsing. |
@@ -79,6 +80,23 @@ required server-only configuration.
 
 The service-role key must never be used in Expo, React Native, browser code, or
 public build environments.
+
+## API Domain Boundaries
+
+Phase 1 introduces `DomainModule` and domain modules for:
+
+- `organizations`
+- `customers`
+- `conversations`
+- `tasks`
+- `inventory`
+- `ai`
+
+Controllers should stay focused on transport concerns and call domain services.
+Persistence should be kept behind domain services or repository-style helpers
+that use `SupabaseService`; controllers should not scatter Supabase queries.
+
+Detailed conventions are tracked in `docs/api-domain-boundaries.md`.
 
 ## Railway Deployment
 

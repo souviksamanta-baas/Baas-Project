@@ -53,14 +53,16 @@ export class WhatsAppWebhookController {
 
   @Post()
   @HttpCode(200)
-  receiveWebhook(
+  async receiveWebhook(
     @Req() request: RawBodyRequest,
     @Headers('x-hub-signature-256') signatureHeader: string | undefined,
     @Body() payload: WhatsAppWebhookPayload,
-  ): WhatsAppWebhookResponse {
+  ): Promise<WhatsAppWebhookResponse> {
     this.verifySignatureIfConfigured(request.rawBody, signatureHeader);
 
-    const events = this.webhookService.parseInboundMessages(payload);
+    const events = await this.webhookService.persistInboundMessages(
+      this.webhookService.parseInboundMessages(payload),
+    );
 
     for (const event of events) {
       this.logger.log(

@@ -1,10 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
+import { WhatsAppMessageEventRepository } from '../src/webhooks/whatsapp/whatsapp-message-event.repository';
 import {
   InvalidWebhookSignatureError,
   WhatsAppWebhookService,
 } from '../src/webhooks/whatsapp/whatsapp-webhook.service';
-import { WhatsAppWebhookPayload } from '../src/webhooks/whatsapp/whatsapp-webhook.types';
+import {
+  WhatsAppInboundMessageLog,
+  WhatsAppWebhookPayload,
+} from '../src/webhooks/whatsapp/whatsapp-webhook.types';
 
 function createPayload(messageId = 'wamid.test-message'): WhatsAppWebhookPayload {
   return {
@@ -97,7 +101,7 @@ describe('WhatsAppWebhookService', () => {
     ).toThrow(InvalidWebhookSignatureError);
   });
 
-  it('extracts safe log fields and recognizes duplicate deliveries', () => {
+  it('extracts safe log fields without relying on in-memory dedupe', () => {
     const service = new WhatsAppWebhookService();
     const payload = createPayload();
 
@@ -112,6 +116,31 @@ describe('WhatsAppWebhookService', () => {
       },
     ]);
 
-    expect(service.parseInboundMessages(payload)[0]?.duplicate).toBe(true);
+    expect(service.parseInboundMessages(payload)[0]?.duplicate).toBe(false);
+  });
+
+  it('uses persistent event storage as the durable dedupe boundary', async () => {
+    const seenEventKeys = new Set<string>();
+    const repository = {
+      recordInboundMessages: async (events: WhatsAppInboundMessageLog[]) =>
+        events.map((event) => {
+          const eventKey = `${event.phoneNumberId}:${event.messageId}`;
+          const duplicate = seenEventKeys.has(eventKey);
+          seenEventKeys.add(eventKey);
+          return { ...event, duplicate };
+        }),
+    } as unknown as WhatsAppMessageEventRepository;
+
+    const firstServiceInstance = new WhatsAppWebhookService(repository);
+    const secondServiceInstance = new WhatsAppWebhookService(repository);
+    const firstEvents = firstServiceInstance.parseInboundMessages(createPayload());
+    const secondEvents = secondServiceInstance.parseInboundMessages(createPayload());
+
+    await expect(firstServiceInstance.persistInboundMessages(firstEvents)).resolves.toMatchObject([
+      { messageId: 'wamid.test-message', duplicate: false },
+    ]);
+    await expect(secondServiceInstance.persistInboundMessages(secondEvents)).resolves.toMatchObject([
+      { messageId: 'wamid.test-message', duplicate: true },
+    ]);
   });
 });

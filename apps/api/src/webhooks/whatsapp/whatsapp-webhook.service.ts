@@ -6,6 +6,7 @@ import {
   WhatsAppInboundMessageLog,
   WhatsAppWebhookPayload,
 } from './whatsapp-webhook.types';
+import { WhatsAppMessageEventRepository } from './whatsapp-message-event.repository';
 
 export class InvalidWebhookSignatureError extends Error {
   constructor(message: string) {
@@ -16,7 +17,7 @@ export class InvalidWebhookSignatureError extends Error {
 
 @Injectable()
 export class WhatsAppWebhookService {
-  private readonly seenMessageIds = new Set<string>();
+  constructor(private readonly eventRepository?: WhatsAppMessageEventRepository) {}
 
   verifyMetaChallenge(params: {
     mode?: string;
@@ -81,22 +82,29 @@ export class WhatsAppWebhookService {
             continue;
           }
 
-          const duplicate = this.seenMessageIds.has(message.id);
-          this.seenMessageIds.add(message.id);
-
           events.push({
             messageId: message.id,
             senderPhone: message.from,
             phoneNumberId,
             timestamp: this.toIsoTimestamp(message.timestamp),
             messageType: message.type ?? 'unknown',
-            duplicate,
+            duplicate: false,
           });
         }
       }
     }
 
     return events;
+  }
+
+  async persistInboundMessages(
+    events: WhatsAppInboundMessageLog[],
+  ): Promise<WhatsAppInboundMessageLog[]> {
+    if (!this.eventRepository) {
+      return events;
+    }
+
+    return this.eventRepository.recordInboundMessages(events);
   }
 
   private toIsoTimestamp(timestamp?: string): string | null {

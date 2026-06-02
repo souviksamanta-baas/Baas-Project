@@ -140,6 +140,17 @@ For mobile config validation:
 npm run validate:mobile
 ```
 
+For audit/package hygiene validation, generate review archives from tracked source
+instead of raw project folders:
+
+```bash
+npm run audit:archive
+```
+
+This archive flow uses `git archive` and refuses to proceed if generated folders
+such as `node_modules/`, `dist/`, `build/`, `.expo/`, or workspace build outputs
+are tracked.
+
 If the remote migration dry-run fails on `main`, verify that the GitHub repository
 variable and secrets are present and that the Supabase project ref matches the
 intended Phase 0 project.

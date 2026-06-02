@@ -91,3 +91,4 @@ For KAN-13, this work is complete when:
 - [Workspace and Dependency Management](workspace-dependencies.md)
 - [CI and Migration Workflow](ci.md)
 - [NestJS API Scaffold and Deployment](api-deployment.md)
+- [API Domain Boundaries](api-domain-boundaries.md)
