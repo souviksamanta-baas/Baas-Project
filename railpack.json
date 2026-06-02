@@ -1,0 +1,33 @@
+{
+  "$schema": "https://schema.railpack.com",
+  "steps": {
+    "install": {
+      "commands": [
+        {
+          "src": ".",
+          "dest": "."
+        },
+        {
+          "cmd": "npm run railway:install",
+          "customName": "Install API workspace dependencies"
+        }
+      ]
+    },
+    "build": {
+      "inputs": [
+        {
+          "step": "install"
+        }
+      ],
+      "commands": [
+        {
+          "cmd": "npm run railway:build",
+          "customName": "Build API workspace"
+        }
+      ]
+    }
+  },
+  "deploy": {
+    "startCommand": "npm run railway:start"
+  }
+}

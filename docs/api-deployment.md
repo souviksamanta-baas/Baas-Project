@@ -17,7 +17,8 @@ service-role database access, and future job triggers.
 | `apps/api/src/supabase/supabase.service.ts` | Server-only Supabase service-role client wrapper. |
 | `apps/api/src/webhooks/whatsapp/*` | Phase 0 WhatsApp webhook verification and inbound parsing. |
 | `apps/api/package.json` | API workspace dependencies and scripts. |
-| `railway.json` | Railway deployment configuration. |
+| `railway.json` | Railway service command configuration. |
+| `railpack.json` | Railpack install/build plan scoped to the API workspace. |
 
 ## Local Commands
 
@@ -89,16 +90,26 @@ Runtime selection:
 - `.node-version` also declares `22` for Railway/Railpack-style runtime detection.
 - CI already uses Node 22, so Railway and CI run the same Node major version.
 
+Monorepo targeting:
+
+- This repo is an npm workspace monorepo with `apps/api` and `apps/mobile`.
+- Railway should deploy only `@baas/api`.
+- `railpack.json` overrides the Railpack install step to run
+  `npm run railway:install`, which installs only the API workspace with
+  `npm ci --workspace @baas/api --include-workspace-root=false --include=dev`.
+- `railway.json` uses API-only build/start scripts and does not invoke the mobile
+  workspace.
+
 Build command:
 
 ```bash
-npm ci && npm run build
+npm run railway:build
 ```
 
 Start command:
 
 ```bash
-npm run start:api:prod
+npm run railway:start
 ```
 
 Health check path:
@@ -125,10 +136,11 @@ Do not put real secret values in source files, Jira, Confluence, or local docs.
 
 After Railway is connected to the repository and variables are configured:
 
-1. Railway runs `npm ci && npm run build`.
-2. Railway starts the API with `npm run start:api:prod`.
-3. Railway health checks `GET /health`.
-4. Verify the public endpoint manually:
+1. Railpack runs `npm run railway:install`, installing only `@baas/api`.
+2. Railway runs `npm run railway:build`.
+3. Railway starts the API with `npm run railway:start`.
+4. Railway health checks `GET /health`.
+5. Verify the public endpoint manually:
 
 ```bash
 curl https://<railway-domain>/health
