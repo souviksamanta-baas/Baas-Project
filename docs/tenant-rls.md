@@ -17,6 +17,8 @@ The Phase 0 tenant foundation defines:
 | --- | --- |
 | `20260601160000_create_tenant_foundation.sql` | Creates tenant tables, constraints, indexes, triggers, grants, and initial RLS policies. |
 | `20260601170000_harden_tenant_rls_helpers.sql` | Moves policy helper functions to the private schema, removes public helper RPC exposure, and hardens trigger function privileges. |
+| `20260604225000_add_whatsapp_connection_status.sql` | Adds safe WhatsApp connection status metadata and exposes it through `get_owner_dashboard` without granting direct client access to `whatsapp_config`. |
+| `20260604231000_create_conversation_message_persistence.sql` | Adds tenant-scoped `conversations` and `conversation_messages` with authenticated read policies and server-owned writes. |
 
 ## RLS Policy Model
 
@@ -25,12 +27,23 @@ All Phase 0 tenant tables have RLS enabled and forced:
 - `organizations`
 - `organization_members`
 - `whatsapp_config`
+- `conversations`
+- `conversation_messages`
 
 Client users can read `organizations` and `organization_members` only when their `auth.uid()` belongs to the organization through `organization_members`.
 
 Organization owners can update organization rows and manage membership rows for their own organization only.
 
 `whatsapp_config` intentionally has no client-readable policy and no `anon` or `authenticated` table privileges. It is service-role only because it stores WhatsApp identifiers and encrypted integration secrets.
+
+Phase 2 owner-facing WhatsApp status is exposed through `get_owner_dashboard`,
+not direct table access. The RPC returns a safe `whatsappConnection` object with
+status and display metadata, while encrypted tokens and webhook secrets remain
+server-only.
+
+Phase 2 conversation history is client-readable only for organization members.
+The API service role owns writes for inbound webhook events and outbound
+WhatsApp sends, preventing mobile clients from forging persisted message history.
 
 ## Verification
 
@@ -48,6 +61,8 @@ It creates two temporary auth users and two organizations inside a transaction, 
 - Tenant B can read Tenant B data.
 - Tenant B cannot read Tenant A data.
 - Neither tenant can read `whatsapp_config`.
+- Owner dashboard can expose safe WhatsApp connection status without granting
+  direct `whatsapp_config` access.
 
 The transaction rolls back at the end, so no test tenant data remains.
 

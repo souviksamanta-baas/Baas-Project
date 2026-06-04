@@ -68,7 +68,12 @@ export class WhatsAppWebhookController {
       this.logger.log(
         JSON.stringify({
           event: 'whatsapp.webhook.message.received',
-          ...event,
+          messageId: event.messageId,
+          senderPhone: event.senderPhone,
+          phoneNumberId: event.phoneNumberId,
+          timestamp: event.timestamp,
+          messageType: event.messageType,
+          duplicate: event.duplicate,
         }),
       );
     }

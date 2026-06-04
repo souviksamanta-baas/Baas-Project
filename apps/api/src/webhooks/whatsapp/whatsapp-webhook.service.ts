@@ -82,12 +82,16 @@ export class WhatsAppWebhookService {
             continue;
           }
 
+          const contact = change.value?.contacts?.find((candidate) => candidate.wa_id === message.from);
+
           events.push({
             messageId: message.id,
             senderPhone: message.from,
+            senderDisplayName: contact?.profile?.name ?? null,
             phoneNumberId,
             timestamp: this.toIsoTimestamp(message.timestamp),
             messageType: message.type ?? 'unknown',
+            textBody: message.text?.body ?? null,
             duplicate: false,
           });
         }

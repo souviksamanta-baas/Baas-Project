@@ -6,6 +6,7 @@ import { CustomersModule } from './customers/customers.module';
 import { InventoryModule } from './inventory/inventory.module';
 import { OrganizationsModule } from './organizations/organizations.module';
 import { TasksModule } from './tasks/tasks.module';
+import { WhatsAppModule } from './whatsapp/whatsapp.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { TasksModule } from './tasks/tasks.module';
     TasksModule,
     InventoryModule,
     AiModule,
+    WhatsAppModule,
   ],
   exports: [
     OrganizationsModule,
@@ -23,6 +25,7 @@ import { TasksModule } from './tasks/tasks.module';
     TasksModule,
     InventoryModule,
     AiModule,
+    WhatsAppModule,
   ],
 })
 export class DomainModule {}

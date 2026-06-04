@@ -80,6 +80,51 @@ export const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 12,
   },
+  statusCard: {
+    backgroundColor: '#ecfeff',
+    borderColor: '#bae6fd',
+    borderRadius: 16,
+    borderWidth: 1,
+    gap: 4,
+    padding: 14,
+  },
+  statusLabel: {
+    color: '#0369a1',
+    fontSize: 13,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+  },
+  statusValue: {
+    color: '#0f172a',
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  statusDetail: {
+    color: '#475569',
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  statusError: {
+    color: '#b91c1c',
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  messagePreview: {
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    gap: 2,
+    padding: 10,
+  },
+  messagePreviewMeta: {
+    color: '#0369a1',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  messagePreviewBody: {
+    color: '#334155',
+    fontSize: 14,
+    lineHeight: 20,
+  },
   metric: {
     backgroundColor: '#e0f2fe',
     borderRadius: 16,

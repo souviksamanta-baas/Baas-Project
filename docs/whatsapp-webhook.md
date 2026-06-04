@@ -6,6 +6,7 @@ This document tracks the Phase 0 WhatsApp webhook work for `KAN-8`.
 
 Phase 0 proved WhatsApp Cloud API connectivity. Phase 1 adds durable webhook
 event persistence so duplicate detection survives deploys and process restarts.
+Phase 2 adds owner-visible connection status for the WhatsApp Business number.
 The NestJS API exposes:
 
 - `GET /webhooks/whatsapp` for Meta webhook verification.
@@ -26,6 +27,29 @@ The NestJS API exposes:
 
 Do not expose these values to the Expo/mobile client. Store real values only in
 ignored local env files or deployment secret stores.
+
+## Connection Status
+
+WhatsApp Business connection metadata is stored in:
+
+```text
+public.whatsapp_config
+```
+
+The table remains service-role only because it can contain server-side
+integration metadata and encrypted access tokens. Phase 2 adds safe status
+fields:
+
+- `display_phone_number`
+- `connection_status` (`pending`, `connected`, `error`, `disabled`)
+- `verified_at`
+- `disconnected_at`
+- `last_error`
+- `last_status_check_at`
+
+The owner mobile dashboard does not read `whatsapp_config` directly. It calls
+`get_owner_dashboard`, which returns a safe `whatsappConnection` object with
+connection state and non-secret display metadata only.
 
 ## Meta Verification Flow
 
@@ -61,7 +85,9 @@ For each inbound message, the API persists and logs:
 
 Message content is intentionally not logged. Phase 1 persists safe event
 metadata with tenant mapping when a WhatsApp config exists and database-level
-deduplication for every received message ID.
+deduplication for every received message ID. Phase 2 also stores message bodies
+in tenant-scoped conversation history when the inbound phone number maps to a
+configured organization.
 
 ## Event Persistence
 
@@ -91,6 +117,50 @@ not exist yet, the event is still deduplicated by `phone_number_id` and
 
 The table is service-role only. Mobile clients and authenticated user sessions do
 not receive direct table grants.
+
+## Conversation and Message Persistence
+
+Phase 2 stores customer-visible message history in:
+
+```text
+public.conversations
+public.conversation_messages
+```
+
+`conversations` tracks one WhatsApp thread per organization/contact phone
+number. `conversation_messages` stores inbound and outbound message records with:
+
+- `organization_id`
+- `conversation_id`
+- `direction` (`inbound`, `outbound`)
+- `external_message_id`
+- sender/recipient phone metadata
+- `message_type`
+- `body`
+- `message_status`
+- received/sent/failed timestamps
+
+Authenticated users can select only rows for organizations they belong to. Writes
+remain server-owned through the API service role so mobile clients cannot forge
+conversation history.
+
+`conversation_messages` is added to the `supabase_realtime` publication when the
+publication exists, allowing the mobile inbox to subscribe to tenant-scoped
+message changes in later inbox work.
+
+## Outbound Sends
+
+`WhatsAppOutboundMessageService` sends text messages through the WhatsApp Cloud
+API from the server only:
+
+```text
+POST https://graph.facebook.com/v20.0/{phone_number_id}/messages
+```
+
+The service loads the connected WhatsApp configuration by organization, sends
+with the server-side access token, and persists a `sent` or `failed` outbound
+message record. Mobile code does not call Meta APIs directly and does not receive
+WhatsApp access tokens.
 
 ## Duplicate Deliveries
 

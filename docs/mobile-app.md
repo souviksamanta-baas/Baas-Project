@@ -64,8 +64,33 @@ This structure can be replaced with a router once more screens are added in Phas
 After organization creation, the dashboard shows:
 
 - Active organization name.
+- WhatsApp Business connection status from the safe `get_owner_dashboard`
+  response.
 - Zero-count metrics for contacts, open conversations, products, and low stock.
 - Setup prompts for WhatsApp, product catalog, and follow-up rules.
+
+The dashboard renders only non-secret WhatsApp metadata:
+
+- connection status
+- display phone number or phone number ID
+- last non-secret setup error, when present
+
+The mobile app never reads WhatsApp access tokens, webhook verify tokens, app
+secrets, or service-role configuration.
+
+## Realtime Message Delivery
+
+Phase 2 message history is stored in `conversation_messages`, which is registered
+with Supabase Realtime by the migration when the `supabase_realtime` publication
+exists. The future inbox screen should subscribe with an organization-scoped
+filter and rely on RLS so owners only receive messages for organizations where
+they are members.
+
+The dashboard now includes a compact live WhatsApp message preview that:
+
+- Loads recent `conversation_messages` rows for the active organization.
+- Subscribes to `INSERT` events with `organization_id=eq.<active-org-id>`.
+- Updates the visible preview when new messages arrive without manual refresh.
 
 ## Local Commands
 

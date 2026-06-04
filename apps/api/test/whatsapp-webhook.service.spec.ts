@@ -109,9 +109,11 @@ describe('WhatsAppWebhookService', () => {
       {
         messageId: 'wamid.test-message',
         senderPhone: '15557654321',
+        senderDisplayName: 'Test Sender',
         phoneNumberId: 'phone-number-id-1',
         timestamp: '2024-06-01T12:00:00.000Z',
         messageType: 'text',
+        textBody: 'Hello',
         duplicate: false,
       },
     ]);

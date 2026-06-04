@@ -18,21 +18,32 @@ features expand the API surface.
 | `tasks/` | Follow-up tasks, reminders, and scheduled workflow state. |
 | `inventory/` | Product catalog, stock levels, reorder thresholds, and stock movements. |
 | `ai/` | AI orchestration, tool calls, prompt policy, and draft/auto-send decisions. |
+| `whatsapp/` | WhatsApp Business connection status, channel configuration reads, message persistence, outbound sends, and server-only channel metadata. |
 
 `apps/api/src/domains/domain.module.ts` imports and exports these domain modules
 so new Phase 2 work has an explicit home.
 
 ## Current Boundary
 
-The first concrete boundary is `OrganizationsModule`:
+The first concrete boundaries are `OrganizationsModule` and `WhatsAppModule`:
 
 ```text
 apps/api/src/domains/organizations/
+apps/api/src/domains/whatsapp/
 ```
 
-It exposes `OrganizationsService`, which wraps organization reads behind a domain
-service instead of letting future controllers call Supabase directly. Existing
-Phase 0 behavior is unchanged.
+`OrganizationsModule` exposes `OrganizationsService`, which wraps organization
+reads behind a domain service instead of letting future controllers call
+Supabase directly. `WhatsAppModule` exposes:
+
+- `WhatsAppConnectionService` for server-side reads of WhatsApp connection
+  status and non-secret channel metadata.
+- `WhatsAppConversationMessageRepository` for tenant-scoped inbound/outbound
+  conversation message records.
+- `WhatsAppOutboundMessageService` for server-side WhatsApp Cloud API sends and
+  send-result persistence.
+
+Existing Phase 0 behavior is unchanged.
 
 ## Controller Rules
 

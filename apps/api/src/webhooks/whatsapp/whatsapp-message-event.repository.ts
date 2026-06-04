@@ -1,11 +1,18 @@
 import { Injectable } from '@nestjs/common';
 
+import { WhatsAppConversationMessageRepository } from '../../domains/whatsapp/whatsapp-conversation-message.repository';
 import { SupabaseService } from '../../supabase/supabase.service';
 import { WhatsAppInboundMessageLog } from './whatsapp-webhook.types';
 
 interface WhatsAppConfigRecord {
   id: string;
   organization_id: string;
+}
+
+interface WhatsAppMessageEventRecord {
+  id: string;
+  organization_id: string | null;
+  whatsapp_config_id: string | null;
 }
 
 interface PersistedWhatsAppEventRow {
@@ -22,7 +29,10 @@ interface PersistedWhatsAppEventRow {
 
 @Injectable()
 export class WhatsAppMessageEventRepository {
-  constructor(private readonly supabaseService: SupabaseService) {}
+  constructor(
+    private readonly supabaseService: SupabaseService,
+    private readonly messageRepository?: WhatsAppConversationMessageRepository,
+  ) {}
 
   async recordInboundMessages(
     events: WhatsAppInboundMessageLog[],
@@ -54,9 +64,14 @@ export class WhatsAppMessageEventRepository {
     const client = this.supabaseService.getServiceRoleClient();
     const whatsappConfig = await this.findWhatsAppConfig(event.phoneNumberId);
     const row = this.toInsertRow(event, whatsappConfig);
-    const { error } = await client.from('whatsapp_message_events').insert(row);
+    const { data, error } = await client
+      .from('whatsapp_message_events')
+      .insert(row)
+      .select('id, organization_id, whatsapp_config_id')
+      .single<WhatsAppMessageEventRecord>();
 
     if (!error) {
+      await this.recordConversationMessage(event, data);
       return { ...event, duplicate: false };
     }
 
@@ -108,5 +123,30 @@ export class WhatsAppMessageEventRepository {
         source: 'whatsapp_cloud_api',
       },
     };
+  }
+
+  private async recordConversationMessage(
+    event: WhatsAppInboundMessageLog,
+    messageEvent: WhatsAppMessageEventRecord,
+  ): Promise<void> {
+    if (
+      !this.messageRepository ||
+      !messageEvent.organization_id ||
+      !messageEvent.whatsapp_config_id
+    ) {
+      return;
+    }
+
+    await this.messageRepository.recordInboundMessage({
+      eventId: messageEvent.id,
+      organizationId: messageEvent.organization_id,
+      whatsappConfigId: messageEvent.whatsapp_config_id,
+      messageId: event.messageId,
+      senderDisplayName: event.senderDisplayName,
+      senderPhone: event.senderPhone,
+      textBody: event.textBody,
+      timestamp: event.timestamp,
+      messageType: event.messageType,
+    });
   }
 }

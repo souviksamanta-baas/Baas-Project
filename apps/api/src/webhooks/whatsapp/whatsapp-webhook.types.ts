@@ -41,9 +41,11 @@ export interface WhatsAppMessage {
 export interface WhatsAppInboundMessageLog {
   messageId: string;
   senderPhone: string;
+  senderDisplayName: string | null;
   phoneNumberId: string;
   timestamp: string | null;
   messageType: string;
+  textBody: string | null;
   duplicate: boolean;
 }
 
