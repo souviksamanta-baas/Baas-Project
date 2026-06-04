@@ -58,9 +58,9 @@ if (!isDryRun && !isConfirmed) {
   throw new Error('Refusing to remove generated artifacts without --yes. Use --dry-run to preview.');
 }
 
-const existingArtifactPaths = generatedArtifactPaths.filter((artifactPath) =>
-  existsSync(resolve(repoRoot, artifactPath)),
-);
+const existingArtifactPaths = generatedArtifactPaths
+  .filter((artifactPath) => existsSync(resolve(repoRoot, artifactPath)))
+  .sort((left, right) => right.split('/').length - left.split('/').length);
 
 if (existingArtifactPaths.length === 0) {
   console.log('No generated artifact folders found.');
@@ -81,6 +81,11 @@ if (isDryRun) {
 }
 
 for (const artifactPath of existingArtifactPaths) {
-  rmSync(resolve(repoRoot, artifactPath), { recursive: true, force: true });
+  rmSync(resolve(repoRoot, artifactPath), {
+    recursive: true,
+    force: true,
+    maxRetries: 5,
+    retryDelay: 200,
+  });
   console.log(`Removed ${artifactPath}`);
 }
