@@ -121,6 +121,24 @@ To write the archive to a specific path:
 npm run audit:archive -- --output /tmp/baas-mvp-audit.zip
 ```
 
+Preview generated local folders that can be removed before auditing the raw
+working directory:
+
+```bash
+npm run audit:clean:dry-run
+```
+
+Remove generated local folders:
+
+```bash
+npm run audit:clean
+```
+
+`audit:clean` removes only generated folders that can be recreated from source:
+`node_modules/`, `dist/`, `build/`, `.expo/`, `.audit/`, and workspace-level
+copies of those folders. It refuses to remove a folder if Git reports tracked
+files inside it.
+
 ## Archive and Backup Policy
 
 Do not commit, audit, or back up generated dependency and build folders:
@@ -132,7 +150,9 @@ Do not commit, audit, or back up generated dependency and build folders:
 - workspace-level generated output such as `apps/api/dist/`
 
 These folders are intentionally ignored and can be regenerated with `npm install`,
-`npm run build`, or Expo tooling. Audits and backups should use `npm run
+`npm run build`, or Expo tooling. If an auditor scans the raw working directory,
+run `npm run audit:clean:dry-run` first, then `npm run audit:clean` if the listed
+folders are expected. Audits and backups should still prefer `npm run
 audit:archive`, which builds a ZIP from `git archive` so only tracked repository
 source is included.
 
@@ -144,6 +164,7 @@ The cleanup was verified with:
 - `npm run typecheck`
 - `npm test`
 - `npm run build`
+- `npm run audit:clean:dry-run`
 - Expo config validation for `apps/mobile`
 - Search confirming no remaining `"latest"` dependency specs in package manifests
 - `git ls-files 'node_modules/*' 'dist/*' 'apps/*/dist/*'` to confirm generated

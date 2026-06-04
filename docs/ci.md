@@ -151,6 +151,18 @@ This archive flow uses `git archive` and refuses to proceed if generated folders
 such as `node_modules/`, `dist/`, `build/`, `.expo/`, or workspace build outputs
 are tracked.
 
+If a raw working-directory audit is required, preview and remove generated local
+folders first:
+
+```bash
+npm run audit:clean:dry-run
+npm run audit:clean
+```
+
+The cleanup command removes generated folders only when they contain no tracked
+files. After cleanup, dependencies and build outputs can be recreated with
+`npm install`, `npm run build`, and Expo tooling.
+
 If the remote migration dry-run fails on `main`, verify that the GitHub repository
 variable and secrets are present and that the Supabase project ref matches the
 intended Phase 0 project.
