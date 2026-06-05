@@ -6,6 +6,10 @@ interface ConversationRecord {
   id: string;
 }
 
+interface ContactRecord {
+  id: string;
+}
+
 export interface RecordInboundWhatsAppMessageParams {
   eventId: string;
   organizationId: string;
@@ -107,12 +111,19 @@ export class WhatsAppConversationMessageRepository {
     whatsappConfigId: string;
   }): Promise<ConversationRecord> {
     const client = this.supabaseService.getServiceRoleClient();
+    const contact = await this.upsertContact({
+      customerDisplayName: params.customerDisplayName,
+      externalContactId: params.externalContactId,
+      lastSeenAt: params.lastMessageAt,
+      organizationId: params.organizationId,
+    });
     const { data, error } = await client
       .from('conversations')
       .upsert(
         {
           organization_id: params.organizationId,
           whatsapp_config_id: params.whatsappConfigId,
+          contact_id: contact.id,
           channel: 'whatsapp',
           external_contact_id: params.externalContactId,
           customer_display_name: params.customerDisplayName,
@@ -127,6 +138,42 @@ export class WhatsAppConversationMessageRepository {
 
     if (error) {
       throw new Error(`Failed to upsert WhatsApp conversation: ${error.message}`);
+    }
+
+    return data;
+  }
+
+  private async upsertContact(params: {
+    customerDisplayName: string | null;
+    externalContactId: string;
+    lastSeenAt: string | null;
+    organizationId: string;
+  }): Promise<ContactRecord> {
+    const seenAt = params.lastSeenAt ?? new Date().toISOString();
+    const client = this.supabaseService.getServiceRoleClient();
+    const { data, error } = await client
+      .from('contacts')
+      .upsert(
+        {
+          organization_id: params.organizationId,
+          channel: 'whatsapp',
+          external_contact_id: params.externalContactId,
+          phone_number: params.externalContactId,
+          display_name: params.customerDisplayName ?? params.externalContactId,
+          last_seen_at: seenAt,
+          metadata: {
+            source: 'whatsapp_cloud_api',
+          },
+        },
+        {
+          onConflict: 'organization_id,channel,external_contact_id',
+        },
+      )
+      .select('id')
+      .single<ContactRecord>();
+
+    if (error) {
+      throw new Error(`Failed to upsert WhatsApp contact: ${error.message}`);
     }
 
     return data;

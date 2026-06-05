@@ -19,6 +19,7 @@ The Phase 0 tenant foundation defines:
 | `20260601170000_harden_tenant_rls_helpers.sql` | Moves policy helper functions to the private schema, removes public helper RPC exposure, and hardens trigger function privileges. |
 | `20260604225000_add_whatsapp_connection_status.sql` | Adds safe WhatsApp connection status metadata and exposes it through `get_owner_dashboard` without granting direct client access to `whatsapp_config`. |
 | `20260604231000_create_conversation_message_persistence.sql` | Adds tenant-scoped `conversations` and `conversation_messages` with authenticated read policies and server-owned writes. |
+| `20260605193500_create_contacts_crm_foundation.sql` | Adds tenant-scoped `contacts`, links conversations to CRM contacts, updates dashboard metrics, and registers contact/conversation Realtime tables when available. |
 
 ## RLS Policy Model
 
@@ -27,6 +28,7 @@ All Phase 0 tenant tables have RLS enabled and forced:
 - `organizations`
 - `organization_members`
 - `whatsapp_config`
+- `contacts`
 - `conversations`
 - `conversation_messages`
 
@@ -44,6 +46,10 @@ server-only.
 Phase 2 conversation history is client-readable only for organization members.
 The API service role owns writes for inbound webhook events and outbound
 WhatsApp sends, preventing mobile clients from forging persisted message history.
+
+Phase 2 contact records follow the same model: authenticated owners can select
+contacts for their organizations, while the API service role owns writes from
+trusted inbound webhook processing and future CRM workflows.
 
 ## Verification
 

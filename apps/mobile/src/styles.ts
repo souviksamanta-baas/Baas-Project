@@ -125,6 +125,52 @@ export const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
   },
+  inboxLayout: {
+    gap: 12,
+  },
+  conversationList: {
+    gap: 8,
+  },
+  conversationItem: {
+    backgroundColor: '#ffffff',
+    borderColor: '#e2e8f0',
+    borderRadius: 14,
+    borderWidth: 1,
+    gap: 4,
+    padding: 12,
+  },
+  selectedConversationItem: {
+    borderColor: '#2563eb',
+  },
+  conversationTitle: {
+    color: '#0f172a',
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  conversationMeta: {
+    color: '#64748b',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  threadCard: {
+    backgroundColor: '#f8fafc',
+    borderColor: '#bae6fd',
+    borderRadius: 16,
+    borderWidth: 1,
+    gap: 8,
+    padding: 12,
+  },
+  threadMessage: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    maxWidth: '88%',
+    padding: 10,
+  },
+  outboundThreadMessage: {
+    alignSelf: 'flex-end',
+    backgroundColor: '#dbeafe',
+  },
   metric: {
     backgroundColor: '#e0f2fe',
     borderRadius: 16,

@@ -34,12 +34,15 @@ apps/api/src/domains/whatsapp/
 
 `OrganizationsModule` exposes `OrganizationsService`, which wraps organization
 reads behind a domain service instead of letting future controllers call
-Supabase directly. `WhatsAppModule` exposes:
+Supabase directly. The `customers/` and `conversations/` domains now have
+database-backed ownership through `contacts`, `conversations`, and
+`conversation_messages`, even while their NestJS modules remain thin.
+`WhatsAppModule` exposes:
 
 - `WhatsAppConnectionService` for server-side reads of WhatsApp connection
   status and non-secret channel metadata.
 - `WhatsAppConversationMessageRepository` for tenant-scoped inbound/outbound
-  conversation message records.
+  contact, conversation, and message records.
 - `WhatsAppOutboundMessageService` for server-side WhatsApp Cloud API sends and
   send-result persistence.
 

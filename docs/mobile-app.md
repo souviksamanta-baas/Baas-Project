@@ -99,6 +99,22 @@ The dashboard now includes a compact live WhatsApp message preview that:
 - Subscribes to `INSERT` events with `organization_id=eq.<active-org-id>`.
 - Updates the visible preview when new messages arrive without manual refresh.
 
+## Universal Inbox
+
+Phase 2 expands the dashboard preview into a lightweight Universal Inbox:
+
+- Loads tenant-scoped `conversations` with linked `contacts`.
+- Shows the latest message preview and timestamp for each conversation.
+- Opens a selected thread and loads persisted `conversation_messages`.
+- Groups message bubbles by `inbound` and `outbound` direction.
+- Shows contact identity, phone number, and lead status inline.
+- Subscribes to conversation and message changes through Supabase Realtime and
+  cleans up the subscription when the dashboard unmounts.
+
+The reply entry point is intentionally documented as server-routed. Mobile must
+not call WhatsApp Cloud API directly; outbound sends continue through the
+approved API/domain send path.
+
 ## Local Commands
 
 Install dependencies:

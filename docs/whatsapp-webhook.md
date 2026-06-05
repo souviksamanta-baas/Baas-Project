@@ -123,12 +123,15 @@ not receive direct table grants.
 Phase 2 stores customer-visible message history in:
 
 ```text
+public.contacts
 public.conversations
 public.conversation_messages
 ```
 
-`conversations` tracks one WhatsApp thread per organization/contact phone
-number. `conversation_messages` stores inbound and outbound message records with:
+`contacts` stores one CRM identity per organization/contact phone number.
+`conversations` tracks one WhatsApp thread per organization/contact phone number
+and links to the contact record. `conversation_messages` stores inbound and
+outbound message records with:
 
 - `organization_id`
 - `conversation_id`
@@ -143,6 +146,11 @@ number. `conversation_messages` stores inbound and outbound message records with
 Authenticated users can select only rows for organizations they belong to. Writes
 remain server-owned through the API service role so mobile clients cannot forge
 conversation history.
+
+Inbound webhook processing upserts the contact before linking/upserting the
+conversation. Unknown WhatsApp numbers therefore become CRM contacts
+automatically, and existing numbers update `last_seen_at` and conversation
+metadata without duplicating the contact.
 
 `conversation_messages` is added to the `supabase_realtime` publication when the
 publication exists, allowing the mobile inbox to subscribe to tenant-scoped
