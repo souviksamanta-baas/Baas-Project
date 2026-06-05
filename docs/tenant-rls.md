@@ -33,6 +33,7 @@ All Phase 0 tenant tables have RLS enabled and forced:
 - `organizations`
 - `organization_members`
 - `whatsapp_config`
+- `whatsapp_message_events`
 - `contacts`
 - `conversations`
 - `conversation_messages`
@@ -54,6 +55,10 @@ owners can change tenant AI and follow-up settings. Staff members can still read
 safe dashboard settings through membership-scoped reads.
 
 `whatsapp_config` intentionally has no client-readable policy and no `anon` or `authenticated` table privileges. It is service-role only because it stores WhatsApp identifiers and encrypted integration secrets.
+
+`whatsapp_message_events` is also service-role only. It stores webhook delivery
+dedupe and raw event processing state, so clients read customer-visible message
+history through `conversation_messages` instead.
 
 Phase 2 owner-facing WhatsApp status is exposed through `get_owner_dashboard`,
 not direct table access. The RPC returns a safe `whatsappConnection` object with
@@ -103,27 +108,51 @@ The scripted verification lives at:
 supabase/tests/rls_cross_tenant.sql
 ```
 
-It creates two temporary auth users and two organizations inside a transaction, switches into the `authenticated` role for each test user, and asserts:
+It creates two temporary auth users and two organizations inside a transaction,
+inserts representative rows across the MVP tenant table set, switches into the
+`authenticated` role for each test user, and asserts:
 
 - Tenant A can read Tenant A data.
-- Tenant A cannot read Tenant B data.
+- Tenant A cannot read Tenant B organizations, contacts, conversations,
+  conversation messages, products, tasks, notifications, device tokens, AI draft
+  quotes, or AI draft events.
+- Tenant A cannot update Tenant B organization settings.
 - Tenant A cannot write membership rows scoped to Tenant B.
 - Tenant B can read Tenant B data.
-- Tenant B cannot read Tenant A data.
-- Neither tenant can read `whatsapp_config`.
+- Tenant B cannot read Tenant A organizations, contacts, conversations,
+  conversation messages, products, tasks, notifications, device tokens, AI draft
+  quotes, or AI draft events.
+- Tenant B cannot update Tenant A organization settings.
+- Neither tenant can read `whatsapp_config` or `whatsapp_message_events`.
 - Owner dashboard can expose safe WhatsApp connection status without granting
   direct `whatsapp_config` access.
 
 The transaction rolls back at the end, so no test tenant data remains.
 
+KAN-72 also adds a CI-safe coverage validator:
+
+```text
+scripts/validate-rls-coverage.mjs
+```
+
+`npm run validate:rls` verifies that migrations enable and force RLS for the MVP
+tenant tables, service-only tables are explicitly revoked from client roles, and
+the cross-tenant SQL test references every covered table. It runs as part of
+`npm run ci:verify`.
+
 ## Supabase Verification Status
 
 Live project checks confirmed:
 
-- `organizations`, `organization_members`, and `whatsapp_config` exist.
-- RLS is enabled and forced on all three tables.
+- MVP tenant tables and service-only webhook/config tables exist.
+- RLS is enabled and forced on MVP tenant tables and service-only webhook/config
+  tables.
 - Membership policies reference private helper functions.
-- `whatsapp_config` has no RLS policies and remains service-role only.
-- The cross-tenant verification script completed successfully against the connected Supabase project.
+- `whatsapp_config` and `whatsapp_message_events` remain service-role only.
+- The expanded cross-tenant verification script completed successfully against
+  the connected Supabase project inside a rollback transaction during KAN-72.
+- `npm run validate:rls` completed successfully locally.
 
-Supabase security advisor currently reports `rls_enabled_no_policy` for `public.whatsapp_config`. This is intentional for Phase 0 because the table must not be client-readable.
+Supabase security advisor may report `rls_enabled_no_policy` for service-only
+tables such as `public.whatsapp_config`. This is intentional because these
+tables must not be client-readable.

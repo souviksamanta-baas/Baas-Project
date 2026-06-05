@@ -15,7 +15,7 @@
     "audit:archive": "node scripts/create-audit-archive.mjs",
     "audit:clean": "node scripts/clean-generated-artifacts.mjs --yes",
     "audit:clean:dry-run": "node scripts/clean-generated-artifacts.mjs --dry-run",
-    "ci:verify": "npm run lint && npm run validate:migrations && npm run typecheck && npm test && npm run build && npm run validate:mobile",
+    "ci:verify": "npm run lint && npm run validate:migrations && npm run validate:rls && npm run typecheck && npm test && npm run build && npm run validate:mobile",
     "dev:api": "npm run dev -w @baas/api",
     "dev:mobile": "npm run start -w @baas/mobile",
     "lint": "eslint .",
@@ -27,6 +27,7 @@
     "test": "npm run test -w @baas/api",
     "typecheck": "npm run typecheck -w @baas/api && npm run typecheck -w @baas/mobile",
     "validate:migrations": "node scripts/validate-migrations.mjs",
+    "validate:rls": "node scripts/validate-rls-coverage.mjs",
     "validate:mobile": "expo config apps/mobile --type public"
   },
   "devDependencies": {

@@ -34,13 +34,14 @@ npm run ci:verify
 
 - `npm run lint`
 - `npm run validate:migrations`
+- `npm run validate:rls`
 - `npm run typecheck`
 - `npm test`
 - `npm run build`
 - `npm run validate:mobile`
 
-Any failing lint, migration validation, typecheck, test, API build, or Expo config
-validation step fails CI.
+Any failing lint, migration validation, RLS coverage validation, typecheck, test,
+API build, or Expo config validation step fails CI.
 
 ## Linting
 
@@ -71,6 +72,31 @@ It checks that Supabase migration files:
 
 The `supabase-migrations` job also installs Supabase CLI `2.102.0` so CI uses the
 same CLI baseline as local Phase 0 verification.
+
+## RLS Coverage Validation
+
+KAN-72 adds a CI-friendly guard for tenant isolation coverage:
+
+```text
+scripts/validate-rls-coverage.mjs
+```
+
+The root `validate:rls` script checks that:
+
+- `supabase/tests/rls_cross_tenant.sql` references every MVP tenant table.
+- Migrations enable and force Row Level Security for each tenant table.
+- Service-role-only tables are explicitly revoked from `anon` and
+  `authenticated`.
+- The RLS test includes cross-tenant Tenant A and Tenant B assertions.
+
+The SQL verification script itself remains runnable against a local or connected
+Supabase database:
+
+```bash
+psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/rls_cross_tenant.sql
+```
+
+It wraps test data in a transaction and rolls back at the end.
 
 ## Remote Migration Behavior
 
@@ -132,6 +158,12 @@ For migration-only validation:
 
 ```bash
 npm run validate:migrations
+```
+
+For RLS coverage validation:
+
+```bash
+npm run validate:rls
 ```
 
 For mobile config validation:

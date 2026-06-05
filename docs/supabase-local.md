@@ -65,6 +65,25 @@ Pull remote schema changes only when intentionally reconciling dashboard edits:
 supabase db pull
 ```
 
+## RLS Verification
+
+After resetting or migrating a local database, run the cross-tenant RLS script:
+
+```bash
+psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/rls_cross_tenant.sql
+```
+
+The script inserts Tenant A and Tenant B fixtures in a transaction, switches into
+the authenticated role for each test user, asserts cross-tenant reads and
+settings updates are blocked across the MVP table set, and rolls back all test
+data.
+
+Run the CI-friendly coverage check without a database:
+
+```bash
+npm run validate:rls
+```
+
 ## Key Handling
 
 - Use `.env.local` for local secrets.
