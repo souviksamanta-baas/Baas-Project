@@ -1,18 +1,21 @@
 import type { ReactElement } from 'react';
-import { Alert, Pressable, Text, View } from 'react-native';
+import { Alert, Pressable, Text, TextInput, View } from 'react-native';
 
-import { SecondaryButton } from '../components/Buttons';
+import { PrimaryButton, SecondaryButton } from '../components/Buttons';
 import { Metric } from '../components/Metric';
 import { useInbox } from '../hooks/useInbox';
+import { useProducts } from '../hooks/useProducts';
 import { styles } from '../styles';
 import type { OwnerDashboard } from '../types/dashboard';
 import type { InboxConversationSummary, WhatsAppMessagePreview } from '../types/messages';
+import type { Product } from '../types/products';
 
 export function DashboardScreen(props: {
   dashboard: OwnerDashboard;
   onSignOut: () => void;
 }): ReactElement {
   const inbox = useInbox(props.dashboard.organization?.id ?? null);
+  const productCatalog = useProducts(props.dashboard.organization?.id ?? null);
 
   return (
     <View style={styles.card}>
@@ -26,12 +29,146 @@ export function DashboardScreen(props: {
         <Metric label="Products" value={props.dashboard.metrics.products} />
         <Metric label="Low stock" value={props.dashboard.metrics.lowStockItems} />
       </View>
+      <ProductCatalogCard catalog={productCatalog} />
       {props.dashboard.emptyStates.map((emptyState: string) => (
         <Text key={emptyState} style={styles.emptyState}>
           {emptyState}
         </Text>
       ))}
       <SecondaryButton label="Sign out" onPress={props.onSignOut} />
+    </View>
+  );
+}
+
+function ProductCatalogCard(props: { catalog: ReturnType<typeof useProducts> }): ReactElement {
+  const { catalog } = props;
+
+  return (
+    <View style={styles.statusCard}>
+      <Text style={styles.statusLabel}>Product catalog</Text>
+      {catalog.isLoading ? <Text style={styles.statusDetail}>Loading products...</Text> : null}
+      {catalog.errorMessage ? <Text style={styles.statusError}>{catalog.errorMessage}</Text> : null}
+      {catalog.products.length === 0 ? (
+        <Text style={styles.statusDetail}>Add products so inventory and AI answers have a source of truth.</Text>
+      ) : (
+        <View style={styles.productList}>
+          {catalog.products.map((product) => (
+            <ProductListItem
+              key={product.id}
+              onDelete={() => {
+                void catalog.deleteProductById(product.id);
+              }}
+              onEdit={() => catalog.startEditing(product)}
+              product={product}
+            />
+          ))}
+        </View>
+      )}
+      <ProductForm catalog={catalog} />
+    </View>
+  );
+}
+
+function ProductListItem(props: {
+  onDelete: () => void;
+  onEdit: () => void;
+  product: Product;
+}): ReactElement {
+  const { product } = props;
+
+  return (
+    <View style={styles.productItem}>
+      <View style={styles.productHeader}>
+        <Text style={styles.conversationTitle}>{product.name}</Text>
+        {product.isLowStock ? <Text style={styles.lowStockBadge}>Low stock</Text> : null}
+      </View>
+      <Text style={styles.conversationMeta}>
+        {product.sku ? `${product.sku} · ` : ''}
+        {formatMoney(product.unitPriceCents, product.currency)}
+      </Text>
+      <Text style={styles.messagePreviewBody}>
+        Stock {product.stockQuantity} · Reorder at {product.reorderThreshold}
+      </Text>
+      {product.description ? (
+        <Text style={styles.statusDetail}>{product.description}</Text>
+      ) : null}
+      <View style={styles.inlineActions}>
+        <SecondaryButton label="Edit" onPress={props.onEdit} />
+        <SecondaryButton label="Delete" onPress={props.onDelete} />
+      </View>
+    </View>
+  );
+}
+
+function ProductForm(props: { catalog: ReturnType<typeof useProducts> }): ReactElement {
+  const { catalog } = props;
+  const actionLabel = catalog.editingProductId ? 'Update product' : 'Create product';
+
+  return (
+    <View style={styles.productForm}>
+      <Text style={styles.statusValue}>
+        {catalog.editingProductId ? 'Edit product' : 'New product'}
+      </Text>
+      <TextInput
+        onChangeText={(value) => catalog.setFormValue('name', value)}
+        placeholder="Product name"
+        style={styles.input}
+        value={catalog.formValues.name}
+      />
+      <TextInput
+        onChangeText={(value) => catalog.setFormValue('sku', value)}
+        placeholder="SKU or short code"
+        style={styles.input}
+        value={catalog.formValues.sku}
+      />
+      <TextInput
+        keyboardType="decimal-pad"
+        onChangeText={(value) => catalog.setFormValue('unitPrice', value)}
+        placeholder="Unit price"
+        style={styles.input}
+        value={catalog.formValues.unitPrice}
+      />
+      <View style={styles.twoColumnFields}>
+        <TextInput
+          keyboardType="number-pad"
+          onChangeText={(value) => catalog.setFormValue('stockQuantity', value)}
+          placeholder="Stock"
+          style={[styles.input, styles.flexField]}
+          value={catalog.formValues.stockQuantity}
+        />
+        <TextInput
+          keyboardType="number-pad"
+          onChangeText={(value) => catalog.setFormValue('reorderThreshold', value)}
+          placeholder="Reorder"
+          style={[styles.input, styles.flexField]}
+          value={catalog.formValues.reorderThreshold}
+        />
+      </View>
+      <TextInput
+        autoCapitalize="characters"
+        maxLength={3}
+        onChangeText={(value) => catalog.setFormValue('currency', value)}
+        placeholder="Currency"
+        style={styles.input}
+        value={catalog.formValues.currency}
+      />
+      <TextInput
+        multiline
+        onChangeText={(value) => catalog.setFormValue('description', value)}
+        placeholder="Description"
+        style={[styles.input, styles.multilineInput]}
+        value={catalog.formValues.description}
+      />
+      <PrimaryButton
+        disabled={catalog.isSaving}
+        label={catalog.isSaving ? 'Saving...' : actionLabel}
+        onPress={() => {
+          void catalog.saveProduct();
+        }}
+      />
+      {catalog.editingProductId ? (
+        <SecondaryButton label="Cancel edit" onPress={catalog.resetForm} />
+      ) : null}
     </View>
   );
 }
@@ -184,6 +321,10 @@ function formatTimestamp(timestamp: string): string {
     hour: '2-digit',
     minute: '2-digit',
   });
+}
+
+function formatMoney(cents: number, currency: string): string {
+  return `${currency} ${(cents / 100).toFixed(2)}`;
 }
 
 function showReplyPathNotice(): void {

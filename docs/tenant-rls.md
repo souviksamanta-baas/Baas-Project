@@ -20,6 +20,7 @@ The Phase 0 tenant foundation defines:
 | `20260604225000_add_whatsapp_connection_status.sql` | Adds safe WhatsApp connection status metadata and exposes it through `get_owner_dashboard` without granting direct client access to `whatsapp_config`. |
 | `20260604231000_create_conversation_message_persistence.sql` | Adds tenant-scoped `conversations` and `conversation_messages` with authenticated read policies and server-owned writes. |
 | `20260605193500_create_contacts_crm_foundation.sql` | Adds tenant-scoped `contacts`, links conversations to CRM contacts, updates dashboard metrics, and registers contact/conversation Realtime tables when available. |
+| `20260605200000_create_product_catalog_inventory.sql` | Adds tenant-scoped `products`, owner-app CRUD policies, stock/reorder checks, dashboard product metrics, and product Realtime publication when available. |
 
 ## RLS Policy Model
 
@@ -31,6 +32,7 @@ All Phase 0 tenant tables have RLS enabled and forced:
 - `contacts`
 - `conversations`
 - `conversation_messages`
+- `products`
 
 Client users can read `organizations` and `organization_members` only when their `auth.uid()` belongs to the organization through `organization_members`.
 
@@ -50,6 +52,12 @@ WhatsApp sends, preventing mobile clients from forging persisted message history
 Phase 2 contact records follow the same model: authenticated owners can select
 contacts for their organizations, while the API service role owns writes from
 trusted inbound webhook processing and future CRM workflows.
+
+Phase 2 product records allow authenticated organization members to select,
+insert, update, and delete their own tenant's catalog rows. Stock quantity,
+reorder threshold, and unit price are constrained to non-negative values at the
+database level; negative stock is intentionally disallowed for the MVP so owner
+inventory and AI lookup answers stay conservative and accurate.
 
 ## Verification
 

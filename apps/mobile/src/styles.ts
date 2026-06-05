@@ -49,6 +49,10 @@ export const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 12,
   },
+  multilineInput: {
+    minHeight: 80,
+    textAlignVertical: 'top',
+  },
   primaryButton: {
     alignItems: 'center',
     backgroundColor: '#2563eb',
@@ -170,6 +174,53 @@ export const styles = StyleSheet.create({
   outboundThreadMessage: {
     alignSelf: 'flex-end',
     backgroundColor: '#dbeafe',
+  },
+  productList: {
+    gap: 8,
+  },
+  productItem: {
+    backgroundColor: '#ffffff',
+    borderColor: '#e2e8f0',
+    borderRadius: 14,
+    borderWidth: 1,
+    gap: 6,
+    padding: 12,
+  },
+  productHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 8,
+    justifyContent: 'space-between',
+  },
+  lowStockBadge: {
+    backgroundColor: '#fee2e2',
+    borderRadius: 999,
+    color: '#b91c1c',
+    fontSize: 11,
+    fontWeight: '800',
+    overflow: 'hidden',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    textTransform: 'uppercase',
+  },
+  inlineActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  productForm: {
+    backgroundColor: '#f8fafc',
+    borderColor: '#bae6fd',
+    borderRadius: 16,
+    borderWidth: 1,
+    gap: 10,
+    padding: 12,
+  },
+  twoColumnFields: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  flexField: {
+    flex: 1,
   },
   metric: {
     backgroundColor: '#e0f2fe',

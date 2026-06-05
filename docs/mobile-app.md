@@ -115,6 +115,24 @@ The reply entry point is intentionally documented as server-routed. Mobile must
 not call WhatsApp Cloud API directly; outbound sends continue through the
 approved API/domain send path.
 
+## Product Catalog
+
+Phase 2 adds an inline mobile product catalog surface to the owner dashboard:
+
+- Loads tenant-scoped `products` through authenticated Supabase RLS.
+- Creates, edits, and deletes active catalog products from the owner app.
+- Captures product name, SKU/code, description, unit price, currency, stock
+  quantity, and reorder threshold.
+- Validates that product names are present and numeric fields are non-negative
+  before writing.
+- Shows low-stock state when `stock_quantity <= reorder_threshold`.
+- Subscribes to tenant-scoped product changes through Supabase Realtime and
+  refreshes the catalog when rows change.
+
+Negative stock is not allowed in the MVP. Stock adjustments must keep
+`stock_quantity` at zero or above so inventory lookup and future AI answers do
+not overstate availability.
+
 ## Local Commands
 
 Install dependencies:

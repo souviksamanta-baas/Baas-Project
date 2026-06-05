@@ -37,6 +37,8 @@ reads behind a domain service instead of letting future controllers call
 Supabase directly. The `customers/` and `conversations/` domains now have
 database-backed ownership through `contacts`, `conversations`, and
 `conversation_messages`, even while their NestJS modules remain thin.
+`InventoryModule` exposes `InventoryService` for product and stock lookup
+needed by app, AI, copilot, and low-stock workflows.
 `WhatsAppModule` exposes:
 
 - `WhatsAppConnectionService` for server-side reads of WhatsApp connection
@@ -45,6 +47,11 @@ database-backed ownership through `contacts`, `conversations`, and
   contact, conversation, and message records.
 - `WhatsAppOutboundMessageService` for server-side WhatsApp Cloud API sends and
   send-result persistence.
+
+`InventoryService` uses the service-role Supabase client for trusted server-side
+lookups and always requires an `organizationId`. It returns product price, stock,
+reorder threshold, and computed low-stock status without exposing cross-tenant
+data.
 
 Existing Phase 0 behavior is unchanged.
 
