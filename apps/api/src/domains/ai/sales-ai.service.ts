@@ -32,7 +32,9 @@ export interface SalesAiDraftResult {
 
 interface OrganizationRow {
   ai_auto_send: boolean;
+  business_hours: BusinessHoursSettings | null;
   id: string;
+  timezone: string;
 }
 
 interface AiDraftRow {
@@ -52,6 +54,14 @@ interface ConversationRow {
 
 interface MembershipRow {
   role: 'owner' | 'staff';
+}
+
+interface BusinessHoursSettings {
+  days?: number[];
+  enabled?: boolean;
+  end?: string;
+  start?: string;
+  timezone?: string;
 }
 
 const STOP_WORDS = new Set([
@@ -112,7 +122,11 @@ export class SalesAiService {
       organizationId: params.organizationId,
     });
 
-    if (organization.ai_auto_send && draft.autoSendEligible) {
+    if (
+      organization.ai_auto_send &&
+      draft.autoSendEligible &&
+      isWithinBusinessHours(organization.business_hours, organization.timezone)
+    ) {
       await this.autoSendDraft(persistedDraft);
     }
   }
@@ -328,7 +342,7 @@ export class SalesAiService {
     const client = this.supabaseService.getServiceRoleClient();
     const { data, error } = await client
       .from('organizations')
-      .select('id, ai_auto_send')
+      .select('id, ai_auto_send, business_hours, timezone')
       .eq('id', organizationId)
       .single<OrganizationRow>();
 
@@ -616,4 +630,72 @@ function toCatalogContextProduct(product: InventoryProduct): SalesAiDraftResult[
     stockQuantity: product.stockQuantity,
     unitPriceCents: product.unitPriceCents,
   };
+}
+
+export function isWithinBusinessHours(
+  businessHours: BusinessHoursSettings | null,
+  organizationTimezone: string,
+  now = new Date(),
+): boolean {
+  if (!businessHours?.enabled) {
+    return true;
+  }
+
+  if (!isTimeValue(businessHours.start) || !isTimeValue(businessHours.end)) {
+    return false;
+  }
+
+  const timezone = businessHours.timezone || organizationTimezone || 'UTC';
+  const localTime = getLocalTimeParts(now, timezone);
+  const allowedDays = businessHours.days?.length ? businessHours.days : [1, 2, 3, 4, 5];
+
+  if (!allowedDays.includes(localTime.day)) {
+    return false;
+  }
+
+  const startMinutes = toMinutes(businessHours.start);
+  const endMinutes = toMinutes(businessHours.end);
+
+  if (startMinutes === endMinutes) {
+    return false;
+  }
+
+  if (startMinutes < endMinutes) {
+    return localTime.minutes >= startMinutes && localTime.minutes < endMinutes;
+  }
+
+  return localTime.minutes >= startMinutes || localTime.minutes < endMinutes;
+}
+
+function getLocalTimeParts(now: Date, timezone: string): { day: number; minutes: number } {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    hour: '2-digit',
+    hour12: false,
+    minute: '2-digit',
+    timeZone: timezone,
+    weekday: 'short',
+  }).formatToParts(now);
+  const weekday = parts.find((part) => part.type === 'weekday')?.value ?? 'Mon';
+  const hourValue = Number(parts.find((part) => part.type === 'hour')?.value ?? '0');
+  const minute = Number(parts.find((part) => part.type === 'minute')?.value ?? '0');
+  const hour = hourValue === 24 ? 0 : hourValue;
+
+  return {
+    day: weekdayToNumber(weekday),
+    minutes: hour * 60 + minute,
+  };
+}
+
+function weekdayToNumber(weekday: string): number {
+  const normalized = weekday.slice(0, 3).toLocaleLowerCase();
+  return ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'].indexOf(normalized);
+}
+
+function isTimeValue(value: string | undefined): value is string {
+  return typeof value === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
+}
+
+function toMinutes(value: string): number {
+  const [hours, minutes] = value.split(':').map((part) => Number.parseInt(part, 10));
+  return hours * 60 + minutes;
 }

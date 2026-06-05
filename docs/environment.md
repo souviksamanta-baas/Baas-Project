@@ -146,7 +146,7 @@ Deployment platforms should define:
 - `SUPABASE_SERVICE_ROLE_KEY` for the NestJS API only
 - `BAAS_TASKS_JOB_SECRET` for the task maintenance endpoint
 - `EXPO_PUBLIC_API_BASE_URL` for mobile builds that need server-side owner
-  actions such as AI draft approve/send
+  actions such as AI draft approve/send and Owner Copilot questions
 - Mobile public variables through Expo or app build environment configuration
 
 ## Verification

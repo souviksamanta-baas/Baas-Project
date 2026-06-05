@@ -24,6 +24,7 @@ The Phase 0 tenant foundation defines:
 | `20260605204500_create_owner_tasks_alerts.sql` | Adds tenant-scoped `owner_tasks`, `owner_notifications`, and `owner_device_tokens`; updates pending follow-up metrics; registers task/notification Realtime tables when available. |
 | `20260605214500_create_sales_ai_drafts.sql` | Adds tenant-scoped `ai_drafts` and `ai_draft_events`, updates pending AI draft metrics, and registers AI drafts for Realtime when available. |
 | `20260605215500_restrict_ai_draft_client_updates.sql` | Removes direct authenticated updates on `ai_drafts` so owner decisions go through API endpoints that can perform server-side WhatsApp sends. |
+| `20260605223000_add_owner_settings_dashboard_fields.sql` | Extends `get_owner_dashboard` to include tenant AI/follow-up settings already stored on `organizations`. |
 
 ## RLS Policy Model
 
@@ -45,6 +46,12 @@ All Phase 0 tenant tables have RLS enabled and forced:
 Client users can read `organizations` and `organization_members` only when their `auth.uid()` belongs to the organization through `organization_members`.
 
 Organization owners can update organization rows and manage membership rows for their own organization only.
+
+KAN-71 owner settings use the existing `organizations` row:
+`ai_auto_send`, `ai_follow_up_delay_hours`, and `business_hours`. Direct mobile
+updates remain protected by the `organizations_update_owners` policy, so only
+owners can change tenant AI and follow-up settings. Staff members can still read
+safe dashboard settings through membership-scoped reads.
 
 `whatsapp_config` intentionally has no client-readable policy and no `anon` or `authenticated` table privileges. It is service-role only because it stores WhatsApp identifiers and encrypted integration secrets.
 
@@ -82,6 +89,11 @@ Phase 2 Sales AI drafts are organization-scoped. The API service role creates
 `ai_draft_events`. Authenticated organization members can select drafts/events
 for their tenant. Approval, rejection, and send state changes go through the API
 so actual WhatsApp sends are still performed by the server-side API.
+
+The Owner Copilot endpoint uses the API service role only after validating the
+Supabase bearer token against `organization_members`. Every query includes the
+requested `organization_id`, and the endpoint supports only fixed MVP tools
+rather than arbitrary database reads.
 
 ## Verification
 

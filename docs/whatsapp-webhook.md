@@ -177,7 +177,9 @@ WhatsApp access tokens.
 
 KAN-70 owner-approved AI drafts and allowed auto-send replies also route through
 `WhatsAppOutboundMessageService`. Auto-send is off by default and requires
-`organizations.ai_auto_send = true` plus a catalog-backed safe draft.
+`organizations.ai_auto_send = true` plus a catalog-backed safe draft. KAN-71
+adds optional `organizations.business_hours` enforcement, so enabled business
+hours restrict auto-send to configured days and local start/end times.
 
 ## Duplicate Deliveries
 

@@ -229,6 +229,12 @@ export const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 8,
   },
+  settingRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 8,
+    justifyContent: 'space-between',
+  },
   productForm: {
     backgroundColor: '#f8fafc',
     borderColor: '#bae6fd',

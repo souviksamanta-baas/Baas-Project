@@ -169,6 +169,29 @@ KAN-70 adds an owner review surface for Sales AI drafts:
 owner actions. The app still uses Supabase RLS for draft reads and never receives
 Meta WhatsApp credentials.
 
+## Owner Copilot and Settings
+
+KAN-71 adds two owner dashboard surfaces:
+
+- The Owner Copilot chat sends authenticated questions to
+  `POST /ai/copilot/query` with the active organization ID and Supabase access
+  token. The API validates membership and answers the MVP query set: messages
+  today, low-stock products, and pending follow-ups.
+- The AI and follow-up settings card edits organization settings through
+  authenticated Supabase RLS: `ai_auto_send`, `ai_follow_up_delay_hours`, and
+  `business_hours`.
+
+Settings validation happens client-side before writes:
+
+- Follow-up delay must be a whole number from 0 to 168 hours.
+- Business hours use `HH:MM` values with different start and end times.
+- Business hours can be weekdays or every day, and are stored with the
+  organization timezone.
+
+AI auto-send remains off by default. When enabled, only catalog-backed safe
+drafts can auto-send, and configured business hours further restrict when those
+sends can happen.
+
 ## Local Commands
 
 Install dependencies:

@@ -5,10 +5,13 @@ import { PrimaryButton, SecondaryButton } from '../components/Buttons';
 import { Metric } from '../components/Metric';
 import { useAiDrafts } from '../hooks/useAiDrafts';
 import { useInbox } from '../hooks/useInbox';
+import { useOwnerCopilot } from '../hooks/useOwnerCopilot';
+import { useOwnerSettings } from '../hooks/useOwnerSettings';
 import { useOwnerTasks } from '../hooks/useOwnerTasks';
 import { useProducts } from '../hooks/useProducts';
 import { styles } from '../styles';
 import type { AiDraft } from '../types/aiDrafts';
+import type { CopilotMessage } from '../types/copilot';
 import type { OwnerDashboard } from '../types/dashboard';
 import type { InboxConversationSummary, WhatsAppMessagePreview } from '../types/messages';
 import type { Product } from '../types/products';
@@ -22,6 +25,8 @@ export function DashboardScreen(props: {
   const ownerTasks = useOwnerTasks(props.dashboard.organization?.id ?? null);
   const productCatalog = useProducts(props.dashboard.organization?.id ?? null);
   const aiDrafts = useAiDrafts(props.dashboard.organization?.id ?? null);
+  const ownerCopilot = useOwnerCopilot(props.dashboard.organization?.id ?? null);
+  const ownerSettings = useOwnerSettings(props.dashboard.organization);
 
   return (
     <View style={styles.card}>
@@ -37,6 +42,11 @@ export function DashboardScreen(props: {
         <Metric label="Follow-ups" value={props.dashboard.metrics.pendingFollowUps} />
         <Metric label="AI drafts" value={props.dashboard.metrics.pendingAiDrafts} />
       </View>
+      <OwnerCopilotCard copilot={ownerCopilot} />
+      <OwnerSettingsCard
+        settings={ownerSettings}
+        timezone={props.dashboard.organization?.timezone ?? 'UTC'}
+      />
       <AiDraftsCard aiDrafts={aiDrafts} />
       <FollowUpTasksCard ownerTasks={ownerTasks} />
       <ProductCatalogCard catalog={productCatalog} />
@@ -46,6 +56,158 @@ export function DashboardScreen(props: {
         </Text>
       ))}
       <SecondaryButton label="Sign out" onPress={props.onSignOut} />
+    </View>
+  );
+}
+
+function OwnerCopilotCard(props: { copilot: ReturnType<typeof useOwnerCopilot> }): ReactElement {
+  const { copilot } = props;
+
+  return (
+    <View style={styles.statusCard}>
+      <Text style={styles.statusLabel}>Owner copilot</Text>
+      <Text style={styles.statusDetail}>
+        Ask about messages today, low stock, or pending follow-ups.
+      </Text>
+      {copilot.errorMessage ? <Text style={styles.statusError}>{copilot.errorMessage}</Text> : null}
+      <View style={styles.taskList}>
+        {copilot.messages.map((message) => (
+          <CopilotMessageItem key={message.id} message={message} />
+        ))}
+      </View>
+      <TextInput
+        multiline
+        onChangeText={copilot.setInputValue}
+        placeholder="What should I focus on today?"
+        style={[styles.input, styles.multilineInput]}
+        value={copilot.inputValue}
+      />
+      <PrimaryButton
+        disabled={copilot.isAsking}
+        label={copilot.isAsking ? 'Thinking...' : 'Ask copilot'}
+        onPress={() => {
+          void copilot.askQuestion();
+        }}
+      />
+      <View style={styles.inlineActions}>
+        <SecondaryButton
+          label="Messages today"
+          onPress={() => {
+            void copilot.askQuestion('What messages came in today?');
+          }}
+        />
+        <SecondaryButton
+          label="Low stock"
+          onPress={() => {
+            void copilot.askQuestion('What products are low stock?');
+          }}
+        />
+        <SecondaryButton
+          label="Follow-ups"
+          onPress={() => {
+            void copilot.askQuestion('What follow-ups are pending?');
+          }}
+        />
+      </View>
+    </View>
+  );
+}
+
+function CopilotMessageItem(props: { message: CopilotMessage }): ReactElement {
+  return (
+    <View
+      style={[
+        styles.threadMessage,
+        props.message.role === 'owner' && styles.outboundThreadMessage,
+      ]}
+    >
+      <Text style={styles.messagePreviewMeta}>
+        {props.message.role === 'owner' ? 'You' : 'Copilot'}
+      </Text>
+      <Text style={styles.messagePreviewBody}>{props.message.body}</Text>
+    </View>
+  );
+}
+
+function OwnerSettingsCard(props: {
+  settings: ReturnType<typeof useOwnerSettings>;
+  timezone: string;
+}): ReactElement {
+  const { settings } = props;
+  const businessHoursLabel = settings.formValues.businessHoursEnabled ? 'Enabled' : 'Disabled';
+  const businessHoursMode =
+    settings.formValues.businessHoursMode === 'weekdays' ? 'Weekdays' : 'Every day';
+
+  return (
+    <View style={styles.statusCard}>
+      <Text style={styles.statusLabel}>AI and follow-up settings</Text>
+      <Text style={styles.statusDetail}>Timezone: {props.timezone}</Text>
+      {settings.errorMessage ? <Text style={styles.statusError}>{settings.errorMessage}</Text> : null}
+      <View style={styles.settingRow}>
+        <Text style={styles.statusValue}>AI auto-send</Text>
+        <SecondaryButton
+          label={settings.formValues.aiAutoSend ? 'On' : 'Off'}
+          onPress={() =>
+            settings.setFormValue('aiAutoSend', !settings.formValues.aiAutoSend)
+          }
+        />
+      </View>
+      <Text style={styles.statusDetail}>
+        Auto-send stays off by default. When enabled, only catalog-backed replies can send
+        automatically.
+      </Text>
+      <TextInput
+        keyboardType="number-pad"
+        onChangeText={(value) => settings.setFormValue('followUpDelayHours', value)}
+        placeholder="Follow-up delay in hours"
+        style={styles.input}
+        value={settings.formValues.followUpDelayHours}
+      />
+      <View style={styles.settingRow}>
+        <Text style={styles.statusValue}>Business hours: {businessHoursLabel}</Text>
+        <SecondaryButton
+          label={settings.formValues.businessHoursEnabled ? 'Disable' : 'Enable'}
+          onPress={() =>
+            settings.setFormValue(
+              'businessHoursEnabled',
+              !settings.formValues.businessHoursEnabled,
+            )
+          }
+        />
+      </View>
+      <View style={styles.settingRow}>
+        <Text style={styles.statusValue}>Schedule: {businessHoursMode}</Text>
+        <SecondaryButton
+          label="Toggle days"
+          onPress={() =>
+            settings.setFormValue(
+              'businessHoursMode',
+              settings.formValues.businessHoursMode === 'weekdays' ? 'all_days' : 'weekdays',
+            )
+          }
+        />
+      </View>
+      <View style={styles.twoColumnFields}>
+        <TextInput
+          onChangeText={(value) => settings.setFormValue('businessHoursStart', value)}
+          placeholder="Start HH:MM"
+          style={[styles.input, styles.flexField]}
+          value={settings.formValues.businessHoursStart}
+        />
+        <TextInput
+          onChangeText={(value) => settings.setFormValue('businessHoursEnd', value)}
+          placeholder="End HH:MM"
+          style={[styles.input, styles.flexField]}
+          value={settings.formValues.businessHoursEnd}
+        />
+      </View>
+      <PrimaryButton
+        disabled={settings.isSaving}
+        label={settings.isSaving ? 'Saving...' : 'Save settings'}
+        onPress={() => {
+          void settings.saveSettings();
+        }}
+      />
     </View>
   );
 }

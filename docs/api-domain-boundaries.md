@@ -44,8 +44,11 @@ needed by app, AI, copilot, and low-stock workflows.
 - `SalesAiService` for deterministic catalog-aware reply/quote draft generation,
   AI draft persistence, auto-send policy enforcement, and owner approval send
   orchestration.
+- `OwnerCopilotService` for authenticated owner questions over the MVP tool set:
+  messages today, low-stock products, and pending follow-up tasks.
 - `AiController` for authenticated owner actions on AI drafts:
-  `POST /ai/drafts/:draftId/approve` and `POST /ai/drafts/:draftId/reject`.
+  `POST /ai/drafts/:draftId/approve`, `POST /ai/drafts/:draftId/reject`, and
+  `POST /ai/copilot/query`.
 
 `TasksModule` exposes:
 
@@ -78,7 +81,14 @@ through `InventoryService`, persists `ai_drafts` and `ai_draft_events`, and uses
 `WhatsAppOutboundMessageService` for any approved or auto-sent message so mobile
 never receives WhatsApp access tokens. Auto-send remains disabled unless
 `organizations.ai_auto_send` is enabled and the generated draft is catalog-backed
-and marked safe.
+and marked safe. When `organizations.business_hours` is enabled, auto-send is
+also limited to the configured tenant timezone, days, start time, and end time.
+
+`OwnerCopilotService` owns the KAN-71 query workflow. It validates the Supabase
+bearer token against `organization_members`, then uses service-role reads scoped
+to the requested organization and `InventoryService` for low-stock lookup. It
+does not expose a general SQL or LLM interface; the MVP endpoint returns
+deterministic answers for the supported owner questions.
 
 Existing Phase 0 behavior is unchanged.
 

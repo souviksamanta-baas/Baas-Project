@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { InventoryService } from '../src/domains/inventory/inventory.service';
-import { SalesAiService } from '../src/domains/ai/sales-ai.service';
+import { isWithinBusinessHours, SalesAiService } from '../src/domains/ai/sales-ai.service';
 import { WhatsAppOutboundMessageService } from '../src/domains/whatsapp/whatsapp-outbound-message.service';
 import { SupabaseService } from '../src/supabase/supabase.service';
 
@@ -84,5 +84,22 @@ describe('SalesAiService', () => {
         body: expect.stringContaining('Quote:'),
       }),
     );
+  });
+
+  it('allows auto-send only inside configured business hours', () => {
+    const businessHours = {
+      days: [1, 2, 3, 4, 5],
+      enabled: true,
+      end: '17:00',
+      start: '09:00',
+      timezone: 'UTC',
+    };
+
+    expect(
+      isWithinBusinessHours(businessHours, 'UTC', new Date('2026-06-05T14:00:00.000Z')),
+    ).toBe(true);
+    expect(
+      isWithinBusinessHours(businessHours, 'UTC', new Date('2026-06-05T22:00:00.000Z')),
+    ).toBe(false);
   });
 });

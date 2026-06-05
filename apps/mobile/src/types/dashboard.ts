@@ -1,6 +1,10 @@
+import type { BusinessHoursSettings } from './settings';
+
 export interface OwnerDashboard {
   shouldOnboard: boolean;
   organization: {
+    aiAutoSend: boolean;
+    businessHours: BusinessHoursSettings | null;
     id: string;
     name: string;
     role: 'owner' | 'staff';
