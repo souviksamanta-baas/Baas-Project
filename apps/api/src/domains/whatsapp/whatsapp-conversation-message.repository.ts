@@ -10,6 +10,11 @@ interface ContactRecord {
   id: string;
 }
 
+export interface RecordInboundWhatsAppMessageResult {
+  conversationId: string;
+  conversationMessageId: string | null;
+}
+
 export interface RecordInboundWhatsAppMessageParams {
   eventId: string;
   organizationId: string;
@@ -38,7 +43,9 @@ export interface RecordOutboundWhatsAppMessageParams {
 export class WhatsAppConversationMessageRepository {
   constructor(private readonly supabaseService: SupabaseService) {}
 
-  async recordInboundMessage(params: RecordInboundWhatsAppMessageParams): Promise<void> {
+  async recordInboundMessage(
+    params: RecordInboundWhatsAppMessageParams,
+  ): Promise<RecordInboundWhatsAppMessageResult> {
     const conversation = await this.upsertConversation({
       organizationId: params.organizationId,
       whatsappConfigId: params.whatsappConfigId,
@@ -48,25 +55,34 @@ export class WhatsAppConversationMessageRepository {
     });
 
     const client = this.supabaseService.getServiceRoleClient();
-    const { error } = await client.from('conversation_messages').insert({
-      organization_id: params.organizationId,
-      conversation_id: conversation.id,
-      whatsapp_message_event_id: params.eventId,
-      direction: 'inbound',
-      external_message_id: params.messageId,
-      sender_phone: params.senderPhone,
-      message_type: params.messageType,
-      body: params.textBody,
-      message_status: 'received',
-      received_at: params.timestamp,
-      metadata: {
-        source: 'whatsapp_cloud_api',
-      },
-    });
+    const { data, error } = await client
+      .from('conversation_messages')
+      .insert({
+        organization_id: params.organizationId,
+        conversation_id: conversation.id,
+        whatsapp_message_event_id: params.eventId,
+        direction: 'inbound',
+        external_message_id: params.messageId,
+        sender_phone: params.senderPhone,
+        message_type: params.messageType,
+        body: params.textBody,
+        message_status: 'received',
+        received_at: params.timestamp,
+        metadata: {
+          source: 'whatsapp_cloud_api',
+        },
+      })
+      .select('id')
+      .maybeSingle<{ id: string }>();
 
     if (error && error.code !== '23505') {
       throw new Error(`Failed to persist inbound WhatsApp message: ${error.message}`);
     }
+
+    return {
+      conversationId: conversation.id,
+      conversationMessageId: data?.id ?? null,
+    };
   }
 
   async recordOutboundMessage(params: RecordOutboundWhatsAppMessageParams): Promise<void> {

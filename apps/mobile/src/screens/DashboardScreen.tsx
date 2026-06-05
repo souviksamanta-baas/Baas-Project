@@ -3,10 +3,12 @@ import { Alert, Pressable, Text, TextInput, View } from 'react-native';
 
 import { PrimaryButton, SecondaryButton } from '../components/Buttons';
 import { Metric } from '../components/Metric';
+import { useAiDrafts } from '../hooks/useAiDrafts';
 import { useInbox } from '../hooks/useInbox';
 import { useOwnerTasks } from '../hooks/useOwnerTasks';
 import { useProducts } from '../hooks/useProducts';
 import { styles } from '../styles';
+import type { AiDraft } from '../types/aiDrafts';
 import type { OwnerDashboard } from '../types/dashboard';
 import type { InboxConversationSummary, WhatsAppMessagePreview } from '../types/messages';
 import type { Product } from '../types/products';
@@ -19,6 +21,7 @@ export function DashboardScreen(props: {
   const inbox = useInbox(props.dashboard.organization?.id ?? null);
   const ownerTasks = useOwnerTasks(props.dashboard.organization?.id ?? null);
   const productCatalog = useProducts(props.dashboard.organization?.id ?? null);
+  const aiDrafts = useAiDrafts(props.dashboard.organization?.id ?? null);
 
   return (
     <View style={styles.card}>
@@ -32,7 +35,9 @@ export function DashboardScreen(props: {
         <Metric label="Products" value={props.dashboard.metrics.products} />
         <Metric label="Low stock" value={props.dashboard.metrics.lowStockItems} />
         <Metric label="Follow-ups" value={props.dashboard.metrics.pendingFollowUps} />
+        <Metric label="AI drafts" value={props.dashboard.metrics.pendingAiDrafts} />
       </View>
+      <AiDraftsCard aiDrafts={aiDrafts} />
       <FollowUpTasksCard ownerTasks={ownerTasks} />
       <ProductCatalogCard catalog={productCatalog} />
       {props.dashboard.emptyStates.map((emptyState: string) => (
@@ -41,6 +46,83 @@ export function DashboardScreen(props: {
         </Text>
       ))}
       <SecondaryButton label="Sign out" onPress={props.onSignOut} />
+    </View>
+  );
+}
+
+function AiDraftsCard(props: { aiDrafts: ReturnType<typeof useAiDrafts> }): ReactElement {
+  const { aiDrafts } = props;
+
+  return (
+    <View style={styles.statusCard}>
+      <Text style={styles.statusLabel}>Sales AI drafts</Text>
+      {aiDrafts.isLoading ? <Text style={styles.statusDetail}>Loading AI drafts...</Text> : null}
+      {aiDrafts.errorMessage ? <Text style={styles.statusError}>{aiDrafts.errorMessage}</Text> : null}
+      {aiDrafts.drafts.length === 0 ? (
+        <Text style={styles.statusDetail}>
+          Catalog-aware reply and quote drafts will appear here after customer messages.
+        </Text>
+      ) : (
+        <View style={styles.taskList}>
+          {aiDrafts.drafts.map((draft) => (
+            <AiDraftItem
+              draft={draft}
+              editedBody={aiDrafts.editedBodies[draft.id] ?? draft.replyBody}
+              isSaving={aiDrafts.isSaving}
+              key={draft.id}
+              onApprove={() => {
+                void aiDrafts.approveDraft(draft.id);
+              }}
+              onChangeBody={(body) => aiDrafts.setEditedBody(draft.id, body)}
+              onReject={() => {
+                void aiDrafts.rejectDraft(draft.id);
+              }}
+            />
+          ))}
+        </View>
+      )}
+    </View>
+  );
+}
+
+function AiDraftItem(props: {
+  draft: AiDraft;
+  editedBody: string;
+  isSaving: boolean;
+  onApprove: () => void;
+  onChangeBody: (body: string) => void;
+  onReject: () => void;
+}): ReactElement {
+  const { draft } = props;
+
+  return (
+    <View style={styles.taskItem}>
+      <View style={styles.productHeader}>
+        <Text style={styles.conversationTitle}>{draft.contactLabel}</Text>
+        <Text style={styles.aiDraftBadge}>{draft.draftType}</Text>
+      </View>
+      <Text style={styles.conversationMeta}>
+        {draft.status}
+        {draft.autoSendEligible ? ' · auto-send eligible' : ' · review required'}
+      </Text>
+      {draft.decisionReason ? (
+        <Text style={styles.statusDetail}>{formatAiDecisionReason(draft.decisionReason)}</Text>
+      ) : null}
+      {draft.errorMessage ? <Text style={styles.statusError}>{draft.errorMessage}</Text> : null}
+      <TextInput
+        multiline
+        onChangeText={props.onChangeBody}
+        style={[styles.input, styles.multilineInput]}
+        value={props.editedBody}
+      />
+      <View style={styles.inlineActions}>
+        <PrimaryButton
+          disabled={props.isSaving}
+          label={props.isSaving ? 'Sending...' : 'Approve & send'}
+          onPress={props.onApprove}
+        />
+        <SecondaryButton label="Reject" onPress={props.onReject} />
+      </View>
     </View>
   );
 }
@@ -442,6 +524,10 @@ function formatDateTime(timestamp: string): string {
 
 function formatMoney(cents: number, currency: string): string {
   return `${currency} ${(cents / 100).toFixed(2)}`;
+}
+
+function formatAiDecisionReason(reason: string): string {
+  return reason.replace(/_/g, ' ');
 }
 
 function showReplyPathNotice(): void {

@@ -91,6 +91,28 @@ export class InventoryService {
       .slice(0, params.limit ?? 25)
       .map(toInventoryProduct);
   }
+
+  async listActiveProducts(params: {
+    organizationId: string;
+    limit?: number;
+  }): Promise<InventoryProduct[]> {
+    const client = this.supabaseService.getServiceRoleClient();
+    const { data, error } = await client
+      .from('products')
+      .select(
+        'id, organization_id, name, sku, description, unit_price_cents, currency, stock_quantity, reorder_threshold',
+      )
+      .eq('organization_id', params.organizationId)
+      .eq('is_active', true)
+      .order('name', { ascending: true })
+      .limit(params.limit ?? 100);
+
+    if (error) {
+      throw new Error(`Failed to list active inventory products: ${error.message}`);
+    }
+
+    return (data as ProductRow[]).map(toInventoryProduct);
+  }
 }
 
 function toInventoryProduct(row: ProductRow): InventoryProduct {

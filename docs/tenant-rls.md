@@ -22,6 +22,8 @@ The Phase 0 tenant foundation defines:
 | `20260605193500_create_contacts_crm_foundation.sql` | Adds tenant-scoped `contacts`, links conversations to CRM contacts, updates dashboard metrics, and registers contact/conversation Realtime tables when available. |
 | `20260605200000_create_product_catalog_inventory.sql` | Adds tenant-scoped `products`, owner-app CRUD policies, stock/reorder checks, dashboard product metrics, and product Realtime publication when available. |
 | `20260605204500_create_owner_tasks_alerts.sql` | Adds tenant-scoped `owner_tasks`, `owner_notifications`, and `owner_device_tokens`; updates pending follow-up metrics; registers task/notification Realtime tables when available. |
+| `20260605214500_create_sales_ai_drafts.sql` | Adds tenant-scoped `ai_drafts` and `ai_draft_events`, updates pending AI draft metrics, and registers AI drafts for Realtime when available. |
+| `20260605215500_restrict_ai_draft_client_updates.sql` | Removes direct authenticated updates on `ai_drafts` so owner decisions go through API endpoints that can perform server-side WhatsApp sends. |
 
 ## RLS Policy Model
 
@@ -37,6 +39,8 @@ All Phase 0 tenant tables have RLS enabled and forced:
 - `owner_tasks`
 - `owner_notifications`
 - `owner_device_tokens`
+- `ai_drafts`
+- `ai_draft_events`
 
 Client users can read `organizations` and `organization_members` only when their `auth.uid()` belongs to the organization through `organization_members`.
 
@@ -72,6 +76,12 @@ notification status for their own tenant.
 `auth.uid()`. Owners and staff can register or update only their own device token
 rows, which lets the backend send Expo push notifications without exposing push
 registration data across users or tenants.
+
+Phase 2 Sales AI drafts are organization-scoped. The API service role creates
+`ai_drafts` from trusted inbound WhatsApp processing and logs decisions in
+`ai_draft_events`. Authenticated organization members can select drafts/events
+for their tenant. Approval, rejection, and send state changes go through the API
+so actual WhatsApp sends are still performed by the server-side API.
 
 ## Verification
 

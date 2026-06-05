@@ -39,6 +39,14 @@ database-backed ownership through `contacts`, `conversations`, and
 `conversation_messages`, even while their NestJS modules remain thin.
 `InventoryModule` exposes `InventoryService` for product and stock lookup
 needed by app, AI, copilot, and low-stock workflows.
+`AiModule` exposes:
+
+- `SalesAiService` for deterministic catalog-aware reply/quote draft generation,
+  AI draft persistence, auto-send policy enforcement, and owner approval send
+  orchestration.
+- `AiController` for authenticated owner actions on AI drafts:
+  `POST /ai/drafts/:draftId/approve` and `POST /ai/drafts/:draftId/reject`.
+
 `TasksModule` exposes:
 
 - `TasksService` for follow-up task automation, low-stock alert generation, and
@@ -64,6 +72,13 @@ data.
 conversations, inventory, and notifications. It keeps that cross-domain workflow
 inside `tasks/` and requires an organization scope for every generated task,
 alert, and push lookup.
+
+`SalesAiService` owns the KAN-70 cross-domain workflow. It reads catalog data
+through `InventoryService`, persists `ai_drafts` and `ai_draft_events`, and uses
+`WhatsAppOutboundMessageService` for any approved or auto-sent message so mobile
+never receives WhatsApp access tokens. Auto-send remains disabled unless
+`organizations.ai_auto_send` is enabled and the generated draft is catalog-backed
+and marked safe.
 
 Existing Phase 0 behavior is unchanged.
 

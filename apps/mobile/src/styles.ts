@@ -214,6 +214,17 @@ export const styles = StyleSheet.create({
     paddingVertical: 4,
     textTransform: 'uppercase',
   },
+  aiDraftBadge: {
+    backgroundColor: '#dbeafe',
+    borderRadius: 999,
+    color: '#1d4ed8',
+    fontSize: 11,
+    fontWeight: '800',
+    overflow: 'hidden',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    textTransform: 'uppercase',
+  },
   inlineActions: {
     flexDirection: 'row',
     gap: 8,

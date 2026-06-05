@@ -21,6 +21,7 @@ export interface OwnerDashboard {
     products: number;
     lowStockItems: number;
     pendingFollowUps: number;
+    pendingAiDrafts: number;
   };
   emptyStates: string[];
 }

@@ -1,5 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 
+import { SalesAiService } from '../../domains/ai/sales-ai.service';
 import { WhatsAppConversationMessageRepository } from '../../domains/whatsapp/whatsapp-conversation-message.repository';
 import { SupabaseService } from '../../supabase/supabase.service';
 import { WhatsAppInboundMessageLog } from './whatsapp-webhook.types';
@@ -29,9 +30,14 @@ interface PersistedWhatsAppEventRow {
 
 @Injectable()
 export class WhatsAppMessageEventRepository {
+  private readonly logger = new Logger(WhatsAppMessageEventRepository.name);
+
   constructor(
     private readonly supabaseService: SupabaseService,
+    @Optional()
     private readonly messageRepository?: WhatsAppConversationMessageRepository,
+    @Optional()
+    private readonly salesAiService?: SalesAiService,
   ) {}
 
   async recordInboundMessages(
@@ -137,7 +143,7 @@ export class WhatsAppMessageEventRepository {
       return;
     }
 
-    await this.messageRepository.recordInboundMessage({
+    const persistedMessage = await this.messageRepository.recordInboundMessage({
       eventId: messageEvent.id,
       organizationId: messageEvent.organization_id,
       whatsappConfigId: messageEvent.whatsapp_config_id,
@@ -148,5 +154,24 @@ export class WhatsAppMessageEventRepository {
       timestamp: event.timestamp,
       messageType: event.messageType,
     });
+
+    if (persistedMessage.conversationMessageId) {
+      void this.salesAiService
+        ?.handleInboundMessage({
+          conversationId: persistedMessage.conversationId,
+          organizationId: messageEvent.organization_id,
+          sourceMessageId: persistedMessage.conversationMessageId,
+          textBody: event.textBody,
+        })
+        .catch((error: unknown) => {
+          this.logger.error(
+            JSON.stringify({
+              event: 'sales_ai.draft_generation.failed',
+              message: error instanceof Error ? error.message : 'Unknown AI draft error',
+              sourceMessageId: persistedMessage.conversationMessageId,
+            }),
+          );
+        });
+    }
   }
 }

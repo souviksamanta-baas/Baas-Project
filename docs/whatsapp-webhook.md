@@ -156,6 +156,11 @@ metadata without duplicating the contact.
 publication exists, allowing the mobile inbox to subscribe to tenant-scoped
 message changes in later inbox work.
 
+When an inbound text message is persisted, the webhook repository also starts
+Sales AI draft generation asynchronously. Draft generation uses the stored
+conversation/message IDs, writes `ai_drafts` and `ai_draft_events`, and logs
+errors without failing the webhook acknowledgement.
+
 ## Outbound Sends
 
 `WhatsAppOutboundMessageService` sends text messages through the WhatsApp Cloud
@@ -169,6 +174,10 @@ The service loads the connected WhatsApp configuration by organization, sends
 with the server-side access token, and persists a `sent` or `failed` outbound
 message record. Mobile code does not call Meta APIs directly and does not receive
 WhatsApp access tokens.
+
+KAN-70 owner-approved AI drafts and allowed auto-send replies also route through
+`WhatsAppOutboundMessageService`. Auto-send is off by default and requires
+`organizations.ai_auto_send = true` plus a catalog-backed safe draft.
 
 ## Duplicate Deliveries
 

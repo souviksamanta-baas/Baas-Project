@@ -30,6 +30,7 @@ The mobile app uses only public Expo environment variables:
 - `EXPO_PUBLIC_SUPABASE_URL`
 - `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
 - `EXPO_PUBLIC_AUTH_OTP_CHANNEL`
+- `EXPO_PUBLIC_API_BASE_URL`
 
 The app does not read service-role keys, database passwords, WhatsApp secrets,
 or any server-only variables.
@@ -150,6 +151,23 @@ push alerts**, grants permission, and the app registers the Expo push token in
 `owner_device_tokens` through authenticated Supabase RLS. The mobile app stores
 only the Expo push token, organization ID, and current authenticated user ID; it
 does not receive service-role keys or WhatsApp secrets.
+
+## Sales AI Drafts and Quotes
+
+KAN-70 adds an owner review surface for Sales AI drafts:
+
+- Loads pending and failed `ai_drafts` for the active organization.
+- Shows whether the draft is a catalog reply or text-only quote.
+- Displays the AI decision reason and any send error.
+- Lets the owner edit draft text inline before approval.
+- Calls the API `POST /ai/drafts/:draftId/approve` endpoint with the current
+  Supabase access token so WhatsApp sends remain server-side.
+- Lets the owner reject a draft through `POST /ai/drafts/:draftId/reject`.
+- Subscribes to tenant-scoped `ai_drafts` Realtime changes.
+
+`EXPO_PUBLIC_API_BASE_URL` points mobile to the deployed NestJS API for these
+owner actions. The app still uses Supabase RLS for draft reads and never receives
+Meta WhatsApp credentials.
 
 ## Local Commands
 

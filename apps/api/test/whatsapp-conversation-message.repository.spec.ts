@@ -7,7 +7,11 @@ describe('WhatsAppConversationMessageRepository', () => {
   it('upserts a contact, links the conversation, and persists inbound messages', async () => {
     const contactUpsert = vi.fn();
     const conversationUpsert = vi.fn();
-    const messageInsert = vi.fn(async () => ({ error: null }));
+    const messageInsert = vi.fn(() => ({
+      select: vi.fn(() => ({
+        maybeSingle: vi.fn(async () => ({ data: { id: 'message-1' }, error: null })),
+      })),
+    }));
     const client = {
       from: (tableName: string) => {
         if (tableName === 'contacts') {
@@ -46,7 +50,8 @@ describe('WhatsAppConversationMessageRepository', () => {
     } as unknown as SupabaseService;
     const repository = new WhatsAppConversationMessageRepository(supabaseService);
 
-    await repository.recordInboundMessage({
+    await expect(
+      repository.recordInboundMessage({
       eventId: 'event-1',
       organizationId: 'organization-1',
       whatsappConfigId: 'whatsapp-config-1',
@@ -56,6 +61,10 @@ describe('WhatsAppConversationMessageRepository', () => {
       textBody: 'Hello',
       timestamp: '2026-06-05T19:03:05.000Z',
       messageType: 'text',
+      }),
+    ).resolves.toEqual({
+      conversationId: 'conversation-1',
+      conversationMessageId: 'message-1',
     });
 
     expect(contactUpsert).toHaveBeenCalledWith(
