@@ -45,6 +45,7 @@ These values must never be bundled into mobile/client code.
 | `WHATSAPP_VERIFY_TOKEN` | Meta webhook setup token checked by `GET /webhooks/whatsapp` | API server, deployment secret store |
 | `WHATSAPP_APP_SECRET` | Meta app secret used to validate `x-hub-signature-256` | API server, deployment secret store |
 | `WHATSAPP_WEBHOOK_PATH` | Documented webhook path for deployment routing | API server, local dev |
+| `BAAS_TASKS_JOB_SECRET` | Shared secret required by `POST /tasks/run-maintenance` | API server, scheduler secret store |
 | `SUPABASE_AUTH_SMS_PROVIDER` | Name of the hosted SMS provider configured for phone OTP | Supabase dashboard or deployment notes only |
 | `SUPABASE_AUTH_SMS_PROVIDER_SECRET` | Provider token/password/API key for phone OTP | Supabase dashboard secret storage only |
 
@@ -101,6 +102,16 @@ Rules:
 - In production, the API rejects webhook requests if `WHATSAPP_APP_SECRET` is
   missing.
 
+## Task Maintenance Job Secret
+
+KAN-69 adds `POST /tasks/run-maintenance` for scheduled follow-up and low-stock
+processing. The endpoint requires `BAAS_TASKS_JOB_SECRET` and the caller must
+send it in the `x-baas-job-secret` header. If the secret is not configured, the
+endpoint returns service unavailable instead of running automation.
+
+Do not expose this secret to Expo/mobile builds. It belongs only in the API
+runtime and whichever scheduler invokes the backend job.
+
 ## Local Files
 
 Use `.env.local` for developer machines. The repository `.gitignore` ignores
@@ -132,6 +143,7 @@ Deployment platforms should define:
 
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY` for the NestJS API only
+- `BAAS_TASKS_JOB_SECRET` for the task maintenance endpoint
 - Mobile public variables through Expo or app build environment configuration
 
 ## Verification

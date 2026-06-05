@@ -39,6 +39,13 @@ database-backed ownership through `contacts`, `conversations`, and
 `conversation_messages`, even while their NestJS modules remain thin.
 `InventoryModule` exposes `InventoryService` for product and stock lookup
 needed by app, AI, copilot, and low-stock workflows.
+`TasksModule` exposes:
+
+- `TasksService` for follow-up task automation, low-stock alert generation, and
+  Expo push notification dispatch through registered owner devices.
+- `TasksController` for the secured `POST /tasks/run-maintenance` trigger used
+  by a scheduler or manual backend job runner.
+
 `WhatsAppModule` exposes:
 
 - `WhatsAppConnectionService` for server-side reads of WhatsApp connection
@@ -52,6 +59,11 @@ needed by app, AI, copilot, and low-stock workflows.
 lookups and always requires an `organizationId`. It returns product price, stock,
 reorder threshold, and computed low-stock status without exposing cross-tenant
 data.
+
+`TasksService` is intentionally orchestration-heavy because KAN-69 spans CRM,
+conversations, inventory, and notifications. It keeps that cross-domain workflow
+inside `tasks/` and requires an organization scope for every generated task,
+alert, and push lookup.
 
 Existing Phase 0 behavior is unchanged.
 

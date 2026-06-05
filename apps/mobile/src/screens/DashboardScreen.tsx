@@ -4,17 +4,20 @@ import { Alert, Pressable, Text, TextInput, View } from 'react-native';
 import { PrimaryButton, SecondaryButton } from '../components/Buttons';
 import { Metric } from '../components/Metric';
 import { useInbox } from '../hooks/useInbox';
+import { useOwnerTasks } from '../hooks/useOwnerTasks';
 import { useProducts } from '../hooks/useProducts';
 import { styles } from '../styles';
 import type { OwnerDashboard } from '../types/dashboard';
 import type { InboxConversationSummary, WhatsAppMessagePreview } from '../types/messages';
 import type { Product } from '../types/products';
+import type { OwnerNotification, OwnerTask } from '../types/tasks';
 
 export function DashboardScreen(props: {
   dashboard: OwnerDashboard;
   onSignOut: () => void;
 }): ReactElement {
   const inbox = useInbox(props.dashboard.organization?.id ?? null);
+  const ownerTasks = useOwnerTasks(props.dashboard.organization?.id ?? null);
   const productCatalog = useProducts(props.dashboard.organization?.id ?? null);
 
   return (
@@ -28,7 +31,9 @@ export function DashboardScreen(props: {
         <Metric label="Open chats" value={props.dashboard.metrics.openConversations} />
         <Metric label="Products" value={props.dashboard.metrics.products} />
         <Metric label="Low stock" value={props.dashboard.metrics.lowStockItems} />
+        <Metric label="Follow-ups" value={props.dashboard.metrics.pendingFollowUps} />
       </View>
+      <FollowUpTasksCard ownerTasks={ownerTasks} />
       <ProductCatalogCard catalog={productCatalog} />
       {props.dashboard.emptyStates.map((emptyState: string) => (
         <Text key={emptyState} style={styles.emptyState}>
@@ -36,6 +41,111 @@ export function DashboardScreen(props: {
         </Text>
       ))}
       <SecondaryButton label="Sign out" onPress={props.onSignOut} />
+    </View>
+  );
+}
+
+function FollowUpTasksCard(props: { ownerTasks: ReturnType<typeof useOwnerTasks> }): ReactElement {
+  const { ownerTasks } = props;
+
+  return (
+    <View style={styles.statusCard}>
+      <Text style={styles.statusLabel}>Follow-ups and alerts</Text>
+      {ownerTasks.isLoading ? <Text style={styles.statusDetail}>Loading tasks...</Text> : null}
+      {ownerTasks.errorMessage ? <Text style={styles.statusError}>{ownerTasks.errorMessage}</Text> : null}
+      <SecondaryButton
+        label={ownerTasks.isSaving ? 'Working...' : 'Enable low-stock push alerts'}
+        onPress={() => {
+          void ownerTasks.enablePushNotifications();
+        }}
+      />
+      {ownerTasks.pushRegistrationStatus ? (
+        <Text style={styles.statusDetail}>{ownerTasks.pushRegistrationStatus}</Text>
+      ) : null}
+      {ownerTasks.tasks.length === 0 ? (
+        <Text style={styles.statusDetail}>No pending follow-ups right now.</Text>
+      ) : (
+        <View style={styles.taskList}>
+          {ownerTasks.tasks.map((task) => (
+            <FollowUpTaskItem
+              key={task.id}
+              onComplete={() => {
+                void ownerTasks.completeTask(task.id);
+              }}
+              onSnooze={() => {
+                void ownerTasks.snoozeTask(task.id);
+              }}
+              task={task}
+            />
+          ))}
+        </View>
+      )}
+      {ownerTasks.notifications.length > 0 ? (
+        <View style={styles.taskList}>
+          <Text style={styles.statusValue}>Recent alerts</Text>
+          {ownerTasks.notifications.map((notification) => (
+            <OwnerNotificationItem
+              key={notification.id}
+              notification={notification}
+              onDismiss={() => {
+                void ownerTasks.dismissNotification(notification.id);
+              }}
+            />
+          ))}
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+function FollowUpTaskItem(props: {
+  onComplete: () => void;
+  onSnooze: () => void;
+  task: OwnerTask;
+}): ReactElement {
+  const { task } = props;
+
+  return (
+    <View style={styles.taskItem}>
+      <Text style={styles.conversationTitle}>{task.title}</Text>
+      <Text style={styles.conversationMeta}>
+        {task.contactLabel ?? 'Unknown contact'}
+        {task.dueAt ? ` · due ${formatDateTime(task.dueAt)}` : ''}
+      </Text>
+      {task.description ? (
+        <Text style={styles.messagePreviewBody}>{task.description}</Text>
+      ) : null}
+      {task.status === 'snoozed' && task.snoozedUntil ? (
+        <Text style={styles.statusDetail}>Snoozed until {formatDateTime(task.snoozedUntil)}</Text>
+      ) : null}
+      <View style={styles.inlineActions}>
+        <SecondaryButton label="Complete" onPress={props.onComplete} />
+        <SecondaryButton label="Snooze 24h" onPress={props.onSnooze} />
+      </View>
+    </View>
+  );
+}
+
+function OwnerNotificationItem(props: {
+  notification: OwnerNotification;
+  onDismiss: () => void;
+}): ReactElement {
+  const { notification } = props;
+
+  return (
+    <View style={styles.taskItem}>
+      <View style={styles.productHeader}>
+        <Text style={styles.conversationTitle}>{notification.title}</Text>
+        <Text style={styles.lowStockBadge}>{notification.status}</Text>
+      </View>
+      <Text style={styles.messagePreviewBody}>{notification.body}</Text>
+      {notification.productLabel ? (
+        <Text style={styles.conversationMeta}>{notification.productLabel}</Text>
+      ) : null}
+      {notification.errorMessage ? (
+        <Text style={styles.statusError}>{notification.errorMessage}</Text>
+      ) : null}
+      <SecondaryButton label="Dismiss" onPress={props.onDismiss} />
     </View>
   );
 }
@@ -320,6 +430,13 @@ function formatTimestamp(timestamp: string): string {
   return new Date(timestamp).toLocaleTimeString([], {
     hour: '2-digit',
     minute: '2-digit',
+  });
+}
+
+function formatDateTime(timestamp: string): string {
+  return new Date(timestamp).toLocaleString([], {
+    dateStyle: 'short',
+    timeStyle: 'short',
   });
 }
 

@@ -147,8 +147,28 @@ Health check path:
 | `WHATSAPP_VERIFY_TOKEN` | Required before Meta webhook setup | Verification token for `GET /webhooks/whatsapp`. |
 | `WHATSAPP_APP_SECRET` | Required in production webhook handling | Meta app secret for webhook signature validation. |
 | `WHATSAPP_WEBHOOK_PATH` | Optional | Documented path, default `/webhooks/whatsapp`. |
+| `BAAS_TASKS_JOB_SECRET` | Required for task automation trigger | Shared secret expected in `x-baas-job-secret` for `POST /tasks/run-maintenance`. |
 
 Do not put real secret values in source files, Jira, Confluence, or local docs.
+
+## Task Maintenance Trigger
+
+KAN-69 adds a secured backend trigger for follow-up and alert automation:
+
+```bash
+curl -X POST https://<railway-domain>/tasks/run-maintenance \
+  -H "x-baas-job-secret: <secret>"
+```
+
+The trigger:
+
+- Creates duplicate-safe follow-up tasks for idle open conversations based on
+  each organization's `ai_follow_up_delay_hours`.
+- Creates duplicate-safe low-stock notification rows from inventory data.
+- Sends Expo push notifications to active tokens in `owner_device_tokens`.
+
+If `BAAS_TASKS_JOB_SECRET` is missing or the header does not match, the endpoint
+does not run the job.
 
 ## Deployment Verification
 

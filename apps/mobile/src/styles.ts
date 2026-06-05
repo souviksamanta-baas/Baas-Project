@@ -175,6 +175,17 @@ export const styles = StyleSheet.create({
     alignSelf: 'flex-end',
     backgroundColor: '#dbeafe',
   },
+  taskList: {
+    gap: 8,
+  },
+  taskItem: {
+    backgroundColor: '#ffffff',
+    borderColor: '#e2e8f0',
+    borderRadius: 14,
+    borderWidth: 1,
+    gap: 6,
+    padding: 12,
+  },
   productList: {
     gap: 8,
   },

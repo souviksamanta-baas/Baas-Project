@@ -5,6 +5,7 @@ export interface OwnerDashboard {
     name: string;
     role: 'owner' | 'staff';
     timezone: string;
+    followUpDelayHours: number;
   } | null;
   whatsappConnection: {
     status: 'not_configured' | 'pending' | 'connected' | 'error' | 'disabled';

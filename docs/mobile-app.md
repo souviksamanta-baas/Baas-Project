@@ -133,6 +133,24 @@ Negative stock is not allowed in the MVP. Stock adjustments must keep
 `stock_quantity` at zero or above so inventory lookup and future AI answers do
 not overstate availability.
 
+## Follow-Ups and Alerts
+
+KAN-69 adds an owner task surface to the mobile dashboard:
+
+- Loads pending and snoozed `owner_tasks` for the active organization.
+- Shows task contact/conversation context, due time, and snooze status.
+- Lets the owner mark follow-up tasks complete or snooze them for 24 hours.
+- Loads recent `owner_notifications` for low-stock alerts.
+- Lets the owner dismiss handled alerts.
+- Subscribes to tenant-scoped task and notification Realtime changes.
+- Shows foreground in-app alerts when a new notification arrives.
+
+Low-stock push alerts use Expo notifications. The owner taps **Enable low-stock
+push alerts**, grants permission, and the app registers the Expo push token in
+`owner_device_tokens` through authenticated Supabase RLS. The mobile app stores
+only the Expo push token, organization ID, and current authenticated user ID; it
+does not receive service-role keys or WhatsApp secrets.
+
 ## Local Commands
 
 Install dependencies:

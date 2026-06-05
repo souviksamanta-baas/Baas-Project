@@ -21,6 +21,7 @@ The Phase 0 tenant foundation defines:
 | `20260604231000_create_conversation_message_persistence.sql` | Adds tenant-scoped `conversations` and `conversation_messages` with authenticated read policies and server-owned writes. |
 | `20260605193500_create_contacts_crm_foundation.sql` | Adds tenant-scoped `contacts`, links conversations to CRM contacts, updates dashboard metrics, and registers contact/conversation Realtime tables when available. |
 | `20260605200000_create_product_catalog_inventory.sql` | Adds tenant-scoped `products`, owner-app CRUD policies, stock/reorder checks, dashboard product metrics, and product Realtime publication when available. |
+| `20260605204500_create_owner_tasks_alerts.sql` | Adds tenant-scoped `owner_tasks`, `owner_notifications`, and `owner_device_tokens`; updates pending follow-up metrics; registers task/notification Realtime tables when available. |
 
 ## RLS Policy Model
 
@@ -33,6 +34,9 @@ All Phase 0 tenant tables have RLS enabled and forced:
 - `conversations`
 - `conversation_messages`
 - `products`
+- `owner_tasks`
+- `owner_notifications`
+- `owner_device_tokens`
 
 Client users can read `organizations` and `organization_members` only when their `auth.uid()` belongs to the organization through `organization_members`.
 
@@ -58,6 +62,16 @@ insert, update, and delete their own tenant's catalog rows. Stock quantity,
 reorder threshold, and unit price are constrained to non-negative values at the
 database level; negative stock is intentionally disallowed for the MVP so owner
 inventory and AI lookup answers stay conservative and accurate.
+
+Phase 2 follow-up tasks and notifications are organization-scoped. The API
+service role creates follow-up tasks and low-stock notification rows from trusted
+automation, while authenticated organization members can read and update task or
+notification status for their own tenant.
+
+`owner_device_tokens` is scoped to both organization membership and the current
+`auth.uid()`. Owners and staff can register or update only their own device token
+rows, which lets the backend send Expo push notifications without exposing push
+registration data across users or tenants.
 
 ## Verification
 
