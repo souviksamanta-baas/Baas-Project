@@ -4,10 +4,34 @@ This document tracks the Phase 0 auth and onboarding work for `KAN-7`.
 
 ## Scope
 
-Phase 0 uses Supabase Auth with phone OTP as the primary owner login method.
+Phase 0 planned Supabase Auth with phone OTP as the primary owner login method.
+During Phase 2 simulator verification, the mobile app uses Supabase email OTP so
+Realtime behavior can be tested before Twilio/SMS provider setup is complete.
 After login, the mobile app resolves whether the user already belongs to an
 organization. If not, it prompts for business creation and creates the user as
 the organization owner.
+
+Production phone OTP remains the target owner login path and is tracked under
+KAN-129.
+
+## Email OTP for Simulator Verification
+
+The current Expo simulator flow calls:
+
+```typescript
+await supabase.auth.signInWithOtp({
+  email: normalizedEmail,
+});
+
+await supabase.auth.verifyOtp({
+  email: normalizedEmail,
+  token: otpCode,
+  type: 'email',
+});
+```
+
+This avoids blocking Realtime verification on SMS provider setup. Email OTP must
+still use public Supabase client variables only.
 
 ## Phone OTP
 
@@ -57,7 +81,8 @@ created together.
 
 ## First Login Flow
 
-1. Owner enters phone number.
+1. Owner enters email address for the current simulator flow, or phone number
+   after KAN-129 provider setup.
 2. App calls `signInWithOtp`.
 3. Owner enters OTP code.
 4. App calls `verifyOtp`.

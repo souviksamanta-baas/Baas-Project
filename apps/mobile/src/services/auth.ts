@@ -1,21 +1,34 @@
 import { supabase } from '../lib/supabase';
+import { normalizeEmail } from './email';
 
-export async function requestPhoneOtp(phone: string): Promise<void> {
-  const { error } = await supabase.auth.signInWithOtp({ phone: phone.trim() });
+export async function requestEmailOtp(email: string): Promise<void> {
+  const normalizedEmail = normalizeEmail(email);
+
+  if (!normalizedEmail) {
+    throw new Error('Enter a valid email address.');
+  }
+
+  const { error } = await supabase.auth.signInWithOtp({ email: normalizedEmail });
 
   if (error) {
     throw new Error(error.message);
   }
 }
 
-export async function verifyPhoneOtp(params: {
+export async function verifyEmailOtp(params: {
+  email: string;
   otpCode: string;
-  phone: string;
 }): Promise<void> {
+  const normalizedEmail = normalizeEmail(params.email);
+
+  if (!normalizedEmail) {
+    throw new Error('Enter a valid email address.');
+  }
+
   const { error } = await supabase.auth.verifyOtp({
-    phone: params.phone.trim(),
+    email: normalizedEmail,
     token: params.otpCode.trim(),
-    type: 'sms',
+    type: 'email',
   });
 
   if (error) {

@@ -5,16 +5,16 @@ import { PrimaryButton } from '../components/Buttons';
 import { styles } from '../styles';
 
 export function VerifyOtpScreen(props: {
+  email: string;
   isSubmitting: boolean;
   onChangeOtpCode: (otpCode: string) => void;
   onVerifyOtp: () => void;
   otpCode: string;
-  phone: string;
 }): ReactElement {
   return (
     <View style={styles.card}>
       <Text style={styles.heading}>Enter verification code</Text>
-      <Text style={styles.bodyText}>We sent an OTP to {props.phone}.</Text>
+      <Text style={styles.bodyText}>We sent an OTP to {props.email}.</Text>
       <TextInput
         keyboardType="number-pad"
         onChangeText={props.onChangeOtpCode}

@@ -35,11 +35,11 @@ function OwnerRouteView(props: { ownerSession: OwnerSessionState }): ReactElemen
   if (ownerSession.route === 'login') {
     return (
       <LoginScreen
-        canSubmitPhone={ownerSession.canSubmitPhone}
+        canSubmitEmail={ownerSession.canSubmitEmail}
+        email={ownerSession.email}
         isSubmitting={ownerSession.isSubmitting}
-        onChangePhone={ownerSession.setPhone}
+        onChangeEmail={ownerSession.setEmail}
         onRequestOtp={ownerSession.requestOtp}
-        phone={ownerSession.phone}
       />
     );
   }
@@ -47,11 +47,11 @@ function OwnerRouteView(props: { ownerSession: OwnerSessionState }): ReactElemen
   if (ownerSession.route === 'verify') {
     return (
       <VerifyOtpScreen
+        email={ownerSession.email}
         isSubmitting={ownerSession.isSubmitting}
         onChangeOtpCode={ownerSession.setOtpCode}
         onVerifyOtp={ownerSession.verifyOtp}
         otpCode={ownerSession.otpCode}
-        phone={ownerSession.phone}
       />
     );
   }

@@ -24,7 +24,7 @@ from environment configuration instead of hardcoded in source files.
 | `EXPO_PUBLIC_SUPABASE_URL` | Supabase API URL for the mobile app | Current development URL: `https://efcyejbvcskbnipwdfge.supabase.co` |
 | `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Supabase publishable key for client requests | Prefer this for new client work |
 | `EXPO_PUBLIC_SUPABASE_ANON_KEY` | Legacy anon key for client requests | Use only if a library or integration requires the legacy JWT key |
-| `EXPO_PUBLIC_AUTH_OTP_CHANNEL` | OTP channel used by the mobile app | Phase 0 default: `sms` |
+| `EXPO_PUBLIC_AUTH_OTP_CHANNEL` | OTP channel used by the mobile app | Current simulator flow uses `email`; production phone OTP is pending provider setup. |
 
 The Expo app in `apps/mobile` must only use `EXPO_PUBLIC_*` variables. Server-only
 values below must never be referenced from mobile source files.
@@ -70,10 +70,11 @@ Rules:
 
 ## Phone OTP Provider Handling
 
-Phone OTP is the primary owner login method for Phase 0. The local
-`supabase/config.toml` enables SMS signup and sets the message template, but
-hosted OTP delivery still requires an SMS provider such as Twilio or another
-Supabase-supported provider.
+Phone OTP is the intended production owner login method. The current simulator
+verification flow uses email OTP so mobile Realtime behavior can be tested before
+SMS provider setup. The local `supabase/config.toml` enables SMS signup and sets
+the message template, but hosted OTP delivery still requires an SMS provider such
+as Twilio or another Supabase-supported provider.
 
 Rules:
 

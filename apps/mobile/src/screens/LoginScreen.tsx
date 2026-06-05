@@ -5,26 +5,27 @@ import { PrimaryButton } from '../components/Buttons';
 import { styles } from '../styles';
 
 export function LoginScreen(props: {
-  canSubmitPhone: boolean;
+  canSubmitEmail: boolean;
+  email: string;
   isSubmitting: boolean;
-  onChangePhone: (phone: string) => void;
+  onChangeEmail: (email: string) => void;
   onRequestOtp: () => void;
-  phone: string;
 }): ReactElement {
   return (
     <View style={styles.card}>
-      <Text style={styles.heading}>Log in with phone</Text>
-      <Text style={styles.bodyText}>Use your business phone number to receive a one-time code.</Text>
+      <Text style={styles.heading}>Log in with email</Text>
+      <Text style={styles.bodyText}>Use your email address to receive a one-time code.</Text>
       <TextInput
         autoCapitalize="none"
-        keyboardType="phone-pad"
-        onChangeText={props.onChangePhone}
-        placeholder="+15555550100"
+        autoComplete="email"
+        keyboardType="email-address"
+        onChangeText={props.onChangeEmail}
+        placeholder="owner@example.com"
         style={styles.input}
-        value={props.phone}
+        value={props.email}
       />
       <PrimaryButton
-        disabled={props.isSubmitting || !props.canSubmitPhone}
+        disabled={props.isSubmitting || !props.canSubmitEmail}
         label="Send code"
         onPress={props.onRequestOtp}
       />

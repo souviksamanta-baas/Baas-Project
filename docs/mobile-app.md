@@ -40,7 +40,7 @@ Phase 0 keeps navigation intentionally simple and state-based, but Phase 1 split
 the shell into maintainable boundaries before the MVP screens expand:
 
 1. `loading`: checks the current Supabase session.
-2. `login`: requests a phone OTP with `supabase.auth.signInWithOtp`.
+2. `login`: requests an email OTP with `supabase.auth.signInWithOtp`.
 3. `verify`: verifies the OTP with `supabase.auth.verifyOtp`.
 4. `onboarding`: calls `create_organization_with_owner` when no org exists.
 5. `dashboard`: calls `get_owner_dashboard` and renders the empty owner state.
@@ -58,6 +58,13 @@ the shell into maintainable boundaries before the MVP screens expand:
 
 This structure can be replaced with a router once more screens are added in Phase
 2, while keeping screens, hooks, services, and reusable components separate.
+
+## Authentication Note
+
+The simulator verification flow currently uses Supabase email OTP so KAN-88
+Realtime behavior can be tested without a configured SMS provider. Production
+phone OTP remains the target owner login path and is tracked separately under
+KAN-129 for Twilio/Supabase Phone provider setup.
 
 ## Empty Dashboard
 

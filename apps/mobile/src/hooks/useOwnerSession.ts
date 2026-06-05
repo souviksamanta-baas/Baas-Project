@@ -4,23 +4,24 @@ import type { Session } from '@supabase/supabase-js';
 
 import { createOrganizationWithOwner, getOwnerDashboard } from '../features/onboarding';
 import { supabase } from '../lib/supabase';
-import { requestPhoneOtp, signOutOwner, verifyPhoneOtp } from '../services/auth';
+import { requestEmailOtp, signOutOwner, verifyEmailOtp } from '../services/auth';
+import { normalizeEmail } from '../services/email';
 import type { OwnerDashboard } from '../types/dashboard';
 
 export type OwnerRoute = 'loading' | 'login' | 'verify' | 'onboarding' | 'dashboard';
 
 export interface OwnerSessionState {
   businessName: string;
-  canSubmitPhone: boolean;
+  canSubmitEmail: boolean;
   dashboard: OwnerDashboard | null;
+  email: string;
   isSubmitting: boolean;
   otpCode: string;
-  phone: string;
   requestOtp: () => Promise<void>;
   route: OwnerRoute;
   setBusinessName: (businessName: string) => void;
+  setEmail: (email: string) => void;
   setOtpCode: (otpCode: string) => void;
-  setPhone: (phone: string) => void;
   createOrganization: () => Promise<void>;
   signOut: () => Promise<void>;
   verifyOtp: () => Promise<void>;
@@ -29,13 +30,13 @@ export interface OwnerSessionState {
 export function useOwnerSession(): OwnerSessionState {
   const [route, setRoute] = useState<OwnerRoute>('loading');
   const [session, setSession] = useState<Session | null>(null);
-  const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
   const [otpCode, setOtpCode] = useState('');
   const [businessName, setBusinessName] = useState('');
   const [dashboard, setDashboard] = useState<OwnerDashboard | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const canSubmitPhone = useMemo(() => phone.trim().startsWith('+'), [phone]);
+  const canSubmitEmail = useMemo(() => normalizeEmail(email) !== null, [email]);
 
   const bootstrapRoute = useCallback(async (nextSession: Session | null): Promise<void> => {
     if (!nextSession) {
@@ -75,15 +76,17 @@ export function useOwnerSession(): OwnerSessionState {
   }, [bootstrapRoute]);
 
   async function requestOtp(): Promise<void> {
-    if (!canSubmitPhone) {
-      Alert.alert('Use E.164 format', 'Enter a phone number like +15555550100.');
+    if (!canSubmitEmail) {
+      Alert.alert('Use email format', 'Enter an email address like owner@example.com.');
       return;
     }
 
     setIsSubmitting(true);
 
     try {
-      await requestPhoneOtp(phone);
+      const normalizedEmail = normalizeEmail(email);
+      await requestEmailOtp(email);
+      setEmail(normalizedEmail ?? email);
       setRoute('verify');
     } catch (error) {
       Alert.alert('Could not send code', error instanceof Error ? error.message : 'Unknown error');
@@ -96,7 +99,7 @@ export function useOwnerSession(): OwnerSessionState {
     setIsSubmitting(true);
 
     try {
-      await verifyPhoneOtp({ phone, otpCode });
+      await verifyEmailOtp({ email, otpCode });
     } catch (error) {
       Alert.alert('Could not verify code', error instanceof Error ? error.message : 'Unknown error');
     } finally {
@@ -128,16 +131,16 @@ export function useOwnerSession(): OwnerSessionState {
 
   return {
     businessName,
-    canSubmitPhone,
+    canSubmitEmail,
     dashboard,
+    email,
     isSubmitting,
     otpCode,
-    phone,
     requestOtp,
     route,
     setBusinessName,
+    setEmail,
     setOtpCode,
-    setPhone,
     createOrganization,
     signOut,
     verifyOtp,
