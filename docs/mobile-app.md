@@ -74,6 +74,7 @@ After organization creation, the dashboard shows:
 - Active organization name.
 - WhatsApp Business connection status from the safe `get_owner_dashboard`
   response.
+- Active/default business center metadata for center-scoped settings and filters.
 - Zero-count metrics for contacts, open conversations, products, and low stock.
 - Setup prompts for WhatsApp, product catalog, and follow-up rules.
 
@@ -90,14 +91,13 @@ secrets, or service-role configuration.
 
 Phase 2 message history is stored in `conversation_messages`, which is registered
 with Supabase Realtime by the migration when the `supabase_realtime` publication
-exists. The future inbox screen should subscribe with an organization-scoped
-filter and rely on RLS so owners only receive messages for organizations where
-they are members.
+exists. KAN-130 adds `business_center_id` to operational records, so the mobile
+inbox uses the active/default business center for reads and subscriptions.
 
 The dashboard now includes a compact live WhatsApp message preview that:
 
-- Loads recent `conversation_messages` rows for the active organization.
-- Subscribes to `INSERT` events with `organization_id=eq.<active-org-id>`.
+- Loads recent `conversation_messages` rows for the active business center.
+- Subscribes to `INSERT` events with `business_center_id=eq.<active-center-id>`.
 - Updates the visible preview when new messages arrive without manual refresh.
 
 ## Universal Inbox
@@ -120,50 +120,52 @@ approved API/domain send path.
 
 Phase 2 adds an inline mobile product catalog surface to the owner dashboard:
 
-- Loads tenant-scoped `products` through authenticated Supabase RLS.
+- Loads catalog `products` joined through center-scoped `inventory_items`.
 - Creates, edits, and deletes active catalog products from the owner app.
 - Captures product name, SKU/code, description, unit price, currency, stock
   quantity, and reorder threshold.
-- Validates that product names are present and numeric fields are non-negative
-  before writing.
-- Shows low-stock state when `stock_quantity <= reorder_threshold`.
-- Subscribes to tenant-scoped product changes through Supabase Realtime and
-  refreshes the catalog when rows change.
+- Validates that product names are present and measured numeric fields are
+  non-negative before writing.
+- Shows low-stock state when `inventory_items.quantity_on_hand <=
+  inventory_items.reorder_threshold`.
+- Subscribes to product and `inventory_items` changes through Supabase Realtime
+  and refreshes the catalog when rows change.
 
-Negative stock is not allowed in the MVP. Stock adjustments must keep
-`stock_quantity` at zero or above so inventory lookup and future AI answers do
-not overstate availability.
+Negative stock is not allowed in the MVP. KAN-130 keeps legacy product stock
+columns populated for compatibility, but the active stock source is
+`inventory_items` so future bulk-weight inventory, lots, and transformations can
+track decimal quantities.
 
 ## Follow-Ups and Alerts
 
 KAN-69 adds an owner task surface to the mobile dashboard:
 
-- Loads pending and snoozed `owner_tasks` for the active organization.
+- Loads pending and snoozed `owner_tasks` for the active business center.
 - Shows task contact/conversation context, due time, and snooze status.
 - Lets the owner mark follow-up tasks complete or snooze them for 24 hours.
 - Loads recent `owner_notifications` for low-stock alerts.
 - Lets the owner dismiss handled alerts.
-- Subscribes to tenant-scoped task and notification Realtime changes.
+- Subscribes to center-scoped task and notification Realtime changes.
 - Shows foreground in-app alerts when a new notification arrives.
 
 Low-stock push alerts use Expo notifications. The owner taps **Enable low-stock
 push alerts**, grants permission, and the app registers the Expo push token in
 `owner_device_tokens` through authenticated Supabase RLS. The mobile app stores
-only the Expo push token, organization ID, and current authenticated user ID; it
-does not receive service-role keys or WhatsApp secrets.
+only the Expo push token, organization ID, business center ID, and current
+authenticated user ID; it does not receive service-role keys or WhatsApp secrets.
 
 ## Sales AI Drafts and Quotes
 
 KAN-70 adds an owner review surface for Sales AI drafts:
 
-- Loads pending and failed `ai_drafts` for the active organization.
+- Loads pending and failed `ai_drafts` for the active business center.
 - Shows whether the draft is a catalog reply or text-only quote.
 - Displays the AI decision reason and any send error.
 - Lets the owner edit draft text inline before approval.
 - Calls the API `POST /ai/drafts/:draftId/approve` endpoint with the current
   Supabase access token so WhatsApp sends remain server-side.
 - Lets the owner reject a draft through `POST /ai/drafts/:draftId/reject`.
-- Subscribes to tenant-scoped `ai_drafts` Realtime changes.
+- Subscribes to center-scoped `ai_drafts` Realtime changes.
 
 `EXPO_PUBLIC_API_BASE_URL` points mobile to the deployed NestJS API for these
 owner actions. The app still uses Supabase RLS for draft reads and never receives
@@ -177,16 +179,16 @@ KAN-71 adds two owner dashboard surfaces:
   `POST /ai/copilot/query` with the active organization ID and Supabase access
   token. The API validates membership and answers the MVP query set: messages
   today, low-stock products, and pending follow-ups.
-- The AI and follow-up settings card edits organization settings through
-  authenticated Supabase RLS: `ai_auto_send`, `ai_follow_up_delay_hours`, and
-  `business_hours`.
+- The AI and follow-up settings card edits active business center settings
+  through authenticated Supabase RLS: `ai_auto_send`,
+  `ai_follow_up_delay_hours`, and `business_hours`.
 
 Settings validation happens client-side before writes:
 
 - Follow-up delay must be a whole number from 0 to 168 hours.
 - Business hours use `HH:MM` values with different start and end times.
-- Business hours can be weekdays or every day, and are stored with the
-  organization timezone.
+- Business hours can be weekdays or every day, and are stored with the business
+  center timezone.
 
 AI auto-send remains off by default. When enabled, only catalog-backed safe
 drafts can auto-send, and configured business hours further restrict when those

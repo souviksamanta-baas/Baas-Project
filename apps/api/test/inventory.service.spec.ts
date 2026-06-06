@@ -3,39 +3,50 @@ import { describe, expect, it, vi } from 'vitest';
 import { InventoryService } from '../src/domains/inventory/inventory.service';
 import { SupabaseService } from '../src/supabase/supabase.service';
 
-const productRows = [
+const inventoryRows = [
   {
-    id: 'product-1',
+    business_center_id: 'business-center-1',
+    id: 'inventory-item-1',
     organization_id: 'organization-1',
-    name: 'Blue Shirt',
-    sku: 'SHIRT-BLUE',
-    description: 'Cotton shirt',
-    unit_price_cents: 2500,
-    currency: 'USD',
-    stock_quantity: 2,
+    products: {
+      id: 'product-1',
+      name: 'Blue Shirt',
+      sku: 'SHIRT-BLUE',
+      description: 'Cotton shirt',
+      unit_price_cents: 2500,
+      currency: 'USD',
+    },
+    quantity_on_hand: 2,
     reorder_threshold: 5,
+    unit_code: 'unit',
   },
   {
-    id: 'product-2',
+    business_center_id: 'business-center-1',
+    id: 'inventory-item-2',
     organization_id: 'organization-1',
-    name: 'Green Hat',
-    sku: 'HAT-GREEN',
-    description: null,
-    unit_price_cents: 1200,
-    currency: 'USD',
-    stock_quantity: 12,
+    products: {
+      id: 'product-2',
+      name: 'Green Hat',
+      sku: 'HAT-GREEN',
+      description: null,
+      unit_price_cents: 1200,
+      currency: 'USD',
+    },
+    quantity_on_hand: 12,
     reorder_threshold: 5,
+    unit_code: 'unit',
   },
 ];
 
-function createSupabaseService(rows = productRows): {
+function createSupabaseService(rows = inventoryRows): {
   eq: ReturnType<typeof vi.fn>;
   service: SupabaseService;
 } {
   const query = {
     select: vi.fn(() => query),
     eq: vi.fn(() => query),
-    order: vi.fn(async () => ({ data: rows, error: null })),
+    limit: vi.fn(async () => ({ data: rows, error: null })),
+    single: vi.fn(async () => ({ data: { id: 'business-center-1' }, error: null })),
   };
 
   return {
@@ -55,6 +66,7 @@ describe('InventoryService', () => {
 
     await expect(
       inventoryService.lookupProducts({
+        businessCenterId: 'business-center-1',
         organizationId: 'organization-1',
         query: 'shirt',
       }),
@@ -69,7 +81,8 @@ describe('InventoryService', () => {
     ]);
 
     expect(eq).toHaveBeenCalledWith('organization_id', 'organization-1');
-    expect(eq).toHaveBeenCalledWith('is_active', true);
+    expect(eq).toHaveBeenCalledWith('business_center_id', 'business-center-1');
+    expect(eq).toHaveBeenCalledWith('products.is_active', true);
   });
 
   it('returns only products at or below reorder threshold for low-stock lookup', async () => {
@@ -78,6 +91,7 @@ describe('InventoryService', () => {
 
     await expect(
       inventoryService.listLowStockProducts({
+        businessCenterId: 'business-center-1',
         organizationId: 'organization-1',
       }),
     ).resolves.toEqual([

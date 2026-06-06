@@ -47,13 +47,17 @@ interface AiDraftRow {
 
 const apiBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL;
 
-export async function getPendingAiDrafts(organizationId: string): Promise<AiDraft[]> {
+export async function getPendingAiDrafts(
+  organizationId: string,
+  businessCenterId: string,
+): Promise<AiDraft[]> {
   const { data, error } = await supabase
     .from('ai_drafts')
     .select(
       'id, conversation_id, draft_type, status, reply_body, edited_body, auto_send_eligible, catalog_context, decision_reason, error_message, created_at, conversations(customer_display_name, external_contact_id, contacts(display_name, phone_number))',
     )
     .eq('organization_id', organizationId)
+    .eq('business_center_id', businessCenterId)
     .in('status', ['pending_approval', 'failed'])
     .order('created_at', { ascending: false })
     .limit(10);
@@ -86,17 +90,18 @@ export async function rejectAiDraft(draftId: string): Promise<void> {
 
 export function subscribeToAiDraftChanges(
   organizationId: string,
+  businessCenterId: string,
   onChange: () => void,
 ): () => void {
   const channel = supabase
-    .channel(`ai-drafts:${organizationId}`)
+    .channel(`ai-drafts:${organizationId}:${businessCenterId}`)
     .on(
       'postgres_changes',
       {
         event: '*',
         schema: 'public',
         table: 'ai_drafts',
-        filter: `organization_id=eq.${organizationId}`,
+        filter: `business_center_id=eq.${businessCenterId}`,
       },
       () => {
         onChange();

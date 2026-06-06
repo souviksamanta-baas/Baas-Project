@@ -39,13 +39,17 @@ interface OwnerNotificationRow {
   title: string;
 }
 
-export async function getOwnerTasks(organizationId: string): Promise<OwnerTask[]> {
+export async function getOwnerTasks(
+  organizationId: string,
+  businessCenterId: string,
+): Promise<OwnerTask[]> {
   const { data, error } = await supabase
     .from('owner_tasks')
     .select(
       'id, conversation_id, title, description, status, due_at, snoozed_until, contacts(display_name, phone_number), conversations(external_contact_id)',
     )
     .eq('organization_id', organizationId)
+    .eq('business_center_id', businessCenterId)
     .in('status', ['pending', 'snoozed'])
     .order('due_at', { ascending: true, nullsFirst: false });
 
@@ -58,9 +62,10 @@ export async function getOwnerTasks(organizationId: string): Promise<OwnerTask[]
 
 export async function completeOwnerTask(
   organizationId: string,
+  businessCenterId: string,
   taskId: string,
 ): Promise<void> {
-  await updateOwnerTaskStatus(organizationId, taskId, {
+  await updateOwnerTaskStatus(organizationId, businessCenterId, taskId, {
     completed_at: new Date().toISOString(),
     status: 'completed',
   });
@@ -68,11 +73,12 @@ export async function completeOwnerTask(
 
 export async function snoozeOwnerTask(
   organizationId: string,
+  businessCenterId: string,
   taskId: string,
   snoozedUntil: Date,
 ): Promise<void> {
   const timestamp = snoozedUntil.toISOString();
-  await updateOwnerTaskStatus(organizationId, taskId, {
+  await updateOwnerTaskStatus(organizationId, businessCenterId, taskId, {
     due_at: timestamp,
     snoozed_until: timestamp,
     status: 'snoozed',
@@ -81,6 +87,7 @@ export async function snoozeOwnerTask(
 
 export async function getOwnerNotifications(
   organizationId: string,
+  businessCenterId: string,
 ): Promise<OwnerNotification[]> {
   const { data, error } = await supabase
     .from('owner_notifications')
@@ -88,6 +95,7 @@ export async function getOwnerNotifications(
       'id, title, body, status, push_sent_at, error_message, created_at, products(name, stock_quantity, reorder_threshold)',
     )
     .eq('organization_id', organizationId)
+    .eq('business_center_id', businessCenterId)
     .neq('status', 'dismissed')
     .order('created_at', { ascending: false })
     .limit(5);
@@ -101,12 +109,14 @@ export async function getOwnerNotifications(
 
 export async function dismissOwnerNotification(
   organizationId: string,
+  businessCenterId: string,
   notificationId: string,
 ): Promise<void> {
   const { error } = await supabase
     .from('owner_notifications')
     .update({ status: 'dismissed' })
     .eq('organization_id', organizationId)
+    .eq('business_center_id', businessCenterId)
     .eq('id', notificationId);
 
   if (error) {
@@ -116,6 +126,7 @@ export async function dismissOwnerNotification(
 
 export async function registerOwnerPushToken(
   organizationId: string,
+  businessCenterId: string,
   pushToken: string,
 ): Promise<void> {
   const {
@@ -135,6 +146,7 @@ export async function registerOwnerPushToken(
     {
       is_active: true,
       last_registered_at: new Date().toISOString(),
+      business_center_id: businessCenterId,
       organization_id: organizationId,
       platform: 'expo',
       push_token: pushToken,
@@ -152,20 +164,21 @@ export async function registerOwnerPushToken(
 
 export function subscribeToOwnerTaskChanges(
   organizationId: string,
+  businessCenterId: string,
   handlers: {
     onNotificationInsert: (notification: OwnerNotification) => void;
     onRefresh: () => void;
   },
 ): () => void {
   const channel = supabase
-    .channel(`owner-tasks:${organizationId}`)
+    .channel(`owner-tasks:${organizationId}:${businessCenterId}`)
     .on(
       'postgres_changes',
       {
         event: '*',
         schema: 'public',
         table: 'owner_tasks',
-        filter: `organization_id=eq.${organizationId}`,
+        filter: `business_center_id=eq.${businessCenterId}`,
       },
       () => {
         handlers.onRefresh();
@@ -177,7 +190,7 @@ export function subscribeToOwnerTaskChanges(
         event: '*',
         schema: 'public',
         table: 'owner_notifications',
-        filter: `organization_id=eq.${organizationId}`,
+        filter: `business_center_id=eq.${businessCenterId}`,
       },
       (payload) => {
         if (payload.eventType === 'INSERT') {
@@ -195,6 +208,7 @@ export function subscribeToOwnerTaskChanges(
 
 async function updateOwnerTaskStatus(
   organizationId: string,
+  businessCenterId: string,
   taskId: string,
   updates: Record<string, string>,
 ): Promise<void> {
@@ -202,6 +216,7 @@ async function updateOwnerTaskStatus(
     .from('owner_tasks')
     .update(updates)
     .eq('organization_id', organizationId)
+    .eq('business_center_id', businessCenterId)
     .eq('id', taskId);
 
   if (error) {

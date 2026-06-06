@@ -4,16 +4,18 @@ import type { InventoryService } from '../src/domains/inventory/inventory.servic
 import { TasksService } from '../src/domains/tasks/tasks.service';
 import type { SupabaseService } from '../src/supabase/supabase.service';
 
-const organizationRows = [
+const businessCenterRows = [
   {
     ai_follow_up_delay_hours: 24,
-    id: 'organization-1',
+    id: 'business-center-1',
+    organization_id: 'organization-1',
   },
 ];
 
 const conversationRows = [
   {
     contact_id: 'contact-1',
+    business_center_id: 'business-center-1',
     contacts: {
       display_name: 'Ana Customer',
       id: 'contact-1',
@@ -29,6 +31,7 @@ const conversationRows = [
 ];
 
 const lowStockProduct = {
+  businessCenterId: 'business-center-1',
   currency: 'USD',
   description: null,
   id: 'product-1',
@@ -38,6 +41,7 @@ const lowStockProduct = {
   reorderThreshold: 5,
   sku: 'SHIRT-BLUE',
   stockQuantity: 2,
+  unitCode: 'unit',
   unitPriceCents: 2500,
 };
 
@@ -78,8 +82,8 @@ function createService(params: {
       lte: vi.fn(() => query),
       not: vi.fn(() => query),
       order: vi.fn(async () => {
-        if (table === 'organizations') {
-          return { data: organizationRows, error: null };
+        if (table === 'business_centers') {
+          return { data: businessCenterRows, error: null };
         }
 
         if (table === 'conversations') {
@@ -149,6 +153,7 @@ describe('TasksService', () => {
     expect(inserts.owner_tasks).toEqual([
       expect.objectContaining({
         contact_id: 'contact-1',
+        business_center_id: 'business-center-1',
         conversation_id: 'conversation-1',
         organization_id: 'organization-1',
         source_key: 'follow_up:conversation-1:2026-06-04T12:00:00.000Z',
@@ -199,6 +204,7 @@ describe('TasksService', () => {
     expect(inserts.owner_notifications).toEqual([
       expect.objectContaining({
         notification_type: 'low_stock',
+        business_center_id: 'business-center-1',
         organization_id: 'organization-1',
         product_id: 'product-1',
         source_key: 'low_stock:product-1:stock:2:threshold:5',

@@ -27,6 +27,7 @@ describe('WhatsAppOutboundMessageService', () => {
     const recordOutboundMessage = vi.fn(async () => undefined);
     const service = new WhatsAppOutboundMessageService(
       createSupabaseService({
+        business_center_id: 'business-center-1',
         id: 'whatsapp-config-1',
         organization_id: 'organization-1',
         phone_number_id: 'phone-number-id-1',
@@ -46,6 +47,7 @@ describe('WhatsAppOutboundMessageService', () => {
 
     await expect(
       service.sendTextMessage({
+        businessCenterId: 'business-center-1',
         organizationId: 'organization-1',
         recipientPhone: '15557654321',
         body: 'Thanks for your message.',
@@ -76,6 +78,7 @@ describe('WhatsAppOutboundMessageService', () => {
     const recordOutboundMessage = vi.fn(async () => undefined);
     const service = new WhatsAppOutboundMessageService(
       createSupabaseService({
+        business_center_id: 'business-center-1',
         id: 'whatsapp-config-1',
         organization_id: 'organization-1',
         phone_number_id: 'phone-number-id-1',
@@ -97,6 +100,7 @@ describe('WhatsAppOutboundMessageService', () => {
 
     await expect(
       service.sendTextMessage({
+        businessCenterId: 'business-center-1',
         organizationId: 'organization-1',
         recipientPhone: 'invalid',
         body: 'Hello',

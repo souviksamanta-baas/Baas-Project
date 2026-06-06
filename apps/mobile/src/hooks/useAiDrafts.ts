@@ -20,7 +20,10 @@ export interface AiDraftsState {
   setEditedBody: (draftId: string, body: string) => void;
 }
 
-export function useAiDrafts(organizationId: string | null): AiDraftsState {
+export function useAiDrafts(
+  organizationId: string | null,
+  businessCenterId: string | null,
+): AiDraftsState {
   const [drafts, setDrafts] = useState<AiDraft[]>([]);
   const [editedBodies, setEditedBodies] = useState<Record<string, string>>({});
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -28,12 +31,12 @@ export function useAiDrafts(organizationId: string | null): AiDraftsState {
   const [isSaving, setIsSaving] = useState(false);
 
   const loadDrafts = useCallback(async (): Promise<void> => {
-    if (!organizationId) {
+    if (!organizationId || !businessCenterId) {
       setDrafts([]);
       return;
     }
 
-    const nextDrafts = await getPendingAiDrafts(organizationId);
+    const nextDrafts = await getPendingAiDrafts(organizationId, businessCenterId);
     setDrafts(nextDrafts);
     setEditedBodies((currentBodies) => {
       const nextBodies: Record<string, string> = {};
@@ -44,10 +47,10 @@ export function useAiDrafts(organizationId: string | null): AiDraftsState {
 
       return nextBodies;
     });
-  }, [organizationId]);
+  }, [businessCenterId, organizationId]);
 
   useEffect(() => {
-    if (!organizationId) {
+    if (!organizationId || !businessCenterId) {
       setDrafts([]);
       setEditedBodies({});
       return undefined;
@@ -69,7 +72,7 @@ export function useAiDrafts(organizationId: string | null): AiDraftsState {
         }
       });
 
-    const unsubscribe = subscribeToAiDraftChanges(organizationId, () => {
+    const unsubscribe = subscribeToAiDraftChanges(organizationId, businessCenterId, () => {
       void loadDrafts();
     });
 
@@ -77,7 +80,7 @@ export function useAiDrafts(organizationId: string | null): AiDraftsState {
       mounted = false;
       unsubscribe();
     };
-  }, [loadDrafts, organizationId]);
+  }, [businessCenterId, loadDrafts, organizationId]);
 
   function setEditedBody(draftId: string, body: string): void {
     setEditedBodies((currentBodies) => ({

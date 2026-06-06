@@ -4,6 +4,7 @@ import { SupabaseService } from '../../supabase/supabase.service';
 import { WhatsAppConversationMessageRepository } from './whatsapp-conversation-message.repository';
 
 interface WhatsAppConfigRecord {
+  business_center_id: string;
   id: string;
   organization_id: string;
   phone_number_id: string;
@@ -23,6 +24,7 @@ interface WhatsAppSendResponse {
 
 export interface SendWhatsAppTextMessageParams {
   body: string;
+  businessCenterId: string;
   organizationId: string;
   recipientPhone: string;
 }
@@ -42,7 +44,10 @@ export class WhatsAppOutboundMessageService {
   async sendTextMessage(
     params: SendWhatsAppTextMessageParams,
   ): Promise<SendWhatsAppTextMessageResult> {
-    const config = await this.getConnectedConfig(params.organizationId);
+    const config = await this.getConnectedConfig({
+      businessCenterId: params.businessCenterId,
+      organizationId: params.organizationId,
+    });
     const sentAt = new Date().toISOString();
 
     const response = await fetch(
@@ -75,6 +80,7 @@ export class WhatsAppOutboundMessageService {
 
       await this.messageRepository.recordOutboundMessage({
         body: params.body,
+        businessCenterId: config.business_center_id,
         errorMessage,
         organizationId: params.organizationId,
         recipientPhone: params.recipientPhone,
@@ -89,6 +95,7 @@ export class WhatsAppOutboundMessageService {
 
     await this.messageRepository.recordOutboundMessage({
       body: params.body,
+      businessCenterId: config.business_center_id,
       externalMessageId: externalMessageId ?? undefined,
       organizationId: params.organizationId,
       recipientPhone: params.recipientPhone,
@@ -104,14 +111,18 @@ export class WhatsAppOutboundMessageService {
     };
   }
 
-  private async getConnectedConfig(organizationId: string): Promise<WhatsAppConfigRecord> {
+  private async getConnectedConfig(params: {
+    businessCenterId: string;
+    organizationId: string;
+  }): Promise<WhatsAppConfigRecord> {
     const client = this.supabaseService.getServiceRoleClient();
     const { data, error } = await client
       .from('whatsapp_config')
       .select(
-        'id, organization_id, phone_number_id, display_phone_number, access_token_encrypted, connection_status',
+        'id, organization_id, business_center_id, phone_number_id, display_phone_number, access_token_encrypted, connection_status',
       )
-      .eq('organization_id', organizationId)
+      .eq('organization_id', params.organizationId)
+      .eq('business_center_id', params.businessCenterId)
       .eq('connection_status', 'connected')
       .maybeSingle<WhatsAppConfigRecord>();
 

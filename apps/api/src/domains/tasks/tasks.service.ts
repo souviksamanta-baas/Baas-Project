@@ -10,9 +10,10 @@ export interface TaskMaintenanceResult {
   pushNotificationsFailed: number;
 }
 
-interface OrganizationRow {
+interface BusinessCenterRow {
   ai_follow_up_delay_hours: number;
   id: string;
+  organization_id: string;
 }
 
 interface ContactRow {
@@ -23,6 +24,7 @@ interface ContactRow {
 }
 
 interface ConversationRow {
+  business_center_id: string;
   contact_id: string | null;
   contacts: ContactRow | ContactRow[] | null;
   customer_display_name: string | null;
@@ -66,7 +68,7 @@ export class TasksService {
     organizationId?: string;
   } = {}): Promise<TaskMaintenanceResult> {
     const now = params.now ?? new Date();
-    const organizations = await this.listOrganizations(params.organizationId);
+    const businessCenters = await this.listBusinessCenters(params.organizationId);
     const result: TaskMaintenanceResult = {
       followUpTasksCreated: 0,
       lowStockAlertsCreated: 0,
@@ -74,13 +76,13 @@ export class TasksService {
       pushNotificationsFailed: 0,
     };
 
-    for (const organization of organizations) {
-      result.followUpTasksCreated += await this.createFollowUpTasksForOrganization(
-        organization,
+    for (const businessCenter of businessCenters) {
+      result.followUpTasksCreated += await this.createFollowUpTasksForBusinessCenter(
+        businessCenter,
         now,
       );
 
-      const lowStockResult = await this.createLowStockAlertsForOrganization(organization.id);
+      const lowStockResult = await this.createLowStockAlertsForBusinessCenter(businessCenter);
       result.lowStockAlertsCreated += lowStockResult.alertsCreated;
       result.pushNotificationsSent += lowStockResult.pushNotificationsSent;
       result.pushNotificationsFailed += lowStockResult.pushNotificationsFailed;
@@ -89,36 +91,40 @@ export class TasksService {
     return result;
   }
 
-  private async listOrganizations(organizationId?: string): Promise<OrganizationRow[]> {
+  private async listBusinessCenters(organizationId?: string): Promise<BusinessCenterRow[]> {
     const client = this.supabaseService.getServiceRoleClient();
-    let query = client.from('organizations').select('id, ai_follow_up_delay_hours');
+    let query = client
+      .from('business_centers')
+      .select('id, organization_id, ai_follow_up_delay_hours')
+      .eq('is_active', true);
 
     if (organizationId) {
-      query = query.eq('id', organizationId);
+      query = query.eq('organization_id', organizationId);
     }
 
     const { data, error } = await query.order('created_at', { ascending: true });
 
     if (error) {
-      throw new Error(`Failed to list organizations for task maintenance: ${error.message}`);
+      throw new Error(`Failed to list business centers for task maintenance: ${error.message}`);
     }
 
-    return data as OrganizationRow[];
+    return data as BusinessCenterRow[];
   }
 
-  private async createFollowUpTasksForOrganization(
-    organization: OrganizationRow,
+  private async createFollowUpTasksForBusinessCenter(
+    businessCenter: BusinessCenterRow,
     now: Date,
   ): Promise<number> {
-    const delayHours = Math.max(organization.ai_follow_up_delay_hours, 0);
+    const delayHours = Math.max(businessCenter.ai_follow_up_delay_hours, 0);
     const cutoff = new Date(now.getTime() - delayHours * 60 * 60 * 1000).toISOString();
     const client = this.supabaseService.getServiceRoleClient();
     const { data, error } = await client
       .from('conversations')
       .select(
-        'id, organization_id, contact_id, external_contact_id, customer_display_name, last_message_at, contacts(id, display_name, phone_number, lead_status)',
+        'id, organization_id, business_center_id, contact_id, external_contact_id, customer_display_name, last_message_at, contacts(id, display_name, phone_number, lead_status)',
       )
-      .eq('organization_id', organization.id)
+      .eq('organization_id', businessCenter.organization_id)
+      .eq('business_center_id', businessCenter.id)
       .eq('status', 'open')
       .not('last_message_at', 'is', null)
       .lte('last_message_at', cutoff)
@@ -145,6 +151,7 @@ export class TasksService {
 
       const insert = await this.insertOwnerTask({
         contactId: conversation.contact_id,
+        businessCenterId: conversation.business_center_id,
         conversationId: conversation.id,
         description: `No reply since ${conversation.last_message_at}. Review the conversation and follow up.`,
         dueAt: now.toISOString(),
@@ -168,6 +175,7 @@ export class TasksService {
   }
 
   private async insertOwnerTask(params: {
+    businessCenterId: string;
     contactId: string | null;
     conversationId: string;
     description: string;
@@ -180,6 +188,7 @@ export class TasksService {
     const { data, error } = await client
       .from('owner_tasks')
       .insert({
+        business_center_id: params.businessCenterId,
         contact_id: params.contactId,
         conversation_id: params.conversationId,
         description: params.description,
@@ -224,12 +233,15 @@ export class TasksService {
     }
   }
 
-  private async createLowStockAlertsForOrganization(organizationId: string): Promise<{
+  private async createLowStockAlertsForBusinessCenter(businessCenter: BusinessCenterRow): Promise<{
     alertsCreated: number;
     pushNotificationsFailed: number;
     pushNotificationsSent: number;
   }> {
-    const products = await this.inventoryService.listLowStockProducts({ organizationId });
+    const products = await this.inventoryService.listLowStockProducts({
+      businessCenterId: businessCenter.id,
+      organizationId: businessCenter.organization_id,
+    });
     let alertsCreated = 0;
     let pushNotificationsFailed = 0;
     let pushNotificationsSent = 0;
@@ -271,6 +283,7 @@ export class TasksService {
       .insert({
         body: `${product.name} has ${product.stockQuantity} in stock; reorder threshold is ${product.reorderThreshold}.`,
         notification_type: 'low_stock',
+        business_center_id: product.businessCenterId,
         organization_id: product.organizationId,
         payload: {
           productId: product.id,
@@ -299,7 +312,10 @@ export class TasksService {
     notificationId: string;
     product: InventoryProduct;
   }): Promise<{ failed: number; sent: number }> {
-    const tokens = await this.listOwnerDeviceTokens(params.product.organizationId);
+    const tokens = await this.listOwnerDeviceTokens({
+      businessCenterId: params.product.businessCenterId,
+      organizationId: params.product.organizationId,
+    });
 
     if (tokens.length === 0) {
       return { failed: 0, sent: 0 };
@@ -351,12 +367,16 @@ export class TasksService {
     }
   }
 
-  private async listOwnerDeviceTokens(organizationId: string): Promise<OwnerDeviceTokenRow[]> {
+  private async listOwnerDeviceTokens(params: {
+    businessCenterId: string;
+    organizationId: string;
+  }): Promise<OwnerDeviceTokenRow[]> {
     const client = this.supabaseService.getServiceRoleClient();
     const { data, error } = await client
       .from('owner_device_tokens')
       .select('push_token')
-      .eq('organization_id', organizationId)
+      .eq('organization_id', params.organizationId)
+      .eq('business_center_id', params.businessCenterId)
       .eq('is_active', true);
 
     if (error) {

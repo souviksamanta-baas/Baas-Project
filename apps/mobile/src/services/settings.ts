@@ -20,6 +20,7 @@ export function createSettingsFormValues(params: {
 }
 
 export async function updateOwnerSettings(params: {
+  businessCenterId: string;
   formValues: OwnerSettingsFormValues;
   organizationId: string;
   timezone: string;
@@ -31,13 +32,14 @@ export async function updateOwnerSettings(params: {
   }
 
   const { error } = await supabase
-    .from('organizations')
+    .from('business_centers')
     .update({
       ai_auto_send: params.formValues.aiAutoSend,
       ai_follow_up_delay_hours: Number.parseInt(params.formValues.followUpDelayHours, 10),
       business_hours: toBusinessHoursSettings(params.formValues, params.timezone),
     })
-    .eq('id', params.organizationId);
+    .eq('id', params.businessCenterId)
+    .eq('organization_id', params.organizationId);
 
   if (error) {
     throw new Error(error.message);

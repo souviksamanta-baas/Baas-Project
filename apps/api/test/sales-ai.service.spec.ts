@@ -7,6 +7,7 @@ import { SupabaseService } from '../src/supabase/supabase.service';
 
 const products = [
   {
+    businessCenterId: 'business-center-1',
     currency: 'USD',
     description: 'Cotton shirt',
     id: 'product-1',
@@ -16,6 +17,7 @@ const products = [
     reorderThreshold: 3,
     sku: 'SHIRT-BLUE',
     stockQuantity: 8,
+    unitCode: 'unit',
     unitPriceCents: 2500,
   },
 ];

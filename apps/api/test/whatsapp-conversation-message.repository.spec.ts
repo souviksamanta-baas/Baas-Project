@@ -52,15 +52,16 @@ describe('WhatsAppConversationMessageRepository', () => {
 
     await expect(
       repository.recordInboundMessage({
-      eventId: 'event-1',
-      organizationId: 'organization-1',
-      whatsappConfigId: 'whatsapp-config-1',
-      messageId: 'wamid.inbound-1',
-      senderDisplayName: 'Test Sender',
-      senderPhone: '15557654321',
-      textBody: 'Hello',
-      timestamp: '2026-06-05T19:03:05.000Z',
-      messageType: 'text',
+        businessCenterId: 'business-center-1',
+        eventId: 'event-1',
+        organizationId: 'organization-1',
+        whatsappConfigId: 'whatsapp-config-1',
+        messageId: 'wamid.inbound-1',
+        senderDisplayName: 'Test Sender',
+        senderPhone: '15557654321',
+        textBody: 'Hello',
+        timestamp: '2026-06-05T19:03:05.000Z',
+        messageType: 'text',
       }),
     ).resolves.toEqual({
       conversationId: 'conversation-1',
@@ -69,6 +70,7 @@ describe('WhatsAppConversationMessageRepository', () => {
 
     expect(contactUpsert).toHaveBeenCalledWith(
       expect.objectContaining({
+        business_center_id: 'business-center-1',
         organization_id: 'organization-1',
         channel: 'whatsapp',
         external_contact_id: '15557654321',
@@ -80,6 +82,7 @@ describe('WhatsAppConversationMessageRepository', () => {
     );
     expect(conversationUpsert).toHaveBeenCalledWith(
       expect.objectContaining({
+        business_center_id: 'business-center-1',
         organization_id: 'organization-1',
         contact_id: 'contact-1',
         external_contact_id: '15557654321',
@@ -90,6 +93,7 @@ describe('WhatsAppConversationMessageRepository', () => {
     );
     expect(messageInsert).toHaveBeenCalledWith(
       expect.objectContaining({
+        business_center_id: 'business-center-1',
         organization_id: 'organization-1',
         conversation_id: 'conversation-1',
         external_message_id: 'wamid.inbound-1',

@@ -21,14 +21,16 @@ export interface OwnerSettingsState {
 }
 
 export function useOwnerSettings(
-  organization: OwnerDashboard['organization'],
+  dashboard: OwnerDashboard | null,
 ): OwnerSettingsState {
+  const organization = dashboard?.organization ?? null;
+  const businessCenter = dashboard?.businessCenter ?? null;
   const [formValues, setFormValues] = useState<OwnerSettingsFormValues>(() =>
     createSettingsFormValues({
-      aiAutoSend: organization?.aiAutoSend ?? false,
-      businessHours: organization?.businessHours ?? null,
-      followUpDelayHours: organization?.followUpDelayHours ?? 24,
-      timezone: organization?.timezone ?? 'UTC',
+      aiAutoSend: businessCenter?.aiAutoSend ?? false,
+      businessHours: businessCenter?.businessHours ?? null,
+      followUpDelayHours: businessCenter?.followUpDelayHours ?? 24,
+      timezone: businessCenter?.timezone ?? 'UTC',
     }),
   );
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -37,16 +39,16 @@ export function useOwnerSettings(
   useEffect(() => {
     setFormValues(
       createSettingsFormValues({
-        aiAutoSend: organization?.aiAutoSend ?? false,
-        businessHours: organization?.businessHours ?? null,
-        followUpDelayHours: organization?.followUpDelayHours ?? 24,
-        timezone: organization?.timezone ?? 'UTC',
+        aiAutoSend: businessCenter?.aiAutoSend ?? false,
+        businessHours: businessCenter?.businessHours ?? null,
+        followUpDelayHours: businessCenter?.followUpDelayHours ?? 24,
+        timezone: businessCenter?.timezone ?? 'UTC',
       }),
     );
-  }, [organization]);
+  }, [businessCenter]);
 
   async function saveSettings(): Promise<void> {
-    if (!organization) {
+    if (!organization || !businessCenter) {
       return;
     }
 
@@ -62,9 +64,10 @@ export function useOwnerSettings(
 
     try {
       await updateOwnerSettings({
+        businessCenterId: businessCenter.id,
         formValues,
         organizationId: organization.id,
-        timezone: organization.timezone,
+        timezone: businessCenter.timezone,
       });
       Alert.alert('Settings saved', 'AI and follow-up settings have been updated.');
     } catch (error) {

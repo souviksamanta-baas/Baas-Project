@@ -7,18 +7,21 @@ import {
 } from '../services/messages';
 import type { WhatsAppMessagePreview } from '../types/messages';
 
-export function useRealtimeMessages(organizationId: string | null): WhatsAppMessagePreview[] {
+export function useRealtimeMessages(
+  organizationId: string | null,
+  businessCenterId: string | null,
+): WhatsAppMessagePreview[] {
   const [messages, setMessages] = useState<WhatsAppMessagePreview[]>([]);
 
   useEffect(() => {
-    if (!organizationId) {
+    if (!organizationId || !businessCenterId) {
       setMessages([]);
       return undefined;
     }
 
     let mounted = true;
 
-    getRecentConversationMessages(organizationId)
+    getRecentConversationMessages(organizationId, businessCenterId)
       .then((recentMessages) => {
         if (mounted) {
           setMessages(recentMessages);
@@ -31,7 +34,7 @@ export function useRealtimeMessages(organizationId: string | null): WhatsAppMess
         );
       });
 
-    const unsubscribe = subscribeToConversationMessages(organizationId, (message) => {
+    const unsubscribe = subscribeToConversationMessages(organizationId, businessCenterId, (message) => {
       setMessages((currentMessages) =>
         [message, ...currentMessages.filter((current) => current.id !== message.id)].slice(0, 10),
       );
@@ -41,7 +44,7 @@ export function useRealtimeMessages(organizationId: string | null): WhatsAppMess
       mounted = false;
       unsubscribe();
     };
-  }, [organizationId]);
+  }, [businessCenterId, organizationId]);
 
   return messages;
 }

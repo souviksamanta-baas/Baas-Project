@@ -9,6 +9,7 @@ export interface Product {
   reorderThreshold: number;
   sku: string | null;
   stockQuantity: number;
+  unitCode: string;
   unitPriceCents: number;
 }
 

@@ -49,8 +49,10 @@ Status: Ready for pilot.
 Verification steps:
 
 - Confirm owners can create, edit, and delete products from mobile.
-- Confirm product validation rejects negative stock and invalid price fields.
-- Confirm low-stock state is computed from `stock_quantity <= reorder_threshold`.
+- Confirm product validation rejects negative measured stock and invalid price
+  fields.
+- Confirm low-stock state is computed from center-scoped
+  `inventory_items.quantity_on_hand <= inventory_items.reorder_threshold`.
 - Confirm tenant A cannot read tenant B product records.
 
 Evidence:
@@ -67,7 +69,8 @@ Verification steps:
 
 - Confirm `BAAS_TASKS_JOB_SECRET` is configured before invoking
   `POST /tasks/run-maintenance`.
-- Confirm follow-up task generation uses persisted `ai_follow_up_delay_hours`.
+- Confirm follow-up task generation uses persisted business center
+  `ai_follow_up_delay_hours`.
 - Confirm owners can complete or snooze tasks and dismiss notifications.
 - Confirm tenant A cannot read tenant B tasks, notifications, or device tokens.
 
@@ -109,7 +112,8 @@ Verification steps:
 - Confirm API response payload includes `responseTimeMs` and stays under 5
   seconds for MVP-sized data.
 - Confirm only organization members can query copilot data.
-- Confirm owners can update AI auto-send, business hours, and follow-up delay.
+- Confirm owners can update active business center AI auto-send, business hours,
+  and follow-up delay.
 
 Evidence:
 
@@ -134,10 +138,16 @@ Covered tenant tables:
 
 - `organizations`
 - `organization_members`
+- `business_centers`
+- `business_center_members`
 - `contacts`
 - `conversations`
 - `conversation_messages`
 - `products`
+- `inventory_items`
+- `inventory_lots`
+- `inventory_movements`
+- `inventory_transformations`
 - `owner_tasks`
 - `owner_notifications`
 - `owner_device_tokens`
@@ -165,12 +175,13 @@ Use this checklist for each of the first 1-3 pilot businesses.
 
 - Create or confirm the owner account.
 - Confirm the business organization name and timezone.
+- Confirm the default business center and timezone.
 - Configure WhatsApp Business Cloud API credentials in the API environment.
 - Verify `GET /health` returns `{"status":"ok"}`.
 - Send a test inbound WhatsApp message and confirm it appears in the mobile
   Universal Inbox.
-- Add at least five real products with SKU/name, price, stock, and reorder
-  threshold.
+- Add at least five real products with SKU/name, price, measured stock, unit, and
+  reorder threshold.
 - Enable low-stock push alerts on the owner device.
 - Confirm `BAAS_TASKS_JOB_SECRET` is configured for the scheduler or maintenance
   caller.
@@ -242,8 +253,8 @@ stock for pilot products.
 
 Measurement:
 
-- Compare `products.stock_quantity` and `reorder_threshold` against owner
-  spot-checks.
+- Compare center-scoped `inventory_items.quantity_on_hand` and
+  `reorder_threshold` against owner spot-checks.
 - Review `owner_notifications` for low-stock alert coverage.
 - Log any manual correction as a stock accuracy issue.
 
@@ -268,8 +279,9 @@ Measurement:
   LLM assistant.
 - Quote generation assumes one unit per matched product until quantity parsing is
   added.
-- Stock is manually maintained by the owner; no POS or accounting integration is
-  included in this MVP.
+- Stock is manually maintained by the owner. KAN-130 supports decimal measured
+  stock and a schema for lots/movements/transformations, but no POS or accounting
+  integration is included in this MVP.
 - WhatsApp outbound sends require a connected WhatsApp Business number and valid
   server-side credentials.
 - Push notifications depend on Expo push token registration on the owner device.

@@ -30,6 +30,7 @@ interface ConversationRow {
 
 export async function getInboxConversations(
   organizationId: string,
+  businessCenterId: string,
 ): Promise<InboxConversationSummary[]> {
   const { data, error } = await supabase
     .from('conversations')
@@ -37,6 +38,7 @@ export async function getInboxConversations(
       'id, external_contact_id, customer_display_name, status, last_message_at, contacts(id, display_name, phone_number, lead_status)',
     )
     .eq('organization_id', organizationId)
+    .eq('business_center_id', businessCenterId)
     .order('last_message_at', { ascending: false, nullsFirst: false });
 
   if (error) {
@@ -44,7 +46,7 @@ export async function getInboxConversations(
   }
 
   const conversations = (data as ConversationRow[]).map(toInboxConversationSummary);
-  const messages = await getRecentConversationMessages(organizationId);
+  const messages = await getRecentConversationMessages(organizationId, businessCenterId);
   const latestMessagesByConversation = new Map(
     messages.map((message) => [message.conversationId, message]),
   );
@@ -57,11 +59,13 @@ export async function getInboxConversations(
 
 export async function getRecentConversationMessages(
   organizationId: string,
+  businessCenterId: string,
 ): Promise<WhatsAppMessagePreview[]> {
   const { data, error } = await supabase
     .from('conversation_messages')
     .select('id, conversation_id, direction, body, message_status, sender_phone, recipient_phone, created_at')
     .eq('organization_id', organizationId)
+    .eq('business_center_id', businessCenterId)
     .order('created_at', { ascending: false })
     .limit(10);
 
@@ -90,17 +94,18 @@ export async function getConversationMessages(
 
 export function subscribeToConversationMessages(
   organizationId: string,
+  businessCenterId: string,
   onMessage: (message: WhatsAppMessagePreview) => void,
 ): () => void {
   const channel = supabase
-    .channel(`conversation-messages:${organizationId}`)
+    .channel(`conversation-messages:${organizationId}:${businessCenterId}`)
     .on(
       'postgres_changes',
       {
         event: 'INSERT',
         schema: 'public',
         table: 'conversation_messages',
-        filter: `organization_id=eq.${organizationId}`,
+        filter: `business_center_id=eq.${businessCenterId}`,
       },
       (payload) => {
         onMessage(toWhatsAppMessagePreview(payload.new as ConversationMessageRow));
@@ -115,20 +120,21 @@ export function subscribeToConversationMessages(
 
 export function subscribeToInboxChanges(
   organizationId: string,
+  businessCenterId: string,
   handlers: {
     onConversationChange: () => void;
     onMessage: (message: WhatsAppMessagePreview) => void;
   },
 ): () => void {
   const channel = supabase
-    .channel(`inbox:${organizationId}`)
+    .channel(`inbox:${organizationId}:${businessCenterId}`)
     .on(
       'postgres_changes',
       {
         event: '*',
         schema: 'public',
         table: 'conversations',
-        filter: `organization_id=eq.${organizationId}`,
+        filter: `business_center_id=eq.${businessCenterId}`,
       },
       () => {
         handlers.onConversationChange();
@@ -140,7 +146,7 @@ export function subscribeToInboxChanges(
         event: 'INSERT',
         schema: 'public',
         table: 'conversation_messages',
-        filter: `organization_id=eq.${organizationId}`,
+        filter: `business_center_id=eq.${businessCenterId}`,
       },
       (payload) => {
         handlers.onMessage(toWhatsAppMessagePreview(payload.new as ConversationMessageRow));

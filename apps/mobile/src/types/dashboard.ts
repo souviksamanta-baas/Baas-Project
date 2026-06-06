@@ -9,6 +9,15 @@ export interface OwnerDashboard {
     name: string;
     role: 'owner' | 'staff';
     timezone: string;
+    verticalId: string | null;
+    followUpDelayHours: number;
+  } | null;
+  businessCenter: {
+    aiAutoSend: boolean;
+    businessHours: BusinessHoursSettings | null;
+    id: string;
+    name: string;
+    timezone: string;
     followUpDelayHours: number;
   } | null;
   whatsappConnection: {

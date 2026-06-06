@@ -47,15 +47,19 @@ export class OwnerCopilotService {
 
     const tools = selectTools(params.question);
     const now = params.now ?? new Date();
+    const businessCenterId = await this.getDefaultBusinessCenterId(params.organizationId);
     const [messagesToday, lowStockProducts, pendingTasks] = await Promise.all([
       tools.includes('messages_today')
-        ? this.listMessagesToday(params.organizationId, now)
+        ? this.listMessagesToday(params.organizationId, businessCenterId, now)
         : Promise.resolve([]),
       tools.includes('low_stock')
-        ? this.inventoryService.listLowStockProducts({ organizationId: params.organizationId })
+        ? this.inventoryService.listLowStockProducts({
+            businessCenterId,
+            organizationId: params.organizationId,
+          })
         : Promise.resolve([]),
       tools.includes('pending_follow_ups')
-        ? this.listPendingFollowUps(params.organizationId)
+        ? this.listPendingFollowUps(params.organizationId, businessCenterId)
         : Promise.resolve([]),
     ]);
 
@@ -73,6 +77,7 @@ export class OwnerCopilotService {
 
   private async listMessagesToday(
     organizationId: string,
+    businessCenterId: string,
     now: Date,
   ): Promise<MessageRow[]> {
     const startOfDay = new Date(now);
@@ -82,6 +87,7 @@ export class OwnerCopilotService {
       .from('conversation_messages')
       .select('body, created_at, sender_phone')
       .eq('organization_id', organizationId)
+      .eq('business_center_id', businessCenterId)
       .eq('direction', 'inbound')
       .gte('created_at', startOfDay.toISOString())
       .order('created_at', { ascending: false })
@@ -94,12 +100,16 @@ export class OwnerCopilotService {
     return data as MessageRow[];
   }
 
-  private async listPendingFollowUps(organizationId: string): Promise<TaskRow[]> {
+  private async listPendingFollowUps(
+    organizationId: string,
+    businessCenterId: string,
+  ): Promise<TaskRow[]> {
     const client = this.supabaseService.getServiceRoleClient();
     const { data, error } = await client
       .from('owner_tasks')
       .select('title, due_at')
       .eq('organization_id', organizationId)
+      .eq('business_center_id', businessCenterId)
       .in('status', ['pending', 'snoozed'])
       .order('due_at', { ascending: true, nullsFirst: false })
       .limit(10);
@@ -109,6 +119,23 @@ export class OwnerCopilotService {
     }
 
     return data as TaskRow[];
+  }
+
+  private async getDefaultBusinessCenterId(organizationId: string): Promise<string> {
+    const client = this.supabaseService.getServiceRoleClient();
+    const { data, error } = await client
+      .from('business_centers')
+      .select('id')
+      .eq('organization_id', organizationId)
+      .eq('is_default', true)
+      .eq('is_active', true)
+      .single<{ id: string }>();
+
+    if (error) {
+      throw new Error(`Failed to load default business center for copilot: ${error.message}`);
+    }
+
+    return data.id;
   }
 
   private async assertMember(params: {

@@ -17,7 +17,10 @@ export interface InboxState {
   selectConversation: (conversationId: string) => void;
 }
 
-export function useInbox(organizationId: string | null): InboxState {
+export function useInbox(
+  organizationId: string | null,
+  businessCenterId: string | null,
+): InboxState {
   const [conversations, setConversations] = useState<InboxConversationSummary[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -30,13 +33,13 @@ export function useInbox(organizationId: string | null): InboxState {
   );
 
   const loadConversations = useCallback(async (): Promise<void> => {
-    if (!organizationId) {
+    if (!organizationId || !businessCenterId) {
       setConversations([]);
       setSelectedConversationId(null);
       return;
     }
 
-    const nextConversations = await getInboxConversations(organizationId);
+    const nextConversations = await getInboxConversations(organizationId, businessCenterId);
     setConversations(nextConversations);
     setSelectedConversationId((currentConversationId) => {
       if (currentConversationId && nextConversations.some((item) => item.id === currentConversationId)) {
@@ -45,10 +48,10 @@ export function useInbox(organizationId: string | null): InboxState {
 
       return nextConversations[0]?.id ?? null;
     });
-  }, [organizationId]);
+  }, [businessCenterId, organizationId]);
 
   useEffect(() => {
-    if (!organizationId) {
+    if (!organizationId || !businessCenterId) {
       setConversations([]);
       setMessages([]);
       setSelectedConversationId(null);
@@ -71,7 +74,7 @@ export function useInbox(organizationId: string | null): InboxState {
         }
       });
 
-    const unsubscribe = subscribeToInboxChanges(organizationId, {
+    const unsubscribe = subscribeToInboxChanges(organizationId, businessCenterId, {
       onConversationChange: () => {
         void loadConversations();
       },
@@ -90,7 +93,7 @@ export function useInbox(organizationId: string | null): InboxState {
       mounted = false;
       unsubscribe();
     };
-  }, [loadConversations, organizationId, selectedConversationId]);
+  }, [businessCenterId, loadConversations, organizationId, selectedConversationId]);
 
   useEffect(() => {
     if (!selectedConversationId) {

@@ -12,11 +12,11 @@ features expand the API surface.
 
 | Module | Responsibility |
 | --- | --- |
-| `organizations/` | Organization lookup, owner/staff membership use cases, settings, and tenant-level operations. |
+| `organizations/` | Organization lookup, owner/staff membership use cases, verticals, business centers, settings, and tenant-level operations. |
 | `customers/` | Customer/contact identity, deduplication, and CRM profile use cases. |
 | `conversations/` | Conversation threads, message persistence, inbox state, and channel event normalization. |
 | `tasks/` | Follow-up tasks, reminders, and scheduled workflow state. |
-| `inventory/` | Product catalog, stock levels, reorder thresholds, and stock movements. |
+| `inventory/` | Product catalog lookup plus center-scoped measured stock, reorder thresholds, lots, movements, and transformations. |
 | `ai/` | AI orchestration, tool calls, prompt policy, and draft/auto-send decisions. |
 | `whatsapp/` | WhatsApp Business connection status, channel configuration reads, message persistence, outbound sends, and server-only channel metadata. |
 
@@ -67,28 +67,31 @@ needed by app, AI, copilot, and low-stock workflows.
   send-result persistence.
 
 `InventoryService` uses the service-role Supabase client for trusted server-side
-lookups and always requires an `organizationId`. It returns product price, stock,
-reorder threshold, and computed low-stock status without exposing cross-tenant
-data.
+lookups and always requires an `organizationId`. KAN-130 adds optional
+`businessCenterId`; if omitted, the service resolves the default active business
+center. It returns product price plus `inventory_items` stock, unit, reorder
+threshold, and computed low-stock status without exposing cross-tenant data.
 
 `TasksService` is intentionally orchestration-heavy because KAN-69 spans CRM,
 conversations, inventory, and notifications. It keeps that cross-domain workflow
-inside `tasks/` and requires an organization scope for every generated task,
-alert, and push lookup.
+inside `tasks/` and now iterates active business centers so generated tasks,
+alerts, and push lookups include both organization and center scope.
 
 `SalesAiService` owns the KAN-70 cross-domain workflow. It reads catalog data
 through `InventoryService`, persists `ai_drafts` and `ai_draft_events`, and uses
 `WhatsAppOutboundMessageService` for any approved or auto-sent message so mobile
-never receives WhatsApp access tokens. Auto-send remains disabled unless
-`organizations.ai_auto_send` is enabled and the generated draft is catalog-backed
-and marked safe. When `organizations.business_hours` is enabled, auto-send is
-also limited to the configured tenant timezone, days, start time, and end time.
+never receives WhatsApp access tokens. Auto-send remains disabled unless the
+active `business_centers.ai_auto_send` is enabled and the generated draft is
+catalog-backed and marked safe. When `business_centers.business_hours` is
+enabled, auto-send is also limited to the configured center timezone, days, start
+time, and end time.
 
 `OwnerCopilotService` owns the KAN-71 query workflow. It validates the Supabase
 bearer token against `organization_members`, then uses service-role reads scoped
-to the requested organization and `InventoryService` for low-stock lookup. It
-does not expose a general SQL or LLM interface; the MVP endpoint returns
-deterministic answers for the supported owner questions.
+to the requested organization and default business center, plus
+`InventoryService` for low-stock lookup. It does not expose a general SQL or LLM
+interface; the MVP endpoint returns deterministic answers for the supported
+owner questions.
 
 Existing Phase 0 behavior is unchanged.
 

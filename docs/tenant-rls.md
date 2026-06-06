@@ -25,6 +25,7 @@ The Phase 0 tenant foundation defines:
 | `20260605214500_create_sales_ai_drafts.sql` | Adds tenant-scoped `ai_drafts` and `ai_draft_events`, updates pending AI draft metrics, and registers AI drafts for Realtime when available. |
 | `20260605215500_restrict_ai_draft_client_updates.sql` | Removes direct authenticated updates on `ai_drafts` so owner decisions go through API endpoints that can perform server-side WhatsApp sends. |
 | `20260605223000_add_owner_settings_dashboard_fields.sql` | Extends `get_owner_dashboard` to include tenant AI/follow-up settings already stored on `organizations`. |
+| `20260606011500_redesign_domain_model_centers_inventory.sql` | Adds `organization_verticals`, `business_centers`, `business_center_members`, center scope on operational tables, center-level settings, and measured inventory tables. |
 
 ## RLS Policy Model
 
@@ -32,12 +33,19 @@ All Phase 0 tenant tables have RLS enabled and forced:
 
 - `organizations`
 - `organization_members`
+- `organization_verticals`
+- `business_centers`
+- `business_center_members`
 - `whatsapp_config`
 - `whatsapp_message_events`
 - `contacts`
 - `conversations`
 - `conversation_messages`
 - `products`
+- `inventory_items`
+- `inventory_lots`
+- `inventory_movements`
+- `inventory_transformations`
 - `owner_tasks`
 - `owner_notifications`
 - `owner_device_tokens`
@@ -48,11 +56,11 @@ Client users can read `organizations` and `organization_members` only when their
 
 Organization owners can update organization rows and manage membership rows for their own organization only.
 
-KAN-71 owner settings use the existing `organizations` row:
-`ai_auto_send`, `ai_follow_up_delay_hours`, and `business_hours`. Direct mobile
-updates remain protected by the `organizations_update_owners` policy, so only
-owners can change tenant AI and follow-up settings. Staff members can still read
-safe dashboard settings through membership-scoped reads.
+KAN-130 moves owner operational settings to `business_centers`:
+`ai_auto_send`, `ai_follow_up_delay_hours`, `business_hours`, and `timezone`.
+The migration backfills one default `business_centers` row per organization from
+the previous organization-level settings. Mobile updates now target the active
+business center and remain owner-protected by RLS.
 
 `whatsapp_config` intentionally has no client-readable policy and no `anon` or `authenticated` table privileges. It is service-role only because it stores WhatsApp identifiers and encrypted integration secrets.
 
@@ -73,27 +81,29 @@ Phase 2 contact records follow the same model: authenticated owners can select
 contacts for their organizations, while the API service role owns writes from
 trusted inbound webhook processing and future CRM workflows.
 
-Phase 2 product records allow authenticated organization members to select,
-insert, update, and delete their own tenant's catalog rows. Stock quantity,
-reorder threshold, and unit price are constrained to non-negative values at the
-database level; negative stock is intentionally disallowed for the MVP so owner
-inventory and AI lookup answers stay conservative and accurate.
+Phase 2 product records remain organization-scoped catalog data. KAN-130 moves
+current stock state to center-scoped `inventory_items` with decimal measured
+quantities, while `inventory_lots`, `inventory_movements`, and
+`inventory_transformations` model bulk purchases and subdivisions. Negative
+stock remains disallowed so owner inventory and AI lookup answers stay
+conservative and accurate.
 
-Phase 2 follow-up tasks and notifications are organization-scoped. The API
-service role creates follow-up tasks and low-stock notification rows from trusted
-automation, while authenticated organization members can read and update task or
-notification status for their own tenant.
+Phase 2 follow-up tasks and notifications are center-scoped under the
+organization. The API service role creates follow-up tasks and low-stock
+notification rows from trusted automation, while authenticated organization
+members can read and update task or notification status for their own center.
 
 `owner_device_tokens` is scoped to both organization membership and the current
 `auth.uid()`. Owners and staff can register or update only their own device token
 rows, which lets the backend send Expo push notifications without exposing push
 registration data across users or tenants.
 
-Phase 2 Sales AI drafts are organization-scoped. The API service role creates
+Phase 2 Sales AI drafts are center-scoped. The API service role creates
 `ai_drafts` from trusted inbound WhatsApp processing and logs decisions in
-`ai_draft_events`. Authenticated organization members can select drafts/events
-for their tenant. Approval, rejection, and send state changes go through the API
-so actual WhatsApp sends are still performed by the server-side API.
+`ai_draft_events` with the resolved `business_center_id`. Authenticated
+organization members can select drafts/events for their active center. Approval,
+rejection, and send state changes go through the API so actual WhatsApp sends
+are still performed by the server-side API.
 
 The Owner Copilot endpoint uses the API service role only after validating the
 Supabase bearer token against `organization_members`. Every query includes the

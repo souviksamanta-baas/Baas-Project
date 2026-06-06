@@ -6,11 +6,13 @@ import { SupabaseService } from '../../supabase/supabase.service';
 import { WhatsAppInboundMessageLog } from './whatsapp-webhook.types';
 
 interface WhatsAppConfigRecord {
+  business_center_id: string;
   id: string;
   organization_id: string;
 }
 
 interface WhatsAppMessageEventRecord {
+  business_center_id: string | null;
   id: string;
   organization_id: string | null;
   whatsapp_config_id: string | null;
@@ -26,6 +28,7 @@ interface PersistedWhatsAppEventRow {
   message_timestamp: string | null;
   processing_status: 'received';
   payload_metadata: Record<string, string | null>;
+  business_center_id: string | null;
 }
 
 @Injectable()
@@ -73,7 +76,7 @@ export class WhatsAppMessageEventRepository {
     const { data, error } = await client
       .from('whatsapp_message_events')
       .insert(row)
-      .select('id, organization_id, whatsapp_config_id')
+      .select('id, organization_id, business_center_id, whatsapp_config_id')
       .single<WhatsAppMessageEventRecord>();
 
     if (!error) {
@@ -101,7 +104,7 @@ export class WhatsAppMessageEventRepository {
     const client = this.supabaseService.getServiceRoleClient();
     const { data, error } = await client
       .from('whatsapp_config')
-      .select('id, organization_id')
+      .select('id, organization_id, business_center_id')
       .eq('phone_number_id', phoneNumberId)
       .maybeSingle<WhatsAppConfigRecord>();
 
@@ -118,6 +121,7 @@ export class WhatsAppMessageEventRepository {
   ): PersistedWhatsAppEventRow {
     return {
       organization_id: whatsappConfig?.organization_id ?? null,
+      business_center_id: whatsappConfig?.business_center_id ?? null,
       whatsapp_config_id: whatsappConfig?.id ?? null,
       phone_number_id: event.phoneNumberId,
       message_id: event.messageId,
@@ -138,12 +142,14 @@ export class WhatsAppMessageEventRepository {
     if (
       !this.messageRepository ||
       !messageEvent.organization_id ||
+      !messageEvent.business_center_id ||
       !messageEvent.whatsapp_config_id
     ) {
       return;
     }
 
     const persistedMessage = await this.messageRepository.recordInboundMessage({
+      businessCenterId: messageEvent.business_center_id,
       eventId: messageEvent.id,
       organizationId: messageEvent.organization_id,
       whatsappConfigId: messageEvent.whatsapp_config_id,
@@ -159,6 +165,7 @@ export class WhatsAppMessageEventRepository {
       void this.salesAiService
         ?.handleInboundMessage({
           conversationId: persistedMessage.conversationId,
+          businessCenterId: messageEvent.business_center_id,
           organizationId: messageEvent.organization_id,
           sourceMessageId: persistedMessage.conversationMessageId,
           textBody: event.textBody,

@@ -138,19 +138,99 @@ values
     '{"enabled":false,"start":"09:00","end":"17:00","days":[1,2,3,4,5],"timezone":"UTC"}'
   );
 
-insert into public.organization_members (organization_id, user_id, role)
-values
-  ('11111111-1111-4111-8111-111111111111', 'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa', 'owner'),
-  ('22222222-2222-4222-8222-222222222222', 'bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb', 'owner');
+-- References for KAN-130 RLS coverage:
+-- public.organization_verticals public.business_centers public.business_center_members
+-- public.inventory_items public.inventory_lots public.inventory_movements public.inventory_transformations
 
-insert into public.whatsapp_config (organization_id, phone_number_id, waba_id)
+insert into public.organization_members (id, organization_id, user_id, role)
 values
-  ('11111111-1111-4111-8111-111111111111', 'phone-number-a', 'waba-a'),
-  ('22222222-2222-4222-8222-222222222222', 'phone-number-b', 'waba-b');
+  (
+    'aaaaaaaa-0100-4000-8000-000000000001',
+    '11111111-1111-4111-8111-111111111111',
+    'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa',
+    'owner'
+  ),
+  (
+    'bbbbbbbb-0100-4000-8000-000000000001',
+    '22222222-2222-4222-8222-222222222222',
+    'bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb',
+    'owner'
+  );
+
+insert into public.business_centers (
+  id,
+  organization_id,
+  name,
+  code,
+  timezone,
+  ai_auto_send,
+  ai_follow_up_delay_hours,
+  business_hours,
+  is_default
+)
+values
+  (
+    'aaaaaaaa-0200-4000-8000-000000000001',
+    '11111111-1111-4111-8111-111111111111',
+    'Tenant A Main',
+    'main',
+    'UTC',
+    false,
+    24,
+    '{"enabled":false,"start":"09:00","end":"17:00","days":[1,2,3,4,5],"timezone":"UTC"}',
+    true
+  ),
+  (
+    'bbbbbbbb-0200-4000-8000-000000000001',
+    '22222222-2222-4222-8222-222222222222',
+    'Tenant B Main',
+    'main',
+    'UTC',
+    false,
+    24,
+    '{"enabled":false,"start":"09:00","end":"17:00","days":[1,2,3,4,5],"timezone":"UTC"}',
+    true
+  );
+
+insert into public.business_center_members (
+  organization_id,
+  business_center_id,
+  organization_member_id,
+  role
+)
+values
+  (
+    '11111111-1111-4111-8111-111111111111',
+    'aaaaaaaa-0200-4000-8000-000000000001',
+    'aaaaaaaa-0100-4000-8000-000000000001',
+    'manager'
+  ),
+  (
+    '22222222-2222-4222-8222-222222222222',
+    'bbbbbbbb-0200-4000-8000-000000000001',
+    'bbbbbbbb-0100-4000-8000-000000000001',
+    'manager'
+  );
+
+insert into public.whatsapp_config (organization_id, business_center_id, phone_number_id, waba_id)
+values
+  (
+    '11111111-1111-4111-8111-111111111111',
+    'aaaaaaaa-0200-4000-8000-000000000001',
+    'phone-number-a',
+    'waba-a'
+  ),
+  (
+    '22222222-2222-4222-8222-222222222222',
+    'bbbbbbbb-0200-4000-8000-000000000001',
+    'phone-number-b',
+    'waba-b'
+  );
 
 insert into public.whatsapp_message_events (
   id,
   organization_id,
+  business_center_id,
   phone_number_id,
   message_id,
   sender_phone,
@@ -160,6 +240,7 @@ values
   (
     'aaaaaaaa-1000-4000-8000-000000000001',
     '11111111-1111-4111-8111-111111111111',
+    'aaaaaaaa-0200-4000-8000-000000000001',
     'phone-number-a',
     'wamid-a',
     '+15555550101',
@@ -168,6 +249,7 @@ values
   (
     'bbbbbbbb-1000-4000-8000-000000000001',
     '22222222-2222-4222-8222-222222222222',
+    'bbbbbbbb-0200-4000-8000-000000000001',
     'phone-number-b',
     'wamid-b',
     '+15555550202',
@@ -177,6 +259,7 @@ values
 insert into public.contacts (
   id,
   organization_id,
+  business_center_id,
   external_contact_id,
   phone_number,
   display_name,
@@ -186,6 +269,7 @@ values
   (
     'aaaaaaaa-2000-4000-8000-000000000001',
     '11111111-1111-4111-8111-111111111111',
+    'aaaaaaaa-0200-4000-8000-000000000001',
     '+15555550101',
     '+15555550101',
     'Tenant A Customer',
@@ -194,6 +278,7 @@ values
   (
     'bbbbbbbb-2000-4000-8000-000000000001',
     '22222222-2222-4222-8222-222222222222',
+    'bbbbbbbb-0200-4000-8000-000000000001',
     '+15555550202',
     '+15555550202',
     'Tenant B Customer',
@@ -203,6 +288,7 @@ values
 insert into public.conversations (
   id,
   organization_id,
+  business_center_id,
   contact_id,
   external_contact_id,
   customer_display_name,
@@ -212,6 +298,7 @@ values
   (
     'aaaaaaaa-3000-4000-8000-000000000001',
     '11111111-1111-4111-8111-111111111111',
+    'aaaaaaaa-0200-4000-8000-000000000001',
     'aaaaaaaa-2000-4000-8000-000000000001',
     '+15555550101',
     'Tenant A Customer',
@@ -220,6 +307,7 @@ values
   (
     'bbbbbbbb-3000-4000-8000-000000000001',
     '22222222-2222-4222-8222-222222222222',
+    'bbbbbbbb-0200-4000-8000-000000000001',
     'bbbbbbbb-2000-4000-8000-000000000001',
     '+15555550202',
     'Tenant B Customer',
@@ -229,6 +317,7 @@ values
 insert into public.conversation_messages (
   id,
   organization_id,
+  business_center_id,
   conversation_id,
   direction,
   external_message_id,
@@ -241,6 +330,7 @@ values
   (
     'aaaaaaaa-4000-4000-8000-000000000001',
     '11111111-1111-4111-8111-111111111111',
+    'aaaaaaaa-0200-4000-8000-000000000001',
     'aaaaaaaa-3000-4000-8000-000000000001',
     'inbound',
     'wamid-a-message',
@@ -252,6 +342,7 @@ values
   (
     'bbbbbbbb-4000-4000-8000-000000000001',
     '22222222-2222-4222-8222-222222222222',
+    'bbbbbbbb-0200-4000-8000-000000000001',
     'bbbbbbbb-3000-4000-8000-000000000001',
     'inbound',
     'wamid-b-message',
@@ -268,7 +359,10 @@ insert into public.products (
   sku,
   unit_price_cents,
   stock_quantity,
-  reorder_threshold
+  reorder_threshold,
+  base_unit_code,
+  pricing_unit_quantity,
+  pricing_unit_code
 )
 values
   (
@@ -278,7 +372,10 @@ values
     'A-SKU',
     1000,
     2,
-    5
+    5,
+    'unit',
+    1,
+    'unit'
   ),
   (
     'bbbbbbbb-5000-4000-8000-000000000001',
@@ -287,12 +384,144 @@ values
     'B-SKU',
     2000,
     3,
+    5,
+    'unit',
+    1,
+    'unit'
+  );
+
+insert into public.inventory_items (
+  id,
+  organization_id,
+  business_center_id,
+  product_id,
+  quantity_on_hand,
+  unit_code,
+  reorder_threshold
+)
+values
+  (
+    'aaaaaaaa-5100-4000-8000-000000000001',
+    '11111111-1111-4111-8111-111111111111',
+    'aaaaaaaa-0200-4000-8000-000000000001',
+    'aaaaaaaa-5000-4000-8000-000000000001',
+    2,
+    'unit',
     5
+  ),
+  (
+    'bbbbbbbb-5100-4000-8000-000000000001',
+    '22222222-2222-4222-8222-222222222222',
+    'bbbbbbbb-0200-4000-8000-000000000001',
+    'bbbbbbbb-5000-4000-8000-000000000001',
+    3,
+    'unit',
+    5
+  );
+
+insert into public.inventory_lots (
+  id,
+  organization_id,
+  business_center_id,
+  product_id,
+  lot_code,
+  received_quantity,
+  remaining_quantity,
+  unit_code
+)
+values
+  (
+    'aaaaaaaa-5200-4000-8000-000000000001',
+    '11111111-1111-4111-8111-111111111111',
+    'aaaaaaaa-0200-4000-8000-000000000001',
+    'aaaaaaaa-5000-4000-8000-000000000001',
+    'A-LOT',
+    10,
+    2,
+    'unit'
+  ),
+  (
+    'bbbbbbbb-5200-4000-8000-000000000001',
+    '22222222-2222-4222-8222-222222222222',
+    'bbbbbbbb-0200-4000-8000-000000000001',
+    'bbbbbbbb-5000-4000-8000-000000000001',
+    'B-LOT',
+    10,
+    3,
+    'unit'
+  );
+
+insert into public.inventory_movements (
+  id,
+  organization_id,
+  business_center_id,
+  product_id,
+  inventory_item_id,
+  inventory_lot_id,
+  movement_type,
+  quantity_delta,
+  unit_code
+)
+values
+  (
+    'aaaaaaaa-5300-4000-8000-000000000001',
+    '11111111-1111-4111-8111-111111111111',
+    'aaaaaaaa-0200-4000-8000-000000000001',
+    'aaaaaaaa-5000-4000-8000-000000000001',
+    'aaaaaaaa-5100-4000-8000-000000000001',
+    'aaaaaaaa-5200-4000-8000-000000000001',
+    'restock',
+    10,
+    'unit'
+  ),
+  (
+    'bbbbbbbb-5300-4000-8000-000000000001',
+    '22222222-2222-4222-8222-222222222222',
+    'bbbbbbbb-0200-4000-8000-000000000001',
+    'bbbbbbbb-5000-4000-8000-000000000001',
+    'bbbbbbbb-5100-4000-8000-000000000001',
+    'bbbbbbbb-5200-4000-8000-000000000001',
+    'restock',
+    10,
+    'unit'
+  );
+
+insert into public.inventory_transformations (
+  id,
+  organization_id,
+  business_center_id,
+  source_product_id,
+  target_product_id,
+  input_quantity,
+  output_quantity,
+  unit_code
+)
+values
+  (
+    'aaaaaaaa-5400-4000-8000-000000000001',
+    '11111111-1111-4111-8111-111111111111',
+    'aaaaaaaa-0200-4000-8000-000000000001',
+    'aaaaaaaa-5000-4000-8000-000000000001',
+    'aaaaaaaa-5000-4000-8000-000000000001',
+    1,
+    1,
+    'unit'
+  ),
+  (
+    'bbbbbbbb-5400-4000-8000-000000000001',
+    '22222222-2222-4222-8222-222222222222',
+    'bbbbbbbb-0200-4000-8000-000000000001',
+    'bbbbbbbb-5000-4000-8000-000000000001',
+    'bbbbbbbb-5000-4000-8000-000000000001',
+    1,
+    1,
+    'unit'
   );
 
 insert into public.owner_tasks (
   id,
   organization_id,
+  business_center_id,
   contact_id,
   conversation_id,
   title,
@@ -303,6 +532,7 @@ values
   (
     'aaaaaaaa-6000-4000-8000-000000000001',
     '11111111-1111-4111-8111-111111111111',
+    'aaaaaaaa-0200-4000-8000-000000000001',
     'aaaaaaaa-2000-4000-8000-000000000001',
     'aaaaaaaa-3000-4000-8000-000000000001',
     'Tenant A follow-up',
@@ -312,6 +542,7 @@ values
   (
     'bbbbbbbb-6000-4000-8000-000000000001',
     '22222222-2222-4222-8222-222222222222',
+    'bbbbbbbb-0200-4000-8000-000000000001',
     'bbbbbbbb-2000-4000-8000-000000000001',
     'bbbbbbbb-3000-4000-8000-000000000001',
     'Tenant B follow-up',
@@ -322,6 +553,7 @@ values
 insert into public.owner_notifications (
   id,
   organization_id,
+  business_center_id,
   product_id,
   notification_type,
   title,
@@ -332,6 +564,7 @@ values
   (
     'aaaaaaaa-7000-4000-8000-000000000001',
     '11111111-1111-4111-8111-111111111111',
+    'aaaaaaaa-0200-4000-8000-000000000001',
     'aaaaaaaa-5000-4000-8000-000000000001',
     'low_stock',
     'Tenant A low stock',
@@ -341,6 +574,7 @@ values
   (
     'bbbbbbbb-7000-4000-8000-000000000001',
     '22222222-2222-4222-8222-222222222222',
+    'bbbbbbbb-0200-4000-8000-000000000001',
     'bbbbbbbb-5000-4000-8000-000000000001',
     'low_stock',
     'Tenant B low stock',
@@ -351,6 +585,7 @@ values
 insert into public.owner_device_tokens (
   id,
   organization_id,
+  business_center_id,
   user_id,
   push_token
 )
@@ -358,12 +593,14 @@ values
   (
     'aaaaaaaa-8000-4000-8000-000000000001',
     '11111111-1111-4111-8111-111111111111',
+    'aaaaaaaa-0200-4000-8000-000000000001',
     'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa',
     'ExponentPushToken[tenant-a]'
   ),
   (
     'bbbbbbbb-8000-4000-8000-000000000001',
     '22222222-2222-4222-8222-222222222222',
+    'bbbbbbbb-0200-4000-8000-000000000001',
     'bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb',
     'ExponentPushToken[tenant-b]'
   );
@@ -371,6 +608,7 @@ values
 insert into public.ai_drafts (
   id,
   organization_id,
+  business_center_id,
   conversation_id,
   source_message_id,
   draft_type,
@@ -382,6 +620,7 @@ values
   (
     'aaaaaaaa-9000-4000-8000-000000000001',
     '11111111-1111-4111-8111-111111111111',
+    'aaaaaaaa-0200-4000-8000-000000000001',
     'aaaaaaaa-3000-4000-8000-000000000001',
     'aaaaaaaa-4000-4000-8000-000000000001',
     'quote',
@@ -392,6 +631,7 @@ values
   (
     'bbbbbbbb-9000-4000-8000-000000000001',
     '22222222-2222-4222-8222-222222222222',
+    'bbbbbbbb-0200-4000-8000-000000000001',
     'bbbbbbbb-3000-4000-8000-000000000001',
     'bbbbbbbb-4000-4000-8000-000000000001',
     'quote',
@@ -403,6 +643,7 @@ values
 insert into public.ai_draft_events (
   id,
   organization_id,
+  business_center_id,
   ai_draft_id,
   event_type,
   details
@@ -411,6 +652,7 @@ values
   (
     'aaaaaaaa-9100-4000-8000-000000000001',
     '11111111-1111-4111-8111-111111111111',
+    'aaaaaaaa-0200-4000-8000-000000000001',
     'aaaaaaaa-9000-4000-8000-000000000001',
     'draft_created',
     '{"tenant":"a"}'
@@ -418,6 +660,7 @@ values
   (
     'bbbbbbbb-9100-4000-8000-000000000001',
     '22222222-2222-4222-8222-222222222222',
+    'bbbbbbbb-0200-4000-8000-000000000001',
     'bbbbbbbb-9000-4000-8000-000000000001',
     'draft_created',
     '{"tenant":"b"}'

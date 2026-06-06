@@ -5,6 +5,7 @@ import { WhatsAppOutboundMessageService } from '../whatsapp/whatsapp-outbound-me
 import { SupabaseService } from '../../supabase/supabase.service';
 
 export interface HandleInboundSalesMessageParams {
+  businessCenterId: string;
   conversationId: string;
   organizationId: string;
   sourceMessageId: string;
@@ -30,7 +31,7 @@ export interface SalesAiDraftResult {
   reason: string;
 }
 
-interface OrganizationRow {
+interface BusinessCenterRow {
   ai_auto_send: boolean;
   business_hours: BusinessHoursSettings | null;
   id: string;
@@ -39,6 +40,7 @@ interface OrganizationRow {
 
 interface AiDraftRow {
   auto_send_eligible: boolean;
+  business_center_id: string;
   conversation_id: string;
   edited_body: string | null;
   id: string;
@@ -48,6 +50,7 @@ interface AiDraftRow {
 }
 
 interface ConversationRow {
+  business_center_id: string;
   external_contact_id: string;
   organization_id: string;
 }
@@ -99,12 +102,17 @@ export class SalesAiService {
       return;
     }
 
-    const organization = await this.getOrganization(params.organizationId);
+    const businessCenter = await this.getBusinessCenter({
+      businessCenterId: params.businessCenterId,
+      organizationId: params.organizationId,
+    });
     const draft = await this.generateDraft({
+      businessCenterId: params.businessCenterId,
       messageBody: params.textBody,
       organizationId: params.organizationId,
     });
     const persistedDraft = await this.insertDraft({
+      businessCenterId: params.businessCenterId,
       conversationId: params.conversationId,
       draft,
       organizationId: params.organizationId,
@@ -119,23 +127,26 @@ export class SalesAiService {
         draftType: draft.draftType,
       },
       eventType: 'draft_created',
+      businessCenterId: params.businessCenterId,
       organizationId: params.organizationId,
     });
 
     if (
-      organization.ai_auto_send &&
+      businessCenter.ai_auto_send &&
       draft.autoSendEligible &&
-      isWithinBusinessHours(organization.business_hours, organization.timezone)
+      isWithinBusinessHours(businessCenter.business_hours, businessCenter.timezone)
     ) {
       await this.autoSendDraft(persistedDraft);
     }
   }
 
   async generateDraft(params: {
+    businessCenterId?: string;
     messageBody: string;
     organizationId: string;
   }): Promise<SalesAiDraftResult> {
     const products = await this.inventoryService.listActiveProducts({
+      businessCenterId: params.businessCenterId,
       organizationId: params.organizationId,
     });
     const matchedProducts = findMatchedProducts(params.messageBody, products);
@@ -225,12 +236,14 @@ export class SalesAiService {
         edited: Boolean(params.editedBody?.trim()),
       },
       eventType: 'approved',
+      businessCenterId: draft.business_center_id,
       organizationId: draft.organization_id,
     });
 
     try {
       await this.whatsappOutboundMessageService.sendTextMessage({
         body: sendBody,
+        businessCenterId: draft.business_center_id,
         organizationId: draft.organization_id,
         recipientPhone: conversation.external_contact_id,
       });
@@ -244,6 +257,7 @@ export class SalesAiService {
           source: 'owner_approval',
         },
         eventType: 'send_succeeded',
+        businessCenterId: draft.business_center_id,
         organizationId: draft.organization_id,
       });
 
@@ -262,6 +276,7 @@ export class SalesAiService {
           source: 'owner_approval',
         },
         eventType: 'send_failed',
+        businessCenterId: draft.business_center_id,
         organizationId: draft.organization_id,
       });
       throw error;
@@ -286,6 +301,7 @@ export class SalesAiService {
       draftId: params.draftId,
       details: {},
       eventType: 'rejected',
+      businessCenterId: draft.business_center_id,
       organizationId: draft.organization_id,
     });
 
@@ -301,12 +317,14 @@ export class SalesAiService {
       draftId: draft.id,
       details: {},
       eventType: 'auto_send_attempted',
+      businessCenterId: draft.business_center_id,
       organizationId: draft.organization_id,
     });
 
     try {
       await this.whatsappOutboundMessageService.sendTextMessage({
         body: draft.reply_body,
+        businessCenterId: draft.business_center_id,
         organizationId: draft.organization_id,
         recipientPhone: conversation.external_contact_id,
       });
@@ -318,6 +336,7 @@ export class SalesAiService {
         draftId: draft.id,
         details: {},
         eventType: 'auto_send_succeeded',
+        businessCenterId: draft.business_center_id,
         organizationId: draft.organization_id,
       });
     } catch (error) {
@@ -333,27 +352,33 @@ export class SalesAiService {
           error: message,
         },
         eventType: 'auto_send_failed',
+        businessCenterId: draft.business_center_id,
         organizationId: draft.organization_id,
       });
     }
   }
 
-  private async getOrganization(organizationId: string): Promise<OrganizationRow> {
+  private async getBusinessCenter(params: {
+    businessCenterId: string;
+    organizationId: string;
+  }): Promise<BusinessCenterRow> {
     const client = this.supabaseService.getServiceRoleClient();
     const { data, error } = await client
-      .from('organizations')
+      .from('business_centers')
       .select('id, ai_auto_send, business_hours, timezone')
-      .eq('id', organizationId)
-      .single<OrganizationRow>();
+      .eq('id', params.businessCenterId)
+      .eq('organization_id', params.organizationId)
+      .single<BusinessCenterRow>();
 
     if (error) {
-      throw new Error(`Failed to load organization AI settings: ${error.message}`);
+      throw new Error(`Failed to load business center AI settings: ${error.message}`);
     }
 
     return data;
   }
 
   private async insertDraft(params: {
+    businessCenterId: string;
     conversationId: string;
     draft: SalesAiDraftResult;
     organizationId: string;
@@ -364,6 +389,7 @@ export class SalesAiService {
       .from('ai_drafts')
       .insert({
         auto_send_eligible: params.draft.autoSendEligible,
+        business_center_id: params.businessCenterId,
         catalog_context: params.draft.catalogContext,
         conversation_id: params.conversationId,
         decision_reason: params.draft.reason,
@@ -377,7 +403,7 @@ export class SalesAiService {
         source_message_id: params.sourceMessageId,
         status: 'pending_approval',
       })
-      .select('id, organization_id, conversation_id, reply_body, edited_body, status, auto_send_eligible')
+      .select('id, organization_id, business_center_id, conversation_id, reply_body, edited_body, status, auto_send_eligible')
       .single<AiDraftRow>();
 
     if (error) {
@@ -401,7 +427,7 @@ export class SalesAiService {
     const client = this.supabaseService.getServiceRoleClient();
     const { data, error } = await client
       .from('ai_drafts')
-      .select('id, organization_id, conversation_id, reply_body, edited_body, status, auto_send_eligible')
+      .select('id, organization_id, business_center_id, conversation_id, reply_body, edited_body, status, auto_send_eligible')
       .eq('organization_id', params.organizationId)
       .eq('source_message_id', params.sourceMessageId)
       .single<AiDraftRow>();
@@ -417,7 +443,7 @@ export class SalesAiService {
     const client = this.supabaseService.getServiceRoleClient();
     const { data, error } = await client
       .from('ai_drafts')
-      .select('id, organization_id, conversation_id, reply_body, edited_body, status, auto_send_eligible')
+      .select('id, organization_id, business_center_id, conversation_id, reply_body, edited_body, status, auto_send_eligible')
       .eq('id', draftId)
       .single<AiDraftRow>();
 
@@ -436,7 +462,7 @@ export class SalesAiService {
     const client = this.supabaseService.getServiceRoleClient();
     const { data, error } = await client
       .from('conversations')
-      .select('organization_id, external_contact_id')
+      .select('organization_id, business_center_id, external_contact_id')
       .eq('id', conversationId)
       .single<ConversationRow>();
 
@@ -457,6 +483,7 @@ export class SalesAiService {
   }
 
   private async logDraftEvent(params: {
+    businessCenterId: string;
     details: Record<string, unknown>;
     draftId: string;
     eventType:
@@ -473,6 +500,7 @@ export class SalesAiService {
     const client = this.supabaseService.getServiceRoleClient();
     const { error } = await client.from('ai_draft_events').insert({
       ai_draft_id: params.draftId,
+      business_center_id: params.businessCenterId,
       details: params.details,
       event_type: params.eventType,
       organization_id: params.organizationId,

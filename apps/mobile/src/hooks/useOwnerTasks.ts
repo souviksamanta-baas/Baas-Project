@@ -26,7 +26,10 @@ export interface OwnerTasksState {
   tasks: OwnerTask[];
 }
 
-export function useOwnerTasks(organizationId: string | null): OwnerTasksState {
+export function useOwnerTasks(
+  organizationId: string | null,
+  businessCenterId: string | null,
+): OwnerTasksState {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -35,22 +38,22 @@ export function useOwnerTasks(organizationId: string | null): OwnerTasksState {
   const [tasks, setTasks] = useState<OwnerTask[]>([]);
 
   const loadTasks = useCallback(async (): Promise<void> => {
-    if (!organizationId) {
+    if (!organizationId || !businessCenterId) {
       setNotifications([]);
       setTasks([]);
       return;
     }
 
     const [nextTasks, nextNotifications] = await Promise.all([
-      getOwnerTasks(organizationId),
-      getOwnerNotifications(organizationId),
+      getOwnerTasks(organizationId, businessCenterId),
+      getOwnerNotifications(organizationId, businessCenterId),
     ]);
     setTasks(nextTasks);
     setNotifications(nextNotifications);
-  }, [organizationId]);
+  }, [businessCenterId, organizationId]);
 
   useEffect(() => {
-    if (!organizationId) {
+    if (!organizationId || !businessCenterId) {
       setNotifications([]);
       setTasks([]);
       return undefined;
@@ -72,7 +75,7 @@ export function useOwnerTasks(organizationId: string | null): OwnerTasksState {
         }
       });
 
-    const unsubscribe = subscribeToOwnerTaskChanges(organizationId, {
+    const unsubscribe = subscribeToOwnerTaskChanges(organizationId, businessCenterId, {
       onNotificationInsert: (notification) => {
         Alert.alert(notification.title, notification.body);
       },
@@ -85,62 +88,62 @@ export function useOwnerTasks(organizationId: string | null): OwnerTasksState {
       mounted = false;
       unsubscribe();
     };
-  }, [loadTasks, organizationId]);
+  }, [businessCenterId, loadTasks, organizationId]);
 
   const completeTask = useCallback(
     async (taskId: string): Promise<void> => {
-      if (!organizationId) {
+      if (!organizationId || !businessCenterId) {
         return;
       }
 
       await runTaskAction({
-        action: () => completeOwnerTask(organizationId, taskId),
+        action: () => completeOwnerTask(organizationId, businessCenterId, taskId),
         failureTitle: 'Could not complete task',
         refresh: loadTasks,
         setErrorMessage,
         setIsSaving,
       });
     },
-    [loadTasks, organizationId],
+    [businessCenterId, loadTasks, organizationId],
   );
 
   const snoozeTask = useCallback(
     async (taskId: string): Promise<void> => {
-      if (!organizationId) {
+      if (!organizationId || !businessCenterId) {
         return;
       }
 
       const snoozedUntil = new Date(Date.now() + 24 * 60 * 60 * 1000);
       await runTaskAction({
-        action: () => snoozeOwnerTask(organizationId, taskId, snoozedUntil),
+        action: () => snoozeOwnerTask(organizationId, businessCenterId, taskId, snoozedUntil),
         failureTitle: 'Could not snooze task',
         refresh: loadTasks,
         setErrorMessage,
         setIsSaving,
       });
     },
-    [loadTasks, organizationId],
+    [businessCenterId, loadTasks, organizationId],
   );
 
   const dismissNotification = useCallback(
     async (notificationId: string): Promise<void> => {
-      if (!organizationId) {
+      if (!organizationId || !businessCenterId) {
         return;
       }
 
       await runTaskAction({
-        action: () => dismissOwnerNotification(organizationId, notificationId),
+        action: () => dismissOwnerNotification(organizationId, businessCenterId, notificationId),
         failureTitle: 'Could not dismiss alert',
         refresh: loadTasks,
         setErrorMessage,
         setIsSaving,
       });
     },
-    [loadTasks, organizationId],
+    [businessCenterId, loadTasks, organizationId],
   );
 
   const enablePushNotifications = useCallback(async (): Promise<void> => {
-    if (!organizationId) {
+    if (!organizationId || !businessCenterId) {
       return;
     }
 
@@ -159,7 +162,7 @@ export function useOwnerTasks(organizationId: string | null): OwnerTasksState {
       }
 
       const token = await Notifications.getExpoPushTokenAsync();
-      await registerOwnerPushToken(organizationId, token.data);
+      await registerOwnerPushToken(organizationId, businessCenterId, token.data);
       setPushRegistrationStatus('Low-stock push alerts are enabled on this device.');
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown push registration error';
@@ -169,7 +172,7 @@ export function useOwnerTasks(organizationId: string | null): OwnerTasksState {
     } finally {
       setIsSaving(false);
     }
-  }, [organizationId]);
+  }, [businessCenterId, organizationId]);
 
   return {
     completeTask,

@@ -27,7 +27,10 @@ export interface ProductCatalogState {
   deleteProductById: (productId: string) => Promise<void>;
 }
 
-export function useProducts(organizationId: string | null): ProductCatalogState {
+export function useProducts(
+  organizationId: string | null,
+  businessCenterId: string | null,
+): ProductCatalogState {
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [formValues, setFormValues] = useState<ProductFormValues>(createEmptyProductForm);
@@ -36,17 +39,17 @@ export function useProducts(organizationId: string | null): ProductCatalogState 
   const [products, setProducts] = useState<Product[]>([]);
 
   const loadProducts = useCallback(async (): Promise<void> => {
-    if (!organizationId) {
+    if (!organizationId || !businessCenterId) {
       setProducts([]);
       return;
     }
 
-    const nextProducts = await getProducts(organizationId);
+    const nextProducts = await getProducts(organizationId, businessCenterId);
     setProducts(nextProducts);
-  }, [organizationId]);
+  }, [businessCenterId, organizationId]);
 
   useEffect(() => {
-    if (!organizationId) {
+    if (!organizationId || !businessCenterId) {
       setProducts([]);
       setEditingProductId(null);
       setFormValues(createEmptyProductForm());
@@ -70,14 +73,26 @@ export function useProducts(organizationId: string | null): ProductCatalogState 
       });
 
     const channel = supabase
-      .channel(`products:${organizationId}`)
+      .channel(`products:${organizationId}:${businessCenterId}`)
       .on(
         'postgres_changes',
         {
           event: '*',
           schema: 'public',
           table: 'products',
-          filter: `organization_id=eq.${organizationId}`,
+        filter: `organization_id=eq.${organizationId}`,
+        },
+        () => {
+          void loadProducts();
+        },
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'inventory_items',
+          filter: `business_center_id=eq.${businessCenterId}`,
         },
         () => {
           void loadProducts();
@@ -89,7 +104,7 @@ export function useProducts(organizationId: string | null): ProductCatalogState 
       mounted = false;
       void supabase.removeChannel(channel);
     };
-  }, [loadProducts, organizationId]);
+  }, [businessCenterId, loadProducts, organizationId]);
 
   const resetForm = useCallback(() => {
     setEditingProductId(null);
@@ -97,7 +112,7 @@ export function useProducts(organizationId: string | null): ProductCatalogState 
   }, []);
 
   const saveProduct = useCallback(async (): Promise<void> => {
-    if (!organizationId) {
+    if (!organizationId || !businessCenterId) {
       return;
     }
 
@@ -112,9 +127,9 @@ export function useProducts(organizationId: string | null): ProductCatalogState 
 
     try {
       if (editingProductId) {
-        await updateProduct(organizationId, editingProductId, formValues);
+        await updateProduct(businessCenterId, organizationId, editingProductId, formValues);
       } else {
-        await createProduct(organizationId, formValues);
+        await createProduct(businessCenterId, organizationId, formValues);
       }
 
       resetForm();
@@ -126,7 +141,7 @@ export function useProducts(organizationId: string | null): ProductCatalogState 
     } finally {
       setIsSaving(false);
     }
-  }, [editingProductId, formValues, loadProducts, organizationId, resetForm]);
+  }, [businessCenterId, editingProductId, formValues, loadProducts, organizationId, resetForm]);
 
   const startEditing = useCallback((product: Product) => {
     setEditingProductId(product.id);

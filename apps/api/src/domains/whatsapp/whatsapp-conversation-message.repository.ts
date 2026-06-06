@@ -16,6 +16,7 @@ export interface RecordInboundWhatsAppMessageResult {
 }
 
 export interface RecordInboundWhatsAppMessageParams {
+  businessCenterId: string;
   eventId: string;
   organizationId: string;
   whatsappConfigId: string;
@@ -29,6 +30,7 @@ export interface RecordInboundWhatsAppMessageParams {
 
 export interface RecordOutboundWhatsAppMessageParams {
   body: string;
+  businessCenterId: string;
   errorMessage?: string;
   externalMessageId?: string;
   organizationId: string;
@@ -47,6 +49,7 @@ export class WhatsAppConversationMessageRepository {
     params: RecordInboundWhatsAppMessageParams,
   ): Promise<RecordInboundWhatsAppMessageResult> {
     const conversation = await this.upsertConversation({
+      businessCenterId: params.businessCenterId,
       organizationId: params.organizationId,
       whatsappConfigId: params.whatsappConfigId,
       externalContactId: params.senderPhone,
@@ -59,6 +62,7 @@ export class WhatsAppConversationMessageRepository {
       .from('conversation_messages')
       .insert({
         organization_id: params.organizationId,
+        business_center_id: params.businessCenterId,
         conversation_id: conversation.id,
         whatsapp_message_event_id: params.eventId,
         direction: 'inbound',
@@ -88,6 +92,7 @@ export class WhatsAppConversationMessageRepository {
   async recordOutboundMessage(params: RecordOutboundWhatsAppMessageParams): Promise<void> {
     const sentAt = params.sentAt ?? new Date().toISOString();
     const conversation = await this.upsertConversation({
+      businessCenterId: params.businessCenterId,
       organizationId: params.organizationId,
       whatsappConfigId: params.whatsappConfigId,
       externalContactId: params.recipientPhone,
@@ -98,6 +103,7 @@ export class WhatsAppConversationMessageRepository {
     const client = this.supabaseService.getServiceRoleClient();
     const { error } = await client.from('conversation_messages').insert({
       organization_id: params.organizationId,
+      business_center_id: params.businessCenterId,
       conversation_id: conversation.id,
       direction: 'outbound',
       external_message_id: params.externalMessageId,
@@ -120,6 +126,7 @@ export class WhatsAppConversationMessageRepository {
   }
 
   private async upsertConversation(params: {
+    businessCenterId: string;
     customerDisplayName: string | null;
     externalContactId: string;
     lastMessageAt: string | null;
@@ -129,6 +136,7 @@ export class WhatsAppConversationMessageRepository {
     const client = this.supabaseService.getServiceRoleClient();
     const contact = await this.upsertContact({
       customerDisplayName: params.customerDisplayName,
+      businessCenterId: params.businessCenterId,
       externalContactId: params.externalContactId,
       lastSeenAt: params.lastMessageAt,
       organizationId: params.organizationId,
@@ -138,6 +146,7 @@ export class WhatsAppConversationMessageRepository {
       .upsert(
         {
           organization_id: params.organizationId,
+          business_center_id: params.businessCenterId,
           whatsapp_config_id: params.whatsappConfigId,
           contact_id: contact.id,
           channel: 'whatsapp',
@@ -160,6 +169,7 @@ export class WhatsAppConversationMessageRepository {
   }
 
   private async upsertContact(params: {
+    businessCenterId: string;
     customerDisplayName: string | null;
     externalContactId: string;
     lastSeenAt: string | null;
@@ -172,6 +182,7 @@ export class WhatsAppConversationMessageRepository {
       .upsert(
         {
           organization_id: params.organizationId,
+          business_center_id: params.businessCenterId,
           channel: 'whatsapp',
           external_contact_id: params.externalContactId,
           phone_number: params.externalContactId,

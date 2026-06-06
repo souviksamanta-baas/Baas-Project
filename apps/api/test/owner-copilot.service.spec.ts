@@ -5,6 +5,7 @@ import { OwnerCopilotService } from '../src/domains/ai/owner-copilot.service';
 import { SupabaseService } from '../src/supabase/supabase.service';
 
 const lowStockProduct = {
+  businessCenterId: 'business-center-1',
   currency: 'USD',
   description: null,
   id: 'product-1',
@@ -14,6 +15,7 @@ const lowStockProduct = {
   reorderThreshold: 5,
   sku: 'SHIRT-BLUE',
   stockQuantity: 2,
+  unitCode: 'unit',
   unitPriceCents: 2500,
 };
 
@@ -57,6 +59,10 @@ function createQuery(table: string): Record<string, unknown> {
     single: vi.fn(async () => {
       if (table === 'organization_members') {
         return { data: { role: 'owner' }, error: null };
+      }
+
+      if (table === 'business_centers') {
+        return { data: { id: 'business-center-1' }, error: null };
       }
 
       return { data: null, error: null };

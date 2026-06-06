@@ -21,12 +21,24 @@ export function DashboardScreen(props: {
   dashboard: OwnerDashboard;
   onSignOut: () => void;
 }): ReactElement {
-  const inbox = useInbox(props.dashboard.organization?.id ?? null);
-  const ownerTasks = useOwnerTasks(props.dashboard.organization?.id ?? null);
-  const productCatalog = useProducts(props.dashboard.organization?.id ?? null);
-  const aiDrafts = useAiDrafts(props.dashboard.organization?.id ?? null);
+  const inbox = useInbox(
+    props.dashboard.organization?.id ?? null,
+    props.dashboard.businessCenter?.id ?? null,
+  );
+  const ownerTasks = useOwnerTasks(
+    props.dashboard.organization?.id ?? null,
+    props.dashboard.businessCenter?.id ?? null,
+  );
+  const productCatalog = useProducts(
+    props.dashboard.organization?.id ?? null,
+    props.dashboard.businessCenter?.id ?? null,
+  );
+  const aiDrafts = useAiDrafts(
+    props.dashboard.organization?.id ?? null,
+    props.dashboard.businessCenter?.id ?? null,
+  );
   const ownerCopilot = useOwnerCopilot(props.dashboard.organization?.id ?? null);
-  const ownerSettings = useOwnerSettings(props.dashboard.organization);
+  const ownerSettings = useOwnerSettings(props.dashboard);
 
   return (
     <View style={styles.card}>
