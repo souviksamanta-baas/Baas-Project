@@ -169,6 +169,24 @@ It validates that the RLS test references every MVP tenant table, that migration
 enable and force RLS for those tables, and that service-role-only tables are
 explicitly revoked from `anon` and `authenticated`.
 
+## MVP Audit Mitigation Evidence
+
+KAN-143 tracks production hardening follow-up from the MVP audit report:
+
+- The API boot path validates production-required environment variables and
+  fails fast when required Supabase, WhatsApp, or scheduler secrets are missing.
+- Helmet security headers, Railway/proxy trust, explicit CORS allowlisting, and
+  NestJS throttling are configured in the API. `GET /health` remains unthrottled
+  for deployment checks.
+- `/webhooks/whatsapp` has a stricter configured throttle and keeps raw-body
+  signature validation intact.
+- WhatsApp inbound event handling batch-resolves channel configuration and uses
+  bounded concurrency for per-message persistence.
+- Task maintenance uses bounded center concurrency, bulk follow-up task writes,
+  bulk cold-contact updates, and one owner device-token lookup per center.
+- Generated local artifacts remain ignored by git and can be cleaned with
+  `npm run audit:clean:dry-run` followed by `npm run audit:clean`.
+
 ## Pilot Onboarding Checklist
 
 Use this checklist for each of the first 1-3 pilot businesses.

@@ -34,13 +34,49 @@ interface ConversationRow {
   organization_id: string;
 }
 
-interface InsertResult {
-  created: boolean;
-  id: string | null;
+interface InsertedNotificationRow {
+  id: string;
+  source_key: string;
+}
+
+interface InsertedOwnerTaskRow {
+  contact_id: string | null;
+  id: string;
+}
+
+interface LowStockNotificationInsertRow {
+  body: string;
+  business_center_id: string;
+  notification_type: 'low_stock';
+  organization_id: string;
+  payload: {
+    productId: string;
+    reorderThreshold: number;
+    stockQuantity: number;
+  };
+  product_id: string;
+  source_key: string;
+  title: 'Low stock alert';
 }
 
 interface OwnerDeviceTokenRow {
   push_token: string;
+}
+
+interface OwnerTaskInsertRow {
+  business_center_id: string;
+  contact_id: string | null;
+  conversation_id: string;
+  description: string;
+  due_at: string;
+  metadata: {
+    automation: 'cold_lead_follow_up';
+  };
+  organization_id: string;
+  priority: 'high';
+  source_key: string;
+  task_type: 'follow_up';
+  title: string;
 }
 
 interface ExpoPushResponse {
@@ -55,6 +91,7 @@ interface ExpoPushResponse {
 }
 
 const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
+const TASK_MAINTENANCE_CONCURRENCY = 5;
 
 @Injectable()
 export class TasksService {
@@ -69,26 +106,31 @@ export class TasksService {
   } = {}): Promise<TaskMaintenanceResult> {
     const now = params.now ?? new Date();
     const businessCenters = await this.listBusinessCenters(params.organizationId);
-    const result: TaskMaintenanceResult = {
-      followUpTasksCreated: 0,
-      lowStockAlertsCreated: 0,
-      pushNotificationsSent: 0,
-      pushNotificationsFailed: 0,
+    const results = await mapWithConcurrency(
+      businessCenters,
+      TASK_MAINTENANCE_CONCURRENCY,
+      async (businessCenter) => this.runBusinessCenterMaintenance(businessCenter, now),
+    );
+
+    return results.reduce(sumTaskMaintenanceResults, emptyTaskMaintenanceResult());
+  }
+
+  private async runBusinessCenterMaintenance(
+    businessCenter: BusinessCenterRow,
+    now: Date,
+  ): Promise<TaskMaintenanceResult> {
+    const followUpTasksCreated = await this.createFollowUpTasksForBusinessCenter(
+      businessCenter,
+      now,
+    );
+    const lowStockResult = await this.createLowStockAlertsForBusinessCenter(businessCenter);
+
+    return {
+      followUpTasksCreated,
+      lowStockAlertsCreated: lowStockResult.alertsCreated,
+      pushNotificationsFailed: lowStockResult.pushNotificationsFailed,
+      pushNotificationsSent: lowStockResult.pushNotificationsSent,
     };
-
-    for (const businessCenter of businessCenters) {
-      result.followUpTasksCreated += await this.createFollowUpTasksForBusinessCenter(
-        businessCenter,
-        now,
-      );
-
-      const lowStockResult = await this.createLowStockAlertsForBusinessCenter(businessCenter);
-      result.lowStockAlertsCreated += lowStockResult.alertsCreated;
-      result.pushNotificationsSent += lowStockResult.pushNotificationsSent;
-      result.pushNotificationsFailed += lowStockResult.pushNotificationsFailed;
-    }
-
-    return result;
   }
 
   private async listBusinessCenters(organizationId?: string): Promise<BusinessCenterRow[]> {
@@ -134,39 +176,40 @@ export class TasksService {
       throw new Error(`Failed to list idle conversations: ${error.message}`);
     }
 
-    let created = 0;
+    const taskRows = (data as ConversationRow[])
+      .filter((conversation) => conversation.last_message_at && !this.shouldSkipFollowUp(conversation))
+      .map((conversation) => this.toFollowUpTaskRow(conversation, now));
 
-    for (const conversation of data as ConversationRow[]) {
-      if (!conversation.last_message_at || this.shouldSkipFollowUp(conversation)) {
-        continue;
-      }
+    const insertedTasks = await this.insertOwnerTasks(taskRows);
+    await this.markContactsCold(insertedTasks.map((task) => task.contact_id));
 
-      const sourceKey = `follow_up:${conversation.id}:${conversation.last_message_at}`;
-      const contact = getContact(conversation);
-      const label =
-        contact?.display_name ??
-        conversation.customer_display_name ??
-        contact?.phone_number ??
-        conversation.external_contact_id;
+    return insertedTasks.length;
+  }
 
-      const insert = await this.insertOwnerTask({
-        contactId: conversation.contact_id,
-        businessCenterId: conversation.business_center_id,
-        conversationId: conversation.id,
-        description: `No reply since ${conversation.last_message_at}. Review the conversation and follow up.`,
-        dueAt: now.toISOString(),
-        organizationId: conversation.organization_id,
-        sourceKey,
-        title: `Follow up with ${label}`,
-      });
+  private toFollowUpTaskRow(conversation: ConversationRow, now: Date): OwnerTaskInsertRow {
+    const sourceKey = `follow_up:${conversation.id}:${conversation.last_message_at}`;
+    const contact = getContact(conversation);
+    const label =
+      contact?.display_name ??
+      conversation.customer_display_name ??
+      contact?.phone_number ??
+      conversation.external_contact_id;
 
-      if (insert.created) {
-        created += 1;
-        await this.markContactCold(conversation.contact_id);
-      }
-    }
-
-    return created;
+    return {
+      business_center_id: conversation.business_center_id,
+      contact_id: conversation.contact_id,
+      conversation_id: conversation.id,
+      description: `No reply since ${conversation.last_message_at}. Review the conversation and follow up.`,
+      due_at: now.toISOString(),
+      metadata: {
+        automation: 'cold_lead_follow_up',
+      },
+      organization_id: conversation.organization_id,
+      priority: 'high',
+      source_key: sourceKey,
+      task_type: 'follow_up',
+      title: `Follow up with ${label}`,
+    };
   }
 
   private shouldSkipFollowUp(conversation: ConversationRow): boolean {
@@ -174,50 +217,30 @@ export class TasksService {
     return contact?.lead_status === 'won' || contact?.lead_status === 'lost';
   }
 
-  private async insertOwnerTask(params: {
-    businessCenterId: string;
-    contactId: string | null;
-    conversationId: string;
-    description: string;
-    dueAt: string;
-    organizationId: string;
-    sourceKey: string;
-    title: string;
-  }): Promise<InsertResult> {
+  private async insertOwnerTasks(rows: OwnerTaskInsertRow[]): Promise<InsertedOwnerTaskRow[]> {
+    if (rows.length === 0) {
+      return [];
+    }
+
     const client = this.supabaseService.getServiceRoleClient();
     const { data, error } = await client
       .from('owner_tasks')
-      .insert({
-        business_center_id: params.businessCenterId,
-        contact_id: params.contactId,
-        conversation_id: params.conversationId,
-        description: params.description,
-        due_at: params.dueAt,
-        metadata: {
-          automation: 'cold_lead_follow_up',
-        },
-        organization_id: params.organizationId,
-        priority: 'high',
-        source_key: params.sourceKey,
-        task_type: 'follow_up',
-        title: params.title,
+      .upsert(rows, {
+        ignoreDuplicates: true,
+        onConflict: 'source_key',
       })
-      .select('id')
-      .single<{ id: string }>();
+      .select('id, contact_id');
 
     if (error) {
-      if (error.code === '23505') {
-        return { created: false, id: null };
-      }
-
       throw new Error(`Failed to create follow-up task: ${error.message}`);
     }
 
-    return { created: true, id: data.id };
+    return data as InsertedOwnerTaskRow[];
   }
 
-  private async markContactCold(contactId: string | null): Promise<void> {
-    if (!contactId) {
+  private async markContactsCold(contactIds: Array<string | null>): Promise<void> {
+    const uniqueContactIds = [...new Set(contactIds.filter((contactId): contactId is string => Boolean(contactId)))];
+    if (uniqueContactIds.length === 0) {
       return;
     }
 
@@ -225,7 +248,7 @@ export class TasksService {
     const { error } = await client
       .from('contacts')
       .update({ lead_status: 'cold' })
-      .eq('id', contactId)
+      .in('id', uniqueContactIds)
       .in('lead_status', ['new', 'active']);
 
     if (error) {
@@ -242,86 +265,94 @@ export class TasksService {
       businessCenterId: businessCenter.id,
       organizationId: businessCenter.organization_id,
     });
-    let alertsCreated = 0;
-    let pushNotificationsFailed = 0;
-    let pushNotificationsSent = 0;
+    const notifications = await this.insertLowStockNotifications(products);
+    const tokens = await this.listOwnerDeviceTokens({
+      businessCenterId: businessCenter.id,
+      organizationId: businessCenter.organization_id,
+    });
+    const productsBySourceKey = new Map(
+      products.map((product) => [this.getLowStockSourceKey(product), product]),
+    );
+    const pushResults = await mapWithConcurrency(
+      notifications,
+      TASK_MAINTENANCE_CONCURRENCY,
+      async (notification) => {
+        const product = productsBySourceKey.get(notification.source_key);
+        if (!product) {
+          return { failed: 0, sent: 0 };
+        }
 
-    for (const product of products) {
-      const insert = await this.insertLowStockNotification(product);
-
-      if (!insert.created || !insert.id) {
-        continue;
-      }
-
-      alertsCreated += 1;
-
-      const pushResult = await this.sendLowStockPush({
-        notificationId: insert.id,
-        product,
-      });
-      pushNotificationsSent += pushResult.sent;
-      pushNotificationsFailed += pushResult.failed;
-    }
+        return this.sendLowStockPush({
+          notificationId: notification.id,
+          product,
+          tokens,
+        });
+      },
+    );
 
     return {
-      alertsCreated,
-      pushNotificationsFailed,
-      pushNotificationsSent,
+      alertsCreated: notifications.length,
+      pushNotificationsFailed: pushResults.reduce((total, result) => total + result.failed, 0),
+      pushNotificationsSent: pushResults.reduce((total, result) => total + result.sent, 0),
     };
   }
 
-  private async insertLowStockNotification(product: InventoryProduct): Promise<InsertResult> {
-    const sourceKey = [
+  private async insertLowStockNotifications(
+    products: InventoryProduct[],
+  ): Promise<InsertedNotificationRow[]> {
+    if (products.length === 0) {
+      return [];
+    }
+
+    const rows: LowStockNotificationInsertRow[] = products.map((product) => ({
+      body: `${product.name} has ${product.stockQuantity} in stock; reorder threshold is ${product.reorderThreshold}.`,
+      notification_type: 'low_stock',
+      business_center_id: product.businessCenterId,
+      organization_id: product.organizationId,
+      payload: {
+        productId: product.id,
+        stockQuantity: product.stockQuantity,
+        reorderThreshold: product.reorderThreshold,
+      },
+      product_id: product.id,
+      source_key: this.getLowStockSourceKey(product),
+      title: 'Low stock alert',
+    }));
+    const client = this.supabaseService.getServiceRoleClient();
+    const { data, error } = await client
+      .from('owner_notifications')
+      .upsert(rows, {
+        ignoreDuplicates: true,
+        onConflict: 'source_key',
+      })
+      .select('id, product_id, source_key');
+
+    if (error) {
+      throw new Error(`Failed to create low-stock notification: ${error.message}`);
+    }
+
+    return data as InsertedNotificationRow[];
+  }
+
+  private getLowStockSourceKey(product: InventoryProduct): string {
+    return [
       'low_stock',
       product.id,
       `stock:${product.stockQuantity}`,
       `threshold:${product.reorderThreshold}`,
     ].join(':');
-    const client = this.supabaseService.getServiceRoleClient();
-    const { data, error } = await client
-      .from('owner_notifications')
-      .insert({
-        body: `${product.name} has ${product.stockQuantity} in stock; reorder threshold is ${product.reorderThreshold}.`,
-        notification_type: 'low_stock',
-        business_center_id: product.businessCenterId,
-        organization_id: product.organizationId,
-        payload: {
-          productId: product.id,
-          stockQuantity: product.stockQuantity,
-          reorderThreshold: product.reorderThreshold,
-        },
-        product_id: product.id,
-        source_key: sourceKey,
-        title: 'Low stock alert',
-      })
-      .select('id')
-      .single<{ id: string }>();
-
-    if (error) {
-      if (error.code === '23505') {
-        return { created: false, id: null };
-      }
-
-      throw new Error(`Failed to create low-stock notification: ${error.message}`);
-    }
-
-    return { created: true, id: data.id };
   }
 
   private async sendLowStockPush(params: {
     notificationId: string;
     product: InventoryProduct;
+    tokens: OwnerDeviceTokenRow[];
   }): Promise<{ failed: number; sent: number }> {
-    const tokens = await this.listOwnerDeviceTokens({
-      businessCenterId: params.product.businessCenterId,
-      organizationId: params.product.organizationId,
-    });
-
-    if (tokens.length === 0) {
+    if (params.tokens.length === 0) {
       return { failed: 0, sent: 0 };
     }
 
-    const messages = tokens.map((token) => ({
+    const messages = params.tokens.map((token) => ({
       to: token.push_token,
       sound: 'default',
       title: 'Low stock alert',
@@ -345,13 +376,13 @@ export class TasksService {
       });
       const body = (await response.json()) as ExpoPushResponse;
       const failed = body.data?.filter((ticket) => ticket.status === 'error').length ?? 0;
-      const sent = tokens.length - failed;
+      const sent = params.tokens.length - failed;
 
       await this.updateNotificationPushStatus({
         errorMessage:
           failed > 0 ? body.data?.find((ticket) => ticket.status === 'error')?.message : null,
         notificationId: params.notificationId,
-        status: failed === tokens.length ? 'failed' : 'sent',
+        status: failed === params.tokens.length ? 'failed' : 'sent',
       });
 
       return { failed, sent };
@@ -363,7 +394,7 @@ export class TasksService {
         status: 'failed',
       });
 
-      return { failed: tokens.length, sent: 0 };
+      return { failed: params.tokens.length, sent: 0 };
     }
   }
 
@@ -405,6 +436,49 @@ export class TasksService {
       throw new Error(`Failed to update push notification status: ${error.message}`);
     }
   }
+}
+
+function emptyTaskMaintenanceResult(): TaskMaintenanceResult {
+  return {
+    followUpTasksCreated: 0,
+    lowStockAlertsCreated: 0,
+    pushNotificationsFailed: 0,
+    pushNotificationsSent: 0,
+  };
+}
+
+function sumTaskMaintenanceResults(
+  total: TaskMaintenanceResult,
+  current: TaskMaintenanceResult,
+): TaskMaintenanceResult {
+  return {
+    followUpTasksCreated: total.followUpTasksCreated + current.followUpTasksCreated,
+    lowStockAlertsCreated: total.lowStockAlertsCreated + current.lowStockAlertsCreated,
+    pushNotificationsFailed: total.pushNotificationsFailed + current.pushNotificationsFailed,
+    pushNotificationsSent: total.pushNotificationsSent + current.pushNotificationsSent,
+  };
+}
+
+async function mapWithConcurrency<T, TResult>(
+  items: T[],
+  concurrency: number,
+  mapper: (item: T) => Promise<TResult>,
+): Promise<TResult[]> {
+  const results = new Array<TResult>(items.length);
+  let nextIndex = 0;
+
+  async function worker(): Promise<void> {
+    while (nextIndex < items.length) {
+      const currentIndex = nextIndex;
+      nextIndex += 1;
+      results[currentIndex] = await mapper(items[currentIndex]);
+    }
+  }
+
+  const workerCount = Math.min(concurrency, items.length);
+  await Promise.all(Array.from({ length: workerCount }, () => worker()));
+
+  return results;
 }
 
 function getContact(conversation: ConversationRow): ContactRow | null {

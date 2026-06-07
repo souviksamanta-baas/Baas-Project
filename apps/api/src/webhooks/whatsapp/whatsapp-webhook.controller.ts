@@ -12,8 +12,10 @@ import {
   Req,
   UnauthorizedException,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import type { Request } from 'express';
 
+import { getWebhookRateLimitMax, getWebhookRateLimitTtl } from '../../config/api-config';
 import {
   InvalidWebhookSignatureError,
   WhatsAppWebhookService,
@@ -25,6 +27,12 @@ import {
 
 type RawBodyRequest = Request & { rawBody?: Buffer };
 
+@Throttle({
+  default: {
+    limit: getWebhookRateLimitMax,
+    ttl: getWebhookRateLimitTtl,
+  },
+})
 @Controller('webhooks/whatsapp')
 export class WhatsAppWebhookController {
   private readonly logger = new Logger(WhatsAppWebhookController.name);

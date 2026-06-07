@@ -24,6 +24,8 @@ The NestJS API exposes:
 | `WHATSAPP_WEBHOOK_PATH` | Documented webhook path, default `/webhooks/whatsapp`. |
 | `SUPABASE_URL` | Server-side Supabase project URL used for event persistence. |
 | `SUPABASE_SERVICE_ROLE_KEY` | Server-only key used by the API to persist webhook events. |
+| `BAAS_WEBHOOK_RATE_LIMIT_MAX` | Request limit for the public WhatsApp webhook throttle window. |
+| `BAAS_WEBHOOK_RATE_LIMIT_TTL_MS` | WhatsApp webhook throttle window in milliseconds. |
 
 Do not expose these values to the Expo/mobile client. Store real values only in
 ignored local env files or deployment secret stores.
@@ -151,6 +153,11 @@ Inbound webhook processing upserts the contact before linking/upserting the
 conversation. Unknown WhatsApp numbers therefore become CRM contacts
 automatically, and existing numbers update `last_seen_at` and conversation
 metadata without duplicating the contact.
+
+KAN-143 hardens the public webhook endpoint with configured NestJS throttling.
+The API also batch-resolves `whatsapp_config` rows by `phone_number_id` for each
+payload and processes message events with bounded concurrency. This avoids the
+old strict serial loop while preserving database-backed duplicate detection.
 
 `conversation_messages` is added to the `supabase_realtime` publication when the
 publication exists, allowing the mobile inbox to subscribe to tenant-scoped

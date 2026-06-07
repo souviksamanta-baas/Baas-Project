@@ -66,6 +66,10 @@ needed by app, AI, copilot, and low-stock workflows.
 - `WhatsAppOutboundMessageService` for server-side WhatsApp Cloud API sends and
   send-result persistence.
 
+The webhook event repository resolves WhatsApp configs in a batch for each
+payload and processes inbound events with bounded concurrency. Durable database
+deduplication remains the source of truth for retries and duplicate deliveries.
+
 `InventoryService` uses the service-role Supabase client for trusted server-side
 lookups and always requires an `organizationId`. KAN-130 adds optional
 `businessCenterId`; if omitted, the service resolves the default active business
@@ -75,7 +79,10 @@ threshold, and computed low-stock status without exposing cross-tenant data.
 `TasksService` is intentionally orchestration-heavy because KAN-69 spans CRM,
 conversations, inventory, and notifications. It keeps that cross-domain workflow
 inside `tasks/` and now iterates active business centers so generated tasks,
-alerts, and push lookups include both organization and center scope.
+alerts, and push lookups include both organization and center scope. KAN-143
+adds bounded concurrency for center maintenance, bulk follow-up task insertion,
+bulk contact cold-status updates, and one owner device-token lookup per center
+for low-stock push notifications.
 
 `SalesAiService` owns the KAN-70 cross-domain workflow. It reads catalog data
 through `InventoryService`, persists `ai_drafts` and `ai_draft_events`, and uses
@@ -94,6 +101,24 @@ interface; the MVP endpoint returns deterministic answers for the supported
 owner questions.
 
 Existing Phase 0 behavior is unchanged.
+
+## API Bootstrap and Hardening Boundary
+
+KAN-143 adds production hardening at the API bootstrap/module boundary:
+
+- `apps/api/src/app.module.ts` owns global environment validation through
+  `ConfigModule`, global throttling through `ThrottlerModule`, and the global
+  `ThrottlerGuard`.
+- `apps/api/src/main.ts` owns transport-level hardening: Helmet security headers,
+  Railway/proxy trust, explicit CORS allowlist handling, and raw-body JSON
+  parsing for WhatsApp signature verification.
+- `HealthController` is explicitly excluded from throttling so deployment health
+  checks do not compete with application traffic.
+- `WhatsAppWebhookController` applies a stricter configured throttle because it
+  is a public internet-facing endpoint.
+
+Environment validation belongs in `apps/api/src/config/`; domain services should
+not duplicate production boot checks.
 
 ## Controller Rules
 

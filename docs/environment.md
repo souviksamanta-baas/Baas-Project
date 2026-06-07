@@ -38,6 +38,11 @@ These values must never be bundled into mobile/client code.
 | --- | --- | --- |
 | `API_PORT` | Local/API server port for the NestJS API | API server, local dev |
 | `PORT` | Platform-provided API server port | Deployment runtime |
+| `BAAS_CORS_ALLOWED_ORIGINS` | Comma-separated browser origin allowlist for API CORS | API server, deployment secret/config store |
+| `BAAS_RATE_LIMIT_MAX` | Global API request limit per TTL window | API server, deployment config |
+| `BAAS_RATE_LIMIT_TTL_MS` | Global API rate-limit window in milliseconds | API server, deployment config |
+| `BAAS_WEBHOOK_RATE_LIMIT_MAX` | WhatsApp webhook request limit per TTL window | API server, deployment config |
+| `BAAS_WEBHOOK_RATE_LIMIT_TTL_MS` | WhatsApp webhook rate-limit window in milliseconds | API server, deployment config |
 | `SUPABASE_URL` | Supabase API URL for server processes | API server, jobs, CI |
 | `SUPABASE_PROJECT_REF` | Project reference for Supabase CLI workflows | Local dev, CI |
 | `SUPABASE_SERVICE_ROLE_KEY` | Bypasses RLS for trusted backend operations | API server, backend jobs, CI secret store |
@@ -52,6 +57,29 @@ These values must never be bundled into mobile/client code.
 
 The API reads `API_PORT`, then `PORT`, then falls back to `3000`. Railway usually
 provides `PORT` automatically.
+
+## API Hardening Configuration
+
+The NestJS API validates production environment variables during startup. In
+`NODE_ENV=production`, missing Supabase service-role, WhatsApp webhook, or task
+maintenance secrets fail boot instead of surfacing later during requests.
+
+CORS is explicit and environment-driven:
+
+- `BAAS_CORS_ALLOWED_ORIGINS` is a comma-separated list of browser origins, for
+  example `https://owner.example.com,https://admin.example.com`.
+- Do not use `*`. Wildcard origins are rejected during startup validation.
+- Requests without an `Origin` header remain allowed for mobile apps,
+  server-to-server jobs, health checks, and Meta webhook calls.
+
+Rate limiting is enabled in the API:
+
+- `BAAS_RATE_LIMIT_MAX` and `BAAS_RATE_LIMIT_TTL_MS` control the global API
+  throttle.
+- `BAAS_WEBHOOK_RATE_LIMIT_MAX` and `BAAS_WEBHOOK_RATE_LIMIT_TTL_MS` control the
+  stricter `/webhooks/whatsapp` throttle.
+- `GET /health` is excluded from throttling so Railway health checks are not
+  rate limited.
 
 ## Service-Role Handling
 

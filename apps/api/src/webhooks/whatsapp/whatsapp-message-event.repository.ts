@@ -9,6 +9,7 @@ interface WhatsAppConfigRecord {
   business_center_id: string;
   id: string;
   organization_id: string;
+  phone_number_id: string;
 }
 
 interface WhatsAppMessageEventRecord {
@@ -30,6 +31,8 @@ interface PersistedWhatsAppEventRow {
   payload_metadata: Record<string, string | null>;
   business_center_id: string | null;
 }
+
+const WEBHOOK_EVENT_CONCURRENCY = 5;
 
 @Injectable()
 export class WhatsAppMessageEventRepository {
@@ -58,20 +61,18 @@ export class WhatsAppMessageEventRepository {
       return events;
     }
 
-    const persistedEvents: WhatsAppInboundMessageLog[] = [];
+    const whatsappConfigs = await this.findWhatsAppConfigs(events.map((event) => event.phoneNumberId));
 
-    for (const event of events) {
-      persistedEvents.push(await this.recordInboundMessage(event));
-    }
-
-    return persistedEvents;
+    return mapWithConcurrency(events, WEBHOOK_EVENT_CONCURRENCY, (event) =>
+      this.recordInboundMessage(event, whatsappConfigs.get(event.phoneNumberId) ?? null),
+    );
   }
 
   private async recordInboundMessage(
     event: WhatsAppInboundMessageLog,
+    whatsappConfig: WhatsAppConfigRecord | null,
   ): Promise<WhatsAppInboundMessageLog> {
     const client = this.supabaseService.getServiceRoleClient();
-    const whatsappConfig = await this.findWhatsAppConfig(event.phoneNumberId);
     const row = this.toInsertRow(event, whatsappConfig);
     const { data, error } = await client
       .from('whatsapp_message_events')
@@ -100,19 +101,23 @@ export class WhatsAppMessageEventRepository {
     throw new Error(`Failed to persist WhatsApp webhook event: ${error.message}`);
   }
 
-  private async findWhatsAppConfig(phoneNumberId: string): Promise<WhatsAppConfigRecord | null> {
+  private async findWhatsAppConfigs(phoneNumberIds: string[]): Promise<Map<string, WhatsAppConfigRecord>> {
+    const uniquePhoneNumberIds = [...new Set(phoneNumberIds)];
+    if (uniquePhoneNumberIds.length === 0) {
+      return new Map();
+    }
+
     const client = this.supabaseService.getServiceRoleClient();
     const { data, error } = await client
       .from('whatsapp_config')
-      .select('id, organization_id, business_center_id')
-      .eq('phone_number_id', phoneNumberId)
-      .maybeSingle<WhatsAppConfigRecord>();
+      .select('id, organization_id, business_center_id, phone_number_id')
+      .in('phone_number_id', uniquePhoneNumberIds);
 
     if (error) {
-      throw new Error(`Failed to resolve WhatsApp config: ${error.message}`);
+      throw new Error(`Failed to resolve WhatsApp configs: ${error.message}`);
     }
 
-    return data;
+    return new Map((data as WhatsAppConfigRecord[]).map((config) => [config.phone_number_id, config]));
   }
 
   private toInsertRow(
@@ -181,4 +186,26 @@ export class WhatsAppMessageEventRepository {
         });
     }
   }
+}
+
+async function mapWithConcurrency<T, TResult>(
+  items: T[],
+  concurrency: number,
+  mapper: (item: T) => Promise<TResult>,
+): Promise<TResult[]> {
+  const results = new Array<TResult>(items.length);
+  let nextIndex = 0;
+
+  async function worker(): Promise<void> {
+    while (nextIndex < items.length) {
+      const currentIndex = nextIndex;
+      nextIndex += 1;
+      results[currentIndex] = await mapper(items[currentIndex]);
+    }
+  }
+
+  const workerCount = Math.min(concurrency, items.length);
+  await Promise.all(Array.from({ length: workerCount }, () => worker()));
+
+  return results;
 }

@@ -101,6 +101,26 @@ function createService(params: {
         return { data: { id: `${table}-id` }, error: null };
       }),
       then: (resolve: (value: unknown) => void) => {
+        if (table === 'owner_tasks') {
+          const data = params.duplicateTask
+            ? []
+            : [{ id: 'owner_tasks-id', contact_id: 'contact-1' }];
+          return Promise.resolve({ data, error: null }).then(resolve);
+        }
+
+        if (table === 'owner_notifications') {
+          return Promise.resolve({
+            data: [
+              {
+                id: 'owner_notifications-id',
+                product_id: 'product-1',
+                source_key: 'low_stock:product-1:stock:2:threshold:5',
+              },
+            ],
+            error: null,
+          }).then(resolve);
+        }
+
         if (table === 'owner_device_tokens') {
           return Promise.resolve({
             data: params.ownerDeviceTokens ?? [],
@@ -117,6 +137,19 @@ function createService(params: {
 
         if (table === 'owner_notifications') {
           notificationUpdates.push(row);
+        }
+
+        return query;
+      }),
+      upsert: vi.fn((rows: unknown) => {
+        if (table === 'owner_tasks' && params.duplicateTask) {
+          return query;
+        }
+
+        if (Array.isArray(rows)) {
+          inserts[table]?.push(...rows);
+        } else {
+          inserts[table]?.push(rows);
         }
 
         return query;
