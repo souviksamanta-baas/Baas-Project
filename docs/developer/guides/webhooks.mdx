@@ -1,0 +1,74 @@
+---
+title: "Webhook operations"
+description: "How WhatsApp webhook verification and inbound payload processing work."
+---
+
+Nexolia currently supports inbound WhatsApp Business Cloud webhooks.
+
+## Verification
+
+Meta verifies the webhook URL with:
+
+```http
+GET /webhooks/whatsapp
+```
+
+The API expects these query parameters:
+
+| Parameter | Description |
+| --- | --- |
+| `hub.mode` | Expected to be `subscribe` |
+| `hub.verify_token` | Must match `WHATSAPP_VERIFY_TOKEN` |
+| `hub.challenge` | Challenge string returned to Meta on success |
+
+When verification succeeds, Nexolia returns the raw challenge string.
+
+## Inbound delivery
+
+Meta delivers webhook payloads to:
+
+```http
+POST /webhooks/whatsapp
+```
+
+Nexolia validates the raw request body against `x-hub-signature-256` when `WHATSAPP_APP_SECRET` is configured.
+
+After validation, the API:
+
+- Resolves the WhatsApp business phone configuration.
+- Persists inbound message events.
+- Upserts customer contact state.
+- Links conversations to contacts and business centers.
+- Triggers downstream sales AI draft generation where applicable.
+- Returns `{ "status": "received" }` to Meta.
+
+## Idempotency
+
+Inbound messages include provider identifiers from Meta. Nexolia uses those identifiers when persisting message events so retries do not create duplicate message records.
+
+Integrations should still expect duplicate deliveries from Meta and design operational dashboards around persisted message state rather than raw delivery count.
+
+## Throughput behavior
+
+The webhook repository batches configuration lookup for inbound events and processes message persistence with bounded concurrency. This keeps individual webhook requests responsive while avoiding unbounded database fan-out.
+
+## Outbound webhook model
+
+Outbound customer webhooks are not yet active. When introduced, they should follow this model:
+
+- Stable event names such as `conversation.message.created`, `ai_draft.created`, and `task.created`.
+- Signed delivery requests using a per-tenant secret.
+- Idempotency keys on every delivery.
+- Retry with exponential backoff.
+- Delivery logs visible to support and eventually to tenant admins.
+
+## Operational checklist
+
+Before enabling a WhatsApp number:
+
+- Configure `WHATSAPP_VERIFY_TOKEN`.
+- Configure `WHATSAPP_APP_SECRET`.
+- Register the production callback URL in Meta.
+- Complete Meta webhook verification.
+- Send a test message and confirm it appears in the Universal Inbox.
+- Confirm duplicate deliveries do not duplicate messages.

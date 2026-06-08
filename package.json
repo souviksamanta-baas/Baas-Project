@@ -16,6 +16,7 @@
     "audit:clean": "node scripts/clean-generated-artifacts.mjs --yes",
     "audit:clean:dry-run": "node scripts/clean-generated-artifacts.mjs --dry-run",
     "ci:verify": "npm run lint && npm run validate:migrations && npm run validate:rls && npm run typecheck && npm test && npm run build && npm run validate:mobile",
+    "docs:openapi": "npm run docs:openapi --workspace @baas/api -- ../../docs/developer/openapi.json",
     "dev:api": "npm run dev -w @baas/api",
     "dev:mobile": "npm run start -w @baas/mobile",
     "lint": "eslint .",

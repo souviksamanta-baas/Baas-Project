@@ -1,0 +1,58 @@
+---
+title: "Environments"
+description: "Production and local environment behavior for the Nexolia API."
+---
+
+The OpenAPI contract currently declares two API servers:
+
+| Environment | Base URL |
+| --- | --- |
+| Production | `https://baas-project-production.up.railway.app` |
+| Local development | `http://localhost:3000` |
+
+## Production
+
+Production runs the NestJS API on Railway.
+
+Use production for real WhatsApp webhook delivery, owner actions, and scheduler jobs.
+
+```text
+https://baas-project-production.up.railway.app
+```
+
+## Local development
+
+Local development is useful for contract generation, endpoint smoke tests, and controller-level behavior.
+
+```text
+http://localhost:3000
+```
+
+For local development, configure only the secrets required by the endpoint you are testing.
+
+## Required production configuration
+
+Production fails fast when critical secrets are missing.
+
+Important variables include:
+
+| Variable | Purpose |
+| --- | --- |
+| `SUPABASE_URL` | Supabase project URL |
+| `SUPABASE_SERVICE_ROLE_KEY` | Server-only Supabase service-role key |
+| `WHATSAPP_VERIFY_TOKEN` | Meta webhook verification token |
+| `WHATSAPP_APP_SECRET` | Meta app secret for webhook signature validation |
+| `BAAS_TASKS_JOB_SECRET` | Scheduler secret for maintenance jobs |
+| `BAAS_CORS_ALLOWED_ORIGINS` | Comma-separated web client origins |
+| `BAAS_RATE_LIMIT_MAX` | General API request limit |
+| `BAAS_RATE_LIMIT_TTL_MS` | General API rate-limit window in milliseconds |
+| `BAAS_WEBHOOK_RATE_LIMIT_MAX` | WhatsApp webhook request limit |
+| `BAAS_WEBHOOK_RATE_LIMIT_TTL_MS` | Webhook rate-limit window in milliseconds |
+
+## CORS
+
+Browser clients must be explicitly allowlisted with `BAAS_CORS_ALLOWED_ORIGINS`.
+
+Wildcard origins are intentionally rejected in production hardening.
+
+Mobile and server-to-server clients may send requests without a browser `Origin` header.

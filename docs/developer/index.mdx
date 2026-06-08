@@ -1,0 +1,42 @@
+---
+title: "Nexolia Developer Docs"
+description: "Build against the Nexolia BaaS API and webhook integrations."
+---
+
+Nexolia is the mobile-first operating layer for small and medium businesses. These developer docs describe the API contract, authentication model, environments, error handling, rate limits, and webhook behavior for integrations around the BaaS platform.
+
+## API Reference
+
+The API reference is generated from the NestJS Swagger/OpenAPI contract.
+
+The checked-in source for Mintlify lives at:
+
+```text
+docs/developer/openapi.json
+```
+
+The running API exposes the same contract at:
+
+```text
+/docs/openapi.json
+```
+
+## Guides
+
+Start with these narrative guides before using the API reference:
+
+- [Authentication](/guides/authentication)
+- [Environments](/guides/environments)
+- [Error handling](/guides/error-handling)
+- [Rate limits](/guides/rate-limits)
+- [Webhook operations](/guides/webhooks)
+
+## Source of truth
+
+NestJS Swagger is the contract source of truth. Mintlify is the public developer portal that presents that contract alongside practical implementation guidance.
+
+To regenerate the OpenAPI file used by Mintlify:
+
+```bash
+npm run docs:openapi
+```

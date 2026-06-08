@@ -1,0 +1,59 @@
+---
+title: "Error handling"
+description: "Expected error responses and integration behavior."
+---
+
+Nexolia API errors follow NestJS HTTP exception conventions.
+
+Most errors use this shape:
+
+```json
+{
+  "statusCode": 401,
+  "message": "Invalid task maintenance job secret",
+  "error": "Unauthorized"
+}
+```
+
+Some validation errors may return `message` as an array of strings.
+
+## Common status codes
+
+| Status | Meaning | Typical cause |
+| --- | --- | --- |
+| `200` | Success | Request was accepted and processed |
+| `401` | Unauthorized | Missing or invalid bearer token, scheduler secret, or webhook signature |
+| `403` | Forbidden | WhatsApp verification challenge failed |
+| `429` | Too Many Requests | Rate limit exceeded |
+| `500` | Internal Server Error | Unexpected server-side failure |
+| `503` | Service Unavailable | Required operational secret is not configured |
+
+## Client behavior
+
+API clients should:
+
+- Treat `2xx` responses as success.
+- Treat `401` and `403` as authentication or authorization failures.
+- Retry `429` only after backing off.
+- Retry `5xx` responses with bounded exponential backoff.
+- Avoid retrying non-idempotent owner actions unless the user confirms the action state.
+
+## Webhook sender behavior
+
+Webhook providers such as Meta may retry delivery if Nexolia does not return a success response.
+
+For inbound webhooks:
+
+- Return `200` only after the payload is accepted.
+- Keep processing idempotent by storing provider message IDs.
+- Log duplicate deliveries rather than creating duplicate business records.
+
+## Error observability
+
+Operational integrations should log:
+
+- Request path and method.
+- Response status.
+- Provider event ID or message ID when available.
+- Organization and business center identifiers when safe.
+- Retry attempt count.

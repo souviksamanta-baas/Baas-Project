@@ -8,6 +8,7 @@ import 'reflect-metadata';
 
 import { AppModule } from './app.module';
 import { createCorsOptions, getApiPort } from './config/api-config';
+import { setupOpenApiDocs } from './docs/openapi';
 
 function saveRawBody(request: Request, _response: Response, buffer: Buffer): void {
   if (buffer.length > 0) {
@@ -25,6 +26,7 @@ async function bootstrap(): Promise<void> {
 
   app.use(json({ verify: saveRawBody }));
   app.use(urlencoded({ extended: true, verify: saveRawBody }));
+  setupOpenApiDocs(app);
 
   const port = getApiPort(configService);
   await app.listen(port, '0.0.0.0');

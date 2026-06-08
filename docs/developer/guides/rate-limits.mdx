@@ -1,0 +1,46 @@
+---
+title: "Rate limits"
+description: "How Nexolia protects public and owner-facing endpoints from abuse."
+---
+
+Nexolia applies NestJS throttling globally and uses stricter limits for public webhook routes.
+
+## Global API limits
+
+General API rate limits are configured with:
+
+| Variable | Description |
+| --- | --- |
+| `BAAS_RATE_LIMIT_MAX` | Maximum number of requests in the time window |
+| `BAAS_RATE_LIMIT_TTL_MS` | Time window in milliseconds |
+
+The health check endpoint is excluded from throttling so uptime checks remain stable.
+
+## WhatsApp webhook limits
+
+WhatsApp webhooks are public internet-facing endpoints and have their own limits:
+
+| Variable | Description |
+| --- | --- |
+| `BAAS_WEBHOOK_RATE_LIMIT_MAX` | Maximum webhook requests in the time window |
+| `BAAS_WEBHOOK_RATE_LIMIT_TTL_MS` | Webhook-specific time window in milliseconds |
+
+Current webhook endpoints:
+
+- `GET /webhooks/whatsapp`
+- `POST /webhooks/whatsapp`
+
+## Client retry behavior
+
+When a client receives `429 Too Many Requests`:
+
+- Stop sending immediate retries.
+- Wait before retrying.
+- Use exponential backoff with jitter.
+- Avoid retry storms from multiple workers using the same token or IP.
+
+## Operational notes
+
+Rate limits are proxy-aware because the API trusts the Railway proxy layer. This allows throttling to evaluate the client IP forwarded by the platform rather than only the internal proxy address.
+
+Limits should be reviewed before onboarding higher-volume pilots or adding browser-based developer integrations.

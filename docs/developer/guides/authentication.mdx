@@ -1,0 +1,59 @@
+---
+title: "Authentication"
+description: "How API clients authenticate with Nexolia endpoints."
+---
+
+Nexolia uses different authentication mechanisms depending on the endpoint type.
+
+## Owner API authentication
+
+Owner-facing endpoints use Supabase Auth access tokens.
+
+Send the token in the standard `Authorization` header:
+
+```http
+Authorization: Bearer <supabase-access-token>
+```
+
+Current owner-authenticated endpoints include:
+
+- `POST /ai/drafts/{draftId}/approve`
+- `POST /ai/drafts/{draftId}/reject`
+- `POST /ai/copilot/query`
+
+These endpoints validate the token server-side before allowing access to organization-scoped data.
+
+## Scheduler authentication
+
+Operational maintenance jobs use a shared scheduler secret.
+
+Send the secret in:
+
+```http
+x-baas-job-secret: <configured-secret>
+```
+
+Current scheduler endpoint:
+
+```http
+POST /tasks/run-maintenance
+```
+
+The API expects the value to match `BAAS_TASKS_JOB_SECRET`. If the secret is missing from the API environment, the endpoint returns `503 Service Unavailable`.
+
+## WhatsApp webhook signature
+
+WhatsApp inbound webhooks use the Meta signature header:
+
+```http
+x-hub-signature-256: sha256=<signature>
+```
+
+When `WHATSAPP_APP_SECRET` is configured, the API validates the raw request body against this HMAC signature before processing the payload.
+
+## Security guidance
+
+- Do not expose service-role Supabase keys to clients.
+- Do not send `x-baas-job-secret` from mobile or browser clients.
+- Rotate scheduler and webhook secrets if they are accidentally exposed.
+- Treat webhook signatures as required in production.

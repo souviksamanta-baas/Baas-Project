@@ -1,0 +1,752 @@
+{
+  "openapi": "3.0.0",
+  "paths": {
+    "/health": {
+      "get": {
+        "operationId": "Health_health",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The API is running.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Check API health",
+        "tags": [
+          "Health"
+        ]
+      }
+    },
+    "/webhooks/whatsapp": {
+      "get": {
+        "description": "Responds to Meta webhook verification challenges when the configured verify token matches.",
+        "operationId": "WhatsAppWebhook_verifyWebhook",
+        "parameters": [
+          {
+            "name": "hub.mode",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": "subscribe",
+              "type": "string"
+            }
+          },
+          {
+            "name": "hub.verify_token",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": "configured-meta-verify-token",
+              "type": "string"
+            }
+          },
+          {
+            "name": "hub.challenge",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": "1158201444",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The raw Meta challenge string. Meta expects text/plain content.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "example": "1158201444",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The verification token or challenge request is invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Webhook verification requests are rate limited.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Verify WhatsApp webhook subscription",
+        "tags": [
+          "WhatsApp Webhooks"
+        ]
+      },
+      "post": {
+        "description": "Validates the Meta signature when configured, persists inbound message events, and returns an acknowledgement to Meta.",
+        "operationId": "WhatsAppWebhook_receiveWebhook",
+        "parameters": [
+          {
+            "name": "x-hub-signature-256",
+            "in": "header",
+            "description": "Meta HMAC SHA-256 signature header. Required in production when WHATSAPP_APP_SECRET is configured.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WhatsAppWebhookPayloadDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Webhook payload accepted and processed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WhatsAppWebhookResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Webhook signature validation failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Webhook delivery is rate limited.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Webhook signature validation is required but WHATSAPP_APP_SECRET is not configured.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "WhatsAppSignature": []
+          }
+        ],
+        "summary": "Receive WhatsApp webhook payloads",
+        "tags": [
+          "WhatsApp Webhooks"
+        ]
+      }
+    },
+    "/tasks/run-maintenance": {
+      "post": {
+        "description": "Secured scheduler endpoint that creates idle-lead follow-up tasks, low-stock alerts, and push notifications.",
+        "operationId": "Tasks_runMaintenance",
+        "parameters": [
+          {
+            "name": "x-baas-job-secret",
+            "in": "header",
+            "description": "Shared scheduler secret configured as BAAS_TASKS_JOB_SECRET.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Maintenance completed and aggregate counts are returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskMaintenanceResultDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The scheduler secret is missing or invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The API is not configured with BAAS_TASKS_JOB_SECRET.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BaasJobSecret": []
+          }
+        ],
+        "summary": "Run follow-up and alert maintenance",
+        "tags": [
+          "Tasks"
+        ]
+      }
+    },
+    "/ai/drafts/{draftId}/approve": {
+      "post": {
+        "description": "Owner-secured endpoint that approves an AI draft, optionally applies edited copy, and sends the reply to the conversation contact.",
+        "operationId": "Ai_approveDraft",
+        "parameters": [
+          {
+            "name": "draftId",
+            "required": true,
+            "in": "path",
+            "description": "AI draft UUID.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApproveDraftRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Draft was approved and sent.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DraftSentResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The Supabase authorization token is missing or invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "SupabaseAuth": []
+          }
+        ],
+        "summary": "Approve and send an AI draft",
+        "tags": [
+          "AI"
+        ]
+      }
+    },
+    "/ai/drafts/{draftId}/reject": {
+      "post": {
+        "description": "Owner-secured endpoint that marks a pending AI draft as rejected without sending it.",
+        "operationId": "Ai_rejectDraft",
+        "parameters": [
+          {
+            "name": "draftId",
+            "required": true,
+            "in": "path",
+            "description": "AI draft UUID.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Draft was rejected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DraftRejectedResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The Supabase authorization token is missing or invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "SupabaseAuth": []
+          }
+        ],
+        "summary": "Reject an AI draft",
+        "tags": [
+          "AI"
+        ]
+      }
+    },
+    "/ai/copilot/query": {
+      "post": {
+        "description": "Owner-secured endpoint that answers operational business questions using the available dashboard tools.",
+        "operationId": "Ai_answerCopilotQuestion",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CopilotQuestionRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Copi answered the owner question.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerCopilotResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The Supabase authorization token is missing or invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "SupabaseAuth": []
+          }
+        ],
+        "summary": "Ask Copi an owner question",
+        "tags": [
+          "AI"
+        ]
+      }
+    }
+  },
+  "info": {
+    "title": "Nexolia BaaS API",
+    "description": "OpenAPI contract for the Nexolia Business-as-a-Service API. This contract is generated from the NestJS application and is the source of truth for REST API reference documentation.",
+    "version": "0.1.0",
+    "contact": {}
+  },
+  "tags": [
+    {
+      "name": "Health",
+      "description": "Service health and uptime checks."
+    },
+    {
+      "name": "WhatsApp Webhooks",
+      "description": "Inbound WhatsApp Business Cloud webhook verification and message delivery."
+    },
+    {
+      "name": "AI",
+      "description": "Owner-facing AI draft and Copi assistant actions."
+    },
+    {
+      "name": "Tasks",
+      "description": "Operational maintenance endpoints for follow-ups, alerts, and push notifications."
+    }
+  ],
+  "servers": [
+    {
+      "url": "https://baas-project-production.up.railway.app",
+      "description": "Production"
+    },
+    {
+      "url": "http://localhost:3000",
+      "description": "Local development"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "SupabaseAuth": {
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Supabase Auth access token used by owner-facing API endpoints.",
+        "type": "http"
+      },
+      "BaasJobSecret": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "x-baas-job-secret",
+        "description": "Scheduler secret used to authorize operational maintenance jobs."
+      },
+      "WhatsAppSignature": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "x-hub-signature-256",
+        "description": "Meta WhatsApp webhook HMAC signature header."
+      }
+    },
+    "schemas": {
+      "HealthResponseDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok"
+            ],
+            "example": "ok"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "ErrorResponseDto": {
+        "type": "object",
+        "properties": {
+          "statusCode": {
+            "type": "number",
+            "example": 401
+          },
+          "message": {
+            "type": "object",
+            "example": "Unauthorized"
+          },
+          "error": {
+            "type": "string",
+            "example": "Unauthorized"
+          }
+        },
+        "required": [
+          "statusCode",
+          "message"
+        ]
+      },
+      "WhatsAppMetadataDto": {
+        "type": "object",
+        "properties": {
+          "display_phone_number": {
+            "type": "string",
+            "example": "5491123456789"
+          },
+          "phone_number_id": {
+            "type": "string",
+            "example": "123456789012345"
+          }
+        }
+      },
+      "WhatsAppContactProfileDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "María González"
+          }
+        }
+      },
+      "WhatsAppContactDto": {
+        "type": "object",
+        "properties": {
+          "wa_id": {
+            "type": "string",
+            "example": "5491112345678"
+          },
+          "profile": {
+            "$ref": "#/components/schemas/WhatsAppContactProfileDto"
+          }
+        }
+      },
+      "WhatsAppMessageTextDto": {
+        "type": "object",
+        "properties": {
+          "body": {
+            "type": "string",
+            "example": "Hola, ¿tienen stock?"
+          }
+        }
+      },
+      "WhatsAppWebhookMessageDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "wamid.HBgN..."
+          },
+          "from": {
+            "type": "string",
+            "example": "5491112345678"
+          },
+          "timestamp": {
+            "type": "string",
+            "example": "1717790400"
+          },
+          "type": {
+            "type": "string",
+            "example": "text"
+          },
+          "text": {
+            "$ref": "#/components/schemas/WhatsAppMessageTextDto"
+          }
+        }
+      },
+      "WhatsAppWebhookChangeValueDto": {
+        "type": "object",
+        "properties": {
+          "messaging_product": {
+            "type": "string",
+            "example": "whatsapp"
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/WhatsAppMetadataDto"
+          },
+          "contacts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WhatsAppContactDto"
+            }
+          },
+          "messages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WhatsAppWebhookMessageDto"
+            }
+          }
+        }
+      },
+      "WhatsAppWebhookChangeDto": {
+        "type": "object",
+        "properties": {
+          "field": {
+            "type": "string",
+            "example": "messages"
+          },
+          "value": {
+            "$ref": "#/components/schemas/WhatsAppWebhookChangeValueDto"
+          }
+        }
+      },
+      "WhatsAppWebhookEntryDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "123456789012345"
+          },
+          "changes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WhatsAppWebhookChangeDto"
+            }
+          }
+        }
+      },
+      "WhatsAppWebhookPayloadDto": {
+        "type": "object",
+        "properties": {
+          "object": {
+            "type": "string",
+            "example": "whatsapp_business_account"
+          },
+          "entry": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WhatsAppWebhookEntryDto"
+            }
+          }
+        }
+      },
+      "WhatsAppWebhookResponseDto": {
+        "type": "object",
+        "properties": {
+          "received": {
+            "type": "boolean",
+            "example": true
+          },
+          "eventCount": {
+            "type": "number",
+            "example": 1
+          }
+        },
+        "required": [
+          "received",
+          "eventCount"
+        ]
+      },
+      "TaskMaintenanceResultDto": {
+        "type": "object",
+        "properties": {
+          "followUpTasksCreated": {
+            "type": "number",
+            "example": 3
+          },
+          "lowStockAlertsCreated": {
+            "type": "number",
+            "example": 2
+          },
+          "pushNotificationsSent": {
+            "type": "number",
+            "example": 4
+          },
+          "pushNotificationsFailed": {
+            "type": "number",
+            "example": 0
+          }
+        },
+        "required": [
+          "followUpTasksCreated",
+          "lowStockAlertsCreated",
+          "pushNotificationsSent",
+          "pushNotificationsFailed"
+        ]
+      },
+      "ApproveDraftRequestDto": {
+        "type": "object",
+        "properties": {
+          "body": {
+            "type": "string",
+            "description": "Optional owner-edited message body. When omitted, the original AI draft body is sent.",
+            "example": "¡Hola! Sí, tenemos stock disponible. ¿Querés que te reserve uno?"
+          }
+        }
+      },
+      "DraftSentResponseDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "sent"
+            ],
+            "example": "sent"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "DraftRejectedResponseDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "rejected"
+            ],
+            "example": "rejected"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "CopilotQuestionRequestDto": {
+        "type": "object",
+        "properties": {
+          "organizationId": {
+            "type": "string",
+            "description": "Organization UUID whose business data should be queried.",
+            "example": "4e6f8a6f-9b6e-4f7f-8c1e-0f9f7c8d9a12"
+          },
+          "question": {
+            "type": "string",
+            "description": "Owner question for Copi.",
+            "example": "¿Qué clientes necesitan seguimiento hoy?"
+          }
+        },
+        "required": [
+          "organizationId",
+          "question"
+        ]
+      },
+      "OwnerCopilotResponseDto": {
+        "type": "object",
+        "properties": {
+          "answer": {
+            "type": "string",
+            "description": "Natural-language answer generated by Copi.",
+            "example": "Tenés 7 seguimientos pendientes. Te conviene empezar por María González."
+          },
+          "responseTimeMs": {
+            "type": "number",
+            "description": "Server-side response time in milliseconds.",
+            "example": 42
+          },
+          "tools": {
+            "type": "array",
+            "description": "Internal tools used to answer the question.",
+            "example": [
+              "pending_follow_ups"
+            ],
+            "items": {
+              "type": "string",
+              "enum": [
+                "messages_today",
+                "low_stock",
+                "pending_follow_ups"
+              ]
+            }
+          }
+        },
+        "required": [
+          "answer",
+          "responseTimeMs",
+          "tools"
+        ]
+      }
+    }
+  }
+}
