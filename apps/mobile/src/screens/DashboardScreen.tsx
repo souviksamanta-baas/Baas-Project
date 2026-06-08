@@ -1,712 +1,809 @@
-import type { ReactElement } from 'react';
+import { useMemo, useState, type ReactElement } from 'react';
 import { Alert, Pressable, Text, TextInput, View } from 'react-native';
 
-import { PrimaryButton, SecondaryButton } from '../components/Buttons';
-import { Metric } from '../components/Metric';
 import { useAiDrafts } from '../hooks/useAiDrafts';
-import { useInbox } from '../hooks/useInbox';
-import { useOwnerCopilot } from '../hooks/useOwnerCopilot';
+import { type InboxState, useInbox } from '../hooks/useInbox';
+import { type OwnerCopilotState, useOwnerCopilot } from '../hooks/useOwnerCopilot';
 import { useOwnerSettings } from '../hooks/useOwnerSettings';
-import { useOwnerTasks } from '../hooks/useOwnerTasks';
+import { type OwnerTasksState, useOwnerTasks } from '../hooks/useOwnerTasks';
 import { useProducts } from '../hooks/useProducts';
-import { styles } from '../styles';
-import type { AiDraft } from '../types/aiDrafts';
-import type { CopilotMessage } from '../types/copilot';
+import { mobileUi } from '../mobileUiStyles';
 import type { OwnerDashboard } from '../types/dashboard';
 import type { InboxConversationSummary, WhatsAppMessagePreview } from '../types/messages';
-import type { Product } from '../types/products';
-import type { OwnerNotification, OwnerTask } from '../types/tasks';
+import type { OwnerNotification } from '../types/tasks';
 
-export function DashboardScreen(props: {
+type DashboardTab = 'home' | 'inbox' | 'copi' | 'more';
+
+interface DashboardScreenProps {
   dashboard: OwnerDashboard;
   onSignOut: () => void;
-}): ReactElement {
-  const inbox = useInbox(
-    props.dashboard.organization?.id ?? null,
-    props.dashboard.businessCenter?.id ?? null,
+}
+
+export function DashboardScreen(props: DashboardScreenProps): ReactElement {
+  const organizationId = props.dashboard.organization?.id ?? null;
+  const businessCenterId = props.dashboard.businessCenter?.id ?? null;
+  const inbox = useInbox(organizationId, businessCenterId);
+  const ownerTasks = useOwnerTasks(organizationId, businessCenterId);
+  const products = useProducts(organizationId, businessCenterId);
+  const aiDrafts = useAiDrafts(organizationId, businessCenterId);
+  const copilot = useOwnerCopilot(organizationId);
+  const settings = useOwnerSettings(props.dashboard);
+  const [activeTab, setActiveTab] = useState<DashboardTab>('home');
+  const [showBranches, setShowBranches] = useState(false);
+  const [showAccount, setShowAccount] = useState(false);
+
+  const lowStockCount = useMemo(
+    () => products.products.filter((product) => product.isLowStock).length,
+    [products.products],
   );
-  const ownerTasks = useOwnerTasks(
-    props.dashboard.organization?.id ?? null,
-    props.dashboard.businessCenter?.id ?? null,
-  );
-  const productCatalog = useProducts(
-    props.dashboard.organization?.id ?? null,
-    props.dashboard.businessCenter?.id ?? null,
-  );
-  const aiDrafts = useAiDrafts(
-    props.dashboard.organization?.id ?? null,
-    props.dashboard.businessCenter?.id ?? null,
-  );
-  const ownerCopilot = useOwnerCopilot(props.dashboard.organization?.id ?? null);
-  const ownerSettings = useOwnerSettings(props.dashboard);
+
+  function openTab(tab: DashboardTab): void {
+    setActiveTab(tab);
+    setShowAccount(false);
+  }
 
   return (
-    <View style={styles.card}>
-      <Text style={styles.heading}>{props.dashboard.organization?.name ?? 'Owner dashboard'}</Text>
-      <Text style={styles.bodyText}>Your Phase 0 dashboard is ready.</Text>
-      <WhatsAppConnectionCard dashboard={props.dashboard} />
-      <InboxCard inbox={inbox} />
-      <View style={styles.metricsGrid}>
-        <Metric label="Contacts" value={props.dashboard.metrics.contacts} />
-        <Metric label="Open chats" value={props.dashboard.metrics.openConversations} />
-        <Metric label="Products" value={props.dashboard.metrics.products} />
-        <Metric label="Low stock" value={props.dashboard.metrics.lowStockItems} />
-        <Metric label="Follow-ups" value={props.dashboard.metrics.pendingFollowUps} />
-        <Metric label="AI drafts" value={props.dashboard.metrics.pendingAiDrafts} />
-      </View>
-      <OwnerCopilotCard copilot={ownerCopilot} />
-      <OwnerSettingsCard
-        settings={ownerSettings}
-        timezone={props.dashboard.organization?.timezone ?? 'UTC'}
+    <View style={mobileUi.shell}>
+      <AppHeader
+        activeCenterName={props.dashboard.businessCenter?.name ?? 'Sucursal Centro'}
+        onOpenAccount={() => setShowAccount(true)}
+        onOpenNotifications={() => setActiveTab('more')}
+        onToggleBranches={() => setShowBranches((current) => !current)}
+        showBranches={showBranches}
       />
-      <AiDraftsCard aiDrafts={aiDrafts} />
-      <FollowUpTasksCard ownerTasks={ownerTasks} />
-      <ProductCatalogCard catalog={productCatalog} />
-      {props.dashboard.emptyStates.map((emptyState: string) => (
-        <Text key={emptyState} style={styles.emptyState}>
-          {emptyState}
-        </Text>
-      ))}
-      <SecondaryButton label="Sign out" onPress={props.onSignOut} />
+      {showAccount ? (
+        <AccountScreen
+          dashboard={props.dashboard}
+          onSignOut={props.onSignOut}
+          settings={settings.formValues}
+        />
+      ) : activeTab === 'home' ? (
+        <HomeScreen
+          dashboard={props.dashboard}
+          inbox={inbox}
+          lowStockCount={lowStockCount}
+          notifications={ownerTasks.notifications}
+          pendingDrafts={aiDrafts.drafts.length}
+          pendingTasks={ownerTasks.tasks.length}
+          productsCount={products.products.length}
+          setActiveTab={openTab}
+        />
+      ) : activeTab === 'inbox' ? (
+        <InboxScreen inbox={inbox} />
+      ) : activeTab === 'copi' ? (
+        <CopiScreen copilot={copilot} dashboard={props.dashboard} ownerTasks={ownerTasks} />
+      ) : (
+        <MoreScreen
+          dashboard={props.dashboard}
+          onOpenAccount={() => setShowAccount(true)}
+          onSignOut={props.onSignOut}
+          ownerTasks={ownerTasks}
+          productsCount={products.products.length}
+        />
+      )}
+      <BottomNavigation activeTab={activeTab} onSelectTab={openTab} />
     </View>
   );
 }
 
-function OwnerCopilotCard(props: { copilot: ReturnType<typeof useOwnerCopilot> }): ReactElement {
-  const { copilot } = props;
+function AppHeader(props: {
+  activeCenterName: string;
+  onOpenAccount: () => void;
+  onOpenNotifications: () => void;
+  onToggleBranches: () => void;
+  showBranches: boolean;
+}): ReactElement {
+  return (
+    <View style={mobileUi.header}>
+      <View>
+        <Text style={mobileUi.logo}>nexolia</Text>
+        <Text style={mobileUi.logoTagline}>Tu negocio, mas inteligente</Text>
+      </View>
+      <View style={mobileUi.headerActions}>
+        <Pressable onPress={props.onOpenNotifications} style={mobileUi.headerIcon}>
+          <Text style={mobileUi.headerIconText}>!</Text>
+          <View style={mobileUi.unreadDot} />
+        </Pressable>
+        <Pressable onPress={props.onToggleBranches} style={mobileUi.centerSwitcher}>
+          <Text style={mobileUi.headerIconText}>⌂</Text>
+          <Text style={mobileUi.chevron}>{props.showBranches ? '⌃' : '⌄'}</Text>
+        </Pressable>
+        <Pressable onPress={props.onOpenAccount} style={mobileUi.avatar}>
+          <Text style={mobileUi.avatarText}>JF</Text>
+        </Pressable>
+      </View>
+      {props.showBranches ? (
+        <View style={mobileUi.branchMenu}>
+          {['Sucursal Centro', 'Sucursal Palermo', 'Deposito / Taller'].map((branch) => (
+            <View
+              key={branch}
+              style={[
+                mobileUi.branchRow,
+                branch === props.activeCenterName && mobileUi.activeBranchRow,
+              ]}
+            >
+              <Text
+                style={[
+                  mobileUi.branchText,
+                  branch === props.activeCenterName && mobileUi.activeBranchText,
+                ]}
+              >
+                {branch}
+              </Text>
+              {branch === props.activeCenterName ? <Text style={mobileUi.activeBranchText}>✓</Text> : null}
+            </View>
+          ))}
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+function HomeScreen(props: {
+  dashboard: OwnerDashboard;
+  inbox: InboxState;
+  lowStockCount: number;
+  notifications: OwnerNotification[];
+  pendingDrafts: number;
+  pendingTasks: number;
+  productsCount: number;
+  setActiveTab: (tab: DashboardTab) => void;
+}): ReactElement {
+  const conversations = props.inbox.conversations.slice(0, 4);
+  const notifications = props.notifications.slice(0, 3);
 
   return (
-    <View style={styles.statusCard}>
-      <Text style={styles.statusLabel}>Owner copilot</Text>
-      <Text style={styles.statusDetail}>
-        Ask about messages today, low stock, or pending follow-ups.
-      </Text>
-      {copilot.errorMessage ? <Text style={styles.statusError}>{copilot.errorMessage}</Text> : null}
-      <View style={styles.taskList}>
-        {copilot.messages.map((message) => (
-          <CopilotMessageItem key={message.id} message={message} />
+    <View style={mobileUi.content}>
+      <Text style={mobileUi.greeting}>Hola Juli!</Text>
+      <Text style={mobileUi.subheading}>En que puedo ayudarte hoy?</Text>
+      <Pressable onPress={() => props.setActiveTab('copi')} style={mobileUi.copiCard}>
+        <Robot />
+        <View style={mobileUi.flex}>
+          <Text style={mobileUi.cardTitle}>Copi - Tu asistente IA</Text>
+          <Text style={mobileUi.cardDescription}>
+            Preguntame sobre tus ventas, stock, clientes y mas.
+          </Text>
+        </View>
+        <View style={mobileUi.chatButton}>
+          <Text style={mobileUi.chatButtonText}>💬</Text>
+        </View>
+      </Pressable>
+      <View style={mobileUi.card}>
+        <Text style={mobileUi.sectionTitle}>Resumen del dia</Text>
+        <Text style={mobileUi.cardDescription}>Asi va tu negocio hasta ahora. Sigue asi!</Text>
+        <View style={mobileUi.metricGrid}>
+          <Metric label="Mensajes hoy" tone="green" value={props.dashboard.metrics.openConversations} />
+          <Metric label="Seguimientos" tone="orange" value={props.pendingTasks} />
+          <Metric label="Bajo stock" tone="red" value={props.lowStockCount} />
+          <Metric label="Ventas" tone="green" value="$1.250.000" />
+        </View>
+      </View>
+      <SectionHeader
+        actionLabel="Ver todas"
+        onAction={() => props.setActiveTab('inbox')}
+        title="Conversaciones recientes"
+      />
+      <View style={mobileUi.card}>
+        {(conversations.length > 0 ? conversations : fallbackConversations).map((conversation) => (
+          <ConversationRow
+            conversation={conversation}
+            key={typeof conversation === 'string' ? conversation : conversation.id}
+          />
         ))}
       </View>
-      <TextInput
-        multiline
-        onChangeText={copilot.setInputValue}
-        placeholder="What should I focus on today?"
-        style={[styles.input, styles.multilineInput]}
-        value={copilot.inputValue}
-      />
-      <PrimaryButton
-        disabled={copilot.isAsking}
-        label={copilot.isAsking ? 'Thinking...' : 'Ask copilot'}
-        onPress={() => {
-          void copilot.askQuestion();
-        }}
-      />
-      <View style={styles.inlineActions}>
-        <SecondaryButton
-          label="Messages today"
-          onPress={() => {
-            void copilot.askQuestion('What messages came in today?');
-          }}
-        />
-        <SecondaryButton
-          label="Low stock"
-          onPress={() => {
-            void copilot.askQuestion('What products are low stock?');
-          }}
-        />
-        <SecondaryButton
-          label="Follow-ups"
-          onPress={() => {
-            void copilot.askQuestion('What follow-ups are pending?');
-          }}
-        />
-      </View>
-    </View>
-  );
-}
-
-function CopilotMessageItem(props: { message: CopilotMessage }): ReactElement {
-  return (
-    <View
-      style={[
-        styles.threadMessage,
-        props.message.role === 'owner' && styles.outboundThreadMessage,
-      ]}
-    >
-      <Text style={styles.messagePreviewMeta}>
-        {props.message.role === 'owner' ? 'You' : 'Copilot'}
-      </Text>
-      <Text style={styles.messagePreviewBody}>{props.message.body}</Text>
-    </View>
-  );
-}
-
-function OwnerSettingsCard(props: {
-  settings: ReturnType<typeof useOwnerSettings>;
-  timezone: string;
-}): ReactElement {
-  const { settings } = props;
-  const businessHoursLabel = settings.formValues.businessHoursEnabled ? 'Enabled' : 'Disabled';
-  const businessHoursMode =
-    settings.formValues.businessHoursMode === 'weekdays' ? 'Weekdays' : 'Every day';
-
-  return (
-    <View style={styles.statusCard}>
-      <Text style={styles.statusLabel}>AI and follow-up settings</Text>
-      <Text style={styles.statusDetail}>Timezone: {props.timezone}</Text>
-      {settings.errorMessage ? <Text style={styles.statusError}>{settings.errorMessage}</Text> : null}
-      <View style={styles.settingRow}>
-        <Text style={styles.statusValue}>AI auto-send</Text>
-        <SecondaryButton
-          label={settings.formValues.aiAutoSend ? 'On' : 'Off'}
-          onPress={() =>
-            settings.setFormValue('aiAutoSend', !settings.formValues.aiAutoSend)
-          }
-        />
-      </View>
-      <Text style={styles.statusDetail}>
-        Auto-send stays off by default. When enabled, only catalog-backed replies can send
-        automatically.
-      </Text>
-      <TextInput
-        keyboardType="number-pad"
-        onChangeText={(value) => settings.setFormValue('followUpDelayHours', value)}
-        placeholder="Follow-up delay in hours"
-        style={styles.input}
-        value={settings.formValues.followUpDelayHours}
-      />
-      <View style={styles.settingRow}>
-        <Text style={styles.statusValue}>Business hours: {businessHoursLabel}</Text>
-        <SecondaryButton
-          label={settings.formValues.businessHoursEnabled ? 'Disable' : 'Enable'}
-          onPress={() =>
-            settings.setFormValue(
-              'businessHoursEnabled',
-              !settings.formValues.businessHoursEnabled,
-            )
-          }
-        />
-      </View>
-      <View style={styles.settingRow}>
-        <Text style={styles.statusValue}>Schedule: {businessHoursMode}</Text>
-        <SecondaryButton
-          label="Toggle days"
-          onPress={() =>
-            settings.setFormValue(
-              'businessHoursMode',
-              settings.formValues.businessHoursMode === 'weekdays' ? 'all_days' : 'weekdays',
-            )
-          }
-        />
-      </View>
-      <View style={styles.twoColumnFields}>
-        <TextInput
-          onChangeText={(value) => settings.setFormValue('businessHoursStart', value)}
-          placeholder="Start HH:MM"
-          style={[styles.input, styles.flexField]}
-          value={settings.formValues.businessHoursStart}
-        />
-        <TextInput
-          onChangeText={(value) => settings.setFormValue('businessHoursEnd', value)}
-          placeholder="End HH:MM"
-          style={[styles.input, styles.flexField]}
-          value={settings.formValues.businessHoursEnd}
-        />
-      </View>
-      <PrimaryButton
-        disabled={settings.isSaving}
-        label={settings.isSaving ? 'Saving...' : 'Save settings'}
-        onPress={() => {
-          void settings.saveSettings();
-        }}
-      />
-    </View>
-  );
-}
-
-function AiDraftsCard(props: { aiDrafts: ReturnType<typeof useAiDrafts> }): ReactElement {
-  const { aiDrafts } = props;
-
-  return (
-    <View style={styles.statusCard}>
-      <Text style={styles.statusLabel}>Sales AI drafts</Text>
-      {aiDrafts.isLoading ? <Text style={styles.statusDetail}>Loading AI drafts...</Text> : null}
-      {aiDrafts.errorMessage ? <Text style={styles.statusError}>{aiDrafts.errorMessage}</Text> : null}
-      {aiDrafts.drafts.length === 0 ? (
-        <Text style={styles.statusDetail}>
-          Catalog-aware reply and quote drafts will appear here after customer messages.
-        </Text>
-      ) : (
-        <View style={styles.taskList}>
-          {aiDrafts.drafts.map((draft) => (
-            <AiDraftItem
-              draft={draft}
-              editedBody={aiDrafts.editedBodies[draft.id] ?? draft.replyBody}
-              isSaving={aiDrafts.isSaving}
-              key={draft.id}
-              onApprove={() => {
-                void aiDrafts.approveDraft(draft.id);
-              }}
-              onChangeBody={(body) => aiDrafts.setEditedBody(draft.id, body)}
-              onReject={() => {
-                void aiDrafts.rejectDraft(draft.id);
-              }}
-            />
-          ))}
+      <Pressable
+        onPress={() => Alert.alert('Inventario', `${props.productsCount} productos cargados.`)}
+        style={mobileUi.inventoryCard}
+      >
+        <View style={mobileUi.iconTile}>
+          <Text style={mobileUi.iconTileText}>□</Text>
         </View>
-      )}
-    </View>
-  );
-}
-
-function AiDraftItem(props: {
-  draft: AiDraft;
-  editedBody: string;
-  isSaving: boolean;
-  onApprove: () => void;
-  onChangeBody: (body: string) => void;
-  onReject: () => void;
-}): ReactElement {
-  const { draft } = props;
-
-  return (
-    <View style={styles.taskItem}>
-      <View style={styles.productHeader}>
-        <Text style={styles.conversationTitle}>{draft.contactLabel}</Text>
-        <Text style={styles.aiDraftBadge}>{draft.draftType}</Text>
-      </View>
-      <Text style={styles.conversationMeta}>
-        {draft.status}
-        {draft.autoSendEligible ? ' · auto-send eligible' : ' · review required'}
-      </Text>
-      {draft.decisionReason ? (
-        <Text style={styles.statusDetail}>{formatAiDecisionReason(draft.decisionReason)}</Text>
-      ) : null}
-      {draft.errorMessage ? <Text style={styles.statusError}>{draft.errorMessage}</Text> : null}
-      <TextInput
-        multiline
-        onChangeText={props.onChangeBody}
-        style={[styles.input, styles.multilineInput]}
-        value={props.editedBody}
-      />
-      <View style={styles.inlineActions}>
-        <PrimaryButton
-          disabled={props.isSaving}
-          label={props.isSaving ? 'Sending...' : 'Approve & send'}
-          onPress={props.onApprove}
-        />
-        <SecondaryButton label="Reject" onPress={props.onReject} />
-      </View>
-    </View>
-  );
-}
-
-function FollowUpTasksCard(props: { ownerTasks: ReturnType<typeof useOwnerTasks> }): ReactElement {
-  const { ownerTasks } = props;
-
-  return (
-    <View style={styles.statusCard}>
-      <Text style={styles.statusLabel}>Follow-ups and alerts</Text>
-      {ownerTasks.isLoading ? <Text style={styles.statusDetail}>Loading tasks...</Text> : null}
-      {ownerTasks.errorMessage ? <Text style={styles.statusError}>{ownerTasks.errorMessage}</Text> : null}
-      <SecondaryButton
-        label={ownerTasks.isSaving ? 'Working...' : 'Enable low-stock push alerts'}
-        onPress={() => {
-          void ownerTasks.enablePushNotifications();
-        }}
-      />
-      {ownerTasks.pushRegistrationStatus ? (
-        <Text style={styles.statusDetail}>{ownerTasks.pushRegistrationStatus}</Text>
-      ) : null}
-      {ownerTasks.tasks.length === 0 ? (
-        <Text style={styles.statusDetail}>No pending follow-ups right now.</Text>
-      ) : (
-        <View style={styles.taskList}>
-          {ownerTasks.tasks.map((task) => (
-            <FollowUpTaskItem
-              key={task.id}
-              onComplete={() => {
-                void ownerTasks.completeTask(task.id);
-              }}
-              onSnooze={() => {
-                void ownerTasks.snoozeTask(task.id);
-              }}
-              task={task}
-            />
-          ))}
+        <View style={mobileUi.flex}>
+          <Text style={mobileUi.cardTitle}>Gestionar stock</Text>
+          <Text style={mobileUi.cardDescription}>Revisa tu inventario y actualiza productos</Text>
         </View>
-      )}
-      {ownerTasks.notifications.length > 0 ? (
-        <View style={styles.taskList}>
-          <Text style={styles.statusValue}>Recent alerts</Text>
-          {ownerTasks.notifications.map((notification) => (
-            <OwnerNotificationItem
-              key={notification.id}
-              notification={notification}
-              onDismiss={() => {
-                void ownerTasks.dismissNotification(notification.id);
-              }}
-            />
-          ))}
-        </View>
-      ) : null}
-    </View>
-  );
-}
-
-function FollowUpTaskItem(props: {
-  onComplete: () => void;
-  onSnooze: () => void;
-  task: OwnerTask;
-}): ReactElement {
-  const { task } = props;
-
-  return (
-    <View style={styles.taskItem}>
-      <Text style={styles.conversationTitle}>{task.title}</Text>
-      <Text style={styles.conversationMeta}>
-        {task.contactLabel ?? 'Unknown contact'}
-        {task.dueAt ? ` · due ${formatDateTime(task.dueAt)}` : ''}
-      </Text>
-      {task.description ? (
-        <Text style={styles.messagePreviewBody}>{task.description}</Text>
-      ) : null}
-      {task.status === 'snoozed' && task.snoozedUntil ? (
-        <Text style={styles.statusDetail}>Snoozed until {formatDateTime(task.snoozedUntil)}</Text>
-      ) : null}
-      <View style={styles.inlineActions}>
-        <SecondaryButton label="Complete" onPress={props.onComplete} />
-        <SecondaryButton label="Snooze 24h" onPress={props.onSnooze} />
+        <Text style={mobileUi.primaryText}>Ver inventario ›</Text>
+      </Pressable>
+      <SectionHeader actionLabel="Ver todas" onAction={() => props.setActiveTab('more')} title="Alertas recientes" />
+      <View style={mobileUi.card}>
+        {(notifications.length > 0 ? notifications : fallbackNotifications).map((notification) => (
+          <NotificationRow key={notification.id} notification={notification} />
+        ))}
       </View>
-    </View>
-  );
-}
-
-function OwnerNotificationItem(props: {
-  notification: OwnerNotification;
-  onDismiss: () => void;
-}): ReactElement {
-  const { notification } = props;
-
-  return (
-    <View style={styles.taskItem}>
-      <View style={styles.productHeader}>
-        <Text style={styles.conversationTitle}>{notification.title}</Text>
-        <Text style={styles.lowStockBadge}>{notification.status}</Text>
-      </View>
-      <Text style={styles.messagePreviewBody}>{notification.body}</Text>
-      {notification.productLabel ? (
-        <Text style={styles.conversationMeta}>{notification.productLabel}</Text>
-      ) : null}
-      {notification.errorMessage ? (
-        <Text style={styles.statusError}>{notification.errorMessage}</Text>
-      ) : null}
-      <SecondaryButton label="Dismiss" onPress={props.onDismiss} />
-    </View>
-  );
-}
-
-function ProductCatalogCard(props: { catalog: ReturnType<typeof useProducts> }): ReactElement {
-  const { catalog } = props;
-
-  return (
-    <View style={styles.statusCard}>
-      <Text style={styles.statusLabel}>Product catalog</Text>
-      {catalog.isLoading ? <Text style={styles.statusDetail}>Loading products...</Text> : null}
-      {catalog.errorMessage ? <Text style={styles.statusError}>{catalog.errorMessage}</Text> : null}
-      {catalog.products.length === 0 ? (
-        <Text style={styles.statusDetail}>Add products so inventory and AI answers have a source of truth.</Text>
-      ) : (
-        <View style={styles.productList}>
-          {catalog.products.map((product) => (
-            <ProductListItem
-              key={product.id}
-              onDelete={() => {
-                void catalog.deleteProductById(product.id);
-              }}
-              onEdit={() => catalog.startEditing(product)}
-              product={product}
-            />
-          ))}
-        </View>
-      )}
-      <ProductForm catalog={catalog} />
-    </View>
-  );
-}
-
-function ProductListItem(props: {
-  onDelete: () => void;
-  onEdit: () => void;
-  product: Product;
-}): ReactElement {
-  const { product } = props;
-
-  return (
-    <View style={styles.productItem}>
-      <View style={styles.productHeader}>
-        <Text style={styles.conversationTitle}>{product.name}</Text>
-        {product.isLowStock ? <Text style={styles.lowStockBadge}>Low stock</Text> : null}
-      </View>
-      <Text style={styles.conversationMeta}>
-        {product.sku ? `${product.sku} · ` : ''}
-        {formatMoney(product.unitPriceCents, product.currency)}
-      </Text>
-      <Text style={styles.messagePreviewBody}>
-        Stock {product.stockQuantity} · Reorder at {product.reorderThreshold}
-      </Text>
-      {product.description ? (
-        <Text style={styles.statusDetail}>{product.description}</Text>
-      ) : null}
-      <View style={styles.inlineActions}>
-        <SecondaryButton label="Edit" onPress={props.onEdit} />
-        <SecondaryButton label="Delete" onPress={props.onDelete} />
-      </View>
-    </View>
-  );
-}
-
-function ProductForm(props: { catalog: ReturnType<typeof useProducts> }): ReactElement {
-  const { catalog } = props;
-  const actionLabel = catalog.editingProductId ? 'Update product' : 'Create product';
-
-  return (
-    <View style={styles.productForm}>
-      <Text style={styles.statusValue}>
-        {catalog.editingProductId ? 'Edit product' : 'New product'}
-      </Text>
-      <TextInput
-        onChangeText={(value) => catalog.setFormValue('name', value)}
-        placeholder="Product name"
-        style={styles.input}
-        value={catalog.formValues.name}
-      />
-      <TextInput
-        onChangeText={(value) => catalog.setFormValue('sku', value)}
-        placeholder="SKU or short code"
-        style={styles.input}
-        value={catalog.formValues.sku}
-      />
-      <TextInput
-        keyboardType="decimal-pad"
-        onChangeText={(value) => catalog.setFormValue('unitPrice', value)}
-        placeholder="Unit price"
-        style={styles.input}
-        value={catalog.formValues.unitPrice}
-      />
-      <View style={styles.twoColumnFields}>
-        <TextInput
-          keyboardType="number-pad"
-          onChangeText={(value) => catalog.setFormValue('stockQuantity', value)}
-          placeholder="Stock"
-          style={[styles.input, styles.flexField]}
-          value={catalog.formValues.stockQuantity}
-        />
-        <TextInput
-          keyboardType="number-pad"
-          onChangeText={(value) => catalog.setFormValue('reorderThreshold', value)}
-          placeholder="Reorder"
-          style={[styles.input, styles.flexField]}
-          value={catalog.formValues.reorderThreshold}
-        />
-      </View>
-      <TextInput
-        autoCapitalize="characters"
-        maxLength={3}
-        onChangeText={(value) => catalog.setFormValue('currency', value)}
-        placeholder="Currency"
-        style={styles.input}
-        value={catalog.formValues.currency}
-      />
-      <TextInput
-        multiline
-        onChangeText={(value) => catalog.setFormValue('description', value)}
-        placeholder="Description"
-        style={[styles.input, styles.multilineInput]}
-        value={catalog.formValues.description}
-      />
-      <PrimaryButton
-        disabled={catalog.isSaving}
-        label={catalog.isSaving ? 'Saving...' : actionLabel}
-        onPress={() => {
-          void catalog.saveProduct();
-        }}
-      />
-      {catalog.editingProductId ? (
-        <SecondaryButton label="Cancel edit" onPress={catalog.resetForm} />
+      {props.pendingDrafts > 0 ? (
+        <Text style={mobileUi.noteText}>{props.pendingDrafts} borradores de IA pendientes de revision.</Text>
       ) : null}
     </View>
   );
 }
 
-function WhatsAppConnectionCard(props: { dashboard: OwnerDashboard }): ReactElement {
-  const { whatsappConnection } = props.dashboard;
-  const label = getWhatsAppStatusLabel(whatsappConnection.status);
-  const detail =
-    whatsappConnection.displayPhoneNumber ??
-    whatsappConnection.phoneNumberId ??
-    'Connect WhatsApp to start receiving customer messages.';
-
-  return (
-    <View style={styles.statusCard}>
-      <Text style={styles.statusLabel}>WhatsApp Business</Text>
-      <Text style={styles.statusValue}>{label}</Text>
-      <Text style={styles.statusDetail}>{detail}</Text>
-      {whatsappConnection.lastError ? (
-        <Text style={styles.statusError}>{whatsappConnection.lastError}</Text>
-      ) : null}
-    </View>
-  );
-}
-
-function getWhatsAppStatusLabel(status: OwnerDashboard['whatsappConnection']['status']): string {
-  if (status === 'connected') {
-    return 'Connected';
+function InboxScreen(props: { inbox: InboxState }): ReactElement {
+  if (props.inbox.selectedConversation) {
+    return (
+      <ThreadScreen
+        conversation={props.inbox.selectedConversation}
+        messages={props.inbox.messages}
+        onBack={() => props.inbox.selectConversation('')}
+      />
+    );
   }
 
-  if (status === 'pending') {
-    return 'Pending verification';
-  }
-
-  if (status === 'error') {
-    return 'Needs attention';
-  }
-
-  if (status === 'disabled') {
-    return 'Disabled';
-  }
-
-  return 'Not connected';
-}
-
-function InboxCard(props: { inbox: ReturnType<typeof useInbox> }): ReactElement {
-  const { inbox } = props;
+  const conversations =
+    props.inbox.conversations.length > 0 ? props.inbox.conversations : fallbackConversations;
 
   return (
-    <View style={styles.statusCard}>
-      <Text style={styles.statusLabel}>Universal inbox</Text>
-      {inbox.isLoading ? <Text style={styles.statusDetail}>Loading conversations...</Text> : null}
-      {inbox.errorMessage ? <Text style={styles.statusError}>{inbox.errorMessage}</Text> : null}
-      {!inbox.isLoading && inbox.conversations.length === 0 ? (
-        <Text style={styles.statusDetail}>Customer conversations will appear here automatically.</Text>
+    <View style={mobileUi.content}>
+      <Text style={mobileUi.screenTitle}>Inbox</Text>
+      <Text style={mobileUi.subheading}>Todas tus conversaciones en un solo lugar</Text>
+      <View style={mobileUi.searchRow}>
+        <Text style={mobileUi.searchInput}>Buscar conversaciones</Text>
+        <Text style={mobileUi.filterButton}>≡</Text>
+      </View>
+      <View style={mobileUi.channelRow}>
+        {['Todos', 'WhatsApp', 'Instagram', 'Facebook', 'Email'].map((channel, index) => (
+          <View key={channel} style={[mobileUi.channelPill, index === 0 && mobileUi.activeChannelPill]}>
+            <Text style={[mobileUi.channelText, index === 0 && mobileUi.activeChannelText]}>{channel}</Text>
+          </View>
+        ))}
+      </View>
+      <View style={mobileUi.card}>
+        <View style={mobileUi.statusTabs}>
+          <Text style={mobileUi.activeStatusTab}>Abiertos 12</Text>
+          <Text style={mobileUi.statusTab}>Pendientes 5</Text>
+          <Text style={mobileUi.statusTab}>Resueltos 28</Text>
+        </View>
+        {conversations.map((conversation) => (
+          <Pressable
+            key={conversation.id}
+            onPress={() => props.inbox.selectConversation(conversation.id)}
+          >
+            <ConversationRow conversation={conversation} showUnread />
+          </Pressable>
+        ))}
+      </View>
+      {props.inbox.errorMessage ? <Text style={mobileUi.errorText}>{props.inbox.errorMessage}</Text> : null}
+    </View>
+  );
+}
+
+function ThreadScreen(props: {
+  conversation: InboxConversationSummary;
+  messages: WhatsAppMessagePreview[];
+  onBack: () => void;
+}): ReactElement {
+  const messages = props.messages.length > 0 ? props.messages : fallbackMessages(props.conversation.id);
+
+  return (
+    <View style={mobileUi.content}>
+      <View style={mobileUi.threadHeader}>
+        <Pressable onPress={props.onBack}>
+          <Text style={mobileUi.backText}>‹</Text>
+        </Pressable>
+        <Avatar label={getConversationName(props.conversation).slice(0, 2)} />
+        <View style={mobileUi.flex}>
+          <Text style={mobileUi.screenTitle}>{getConversationName(props.conversation)}</Text>
+          <Text style={mobileUi.cardDescription}>Nuevo lead · WhatsApp</Text>
+        </View>
+      </View>
+      <View style={mobileUi.threadCard}>
+        {messages.map((message) => (
+          <MessageBubble key={message.id} message={message} />
+        ))}
+      </View>
+      <ReplyInput placeholder="Escribi un mensaje..." />
+    </View>
+  );
+}
+
+function CopiScreen(props: {
+  copilot: OwnerCopilotState;
+  dashboard: OwnerDashboard;
+  ownerTasks: OwnerTasksState;
+}): ReactElement {
+  const hasConversation = props.copilot.messages.length > 1;
+
+  return (
+    <View style={mobileUi.content}>
+      <Text style={mobileUi.screenTitle}>Copi</Text>
+      <Text style={mobileUi.subheading}>Tu asistente IA para el negocio</Text>
+      {hasConversation ? (
+        <View style={mobileUi.card}>
+          <View style={mobileUi.copiHeader}>
+            <Robot />
+            <View>
+              <Text style={mobileUi.cardTitle}>Copi</Text>
+              <Text style={mobileUi.cardDescription}>Asistente IA</Text>
+            </View>
+          </View>
+          {props.copilot.messages.map((message) => (
+            <View
+              key={message.id}
+              style={[
+                mobileUi.copilotBubble,
+                message.role === 'owner' && mobileUi.ownerCopilotBubble,
+              ]}
+            >
+              <Text style={mobileUi.messageText}>{message.body}</Text>
+            </View>
+          ))}
+        </View>
       ) : (
-        <View style={styles.inboxLayout}>
-          <View style={styles.conversationList}>
-            {inbox.conversations.map((conversation) => (
-              <ConversationListItem
-                conversation={conversation}
-                isSelected={conversation.id === inbox.selectedConversation?.id}
-                key={conversation.id}
-                onPress={() => inbox.selectConversation(conversation.id)}
+        <>
+          <View style={mobileUi.copiWelcome}>
+            <Robot />
+            <View style={mobileUi.flex}>
+              <Text style={mobileUi.cardTitle}>Hola! Soy Copi</Text>
+              <Text style={mobileUi.cardDescription}>
+                Preguntame por ventas, stock, clientes y tareas pendientes.
+              </Text>
+            </View>
+          </View>
+          <Text style={mobileUi.sectionTitle}>Preguntas sugeridas</Text>
+          <View style={mobileUi.card}>
+            {[
+              'Que necesita mi atencion hoy?',
+              'Cuanto vendi este mes?',
+              'Quien me debe dinero?',
+              'Que productos tienen bajo stock?',
+              'Que producto tiene mayor margen?',
+            ].map((question) => (
+              <ActionRow
+                key={question}
+                label={question}
+                onPress={() => {
+                  void props.copilot.askQuestion(question);
+                }}
               />
             ))}
           </View>
-          {inbox.selectedConversation ? (
-            <ConversationThread
-              conversation={inbox.selectedConversation}
-              messages={inbox.messages}
-            />
-          ) : null}
-        </View>
+          <View style={mobileUi.card}>
+            <Text style={mobileUi.messageText}>
+              Hoy tenes {props.dashboard.metrics.openConversations} conversaciones abiertas,{' '}
+              {props.dashboard.metrics.lowStockItems} productos con bajo stock y{' '}
+              {props.ownerTasks.tasks.length} seguimientos pendientes.
+            </Text>
+          </View>
+        </>
       )}
+      <ReplyInput
+        onChangeText={props.copilot.setInputValue}
+        onSubmit={() => {
+          void props.copilot.askQuestion();
+        }}
+        placeholder="Escribi tu pregunta..."
+        value={props.copilot.inputValue}
+      />
+      {props.copilot.errorMessage ? <Text style={mobileUi.errorText}>{props.copilot.errorMessage}</Text> : null}
     </View>
   );
 }
 
-function ConversationListItem(props: {
-  conversation: InboxConversationSummary;
-  isSelected: boolean;
-  onPress: () => void;
+function MoreScreen(props: {
+  dashboard: OwnerDashboard;
+  onOpenAccount: () => void;
+  onSignOut: () => void;
+  ownerTasks: OwnerTasksState;
+  productsCount: number;
 }): ReactElement {
-  const { conversation } = props;
-  const label = getContactLabel(conversation);
-  const latestMessage = conversation.latestMessage?.body ?? 'No messages yet';
+  return (
+    <View style={mobileUi.content}>
+      <Text style={mobileUi.screenTitle}>Mas</Text>
+      <Text style={mobileUi.subheading}>Herramientas y accesos de tu negocio</Text>
+      <View style={mobileUi.quickActionRow}>
+        {['Reportes', 'Finanzas', 'Configuracion'].map((label) => (
+          <View key={label} style={mobileUi.quickAction}>
+            <Text style={mobileUi.quickActionText}>{label}</Text>
+          </View>
+        ))}
+      </View>
+      <MenuSection
+        rows={[
+          ['Inventario', `${props.productsCount} productos y movimientos`],
+          ['Facturacion', 'Comprobantes y cobros'],
+          ['Compras y proveedores', 'Ordenes y abastecimiento'],
+          ['Caja', 'Ingresos, egresos y cierre'],
+        ]}
+        title="Operacion"
+      />
+      <MenuSection
+        rows={[
+          ['Marketing', 'Promociones, campanas y posteos'],
+          ['Portal del cliente', 'Catalogo, reservas y seguimiento'],
+          ['Automatizaciones', 'Mensajes, reglas y acciones'],
+        ]}
+        title="Crecimiento"
+      />
+      <MenuSection
+        rows={[
+          ['Mi cuenta', 'Perfil, rol y sucursal', props.onOpenAccount],
+          ['Integraciones', 'WhatsApp, Instagram y Email'],
+          ['Ayuda y soporte', 'Guias y asistencia'],
+        ]}
+        title="Configuracion"
+      />
+      <View style={mobileUi.card}>
+        {(props.ownerTasks.notifications.length > 0 ? props.ownerTasks.notifications : fallbackNotifications).map(
+          (notification) => (
+            <NotificationRow key={notification.id} notification={notification} />
+          ),
+        )}
+      </View>
+      <Pressable onPress={props.onSignOut} style={mobileUi.signOutRow}>
+        <Text style={mobileUi.signOutText}>Cerrar sesion</Text>
+      </Pressable>
+      <Text style={mobileUi.noteText}>
+        {props.dashboard.whatsappConnection.status === 'connected'
+          ? `WhatsApp conectado ${props.dashboard.whatsappConnection.displayPhoneNumber ?? ''}`
+          : 'WhatsApp pendiente de conexion'}
+      </Text>
+    </View>
+  );
+}
+
+function AccountScreen(props: {
+  dashboard: OwnerDashboard;
+  onSignOut: () => void;
+  settings: {
+    aiAutoSend: boolean;
+    businessHoursEnabled: boolean;
+    followUpDelayHours: string;
+  };
+}): ReactElement {
+  return (
+    <View style={mobileUi.content}>
+      <Text style={mobileUi.screenTitle}>Mi cuenta</Text>
+      <Text style={mobileUi.subheading}>Gestiona tu perfil y tu negocio</Text>
+      <View style={mobileUi.profileCard}>
+        <View style={mobileUi.profileAvatar}>
+          <Text style={mobileUi.profileAvatarText}>JF</Text>
+        </View>
+        <View style={mobileUi.flex}>
+          <Text style={mobileUi.profileName}>Juli Fernandez</Text>
+          <Text style={mobileUi.profileLine}>{props.dashboard.organization?.name ?? 'Almacen Juli'} · Negocio</Text>
+          <Text style={mobileUi.profileLine}>{props.dashboard.businessCenter?.name ?? 'Sucursal Centro'} · Sucursal</Text>
+          <Text style={mobileUi.profileLine}>{props.dashboard.organization?.role ?? 'owner'} · Rol</Text>
+        </View>
+      </View>
+      <View style={mobileUi.card}>
+        {['Editar perfil', 'Cambiar sucursal', 'Usuarios y permisos', 'Configuracion del negocio', 'Notificaciones', 'Ayuda y soporte'].map(
+          (label) => (
+            <ActionRow key={label} label={label} />
+          ),
+        )}
+      </View>
+      <View style={mobileUi.card}>
+        <Text style={mobileUi.messageText}>
+          AI auto-send: {props.settings.aiAutoSend ? 'Activo' : 'Inactivo'} · Seguimiento:{' '}
+          {props.settings.followUpDelayHours}h · Horario:{' '}
+          {props.settings.businessHoursEnabled ? 'Activo' : 'Inactivo'}
+        </Text>
+      </View>
+      <Pressable onPress={props.onSignOut} style={mobileUi.signOutRow}>
+        <Text style={mobileUi.signOutText}>Cerrar sesion</Text>
+      </Pressable>
+      <Text style={mobileUi.noteText}>Zona horaria: {props.dashboard.businessCenter?.timezone ?? 'Argentina / Cordoba'}</Text>
+    </View>
+  );
+}
+
+function Metric(props: { label: string; tone: 'green' | 'orange' | 'red'; value: number | string }): ReactElement {
+  const valueStyle =
+    props.tone === 'green'
+      ? mobileUi.metricGreen
+      : props.tone === 'orange'
+        ? mobileUi.metricOrange
+        : mobileUi.metricRed;
 
   return (
-    <Pressable
-      onPress={props.onPress}
-      style={[styles.conversationItem, props.isSelected && styles.selectedConversationItem]}
-    >
-      <Text style={styles.conversationTitle}>{label}</Text>
-      <Text style={styles.conversationMeta}>
-        {conversation.contact.leadStatus ?? 'new'} lead
-        {conversation.lastMessageAt ? ` · ${formatTimestamp(conversation.lastMessageAt)}` : ''}
-      </Text>
-      <Text style={styles.messagePreviewBody}>{latestMessage}</Text>
+    <View style={mobileUi.metricItem}>
+      <Text style={[mobileUi.metricValue, valueStyle]}>{props.value}</Text>
+      <Text style={mobileUi.metricLabel}>{props.label}</Text>
+    </View>
+  );
+}
+
+function SectionHeader(props: {
+  actionLabel?: string;
+  onAction?: () => void;
+  title: string;
+}): ReactElement {
+  return (
+    <View style={mobileUi.sectionHeader}>
+      <Text style={mobileUi.sectionTitle}>{props.title}</Text>
+      {props.actionLabel && props.onAction ? (
+        <Pressable onPress={props.onAction}>
+          <Text style={mobileUi.sectionAction}>{props.actionLabel} ›</Text>
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}
+
+function ConversationRow(props: {
+  conversation: InboxConversationSummary;
+  showUnread?: boolean;
+}): ReactElement {
+  const name = getConversationName(props.conversation);
+  const preview = props.conversation.latestMessage?.body ?? 'Hola, tienen disponible el producto...?';
+
+  return (
+    <View style={mobileUi.listRow}>
+      <Avatar label={name.slice(0, 2)} />
+      <View style={mobileUi.flex}>
+        <Text style={mobileUi.listTitle}>{name}</Text>
+        <Text numberOfLines={1} style={mobileUi.listDescription}>
+          {preview}
+        </Text>
+        <Text style={mobileUi.leadBadge}>{leadStatusLabel(props.conversation.contact.leadStatus)}</Text>
+      </View>
+      <View style={mobileUi.rowMeta}>
+        <Text style={mobileUi.timestamp}>{formatTime(props.conversation.lastMessageAt)}</Text>
+        {props.showUnread ? <Text style={mobileUi.unreadBadge}>2</Text> : null}
+      </View>
+    </View>
+  );
+}
+
+function NotificationRow(props: { notification: OwnerNotification }): ReactElement {
+  return (
+    <View style={mobileUi.listRow}>
+      <View style={mobileUi.alertIcon}>
+        <Text style={mobileUi.alertIconText}>!</Text>
+      </View>
+      <View style={mobileUi.flex}>
+        <Text style={mobileUi.listTitle}>{props.notification.title}</Text>
+        <Text style={mobileUi.listDescription}>{props.notification.body}</Text>
+      </View>
+      <Text style={mobileUi.timestamp}>Hoy</Text>
+    </View>
+  );
+}
+
+function MessageBubble(props: { message: WhatsAppMessagePreview }): ReactElement {
+  const outbound = props.message.direction === 'outbound';
+
+  return (
+    <View style={[mobileUi.messageBubble, outbound && mobileUi.outboundMessageBubble]}>
+      <Text style={mobileUi.messageText}>{props.message.body ?? 'Mensaje sin texto'}</Text>
+      <Text style={mobileUi.messageTime}>{formatTime(props.message.createdAt)}</Text>
+    </View>
+  );
+}
+
+function ReplyInput(props: {
+  onChangeText?: (value: string) => void;
+  onSubmit?: () => void;
+  placeholder: string;
+  value?: string;
+}): ReactElement {
+  return (
+    <View style={mobileUi.replyBar}>
+      <Text style={mobileUi.addButton}>+</Text>
+      <TextInput
+        onChangeText={props.onChangeText}
+        onSubmitEditing={props.onSubmit}
+        placeholder={props.placeholder}
+        style={mobileUi.replyInput}
+        value={props.value}
+      />
+      <Pressable onPress={props.onSubmit} style={mobileUi.micButton}>
+        <Text style={mobileUi.micButtonText}>●</Text>
+      </Pressable>
+    </View>
+  );
+}
+
+function ActionRow(props: { label: string; onPress?: () => void }): ReactElement {
+  return (
+    <Pressable onPress={props.onPress} style={mobileUi.actionRow}>
+      <View style={mobileUi.iconTileSmall}>
+        <Text style={mobileUi.iconTileText}>·</Text>
+      </View>
+      <Text style={mobileUi.actionLabel}>{props.label}</Text>
+      <Text style={mobileUi.primaryText}>›</Text>
     </Pressable>
   );
 }
 
-function ConversationThread(props: {
-  conversation: InboxConversationSummary;
-  messages: WhatsAppMessagePreview[];
+function MenuSection(props: {
+  rows: Array<[string, string] | [string, string, () => void]>;
+  title: string;
 }): ReactElement {
   return (
-    <View style={styles.threadCard}>
-      <Text style={styles.statusValue}>{getContactLabel(props.conversation)}</Text>
-      <Text style={styles.statusDetail}>
-        {props.conversation.contact.phoneNumber ?? props.conversation.externalContactId}
-      </Text>
-      <Text style={styles.conversationMeta}>
-        Lead status: {props.conversation.contact.leadStatus ?? 'new'}
-      </Text>
-      {props.messages.length === 0 ? (
-        <Text style={styles.statusDetail}>No persisted messages yet.</Text>
-      ) : (
-        props.messages.map((message) => (
-          <View
-            key={message.id}
-            style={[
-              styles.threadMessage,
-              message.direction === 'outbound' && styles.outboundThreadMessage,
-            ]}
-          >
-            <Text style={styles.messagePreviewMeta}>
-              {message.direction === 'inbound' ? 'Customer' : 'Owner'} ·{' '}
-              {formatTimestamp(message.createdAt)}
-            </Text>
-            <Text style={styles.messagePreviewBody}>{message.body ?? message.messageStatus}</Text>
-          </View>
-        ))
-      )}
-      <SecondaryButton label="Reply via approved send path" onPress={showReplyPathNotice} />
+    <View>
+      <Text style={mobileUi.sectionTitle}>{props.title}</Text>
+      <View style={mobileUi.card}>
+        {props.rows.map(([title, subtitle, onPress]) => (
+          <Pressable key={title} onPress={onPress} style={mobileUi.actionRow}>
+            <View style={mobileUi.iconTileSmall}>
+              <Text style={mobileUi.iconTileText}>□</Text>
+            </View>
+            <View style={mobileUi.flex}>
+              <Text style={mobileUi.listTitle}>{title}</Text>
+              <Text style={mobileUi.listDescription}>{subtitle}</Text>
+            </View>
+            <Text style={mobileUi.primaryText}>›</Text>
+          </Pressable>
+        ))}
+      </View>
     </View>
   );
 }
 
-function getContactLabel(conversation: InboxConversationSummary): string {
+function BottomNavigation(props: {
+  activeTab: DashboardTab;
+  onSelectTab: (tab: DashboardTab) => void;
+}): ReactElement {
+  return (
+    <View style={mobileUi.bottomNav}>
+      <TabButton active={props.activeTab === 'home'} label="Inicio" onPress={() => props.onSelectTab('home')} />
+      <TabButton active={props.activeTab === 'inbox'} label="Inbox" onPress={() => props.onSelectTab('inbox')} />
+      <Pressable onPress={() => props.onSelectTab('home')} style={mobileUi.centerAction}>
+        <Text style={mobileUi.centerActionText}>$</Text>
+      </Pressable>
+      <TabButton active={props.activeTab === 'copi'} label="Copi" onPress={() => props.onSelectTab('copi')} />
+      <TabButton active={props.activeTab === 'more'} label="Mas" onPress={() => props.onSelectTab('more')} />
+    </View>
+  );
+}
+
+function TabButton(props: {
+  active: boolean;
+  label: string;
+  onPress: () => void;
+}): ReactElement {
+  return (
+    <Pressable onPress={props.onPress} style={mobileUi.tabButton}>
+      <Text style={[mobileUi.tabIcon, props.active && mobileUi.activeTabText]}>□</Text>
+      <Text style={[mobileUi.tabLabel, props.active && mobileUi.activeTabText]}>{props.label}</Text>
+    </Pressable>
+  );
+}
+
+function Robot(): ReactElement {
+  return (
+    <View style={mobileUi.robot}>
+      <View style={mobileUi.robotFace}>
+        <Text style={mobileUi.robotEyes}>••</Text>
+      </View>
+    </View>
+  );
+}
+
+function Avatar(props: { label: string }): ReactElement {
+  return (
+    <View style={mobileUi.customerAvatar}>
+      <Text style={mobileUi.customerAvatarText}>{props.label.toUpperCase()}</Text>
+    </View>
+  );
+}
+
+function getConversationName(conversation: InboxConversationSummary): string {
   return (
     conversation.contact.displayName ??
     conversation.contact.phoneNumber ??
-    conversation.externalContactId
+    conversation.externalContactId ??
+    'Cliente'
   );
 }
 
-function formatTimestamp(timestamp: string): string {
-  return new Date(timestamp).toLocaleTimeString([], {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+function leadStatusLabel(status: InboxConversationSummary['contact']['leadStatus']): string {
+  if (status === 'active') {
+    return 'Seguimiento';
+  }
+
+  if (status === 'won') {
+    return 'Cliente';
+  }
+
+  return 'Nuevo lead';
 }
 
-function formatDateTime(timestamp: string): string {
-  return new Date(timestamp).toLocaleString([], {
-    dateStyle: 'short',
-    timeStyle: 'short',
-  });
+function formatTime(value: string | null): string {
+  if (!value) {
+    return 'Hoy';
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return 'Hoy';
+  }
+
+  return date.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
 }
 
-function formatMoney(cents: number, currency: string): string {
-  return `${currency} ${(cents / 100).toFixed(2)}`;
+function fallbackMessages(conversationId: string): WhatsAppMessagePreview[] {
+  return [
+    {
+      body: 'Hola, tienen disponible el producto Amanda 1kg?',
+      conversationId,
+      createdAt: new Date().toISOString(),
+      direction: 'inbound',
+      id: 'fallback-1',
+      messageStatus: 'received',
+      recipientPhone: null,
+      senderPhone: '+5491123456789',
+    },
+    {
+      body: 'Hola Maria! Si, tenemos stock disponible.',
+      conversationId,
+      createdAt: new Date().toISOString(),
+      direction: 'outbound',
+      id: 'fallback-2',
+      messageStatus: 'sent',
+      recipientPhone: '+5491123456789',
+      senderPhone: null,
+    },
+  ];
 }
 
-function formatAiDecisionReason(reason: string): string {
-  return reason.replace(/_/g, ' ');
-}
+const fallbackConversations: InboxConversationSummary[] = [
+  {
+    contact: {
+      displayName: 'Maria Gonzalez',
+      id: 'contact-1',
+      leadStatus: 'new',
+      phoneNumber: '+54 9 11 2345-6789',
+    },
+    externalContactId: '5491123456789',
+    id: 'conversation-1',
+    lastMessageAt: new Date().toISOString(),
+    latestMessage: {
+      body: 'Hola, tienen disponible el producto...?',
+      conversationId: 'conversation-1',
+      createdAt: new Date().toISOString(),
+      direction: 'inbound',
+      id: 'message-1',
+      messageStatus: 'received',
+      recipientPhone: null,
+      senderPhone: '+54 9 11 2345-6789',
+    },
+    status: 'open',
+  },
+  {
+    contact: {
+      displayName: '@tiendabaas',
+      id: 'contact-2',
+      leadStatus: 'new',
+      phoneNumber: null,
+    },
+    externalContactId: 'instagram:tiendabaas',
+    id: 'conversation-2',
+    lastMessageAt: new Date().toISOString(),
+    latestMessage: {
+      body: 'Hacen envios a domicilio?',
+      conversationId: 'conversation-2',
+      createdAt: new Date().toISOString(),
+      direction: 'inbound',
+      id: 'message-2',
+      messageStatus: 'received',
+      recipientPhone: null,
+      senderPhone: null,
+    },
+    status: 'open',
+  },
+];
 
-function showReplyPathNotice(): void {
-  Alert.alert(
-    'Server-side send required',
-    'Outbound WhatsApp replies must route through the API send service so mobile never receives WhatsApp access tokens.',
-  );
-}
+const fallbackNotifications: OwnerNotification[] = [
+  {
+    body: 'El producto Camiseta Basica esta con bajo stock (2 unidades).',
+    createdAt: new Date().toISOString(),
+    errorMessage: null,
+    id: 'notification-1',
+    productLabel: 'Camiseta Basica',
+    pushSentAt: null,
+    status: 'pending',
+    title: 'Bajo stock',
+  },
+  {
+    body: 'Tenes seguimientos pendientes por realizar.',
+    createdAt: new Date().toISOString(),
+    errorMessage: null,
+    id: 'notification-2',
+    productLabel: null,
+    pushSentAt: null,
+    status: 'pending',
+    title: 'Seguimientos pendientes',
+  },
+];

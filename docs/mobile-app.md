@@ -194,6 +194,31 @@ AI auto-send remains off by default. When enabled, only catalog-backed safe
 drafts can auto-send, and configured business hours further restrict when those
 sends can happen.
 
+## Mobile UI Screen Redesign
+
+KAN-170 introduces the design-to-code implementation for the mobile mockups:
+
+- The dashboard route now renders a mobile app shell with Nexolia header,
+  notification shortcut, business-center switcher, avatar entry point, bottom
+  navigation, and central sales/action button.
+- The shell supports the approved tabs: Inicio, Inbox, Copi, and Más, with a
+  My Account profile surface reachable from the avatar and More menu.
+- The Home screen shows Copi entry, business summary metrics, recent
+  conversations, stock CTA, and recent alerts.
+- The Inbox screen shows channel filters, status tabs, conversation rows, and a
+  selected thread state using the existing `useInbox` hook.
+- The Copi screen supports a suggested-question state and active chat state using
+  the existing `useOwnerCopilot` hook.
+- The More screen groups operation, growth, and configuration actions while
+  preserving the existing sign-out path.
+- The My Account screen summarizes owner profile, active organization, active
+  business center, role, AI settings, and timezone.
+
+The new screen styles live in `apps/mobile/src/mobileUiStyles.ts`, while the
+route implementation remains in `apps/mobile/src/screens/DashboardScreen.tsx`.
+The static React/Tailwind reference prototype is documented in
+`docs/ui-mockups.md`.
+
 ## Local Commands
 
 Install dependencies:

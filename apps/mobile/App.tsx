@@ -12,13 +12,17 @@ import { styles } from './src/styles';
 
 export default function App(): ReactElement {
   const ownerSession = useOwnerSession();
+  const isDashboardRoute = ownerSession.route === 'dashboard' && ownerSession.dashboard;
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ScrollView contentContainerStyle={styles.container}>
-        <Text style={styles.eyebrow}>BaaS Phase 0</Text>
-        <Text style={styles.title}>Owner Assistant</Text>
-
+      <ScrollView contentContainerStyle={isDashboardRoute ? styles.dashboardContainer : styles.container}>
+        {isDashboardRoute ? null : (
+          <>
+            <Text style={styles.eyebrow}>BaaS Phase 0</Text>
+            <Text style={styles.title}>Owner Assistant</Text>
+          </>
+        )}
         <OwnerRouteView ownerSession={ownerSession} />
       </ScrollView>
     </SafeAreaView>

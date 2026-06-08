@@ -6,6 +6,7 @@ export default tseslint.config(
   {
     ignores: [
       'dist/**',
+      'apps/ui-mockups/dist/**',
       'node_modules/**',
       'supabase/.branches/**',
       'supabase/.temp/**',
@@ -30,6 +31,14 @@ export default tseslint.config(
           caughtErrorsIgnorePattern: '^_',
         },
       ],
+    },
+  },
+  {
+    files: ['apps/ui-mockups/**/*.{ts,tsx}'],
+    languageOptions: {
+      globals: {
+        ...globals.browser,
+      },
     },
   },
 );

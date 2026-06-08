@@ -20,6 +20,9 @@ const generatedArtifactPaths = [
   'apps/mobile/dist',
   'apps/mobile/build',
   'apps/mobile/.expo',
+  'apps/ui-mockups/node_modules',
+  'apps/ui-mockups/dist',
+  'apps/ui-mockups/build',
 ];
 
 function runGit(args) {

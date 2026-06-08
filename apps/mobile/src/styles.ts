@@ -3,11 +3,15 @@ import { StyleSheet } from 'react-native';
 export const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#0f172a',
+    backgroundColor: '#FAFBFA',
   },
   container: {
     flexGrow: 1,
     padding: 24,
+  },
+  dashboardContainer: {
+    flexGrow: 1,
+    padding: 0,
   },
   eyebrow: {
     color: '#38bdf8',

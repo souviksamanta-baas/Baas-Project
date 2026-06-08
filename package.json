@@ -4,7 +4,8 @@
   "private": true,
   "workspaces": [
     "apps/api",
-    "apps/mobile"
+    "apps/mobile",
+    "apps/ui-mockups"
   ],
   "engines": {
     "node": "22.x",
@@ -19,6 +20,7 @@
     "docs:openapi": "npm run docs:openapi --workspace @baas/api -- ../../docs/developer/openapi.json",
     "dev:api": "npm run dev -w @baas/api",
     "dev:mobile": "npm run start -w @baas/mobile",
+    "dev:ui-mockups": "npm run dev -w @baas/ui-mockups",
     "lint": "eslint .",
     "railway:build": "npm run build --workspace @baas/api",
     "railway:install": "npm ci --workspace @baas/api --include-workspace-root=false --include=dev",
@@ -26,7 +28,7 @@
     "start:api": "npm run start -w @baas/api",
     "start:api:prod": "npm run start:prod -w @baas/api",
     "test": "npm run test -w @baas/api",
-    "typecheck": "npm run typecheck -w @baas/api && npm run typecheck -w @baas/mobile",
+    "typecheck": "npm run typecheck -w @baas/api && npm run typecheck -w @baas/mobile && npm run typecheck -w @baas/ui-mockups",
     "validate:migrations": "node scripts/validate-migrations.mjs",
     "validate:rls": "node scripts/validate-rls-coverage.mjs",
     "validate:mobile": "expo config apps/mobile --type public"
