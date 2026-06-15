@@ -5,9 +5,7 @@ import 'react-native-url-polyfill/auto';
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
 const supabasePublishableKey = process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
-if (!supabaseUrl || !supabasePublishableKey) {
-  throw new Error('Missing Expo Supabase public environment variables');
-}
+export const hasSupabaseConfig = Boolean(supabaseUrl && supabasePublishableKey);
 
 const fallbackStorage = new Map<string, string>();
 
@@ -40,11 +38,15 @@ const authStorage = {
   },
 };
 
-export const supabase = createClient(supabaseUrl, supabasePublishableKey, {
+export const supabase = createClient(
+  supabaseUrl ?? 'http://localhost:54321',
+  supabasePublishableKey ?? 'static-review-anon-key',
+  {
   auth: {
     storage: authStorage,
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: false,
   },
-});
+  },
+);

@@ -3,6 +3,8 @@ import { SafeAreaView, ScrollView, Text } from 'react-native';
 
 import { useOwnerSession } from './src/hooks/useOwnerSession';
 import type { OwnerSessionState } from './src/hooks/useOwnerSession';
+import { hasSupabaseConfig } from './src/lib/supabase';
+import { OwnerAppNavigator } from './src/navigation/OwnerAppNavigator';
 import { DashboardScreen } from './src/screens/DashboardScreen';
 import { LoadingScreen } from './src/screens/LoadingScreen';
 import { LoginScreen } from './src/screens/LoginScreen';
@@ -16,15 +18,17 @@ export default function App(): ReactElement {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ScrollView contentContainerStyle={isDashboardRoute ? styles.dashboardContainer : styles.container}>
-        {isDashboardRoute ? null : (
-          <>
-            <Text style={styles.eyebrow}>BaaS Phase 0</Text>
-            <Text style={styles.title}>Owner Assistant</Text>
-          </>
-        )}
+      {!hasSupabaseConfig ? (
+        <OwnerAppNavigator onSignOut={() => undefined} />
+      ) : isDashboardRoute ? (
         <OwnerRouteView ownerSession={ownerSession} />
-      </ScrollView>
+      ) : (
+        <ScrollView contentContainerStyle={styles.container}>
+          <Text style={styles.eyebrow}>BaaS Phase 0</Text>
+          <Text style={styles.title}>Owner Assistant</Text>
+          <OwnerRouteView ownerSession={ownerSession} />
+        </ScrollView>
+      )}
     </SafeAreaView>
   );
 }
