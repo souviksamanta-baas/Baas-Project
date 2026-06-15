@@ -29,6 +29,12 @@ export function CopiScreen(props: { onOpenChat: () => void }): ReactElement {
         </View>
       </FeatureGate>
 
+      <FeatureGate feature="copiQuestionComposer">
+        <View onTouchEnd={props.onOpenChat} style={styles.landingComposer}>
+          <ReplyComposer placeholder="Escribí tu pregunta..." />
+        </View>
+      </FeatureGate>
+
       <FeatureGate feature="copiSuggestedQuestions">
         <Text style={styles.sectionTitle}>Preguntas sugeridas</Text>
         <Card>
@@ -82,7 +88,7 @@ export function CopiChatScreen(props: { onBack: () => void }): ReactElement {
         </Card>
       </View>
       <FeatureGate feature="copiComposer">
-        <ReplyComposer placeholder="Escribi tu pregunta..." />
+        <ReplyComposer placeholder="Escribí tu pregunta..." />
       </FeatureGate>
     </View>
   );
@@ -141,6 +147,9 @@ const styles = StyleSheet.create({
   purpleText: {
     color: '#8b5cf6',
     fontWeight: '600',
+  },
+  landingComposer: {
+    marginHorizontal: -20,
   },
   sectionTitle: {
     color: colors.navy,

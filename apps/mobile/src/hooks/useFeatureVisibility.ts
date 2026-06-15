@@ -8,6 +8,7 @@ const featureVisibility: Record<string, boolean> = {
   chatMessages: true,
   chatProfileHeader: true,
   copiComposer: true,
+  copiQuestionComposer: true,
   copiQuickSummary: true,
   copiSuggestedQuestions: true,
   homeAlerts: true,
