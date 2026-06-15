@@ -10,8 +10,127 @@ The static prototype lives in `apps/ui-mockups` and supports two surfaces:
 - Mobile routes based on `/Users/souviksamanta/Documents/Nexolia/Nexolia mocks/Mobile`.
 - Desktop routes based on `/Users/souviksamanta/Documents/Nexolia/Nexolia mocks/Desktop`.
 
-The prototype uses representative static data so visual hierarchy, spacing,
-component states, and navigation can be reviewed before production data wiring.
+The current prototype is being revised screen-by-screen for visual parity. The
+first committed version was a structural prototype, not a pixel-perfect match.
+Jira has been reopened for parity work, starting with the mobile `Inicio` screen.
+
+During parity work, each implemented screen should be reviewed against its source
+image before the related Jira issue is closed again.
+
+## Visual Review Workflow
+
+Run the prototype locally:
+
+```bash
+npm run dev:ui-mockups
+```
+
+For the active screen, compare:
+
+- Target reference image from the source folder.
+- React/Tailwind implementation.
+- Spacing, typography, colors, radius, shadows, icons, avatar/robot assets, and
+  screen frame dimensions.
+
+Do not mark a screen as complete until visual review is accepted.
+
+## Branding Guidance
+
+Use the `Nexolia Branding details` Confluence parent page as the design source of
+truth for future mockups:
+
+`https://souviksamanta.atlassian.net/wiki/spaces/BaaS/pages/7241737/Nexolia+Branding+details`
+
+The related branding pages define Nexolia as a mobile-first intelligent business
+platform for small and medium business owners. Mockups should feel smart but not
+technical, professional but approachable, calm, organized, business-focused, and
+friendly for non-technical users.
+
+Apply these rules during screen-by-screen design:
+
+- Use a clean rounded sans-serif style such as Inter, SF Pro, or Plus Jakarta Sans.
+- Prefer lightweight, readable typography optimized for small screens.
+- Use the Nexolia wordmark, primary emerald accents, dark navy text, and muted slate
+  secondary text consistently.
+- Keep layouts mobile-native, spacious, calm, and action-oriented.
+- Present AI assistance as supportive and practical, not overly technical.
+- Use cards, subtle borders, soft shadows, and rounded corners to keep the interface
+  approachable and organized.
+- Treat visual parity with the provided image mockups as the immediate acceptance
+  criteria, while using the branding documentation for all new design decisions.
+
+## Confirmed Mobile Inicio and Inbox Baseline
+
+The current mobile `Inicio` and `Inbox` mockups are accepted as the final visual
+baseline for these pages and should be reused as the component reference for
+upcoming mobile screens.
+
+Reusable confirmed components:
+
+- Sticky iPhone-style header with status indicators, Nexolia wordmark image,
+  tagline, notification icon, shop icon, centered chevron, and 30px profile holder.
+- Header must cover the top edge of the scroll area so content never passes behind
+  a visible gap.
+- Copi assistant card with soft tinted background, subtle border, rounded radius,
+  left-aligned larger robot illustration, constrained text column, and separate
+  non-overlapping chat action button.
+- Copi robot includes the green antenna touching the head, black face, green eyes,
+  small smile, small near-white side ears, side hands, green oval body badge with
+  infinity mark, and visible soft shadow.
+- Typography utilities in the mockup intentionally map `.font-extrabold` to 600
+  and `.font-medium` to 300 for closer visual parity with the supplied images.
+- `Resumen del dia` metrics use 18px icons inside soft tone-matched circular
+  backgrounds, 12px metric values, left-aligned icon/value/label groups, and
+  subtle vertical dividers.
+- Conversation rows, inventory CTA, alert rows, cards, borders, and shadows should
+  follow the accepted `Inicio` spacing, muted slate text treatment, and rounded
+  white/tinted card language.
+- The mobile bottom nav is fixed to the phone frame, not part of the scrollable
+  content. Footer SVG icons are normalized to 22px by CSS, and selected and
+  unselected icon states reuse the same SVG structure with only color/fill
+  treatment changing.
+- `Inbox` reuses the same header, footer, channel logo badges, typography weight
+  mapping, card radius, soft borders, and muted slate text treatment from
+  `Inicio`.
+- Channel markers use vector-style WhatsApp, Instagram, Facebook, and purple
+  email logos. These markers are shared by `Inicio` conversation rows and
+  `Inbox` message rows.
+- The Inbox filter button uses the accepted vector slider icon style, and the
+  search/chip/tab/list components should be reused for later inbox-related
+  screens.
+- Conversation detail and Copi chat use lighter, less prominent outer borders,
+  sticky profile headers below the shared app header, and tighter message bubbles
+  with reduced padding so each message box hugs the content more closely.
+- Copi chat should not show a standalone page title above the thread. The chat
+  header carries the Copi identity, using the smaller `CopiRobotAvatar` treatment
+  so the robot reads as a profile image.
+- Feature release visibility is controlled in `apps/ui-mockups/src/mockups.tsx`
+  through `mockupFeatureVisibility` and `FeatureGate`. Set a feature key to
+  `false` to hide that page block while keeping the component code available for
+  later rollout.
+
+Review artifact:
+
+- `docs/mockup-videos/inicio-scroll.mp4` shows the accepted `Inicio` mockup
+  scrolling down with the bottom nav fixed to the phone frame.
+- `docs/mockup-videos/inicio-scroll.gif` is the fallback animated review artifact
+  if a local video player has codec issues.
+- `docs/mockup-comparisons/inbox-side-by-side.png` captures the accepted `Inbox`
+  list baseline against its source image.
+- `docs/mockup-comparisons/inicio-sucursales-side-by-side.png` captures the first
+  `Inicio sucursales` dropdown implementation against its source image.
+- `docs/mockup-comparisons/copi-side-by-side.png` captures the first `Copi`
+  landing implementation against its source image.
+- `docs/mockup-comparisons/inbox-extended-side-by-side.png` captures the first
+  conversation detail implementation against its source image.
+- `docs/mockup-comparisons/copi-extended-side-by-side.png` captures the first
+  Copi chat implementation against its source image.
+- `docs/mockup-comparisons/notifications-side-by-side.png` captures the first
+  notifications implementation against its source image.
+- `docs/mockup-comparisons/more-side-by-side.png` captures the first `Más` menu
+  implementation against its source image.
+- `docs/mockup-comparisons/account-side-by-side.png` captures the first `Mi
+  cuenta` implementation against its source image.
 
 ## Verified Mobile Image Inventory
 

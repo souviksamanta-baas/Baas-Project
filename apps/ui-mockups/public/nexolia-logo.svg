@@ -1,0 +1,18 @@
+<svg width="360" height="80" viewBox="0 0 360 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="nexoliaGradient" x1="0" y1="40" x2="360" y2="40" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#061B57"/>
+      <stop offset="0.55" stop-color="#0B4DA2"/>
+      <stop offset="1" stop-color="#17A8F2"/>
+    </linearGradient>
+  </defs>
+  <text
+    x="0"
+    y="58"
+    fill="url(#nexoliaGradient)"
+    font-family="Inter, Arial, Helvetica, sans-serif"
+    font-size="64"
+    font-weight="300"
+    letter-spacing="10"
+  >nexolia</text>
+</svg>

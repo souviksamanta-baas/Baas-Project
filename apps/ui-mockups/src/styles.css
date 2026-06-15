@@ -2,6 +2,31 @@
 @tailwind components;
 @tailwind utilities;
 
+.font-extrabold {
+  font-weight: 600;
+}
+
+.font-medium {
+  font-weight: 300;
+}
+
+.pixel-bottom-nav svg {
+  height: 22px;
+  width: 22px;
+}
+
+.pixel-metric-value {
+  font-size: 12px;
+}
+
+.pixel-chat-bg {
+  background-color: #fcfdfc;
+  background-image:
+    radial-gradient(circle, rgba(223, 231, 236, 0.55) 1px, transparent 1.2px),
+    linear-gradient(45deg, rgba(223, 231, 236, 0.18) 12.5%, transparent 12.5%, transparent 50%, rgba(223, 231, 236, 0.18) 50%, rgba(223, 231, 236, 0.18) 62.5%, transparent 62.5%, transparent);
+  background-size: 28px 28px, 44px 44px;
+}
+
 :root {
   background: #f4f7f5;
   color: #101935;
