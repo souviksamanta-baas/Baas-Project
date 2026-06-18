@@ -132,6 +132,38 @@ Review artifact:
 - `docs/mockup-comparisons/account-side-by-side.png` captures the first `Mi
   cuenta` implementation against its source image.
 
+## Confirmed Mobile Inventory and POS Baseline
+
+The eight inventory and POS mobile mockups under [KAN-217](https://souviksamanta.atlassian.net/browse/KAN-217) were visually reviewed and accepted on 2026-06-18. Reuse these screens as the component reference for future inventory, stock, and POS work.
+
+Accepted routes:
+
+| Route id | Screen |
+| --- | --- |
+| `mobile-manage-stock` | Gestionar stock |
+| `mobile-product-detail` | Producto |
+| `mobile-edit-product` | Editar producto |
+| `mobile-edit-subproduct` | Editar subproducto |
+| `mobile-add-stock` | Agregar stock |
+| `mobile-delete-product` | Eliminar producto |
+| `mobile-sell-products` | Vender productos |
+| `mobile-confirm-payment` | Confirmar cobro |
+
+Implementation files:
+
+- `apps/ui-mockups/src/inventory-mockups.tsx`
+- `apps/ui-mockups/src/pixel-primitives.tsx`
+- `apps/ui-mockups/src/mockups.tsx`
+
+Reusable confirmed patterns from this batch:
+
+- 18px page titles across mobile screens.
+- Shared `PixelBottomNav` with Home, Inbox, green `$`, Copi, and hamburger `Más` icons.
+- Inbox-style icon-only filter button for list screens.
+- Product summary cards, status badges, form fields, and action button rows.
+- Inventory list rows with 15px edit/delete icons and 17px add icon.
+- Product detail sections for subproducts, lotes y precios, movimientos, barcode, and notes.
+
 ## Verified Mobile Image Inventory
 
 | File | Screen/state |
@@ -145,6 +177,14 @@ Review artifact:
 | `notifications_nexolia_logo.png` | Notifications |
 | `Menu - Mas.png` | More menu |
 | `Mi cuenta.png` | My Account |
+| `Gestionar stock.png` | Inventory list and stock management |
+| `Productos_granel.png` | Product detail (granel) |
+| `Editar producto.png` | Edit base product |
+| `Editar subprod.png` | Edit subproduct |
+| `Agregar stock.png` | Add stock intake |
+| `Eliminar producto.png` | Delete product confirmation |
+| `Vender productos.png` | POS sell products |
+| `Confirmar cobro.png` | Confirm payment |
 
 ## Verified Desktop Image Inventory
 
@@ -184,5 +224,7 @@ npm run build --workspace @baas/ui-mockups
 
 - Mobile epic: `KAN-170`
 - Desktop epic: `KAN-171`
+- Inventory and POS mockup story: `KAN-217` (Done)
+- Inventory/POS subtasks: `KAN-218` through `KAN-225` (Done)
 - Mobile Confluence page: `Mobile UI Mockups and App Screen design`
 - Desktop Confluence page: `Desktop UI Mockups and App Screen design`

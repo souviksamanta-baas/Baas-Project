@@ -1,4 +1,15 @@
 import { useMemo, useState, type CSSProperties, type ReactElement, type ReactNode } from 'react';
+import {
+  MobileAddStockPixel,
+  MobileConfirmPaymentPixel,
+  MobileDeleteProductPixel,
+  MobileEditProductPixel,
+  MobileEditSubproductPixel,
+  MobileManageStockPixel,
+  MobileProductDetailPixel,
+  MobileSellProductsPixel,
+} from './inventory-mockups';
+import { type InicioStyleControls } from './pixel-primitives';
 
 type Surface = 'mobile' | 'desktop';
 
@@ -7,21 +18,6 @@ interface MockupRoute {
   label: string;
   sourceFile: string;
   surface: Surface;
-}
-
-interface InicioStyleControls {
-  cardRadius: number;
-  copiTextSize: number;
-  greetingSize: number;
-  headerIconStroke: number;
-  headerIconSize: number;
-  logoSize: number;
-  metricIconSize: number;
-  metricNumberSize: number;
-  sectionTitleSize: number;
-  subtitleSize: number;
-  taglineSize: number;
-  verticalSpacing: number;
 }
 
 const defaultInicioStyleControls: InicioStyleControls = {
@@ -79,6 +75,54 @@ const mobileRoutes: MockupRoute[] = [
   },
   { id: 'mobile-more', label: 'Mas', sourceFile: 'Menu - Mas.png', surface: 'mobile' },
   { id: 'mobile-account', label: 'Mi cuenta', sourceFile: 'Mi cuenta.png', surface: 'mobile' },
+  {
+    id: 'mobile-manage-stock',
+    label: 'Gestionar stock',
+    sourceFile: 'Gestionar stock.png',
+    surface: 'mobile',
+  },
+  {
+    id: 'mobile-product-detail',
+    label: 'Producto',
+    sourceFile: 'Productos_granel.png',
+    surface: 'mobile',
+  },
+  {
+    id: 'mobile-edit-product',
+    label: 'Editar producto',
+    sourceFile: 'Editar producto.png',
+    surface: 'mobile',
+  },
+  {
+    id: 'mobile-edit-subproduct',
+    label: 'Editar subproducto',
+    sourceFile: 'Editar subprod.png',
+    surface: 'mobile',
+  },
+  {
+    id: 'mobile-add-stock',
+    label: 'Agregar stock',
+    sourceFile: 'Agregar stock.png',
+    surface: 'mobile',
+  },
+  {
+    id: 'mobile-delete-product',
+    label: 'Eliminar producto',
+    sourceFile: 'Eliminar producto.png',
+    surface: 'mobile',
+  },
+  {
+    id: 'mobile-sell-products',
+    label: 'Vender productos',
+    sourceFile: 'Vender productos.png',
+    surface: 'mobile',
+  },
+  {
+    id: 'mobile-confirm-payment',
+    label: 'Confirmar cobro',
+    sourceFile: 'Confirmar cobro.png',
+    surface: 'mobile',
+  },
 ];
 
 const desktopRoutes: MockupRoute[] = [
@@ -428,6 +472,22 @@ function MobileFrame(props: { inicioStyles: InicioStyleControls; routeId: string
         <MobileMorePixel controls={props.inicioStyles} />
       ) : props.routeId === 'mobile-account' ? (
         <MobileAccountPixel controls={props.inicioStyles} />
+      ) : props.routeId === 'mobile-manage-stock' ? (
+        <MobileManageStockPixel controls={props.inicioStyles} />
+      ) : props.routeId === 'mobile-product-detail' ? (
+        <MobileProductDetailPixel controls={props.inicioStyles} />
+      ) : props.routeId === 'mobile-edit-product' ? (
+        <MobileEditProductPixel controls={props.inicioStyles} />
+      ) : props.routeId === 'mobile-edit-subproduct' ? (
+        <MobileEditSubproductPixel controls={props.inicioStyles} />
+      ) : props.routeId === 'mobile-add-stock' ? (
+        <MobileAddStockPixel controls={props.inicioStyles} />
+      ) : props.routeId === 'mobile-delete-product' ? (
+        <MobileDeleteProductPixel controls={props.inicioStyles} />
+      ) : props.routeId === 'mobile-sell-products' ? (
+        <MobileSellProductsPixel controls={props.inicioStyles} />
+      ) : props.routeId === 'mobile-confirm-payment' ? (
+        <MobileConfirmPaymentPixel controls={props.inicioStyles} />
       ) : (
         <div className="flex h-full flex-col">
           <MobileStatusBar />
@@ -467,8 +527,8 @@ function MobileInicioPixel(props: { controls: InicioStyleControls; openBranches?
 
       <div className="px-[20px]">
       <section style={{ marginTop: `calc(22px * var(--inicio-vertical-spacing))` }}>
-        <h1 className="text-[20px] font-extrabold leading-[22px] tracking-[-0.035em]">
-          ¡Hola {ownerFirstName}! <span className="text-[20px]">👋</span>
+        <h1 className="text-[18px] font-extrabold leading-[22px] tracking-[-0.035em]">
+          ¡Hola {ownerFirstName}! <span className="text-[18px]">👋</span>
         </h1>
         <p className="mt-[5px] text-[11px] font-medium text-[#58647d]">
           ¿En qué puedo ayudarte hoy?
@@ -732,7 +792,7 @@ function MobileInboxPixel(props: { controls: InicioStyleControls }): ReactElemen
 
         <div className="px-[20px]">
           <section className="mt-[8px]">
-            <h1 className="text-[22px] font-extrabold leading-[25px] tracking-[-0.025em]">Inbox</h1>
+            <h1 className="text-[18px] font-extrabold leading-[22px] tracking-[-0.025em]">Inbox</h1>
             <p className="mt-[7px] text-[11px] font-medium leading-[14px] text-[#56627b]">
               Todas tus conversaciones en un solo lugar
             </p>
@@ -828,7 +888,7 @@ function MobileCopiPixel(props: { controls: InicioStyleControls }): ReactElement
 
         <div className="px-[20px]">
           <section className="mt-[8px]">
-            <h1 className="text-[22px] font-extrabold leading-[26px] tracking-[-0.025em]">Copi</h1>
+            <h1 className="text-[18px] font-extrabold leading-[22px] tracking-[-0.025em]">Copi</h1>
             <p className="mt-[7px] text-[11px] font-medium leading-[14px] text-[#56627b]">
               Tu asistente IA para el negocio
             </p>
@@ -1047,7 +1107,7 @@ function MobileNotificationsPixel(props: { controls: InicioStyleControls }): Rea
         <div className="px-[20px] pt-[8px]">
           <div className="flex items-end justify-between gap-[10px]">
             <div>
-              <h1 className="text-[22px] font-extrabold leading-[26px] tracking-[-0.025em]">Notificaciones</h1>
+              <h1 className="text-[18px] font-extrabold leading-[22px] tracking-[-0.025em]">Notificaciones</h1>
               <p className="mt-[7px] text-[11px] font-medium leading-[14px] text-[#56627b]">Todo lo que necesita tu atención</p>
             </div>
             <span className="pb-[2px] text-[10px] font-medium text-[#56627b]">Marcar todas como leídas</span>
@@ -1091,7 +1151,7 @@ function MobileMorePixel(props: { controls: InicioStyleControls }): ReactElement
       <div className="h-full overflow-y-auto pb-[88px]">
         <MobilePixelHeader controls={props.controls} />
         <div className="px-[20px] pt-[8px]">
-          <h1 className="text-[22px] font-extrabold leading-[26px] tracking-[-0.025em]">Más</h1>
+          <h1 className="text-[18px] font-extrabold leading-[22px] tracking-[-0.025em]">Más</h1>
           <p className="mt-[7px] text-[11px] font-medium leading-[14px] text-[#56627b]">Herramientas y accesos de tu negocio</p>
           <FeatureGate feature="moreQuickActions">
           <div className="mt-[16px] grid grid-cols-3 gap-[10px]">
@@ -1129,7 +1189,7 @@ function MobileAccountPixel(props: { controls: InicioStyleControls }): ReactElem
       <div className="h-full overflow-y-auto pb-[88px]">
         <MobilePixelHeader controls={props.controls} />
         <div className="px-[20px] pt-[8px]">
-          <h1 className="text-[22px] font-extrabold leading-[26px] tracking-[-0.025em]">Mi cuenta</h1>
+          <h1 className="text-[18px] font-extrabold leading-[22px] tracking-[-0.025em]">Mi cuenta</h1>
           <p className="mt-[7px] text-[11px] font-medium leading-[14px] text-[#56627b]">Gestioná tu perfil y tu negocio</p>
           <FeatureGate feature="accountProfileCard">
           <section className="mt-[16px] flex min-h-[128px] items-center gap-[18px] rounded-[14px] border border-[#e4ebef] bg-white px-[18px] shadow-[0_1px_10px_rgba(16,25,53,0.03)]">
