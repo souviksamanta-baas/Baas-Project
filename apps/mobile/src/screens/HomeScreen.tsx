@@ -16,7 +16,10 @@ import { Icon } from '../components/icons';
 import { FeatureGate } from '../hooks/useFeatureVisibility';
 import { colors, shadows } from '../theme';
 
-export function HomeScreen(props: { onSelectTab: (tab: AppTab) => void }): ReactElement {
+export function HomeScreen(props: {
+  onOpenManageStock: () => void;
+  onSelectTab: (tab: AppTab) => void;
+}): ReactElement {
   return (
     <ScreenContent>
       <View>
@@ -63,7 +66,7 @@ export function HomeScreen(props: { onSelectTab: (tab: AppTab) => void }): React
       </FeatureGate>
 
       <FeatureGate feature="homeInventoryCta">
-        <View style={styles.inventoryCard}>
+        <Pressable onPress={props.onOpenManageStock} style={styles.inventoryCard}>
           <View style={styles.inventoryIcon}>
             <Icon color={colors.primary} kind="box" size={18} strokeWidth={1.8} />
           </View>
@@ -72,7 +75,7 @@ export function HomeScreen(props: { onSelectTab: (tab: AppTab) => void }): React
             <Text style={styles.cardDescription}>Revisa tu inventario y actualiza productos</Text>
           </View>
           <Text style={styles.primaryText}>Ver inventario ›</Text>
-        </View>
+        </Pressable>
       </FeatureGate>
 
       <FeatureGate feature="homeAlerts">

@@ -236,12 +236,16 @@ export function RobotAvatar(props: { small?: boolean } = {}): ReactElement {
   );
 }
 
-export function BottomNavigation(props: { activeTab: AppTab; onSelectTab: (tab: AppTab) => void }): ReactElement {
+export function BottomNavigation(props: {
+  activeTab: AppTab;
+  onOpenSell: () => void;
+  onSelectTab: (tab: AppTab) => void;
+}): ReactElement {
   return (
     <View style={styles.bottomNav}>
       <TabButton active={props.activeTab === 'home'} icon="home" label="Inicio" onPress={() => props.onSelectTab('home')} />
       <TabButton active={props.activeTab === 'inbox'} icon="inbox" label="Inbox" onPress={() => props.onSelectTab('inbox')} />
-      <Pressable onPress={() => props.onSelectTab('home')} style={styles.centerAction}>
+      <Pressable onPress={props.onOpenSell} style={styles.centerAction}>
         <Text style={styles.centerActionText}>$</Text>
       </Pressable>
       <TabButton active={props.activeTab === 'copi'} icon="bot" label="Copi" onPress={() => props.onSelectTab('copi')} />

@@ -8,7 +8,7 @@ import { ActionRow, Card, ScreenContent, ScreenTitle } from '../components/ui';
 import { FeatureGate } from '../hooks/useFeatureVisibility';
 import { colors } from '../theme';
 
-export function MoreScreen(props: { onOpenAccount: () => void }): ReactElement {
+export function MoreScreen(props: { onOpenAccount: () => void; onOpenInventory: () => void }): ReactElement {
   return (
     <ScreenContent>
       <ScreenTitle subtitle="Herramientas y accesos de tu negocio" title="Mas" />
@@ -46,7 +46,13 @@ export function MoreScreen(props: { onOpenAccount: () => void }): ReactElement {
                 <ActionRow
                   icon={row.icon as IconKind}
                   key={row.id}
-                  onPress={row.id === 'account' ? props.onOpenAccount : undefined}
+                  onPress={
+                    row.id === 'account'
+                      ? props.onOpenAccount
+                      : row.id === 'inventory'
+                        ? props.onOpenInventory
+                        : undefined
+                  }
                   subtitle={row.subtitle}
                   title={row.title}
                 />

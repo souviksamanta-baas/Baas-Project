@@ -7,6 +7,7 @@ export const colors = {
   danger: '#ff315f',
   email: '#6b4fc3',
   facebook: '#1877f2',
+  info: '#3978e8',
   instagram: '#d94a8c',
   navy: '#101935',
   primary: '#08bd66',

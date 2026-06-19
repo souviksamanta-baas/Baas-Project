@@ -833,33 +833,6 @@ function ActionButtonRow(props: { deleteLabel?: string; primaryLabel: string }):
   );
 }
 
-function FilterChip(props: { active?: boolean; chevron?: boolean; dot?: 'orange' | 'red'; label: string }): ReactElement {
-  return (
-    <span
-      className={`flex h-[27px] shrink-0 items-center gap-[5px] rounded-full border px-[12px] text-[10px] font-medium ${
-        props.active ? 'border-[#08bd66] bg-[#e9f8ef] text-[#08bd66]' : 'border-[#dfe7ec] bg-white text-[#56627b]'
-      }`}
-    >
-      {props.dot ? <span className={`h-[6px] w-[6px] rounded-full ${props.dot === 'red' ? 'bg-[#ff315f]' : 'bg-[#ff8a2a]'}`} /> : null}
-      {props.label}
-      {props.chevron ? <ChevronDownIcon size="10px" strokeWidth={2} /> : null}
-    </span>
-  );
-}
-
-function SquareIconButton(props: { accent?: boolean; children: ReactNode }): ReactElement {
-  return (
-    <button
-      className={`flex h-[38px] w-[38px] shrink-0 flex-col items-center justify-center rounded-[12px] border ${
-        props.accent ? 'border-[#08bd66] bg-[#e9f8ef] text-[#08bd66]' : 'border-[#dfe7ec] bg-white text-[#101935]'
-      }`}
-      type="button"
-    >
-      {props.children}
-    </button>
-  );
-}
-
 function InventoryListRow(props: {
   actions?: boolean;
   baseProduct?: boolean;
@@ -929,16 +902,6 @@ function PaginationButton(props: { active?: boolean; children: ReactNode }): Rea
     >
       {props.children}
     </span>
-  );
-}
-
-function OutlineActionButton(props: { accent?: boolean; danger?: boolean; icon: string; label: string }): ReactElement {
-  const color = props.danger ? 'border-[#ff315f] text-[#ff315f]' : 'border-[#08bd66] text-[#08bd66]';
-  return (
-    <button className={`flex h-[54px] flex-col items-center justify-center gap-[6px] rounded-[12px] border bg-white px-[8px] text-[9px] font-extrabold ${color}`} type="button">
-      {props.icon === 'edit' ? <EditIcon /> : props.icon === 'plus' ? <PlusIcon /> : <TrashIcon />}
-      {props.label}
-    </button>
   );
 }
 
