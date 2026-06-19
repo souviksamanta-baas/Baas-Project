@@ -139,21 +139,44 @@ export function MobileProductDetailPixel(props: InventoryScreenProps): ReactElem
       <InventoryPageTitle subtitle="Detalle y gestión del producto" title="Producto" />
       <ProductSummaryCard showBarcode showMeta stock="100 kg" title="Harina granel 100 kg" />
       <ProductActionBar />
-      <section className="mt-[14px] rounded-[14px] border border-[#e4ebef] bg-white p-[14px] shadow-[0_1px_10px_rgba(16,25,53,0.03)]">
-        <h2 className="text-[12px] font-semibold">Subproductos</h2>
-        <p className="mt-[4px] text-[10px] font-medium text-[#56627b]">
-          Presentaciones creadas a partir de este producto.
-        </p>
-        <div className="mt-[12px] grid grid-cols-[1fr_52px_72px_64px_36px] gap-[6px] text-[9px] font-semibold text-[#56627b]">
-          <span />
-          <span className="text-right">Stock</span>
-          <span className="text-right">Precio de venta</span>
-          <span className="text-center">Estado</span>
-          <span />
+      <section className="mt-[14px] overflow-hidden rounded-[14px] border border-[#e4ebef] bg-white shadow-[0_1px_10px_rgba(16,25,53,0.03)]">
+        <div className="border-b border-[#edf2f4] px-[14px] py-[10px]">
+          <span className="text-[11px] font-semibold">Subproductos</span>
+          <p className="mt-[4px] text-[10px] font-medium text-[#56627b]">
+            Presentaciones creadas a partir de este producto.
+          </p>
         </div>
-        <SubproductRow name="Harina 1 kg" price="$2.500" status="En stock" stock="26 u" />
-        <SubproductRow name="Harina 2 kg" price="$4.800" status="En stock" stock="12 u" />
-        <SubproductRow name="Harina 5 kg" price="$11.500" status="Bajo stock" statusTone="orange" stock="4 u" />
+        <InventoryListRow
+          actions
+          category="Almacén"
+          code="Código asociado"
+          indent
+          name="Harina 1 kg"
+          status="En stock"
+          stock="26 u"
+          subproduct
+        />
+        <InventoryListRow
+          actions
+          category="Almacén"
+          code="Código asociado"
+          indent
+          name="Harina 2 kg"
+          status="En stock"
+          stock="12 u"
+          subproduct
+        />
+        <InventoryListRow
+          actions
+          category="Almacén"
+          code="Código asociado"
+          indent
+          name="Harina 5 kg"
+          status="Bajo stock"
+          statusTone="orange"
+          stock="4 u"
+          subproduct
+        />
       </section>
       <section className="mt-[12px] rounded-[14px] border border-[#e4ebef] bg-white p-[14px] shadow-[0_1px_10px_rgba(16,25,53,0.03)]">
         <h2 className="text-[12px] font-semibold">Lotes y precios</h2>
@@ -161,13 +184,10 @@ export function MobileProductDetailPixel(props: InventoryScreenProps): ReactElem
           Seguimiento de costo y precio por ingreso.
         </p>
         <div className="mt-[12px] overflow-hidden rounded-[10px] border border-[#edf2f4]">
-          <div className="grid grid-cols-[1fr_58px_52px_52px_58px_52px] gap-[4px] bg-[#f8fafb] px-[10px] py-[8px] text-[8px] font-semibold text-[#56627b]">
-            <span>Lote</span>
-            <span>Ingreso</span>
-            <span>Cant.</span>
-            <span>Costo</span>
-            <span>Precio</span>
-            <span>Estado</span>
+          <div className="grid grid-cols-[1fr_88px_64px] gap-[8px] bg-[#f8fafb] px-[10px] py-[8px] text-[8px] font-semibold text-[#56627b]">
+            <span />
+            <span>Costo / Precio</span>
+            <span className="text-right">Estado</span>
           </div>
           <BatchRow
             cost="$1.180"
@@ -922,36 +942,10 @@ function OutlineActionButton(props: { accent?: boolean; danger?: boolean; icon: 
   );
 }
 
-function SubproductRow(props: {
-  name: string;
-  price: string;
-  status: string;
-  statusTone?: 'orange';
-  stock: string;
-}): ReactElement {
-  return (
-    <div className="mt-[10px] grid grid-cols-[1fr_52px_72px_64px_36px] items-center gap-[6px] border-t border-[#edf2f4] pt-[10px] first:mt-[12px] first:border-t-0 first:pt-0">
-      <div className="flex min-w-0 items-center gap-[10px]">
-        <FlourThumb />
-        <div className="min-w-0">
-          <div className="text-[11px] font-extrabold">{props.name}</div>
-          <div className="text-[10px] font-medium text-[#56627b]">Almacén • unidad</div>
-        </div>
-      </div>
-      <div className="text-right text-[10px] font-extrabold">{props.stock}</div>
-      <div className="text-right text-[10px] font-medium text-[#56627b]">{props.price}</div>
-      <div className="flex justify-center">
-        <StockBadge label={props.status} tone={props.statusTone === 'orange' ? 'orange' : 'green'} />
-      </div>
-      <span className="text-right text-[10px] font-extrabold text-[#08bd66]">Ver ›</span>
-    </div>
-  );
-}
-
 function ProductActionBar(): ReactElement {
   return (
     <div className="mt-[12px] flex overflow-hidden rounded-[14px] border border-[#e4ebef] bg-white shadow-[0_1px_10px_rgba(16,25,53,0.03)]">
-      <button className="flex flex-1 flex-col items-center justify-center gap-[6px] py-[12px] text-[9px] font-extrabold text-[#08bd66]" type="button">
+      <button className="flex flex-1 flex-col items-center justify-center gap-[6px] py-[12px] text-[9px] font-extrabold text-[#3978e8]" type="button">
         <EditIcon className="h-[15px] w-[15px]" />
         Editar producto
       </button>
@@ -978,22 +972,32 @@ function BatchRow(props: {
   status: string;
   statusTone?: 'green';
 }): ReactElement {
-  const statusClass =
-    props.statusTone === 'green'
-      ? 'bg-[#e9f8ef] text-[#08bd66]'
-      : 'bg-[#f1f3f5] text-[#56627b]';
-
   return (
-    <div className="grid grid-cols-[1fr_58px_52px_52px_58px_52px] gap-[4px] border-t border-[#edf2f4] px-[10px] py-[8px] text-[8px] font-medium">
-      <span className="font-extrabold">{props.lot}</span>
-      <span className="text-[#56627b]">{props.date}</span>
-      <span>{props.qty}</span>
-      <span>{props.cost}</span>
-      <span>{props.price}</span>
-      <span className={`inline-flex items-center justify-center rounded-full px-[6px] py-[2px] text-[7px] font-extrabold ${statusClass}`}>
-        {props.status}
-      </span>
+    <div className="grid grid-cols-[1fr_88px_64px] items-center gap-[8px] border-t border-[#edf2f4] px-[10px] py-[10px]">
+      <div className="min-w-0">
+        <div className="text-[10px] font-extrabold">{props.lot}</div>
+        <div className="mt-[2px] text-[9px] font-medium text-[#56627b]">{props.date}</div>
+        <div className="mt-[2px] text-[9px] font-extrabold">{props.qty}</div>
+      </div>
+      <div className="text-[9px] font-extrabold">
+        {props.cost} <span className="font-medium text-[#56627b]">/</span> {props.price}
+      </div>
+      <div className="flex justify-end">
+        {props.statusTone === 'green' ? (
+          <StockBadge label={props.status} tone="green" />
+        ) : (
+          <BatchStatusBadge label={props.status} />
+        )}
+      </div>
     </div>
+  );
+}
+
+function BatchStatusBadge(props: { label: string }): ReactElement {
+  return (
+    <span className="inline-flex rounded-full bg-[#f1f3f5] px-[8px] py-[2px] text-[9px] font-medium text-[#56627b]">
+      {props.label}
+    </span>
   );
 }
 

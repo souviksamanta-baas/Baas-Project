@@ -109,28 +109,8 @@ Reusable confirmed components:
   `false` to hide that page block while keeping the component code available for
   later rollout.
 
-Review artifact:
-
-- `docs/mockup-videos/inicio-scroll.mp4` shows the accepted `Inicio` mockup
-  scrolling down with the bottom nav fixed to the phone frame.
-- `docs/mockup-videos/inicio-scroll.gif` is the fallback animated review artifact
-  if a local video player has codec issues.
-- `docs/mockup-comparisons/inbox-side-by-side.png` captures the accepted `Inbox`
-  list baseline against its source image.
-- `docs/mockup-comparisons/inicio-sucursales-side-by-side.png` captures the first
-  `Inicio sucursales` dropdown implementation against its source image.
-- `docs/mockup-comparisons/copi-side-by-side.png` captures the first `Copi`
-  landing implementation against its source image.
-- `docs/mockup-comparisons/inbox-extended-side-by-side.png` captures the first
-  conversation detail implementation against its source image.
-- `docs/mockup-comparisons/copi-extended-side-by-side.png` captures the first
-  Copi chat implementation against its source image.
-- `docs/mockup-comparisons/notifications-side-by-side.png` captures the first
-  notifications implementation against its source image.
-- `docs/mockup-comparisons/more-side-by-side.png` captures the first `Más` menu
-  implementation against its source image.
-- `docs/mockup-comparisons/account-side-by-side.png` captures the first `Mi
-  cuenta` implementation against its source image.
+Visual review is performed locally with `npm run dev:ui-mockups` by comparing
+each route against its source PNG in the Nexolia mocks folder.
 
 ## Confirmed Mobile Inventory and POS Baseline
 
@@ -162,7 +142,11 @@ Reusable confirmed patterns from this batch:
 - Inbox-style icon-only filter button for list screens.
 - Product summary cards, status badges, form fields, and action button rows.
 - Inventory list rows with 15px edit/delete icons and 17px add icon.
-- Product detail sections for subproducts, lotes y precios, movimientos, barcode, and notes.
+- Product detail subproducts reuse the Gestionar stock inventory list row pattern.
+- Product detail lotes y precios table uses three columns: combined lote/date/qty,
+  combined costo/precio, and estado badges aligned to brand colors.
+- Product detail action bar uses blue (`#3978e8`) for Editar producto.
+- Product detail sections for movimientos, barcode, and notes.
 
 ## Verified Mobile Image Inventory
 
