@@ -2,9 +2,32 @@ import { useState, type ReactElement, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import type { StockTone } from '../api/inventoryMockData';
-import { colors, radius, shadows } from '../theme';
+import {
+  Badge,
+  Chip,
+  DangerButton as DsDangerButton,
+  DisplayField,
+  InfoBanner as DsInfoBanner,
+  OutlineButton as DsOutlineButton,
+  PrimaryButton as DsPrimaryButton,
+  ScreenHeader,
+  SearchField,
+  SectionCard as DsSectionCard,
+  colors,
+  radius,
+  shadows,
+  type BadgeTone,
+} from '../design-system';
 import { Icon } from './icons';
 import type { IconKind } from './icons';
+
+function stockToneToBadgeTone(tone?: StockTone | 'neutral'): BadgeTone {
+  if (tone === 'blue') return 'blue';
+  if (tone === 'orange') return 'orange';
+  if (tone === 'red') return 'red';
+  if (tone === 'neutral') return 'neutral';
+  return 'green';
+}
 
 export function InventoryScreenTitle(props: {
   onBack?: () => void;
@@ -13,32 +36,24 @@ export function InventoryScreenTitle(props: {
   title: string;
 }): ReactElement {
   return (
-    <View style={styles.titleRow}>
-      {props.showBack !== false && props.onBack ? (
-        <Pressable hitSlop={8} onPress={props.onBack} style={styles.backPressable}>
-          <Text style={styles.backText}>‹</Text>
-        </Pressable>
-      ) : null}
-      <View style={styles.flex}>
-        <Text style={styles.pageTitle}>{props.title}</Text>
-        <Text style={styles.pageSubtitle}>{props.subtitle}</Text>
-      </View>
-    </View>
+    <ScreenHeader
+      onBack={props.onBack}
+      showBack={props.showBack}
+      subtitle={props.subtitle}
+      title={props.title}
+    />
   );
 }
 
 export function SearchFilterRow(): ReactElement {
   return (
     <View style={styles.searchRow}>
-      <View style={styles.searchInput}>
-        <Icon color="#65708a" kind="search" size={14} strokeWidth={1.8} />
-        <Text style={styles.searchPlaceholder}>Buscar por producto o categoria</Text>
-      </View>
+      <SearchField placeholder="Buscar por producto o categoria" shadow style={styles.searchField} />
       <Pressable style={styles.cameraButton}>
         <Icon color={colors.primary} kind="camera" size={18} strokeWidth={1.9} />
       </Pressable>
       <Pressable style={styles.filterButton}>
-        <Icon color="#56627b" kind="filter" size={17} strokeWidth={1.7} />
+        <Icon color={colors.slate} kind="filter" size={17} strokeWidth={1.7} />
       </Pressable>
     </View>
   );
@@ -56,22 +71,7 @@ export function ProductThumb(): ReactElement {
 }
 
 export function StockBadge(props: { label: string; tone?: StockTone | 'neutral' }): ReactElement {
-  const toneStyle =
-    props.tone === 'blue'
-      ? styles.badgeBlue
-      : props.tone === 'orange'
-        ? styles.badgeOrange
-        : props.tone === 'red'
-          ? styles.badgeRed
-          : props.tone === 'neutral'
-            ? styles.badgeNeutral
-            : styles.badgeGreen;
-
-  return (
-    <View style={[styles.badge, toneStyle]}>
-      <Text style={[styles.badgeText, toneStyle]}>{props.label}</Text>
-    </View>
-  );
+  return <Badge label={props.label} tone={stockToneToBadgeTone(props.tone)} />;
 }
 
 export function ProductSummaryCard(props: {
@@ -99,12 +99,7 @@ export function ProductSummaryCard(props: {
           <Text style={styles.summaryCategory}>Almacen</Text>
           {props.linkedTo ? <Text style={styles.linkedText}>Vinculado a: {props.linkedTo}</Text> : null}
           {props.badge ? (
-            <View style={[styles.badge, styles.badgeBlue]}>
-              <View style={styles.linkedBadgeRow}>
-                <Icon color={colors.info} kind="box" size={12} strokeWidth={1.9} />
-                <Text style={[styles.badgeText, styles.badgeBlue]}>{props.badge}</Text>
-              </View>
-            </View>
+            <Badge icon="box" label={props.badge} tone="blue" />
           ) : (
             <StockBadge label="En stock" />
           )}
@@ -158,23 +153,15 @@ export function FormField(props: {
 }): ReactElement {
   return (
     <View style={[styles.formField, props.full && styles.formFieldFull]}>
-      <Text style={[styles.fieldLabel, props.compactLabel && styles.fieldLabelCompact]}>{props.label}</Text>
-      <View
-        style={[
-          styles.fieldBox,
-          props.green && styles.fieldBoxGreen,
-          props.textarea && styles.fieldBoxTextarea,
-        ]}
-      >
-        <Text
-          numberOfLines={props.textarea ? 3 : 1}
-          style={[styles.fieldValue, props.green && styles.fieldValueGreen, props.textarea && styles.fieldValueTextarea]}
-        >
-          {props.value}
-        </Text>
-        {props.select ? <Icon color={colors.slate} kind="chevron-down" size={10} strokeWidth={2} /> : null}
-        {props.calendar ? <Icon color={colors.slate} kind="calendar" size={14} strokeWidth={1.8} /> : null}
-      </View>
+      <DisplayField
+        calendar={props.calendar}
+        compactLabel={props.compactLabel}
+        highlight={props.green}
+        label={props.label}
+        select={props.select}
+        textarea={props.textarea}
+        value={props.value}
+      />
     </View>
   );
 }
@@ -186,10 +173,15 @@ export function PrimaryButton(props: {
   onPress?: () => void;
 }): ReactElement {
   return (
-    <Pressable onPress={props.onPress} style={[styles.primaryButton, props.fullWidth && styles.buttonFullWidth]}>
-      {props.icon ? <Icon color={colors.surface} kind={props.icon} size={14} strokeWidth={2} /> : null}
-      <Text style={styles.primaryButtonText}>{props.label}</Text>
-    </Pressable>
+    <DsPrimaryButton
+      flex={!props.fullWidth}
+      fullWidth={props.fullWidth}
+      icon={props.icon}
+      label={props.label}
+      onPress={props.onPress}
+      size="compact"
+      style={props.fullWidth ? styles.buttonFullWidth : undefined}
+    />
   );
 }
 
@@ -201,22 +193,28 @@ export function OutlineButton(props: {
   onPress?: () => void;
 }): ReactElement {
   return (
-    <Pressable
+    <DsOutlineButton
+      flex={!props.fullWidth}
+      fullWidth={props.fullWidth}
+      icon={props.icon}
+      label={props.label}
       onPress={props.onPress}
-      style={[styles.outlineButton, props.compact && styles.outlineButtonCompact, props.fullWidth && styles.buttonFullWidth]}
-    >
-      {props.icon ? <Icon color={colors.navy} kind={props.icon} size={14} strokeWidth={1.8} /> : null}
-      <Text style={styles.outlineButtonText}>{props.label}</Text>
-    </Pressable>
+      size={props.compact ? 'compact' : 'md'}
+      style={props.fullWidth ? styles.buttonFullWidth : undefined}
+    />
   );
 }
 
 export function DangerButton(props: { label: string; onPress?: () => void }): ReactElement {
   return (
-    <Pressable onPress={props.onPress} style={styles.dangerOutlineButton}>
-      <Icon color={colors.danger} kind="trash" size={14} strokeWidth={1.8} />
-      <Text style={styles.dangerOutlineButtonText}>{props.label}</Text>
-    </Pressable>
+    <DsDangerButton
+      fullWidth
+      icon="trash"
+      label={props.label}
+      onPress={props.onPress}
+      size="compact"
+      style={styles.dangerOutlineButton}
+    />
   );
 }
 
@@ -239,11 +237,11 @@ export function CobrarButton(props: { onPress?: () => void }): ReactElement {
 
 export function SectionCard(props: { children: ReactNode; title?: string; subtitle?: string }): ReactElement {
   return (
-    <View style={styles.sectionCard}>
+    <DsSectionCard style={styles.sectionCard}>
       {props.title ? <Text style={styles.sectionCardTitle}>{props.title}</Text> : null}
       {props.subtitle ? <Text style={styles.sectionCardSubtitle}>{props.subtitle}</Text> : null}
       {props.children}
-    </View>
+    </DsSectionCard>
   );
 }
 
@@ -258,11 +256,7 @@ export function RowActions(): ReactElement {
 }
 
 export function PaymentChip(props: { active?: boolean; label: string; small?: boolean }): ReactElement {
-  return (
-    <View style={[styles.paymentChip, props.small && styles.paymentChipSmall, props.active && styles.paymentChipActive]}>
-      <Text style={[styles.paymentChipText, props.active && styles.paymentChipTextActive]}>{props.label}</Text>
-    </View>
-  );
+  return <Chip active={props.active} label={props.label} small={props.small} />;
 }
 
 export function DiscountToggle(props: {
@@ -375,12 +369,7 @@ export function RadioProductOption(props: { active?: boolean; meta: string; name
 }
 
 export function InfoBanner(props: { children: ReactNode }): ReactElement {
-  return (
-    <View style={styles.infoBanner}>
-      <Icon color={colors.info} kind="info" size={16} strokeWidth={1.8} />
-      <Text style={styles.infoBannerText}>{props.children}</Text>
-    </View>
-  );
+  return <DsInfoBanner>{props.children}</DsInfoBanner>;
 }
 
 export function LinkedDeleteRow(props: { name: string }): ReactElement {
@@ -450,19 +439,27 @@ export function CartLineRow(props: { inListCard?: boolean; isFirst?: boolean; it
 
 export function ConfirmEditButton(props: { icon?: 'bill' | 'edit'; label: string; onPress?: () => void }): ReactElement {
   return (
-    <Pressable onPress={props.onPress} style={styles.confirmEditButton}>
-      <Icon color={colors.navy} kind={props.icon ?? 'edit'} size={14} strokeWidth={1.8} />
-      <Text style={styles.confirmEditButtonText}>{props.label}</Text>
-    </Pressable>
+    <DsOutlineButton
+      fullWidth
+      icon={props.icon ?? 'edit'}
+      label={props.label}
+      onPress={props.onPress}
+      size="compact"
+      style={styles.confirmEditButton}
+    />
   );
 }
 
 export function ConfirmPrimaryButton(props: { label: string; onPress?: () => void }): ReactElement {
   return (
-    <Pressable onPress={props.onPress} style={styles.confirmPrimaryButton}>
-      <Icon color={colors.surface} kind="check" size={14} strokeWidth={2} />
-      <Text style={styles.confirmPrimaryButtonText}>{props.label}</Text>
-    </Pressable>
+    <DsPrimaryButton
+      fullWidth
+      icon="check"
+      label={props.label}
+      onPress={props.onPress}
+      size="compact"
+      style={styles.confirmPrimaryButton}
+    />
   );
 }
 
@@ -573,37 +570,10 @@ const styles = StyleSheet.create({
     width: 18,
   },
   confirmEditButton: {
-    alignItems: 'center',
-    borderColor: colors.navy,
-    borderRadius: 10,
-    borderWidth: 1,
-    flexDirection: 'row',
-    gap: 8,
-    height: 40,
-    justifyContent: 'center',
     marginTop: 12,
-    width: '100%',
-  },
-  confirmEditButtonText: {
-    color: colors.navy,
-    fontSize: 11,
-    fontWeight: '600',
   },
   confirmPrimaryButton: {
-    alignItems: 'center',
-    backgroundColor: colors.primary,
-    borderRadius: radius.md,
-    flexDirection: 'row',
-    gap: 8,
-    height: 44,
-    justifyContent: 'center',
     marginTop: 10,
-    width: '100%',
-  },
-  confirmPrimaryButtonText: {
-    color: colors.surface,
-    fontSize: 11,
-    fontWeight: '600',
   },
   cobrarButton: {
     alignItems: 'center',
@@ -627,21 +597,7 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   dangerOutlineButton: {
-    alignItems: 'center',
-    borderColor: colors.danger,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    flexDirection: 'row',
-    gap: 8,
-    height: 42,
-    justifyContent: 'center',
     marginTop: 10,
-    width: '100%',
-  },
-  dangerOutlineButtonText: {
-    color: colors.danger,
-    fontSize: 11,
-    fontWeight: '600',
   },
   discountActive: {
     backgroundColor: colors.primary,
@@ -1079,17 +1035,15 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '300',
   },
+  searchField: {
+    flex: 1,
+  },
   searchRow: {
     flexDirection: 'row',
     gap: 8,
     marginTop: 14,
   },
   sectionCard: {
-    ...shadows.card,
-    backgroundColor: colors.surface,
-    borderColor: colors.border,
-    borderRadius: radius.lg,
-    borderWidth: 1,
     marginTop: 12,
     padding: 14,
   },

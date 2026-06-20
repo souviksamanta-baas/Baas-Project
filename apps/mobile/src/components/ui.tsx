@@ -2,9 +2,19 @@ import type { ReactElement, ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import type { Channel, DashboardMetricMock, NotificationMock, Tone } from '../api/mockData';
+import {
+  Card as DsCard,
+  SectionHeader as DsSectionHeader,
+  StatusDot,
+  colors,
+  radius,
+  shadows,
+  spacing,
+  textStyles,
+  typography,
+} from '../design-system';
 import { ChannelIcon, CopiRobotIcon, Icon, IphoneStatusIcons } from './icons';
 import type { IconKind } from './icons';
-import { colors, radius, shadows, spacing, typography } from '../theme';
 
 export type AppTab = 'copi' | 'home' | 'inbox' | 'more';
 type MessageSource = Channel | 'copi' | 'owner';
@@ -69,26 +79,21 @@ export function ScreenTitle(props: { subtitle?: string; title: string }): ReactE
   return (
     <View>
       <Text style={styles.screenTitle}>{props.title}</Text>
-      {props.subtitle ? <Text style={styles.subheading}>{props.subtitle}</Text> : null}
+      {props.subtitle ? <Text style={textStyles.pageSubtitle}>{props.subtitle}</Text> : null}
     </View>
   );
 }
 
 export function Card(props: { children: ReactNode; style?: object }): ReactElement {
-  return <View style={[styles.card, props.style]}>{props.children}</View>;
+  return (
+    <DsCard flush style={props.style}>
+      {props.children}
+    </DsCard>
+  );
 }
 
 export function SectionHeader(props: { actionLabel?: string; onAction?: () => void; title: string }): ReactElement {
-  return (
-    <View style={styles.sectionHeader}>
-      <Text style={styles.sectionTitle}>{props.title}</Text>
-      {props.actionLabel ? (
-        <Pressable onPress={props.onAction}>
-          <Text style={styles.sectionAction}>{props.actionLabel} ›</Text>
-        </Pressable>
-      ) : null}
-    </View>
-  );
+  return <DsSectionHeader {...props} style={styles.sectionHeaderPad} />;
 }
 
 export function MetricGrid(props: { metrics: DashboardMetricMock[] }): ReactElement {
@@ -146,7 +151,7 @@ export function NotificationRow(props: { notification: NotificationMock }): Reac
       </View>
       <View style={styles.notificationMeta}>
         <Text style={styles.timestamp}>{props.notification.time}</Text>
-        {props.notification.unread ? <View style={styles.smallUnreadDot} /> : null}
+        {props.notification.unread ? <StatusDot /> : null}
       </View>
     </View>
   );
@@ -420,14 +425,6 @@ const styles = StyleSheet.create({
     color: colors.navy,
     fontSize: 10,
     fontWeight: '300',
-  },
-  card: {
-    ...shadows.card,
-    backgroundColor: colors.surface,
-    borderColor: colors.border,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    overflow: 'hidden',
   },
   centerAction: {
     alignItems: 'center',
@@ -786,23 +783,8 @@ const styles = StyleSheet.create({
     width: 42,
   },
   screenTitle: typography.title,
-  sectionAction: {
-    color: colors.slate,
-    fontSize: 11,
-    fontWeight: '300',
-  },
-  sectionHeader: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  sectionHeaderPad: {
     paddingHorizontal: 4,
-  },
-  sectionTitle: typography.sectionTitle,
-  smallUnreadDot: {
-    backgroundColor: colors.primary,
-    borderRadius: radius.pill,
-    height: 6,
-    width: 6,
   },
   statusBar: {
     alignItems: 'center',
