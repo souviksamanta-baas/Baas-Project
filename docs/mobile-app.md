@@ -219,6 +219,44 @@ route implementation remains in `apps/mobile/src/screens/DashboardScreen.tsx`.
 The static React/Tailwind reference prototype is documented in
 `docs/ui-mockups.md`.
 
+## Inventory and POS React Native Screens
+
+[KAN-226](https://souviksamanta.atlassian.net/browse/KAN-226) adds static Expo
+React Native screens for the approved inventory and POS mockups
+([KAN-217](https://souviksamanta.atlassian.net/browse/KAN-217)). Visual review
+was accepted on 2026-06-20.
+
+Implementation paths:
+
+| Path | Purpose |
+| --- | --- |
+| `apps/mobile/src/screens/inventory/InventoryScreens.tsx` | Eight inventory/POS screen components. |
+| `apps/mobile/src/components/inventoryUi.tsx` | Shared inventory UI: search row, product cards, form fields, cart rows, totals, and action buttons. |
+| `apps/mobile/src/components/icons.tsx` | Inventory-specific icons (search, camera, barcode, QR, edit, trash, check, clock, shield, and others). |
+| `apps/mobile/src/api/inventoryMockData.ts` | Static mock data for review. |
+| `apps/mobile/src/navigation/OwnerAppNavigator.tsx` | Route wiring from Home, Más, and bottom-nav `$` into inventory flows. |
+
+Accepted static screens:
+
+| Screen | Entry points |
+| --- | --- |
+| Gestionar stock | Home → Ver inventario, Más → Inventario |
+| Producto | Tap base product row in Gestionar stock |
+| Editar producto / Editar subproducto | Producto action bar or linked subproduct rows |
+| Agregar stock / Eliminar producto | Producto action bar |
+| Vender productos | Bottom nav `$` |
+| Confirmar cobro | Vender productos → `$ Cobrar` |
+
+Review locally:
+
+```bash
+cd apps/mobile && npx expo start --web --port 8152 --host localhost
+```
+
+Static review uses mock data only. API wiring for catalog, stock, lots, and POS
+checkout remains future work under epic
+[KAN-201](https://souviksamanta.atlassian.net/browse/KAN-201).
+
 ## Local Commands
 
 Install dependencies:

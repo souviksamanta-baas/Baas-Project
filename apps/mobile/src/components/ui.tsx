@@ -255,13 +255,16 @@ export function BottomNavigation(props: {
 }
 
 function TabButton(props: { active: boolean; icon: IconKind; label: string; onPress: () => void }): ReactElement {
+  const useFilled = props.active && (props.icon === 'home' || props.icon === 'inbox' || props.icon === 'bot');
+
   return (
     <Pressable onPress={props.onPress} style={styles.tabButton}>
       <Icon
-        color={props.active ? colors.primary : colors.slateLight}
+        color={props.active ? colors.primary : '#53607a'}
+        filled={useFilled}
         kind={props.icon}
-        size={20}
-        strokeWidth={1.85}
+        size={22}
+        strokeWidth={1.9}
       />
       <Text style={[styles.tabLabel, props.active && styles.activeTabText]}>{props.label}</Text>
     </Pressable>

@@ -148,6 +148,18 @@ Reusable confirmed patterns from this batch:
 - Product detail action bar uses blue (`#3978e8`) for Editar producto.
 - Product detail sections for movimientos, barcode, and notes.
 
+## React Native Inventory and POS Implementation
+
+The approved mockups above were translated into static Expo React Native screens
+under [KAN-226](https://souviksamanta.atlassian.net/browse/KAN-226) (Done
+2026-06-20). Reuse `apps/mobile/src/components/inventoryUi.tsx` and
+`apps/mobile/src/components/icons.tsx` for future inventory and POS work in the
+owner app.
+
+Documented in `docs/mobile-app.md`. Epic
+[KAN-201](https://souviksamanta.atlassian.net/browse/KAN-201) remains open for
+API integration and additional RN screens.
+
 ## Verified Mobile Image Inventory
 
 | File | Screen/state |
@@ -209,6 +221,10 @@ npm run build --workspace @baas/ui-mockups
 - Mobile epic: `KAN-170`
 - Desktop epic: `KAN-171`
 - Inventory and POS mockup story: `KAN-217` (Done)
-- Inventory/POS subtasks: `KAN-218` through `KAN-225` (Done)
+- Inventory/POS mockup subtasks: `KAN-218` through `KAN-225` (Done)
+- Inventory/POS RN story: `KAN-226` (Done)
+- Inventory/POS RN subtasks: `KAN-227` through `KAN-234` (Done)
+- Mobile mockup prototype story: `KAN-172` (Done)
+- RN implementation epic: `KAN-201` (In Progress)
 - Mobile Confluence page: `Mobile UI Mockups and App Screen design`
 - Desktop Confluence page: `Desktop UI Mockups and App Screen design`

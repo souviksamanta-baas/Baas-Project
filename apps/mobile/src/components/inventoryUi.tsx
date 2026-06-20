@@ -1,9 +1,10 @@
-import type { ReactElement, ReactNode } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useState, type ReactElement, type ReactNode } from 'react';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import type { StockTone } from '../api/inventoryMockData';
 import { colors, radius, shadows } from '../theme';
 import { Icon } from './icons';
+import type { IconKind } from './icons';
 
 export function InventoryScreenTitle(props: {
   onBack?: () => void;
@@ -14,8 +15,8 @@ export function InventoryScreenTitle(props: {
   return (
     <View style={styles.titleRow}>
       {props.showBack !== false && props.onBack ? (
-        <Pressable onPress={props.onBack} style={styles.backButton}>
-          <Icon color={colors.navy} kind="arrow-left" size={20} strokeWidth={2.2} />
+        <Pressable hitSlop={8} onPress={props.onBack} style={styles.backPressable}>
+          <Text style={styles.backText}>‹</Text>
         </Pressable>
       ) : null}
       <View style={styles.flex}>
@@ -30,11 +31,11 @@ export function SearchFilterRow(): ReactElement {
   return (
     <View style={styles.searchRow}>
       <View style={styles.searchInput}>
-        <Icon color="#65708a" kind="inbox" size={14} strokeWidth={1.8} />
+        <Icon color="#65708a" kind="search" size={14} strokeWidth={1.8} />
         <Text style={styles.searchPlaceholder}>Buscar por producto o categoria</Text>
       </View>
       <Pressable style={styles.cameraButton}>
-        <Icon color={colors.primary} kind="box" size={18} strokeWidth={1.9} />
+        <Icon color={colors.primary} kind="camera" size={18} strokeWidth={1.9} />
       </Pressable>
       <Pressable style={styles.filterButton}>
         <Icon color="#56627b" kind="filter" size={17} strokeWidth={1.7} />
@@ -46,6 +47,7 @@ export function SearchFilterRow(): ReactElement {
 export function ProductThumb(): ReactElement {
   return (
     <View style={styles.thumb}>
+      <View style={styles.thumbHighlight} />
       <Text style={styles.thumbBrand}>HARINA</Text>
       <Text style={styles.thumbSub}>DE TRIGO</Text>
       <Text style={styles.thumbQty}>100 kg</Text>
@@ -73,6 +75,9 @@ export function StockBadge(props: { label: string; tone?: StockTone | 'neutral' 
 }
 
 export function ProductSummaryCard(props: {
+  badge?: string;
+  changePhoto?: boolean;
+  linkedTo?: string;
   showBarcode?: boolean;
   showMeta?: boolean;
   stock?: string;
@@ -81,17 +86,38 @@ export function ProductSummaryCard(props: {
   return (
     <View style={styles.summaryCard}>
       <View style={styles.summaryTop}>
-        <ProductThumb />
+        <View>
+          <ProductThumb />
+          {props.changePhoto ? (
+            <View style={styles.changePhotoBadge}>
+              <Icon color={colors.surface} kind="edit" size={10} strokeWidth={2} />
+            </View>
+          ) : null}
+        </View>
         <View style={styles.flex}>
           <Text style={styles.summaryName}>{props.title}</Text>
           <Text style={styles.summaryCategory}>Almacen</Text>
-          <StockBadge label="En stock" />
+          {props.linkedTo ? <Text style={styles.linkedText}>Vinculado a: {props.linkedTo}</Text> : null}
+          {props.badge ? (
+            <View style={[styles.badge, styles.badgeBlue]}>
+              <View style={styles.linkedBadgeRow}>
+                <Icon color={colors.info} kind="box" size={12} strokeWidth={1.9} />
+                <Text style={[styles.badgeText, styles.badgeBlue]}>{props.badge}</Text>
+              </View>
+            </View>
+          ) : (
+            <StockBadge label="En stock" />
+          )}
         </View>
         {props.stock ? (
           <View style={styles.stockCol}>
             <Text style={styles.stockLabel}>Stock actual</Text>
             <Text style={styles.stockValue}>{props.stock}</Text>
-            {props.showBarcode ? <Text style={styles.barcode}>|||||</Text> : null}
+            {props.showBarcode ? (
+              <View style={styles.barcodeWrap}>
+                <Icon color={colors.navy} kind="barcode" size={18} strokeWidth={1} />
+              </View>
+            ) : null}
           </View>
         ) : null}
       </View>
@@ -120,29 +146,66 @@ function MetaItem(props: { label: string; value: string }): ReactElement {
   );
 }
 
-export function FormField(props: { compactLabel?: boolean; full?: boolean; green?: boolean; label: string; value: string }): ReactElement {
+export function FormField(props: {
+  calendar?: boolean;
+  compactLabel?: boolean;
+  full?: boolean;
+  green?: boolean;
+  label: string;
+  select?: boolean;
+  textarea?: boolean;
+  value: string;
+}): ReactElement {
   return (
     <View style={[styles.formField, props.full && styles.formFieldFull]}>
       <Text style={[styles.fieldLabel, props.compactLabel && styles.fieldLabelCompact]}>{props.label}</Text>
-      <View style={[styles.fieldBox, props.green && styles.fieldBoxGreen]}>
-        <Text style={[styles.fieldValue, props.green && styles.fieldValueGreen]}>{props.value}</Text>
-        <Icon color={colors.slate} kind="chevron-down" size={10} strokeWidth={2} />
+      <View
+        style={[
+          styles.fieldBox,
+          props.green && styles.fieldBoxGreen,
+          props.textarea && styles.fieldBoxTextarea,
+        ]}
+      >
+        <Text
+          numberOfLines={props.textarea ? 3 : 1}
+          style={[styles.fieldValue, props.green && styles.fieldValueGreen, props.textarea && styles.fieldValueTextarea]}
+        >
+          {props.value}
+        </Text>
+        {props.select ? <Icon color={colors.slate} kind="chevron-down" size={10} strokeWidth={2} /> : null}
+        {props.calendar ? <Icon color={colors.slate} kind="calendar" size={14} strokeWidth={1.8} /> : null}
       </View>
     </View>
   );
 }
 
-export function PrimaryButton(props: { label: string; onPress?: () => void }): ReactElement {
+export function PrimaryButton(props: {
+  fullWidth?: boolean;
+  icon?: IconKind;
+  label: string;
+  onPress?: () => void;
+}): ReactElement {
   return (
-    <Pressable onPress={props.onPress} style={styles.primaryButton}>
+    <Pressable onPress={props.onPress} style={[styles.primaryButton, props.fullWidth && styles.buttonFullWidth]}>
+      {props.icon ? <Icon color={colors.surface} kind={props.icon} size={14} strokeWidth={2} /> : null}
       <Text style={styles.primaryButtonText}>{props.label}</Text>
     </Pressable>
   );
 }
 
-export function OutlineButton(props: { label: string; onPress?: () => void }): ReactElement {
+export function OutlineButton(props: {
+  compact?: boolean;
+  fullWidth?: boolean;
+  icon?: IconKind;
+  label: string;
+  onPress?: () => void;
+}): ReactElement {
   return (
-    <Pressable onPress={props.onPress} style={styles.outlineButton}>
+    <Pressable
+      onPress={props.onPress}
+      style={[styles.outlineButton, props.compact && styles.outlineButtonCompact, props.fullWidth && styles.buttonFullWidth]}
+    >
+      {props.icon ? <Icon color={colors.navy} kind={props.icon} size={14} strokeWidth={1.8} /> : null}
       <Text style={styles.outlineButtonText}>{props.label}</Text>
     </Pressable>
   );
@@ -150,8 +213,26 @@ export function OutlineButton(props: { label: string; onPress?: () => void }): R
 
 export function DangerButton(props: { label: string; onPress?: () => void }): ReactElement {
   return (
-    <Pressable onPress={props.onPress} style={styles.dangerButton}>
-      <Text style={styles.dangerButtonText}>{props.label}</Text>
+    <Pressable onPress={props.onPress} style={styles.dangerOutlineButton}>
+      <Icon color={colors.danger} kind="trash" size={14} strokeWidth={1.8} />
+      <Text style={styles.dangerOutlineButtonText}>{props.label}</Text>
+    </Pressable>
+  );
+}
+
+export function SolidDangerButton(props: { label: string; onPress?: () => void }): ReactElement {
+  return (
+    <Pressable onPress={props.onPress} style={styles.solidDangerButton}>
+      <Text style={styles.solidDangerButtonText}>{props.label}</Text>
+    </Pressable>
+  );
+}
+
+export function CobrarButton(props: { onPress?: () => void }): ReactElement {
+  return (
+    <Pressable onPress={props.onPress} style={styles.cobrarButton}>
+      <Text style={styles.cobrarSymbol}>$</Text>
+      <Text style={styles.cobrarLabel}>Cobrar</Text>
     </Pressable>
   );
 }
@@ -169,8 +250,8 @@ export function SectionCard(props: { children: ReactNode; title?: string; subtit
 export function RowActions(): ReactElement {
   return (
     <View style={styles.rowActions}>
-      <Icon color={colors.info} kind="gear" size={15} strokeWidth={2} />
-      <Icon color={colors.danger} kind="alert" size={15} strokeWidth={2} />
+      <Icon color={colors.info} kind="edit" size={15} strokeWidth={2} />
+      <Icon color={colors.danger} kind="trash" size={15} strokeWidth={1.8} />
       <Icon color={colors.primary} kind="plus" size={17} strokeWidth={2} />
     </View>
   );
@@ -184,17 +265,217 @@ export function PaymentChip(props: { active?: boolean; label: string; small?: bo
   );
 }
 
+export function DiscountToggle(props: {
+  mode: 'amount' | 'percent';
+  onChange: (mode: 'amount' | 'percent') => void;
+}): ReactElement {
+  return (
+    <View style={styles.discountToggle}>
+      <Pressable
+        onPress={() => props.onChange('percent')}
+        style={[styles.discountToggleOption, props.mode === 'percent' && styles.discountToggleOptionActive]}
+      >
+        <Text style={[styles.discountToggleText, props.mode === 'percent' && styles.discountToggleTextActive]}>%</Text>
+      </Pressable>
+      <Pressable
+        onPress={() => props.onChange('amount')}
+        style={[styles.discountToggleOption, props.mode === 'amount' && styles.discountToggleOptionActive]}
+      >
+        <Text style={[styles.discountToggleText, props.mode === 'amount' && styles.discountToggleTextActive]}>$</Text>
+      </Pressable>
+    </View>
+  );
+}
+
+function DiscountInputField(props: { mode: 'amount' | 'percent' }): ReactElement {
+  return (
+    <View style={styles.discountInput}>
+      {props.mode === 'amount' ? <Text style={styles.discountInputPrefix}>$</Text> : null}
+      <TextInput defaultValue="10" keyboardType="numeric" style={styles.discountInputText} />
+      {props.mode === 'percent' ? <Text style={styles.discountInputSuffix}>%</Text> : null}
+    </View>
+  );
+}
+
+export function SaleTotalsBlock(props: {
+  discountLabel?: string;
+  discountValue: string;
+  subtotal: string;
+  total: string;
+  totalLabel?: string;
+  withDiscountControls?: boolean;
+}): ReactElement {
+  const [discountMode, setDiscountMode] = useState<'amount' | 'percent'>('percent');
+
+  return (
+    <View style={styles.totalsBlock}>
+      <View style={styles.totalRow}>
+        <Text style={styles.totalRowLabel}>Subtotal</Text>
+        <Text style={styles.totalRowLabel}>{props.subtotal}</Text>
+      </View>
+      <View style={styles.totalRow}>
+        <Text style={styles.totalRowLabel}>{props.discountLabel ?? 'Descuento'}</Text>
+        {props.withDiscountControls ? (
+          <View style={styles.discountControls}>
+            <DiscountToggle mode={discountMode} onChange={setDiscountMode} />
+            <DiscountInputField mode={discountMode} />
+            <Text style={styles.discountValue}>{props.discountValue}</Text>
+          </View>
+        ) : (
+          <Text style={styles.discountPercentValue}>{props.discountValue}</Text>
+        )}
+      </View>
+      <View style={styles.totalRowFinal}>
+        <Text style={styles.totalFinalLabel}>{props.totalLabel ?? 'Total'}</Text>
+        <Text style={styles.totalFinalValue}>{props.total}</Text>
+      </View>
+    </View>
+  );
+}
+
+export function CodeTypeIcon(props: { code: string; tone?: 'red'; small?: boolean }): ReactElement {
+  const isQr = props.code.toLowerCase().includes('qr');
+  const iconKind = isQr ? 'qr' : 'barcode';
+  const iconColor = props.tone === 'red' ? colors.danger : colors.slate;
+  const size = props.small ? 12 : 14;
+
+  return <Icon color={iconColor} kind={iconKind} size={size} strokeWidth={1} />;
+}
+
+export function LinkedSubproductRow(props: { name: string }): ReactElement {
+  return (
+    <View style={styles.linkedSubproductRow}>
+      <ProductThumb />
+      <View style={styles.flex}>
+        <Text style={styles.linkedSubproductName}>{props.name}</Text>
+        <Text style={styles.linkedSubproductMeta}>Usa stock del producto base</Text>
+      </View>
+      <View style={styles.linkedSubproductAction}>
+        <Icon color={colors.primary} kind="edit" size={12} strokeWidth={2} />
+        <Text style={styles.linkedSubproductActionText}>Editar</Text>
+        <Icon color={colors.primary} kind="chevron-right" size={12} strokeWidth={2.2} />
+      </View>
+    </View>
+  );
+}
+
+export function RadioProductOption(props: { active?: boolean; meta: string; name: string }): ReactElement {
+  return (
+    <View style={[styles.radioOption, props.active && styles.radioOptionActive]}>
+      <View style={[styles.radioCircle, props.active && styles.radioCircleActive]}>
+        {props.active ? <View style={styles.radioDot} /> : null}
+      </View>
+      <ProductThumb />
+      <View style={styles.flex}>
+        <Text style={styles.radioOptionName}>{props.name}</Text>
+        <Text style={styles.radioOptionMeta}>{props.meta}</Text>
+      </View>
+    </View>
+  );
+}
+
+export function InfoBanner(props: { children: ReactNode }): ReactElement {
+  return (
+    <View style={styles.infoBanner}>
+      <Icon color={colors.info} kind="info" size={16} strokeWidth={1.8} />
+      <Text style={styles.infoBannerText}>{props.children}</Text>
+    </View>
+  );
+}
+
+export function LinkedDeleteRow(props: { name: string }): ReactElement {
+  return (
+    <View style={styles.linkedDeleteRow}>
+      <ProductThumb />
+      <Text style={styles.linkedDeleteName}>{props.name}</Text>
+    </View>
+  );
+}
+
+export function InfoBlock(props: { label: string; value: string }): ReactElement {
+  return (
+    <View style={styles.infoBlock}>
+      <Text style={styles.infoBlockLabel}>{props.label}</Text>
+      <Text style={styles.infoBlockValue}>{props.value}</Text>
+    </View>
+  );
+}
+
+export interface CartLineItemMock {
+  id: string;
+  name: string;
+  price: string;
+  qty: string;
+  weight?: boolean;
+}
+
+export function CartLineRow(props: { inListCard?: boolean; isFirst?: boolean; item: CartLineItemMock }): ReactElement {
+  return (
+    <View
+      style={[
+        styles.cartLineRow,
+        props.inListCard && styles.cartLineRowList,
+        props.isFirst && !props.inListCard && styles.cartLineRowFirst,
+      ]}
+    >
+      <ProductThumb />
+      <View style={styles.flex}>
+        <View style={styles.cartNameRow}>
+          <Text style={styles.cartName}>{props.item.name}</Text>
+          {props.item.weight ? (
+            <View style={styles.weightBadge}>
+              <Text style={styles.weightBadgeText}>peso</Text>
+            </View>
+          ) : null}
+        </View>
+        {props.item.weight ? (
+          <TextInput defaultValue={props.item.qty} style={styles.qtyInput} />
+        ) : (
+          <View style={styles.qtyControls}>
+            <Pressable style={styles.qtyButton}>
+              <Text style={styles.qtyButtonText}>-</Text>
+            </Pressable>
+            <Text style={styles.qtyValue}>{props.item.qty}</Text>
+            <Pressable style={styles.qtyButton}>
+              <Text style={styles.qtyButtonText}>+</Text>
+            </Pressable>
+          </View>
+        )}
+      </View>
+      <Text style={styles.cartPrice}>{props.item.price}</Text>
+      <Icon color={colors.danger} kind="trash" size={14} strokeWidth={1.8} />
+    </View>
+  );
+}
+
+export function ConfirmEditButton(props: { icon?: 'bill' | 'edit'; label: string; onPress?: () => void }): ReactElement {
+  return (
+    <Pressable onPress={props.onPress} style={styles.confirmEditButton}>
+      <Icon color={colors.navy} kind={props.icon ?? 'edit'} size={14} strokeWidth={1.8} />
+      <Text style={styles.confirmEditButtonText}>{props.label}</Text>
+    </Pressable>
+  );
+}
+
+export function ConfirmPrimaryButton(props: { label: string; onPress?: () => void }): ReactElement {
+  return (
+    <Pressable onPress={props.onPress} style={styles.confirmPrimaryButton}>
+      <Icon color={colors.surface} kind="check" size={14} strokeWidth={2} />
+      <Text style={styles.confirmPrimaryButtonText}>{props.label}</Text>
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
-  backButton: {
-    alignItems: 'center',
-    backgroundColor: colors.surface,
-    borderColor: '#dfe7ec',
-    borderRadius: 10,
-    borderWidth: 1,
-    height: 34,
-    justifyContent: 'center',
-    marginTop: 2,
-    width: 34,
+  backPressable: {
+    marginLeft: -6,
+    marginTop: -8,
+  },
+  backText: {
+    color: colors.navy,
+    fontSize: 42,
+    lineHeight: 42,
+    width: 28,
   },
   badge: {
     alignSelf: 'flex-start',
@@ -205,7 +486,7 @@ const styles = StyleSheet.create({
   },
   badgeBlue: {
     backgroundColor: '#eef8ff',
-    color: '#3978e8',
+    color: colors.info,
   },
   badgeGreen: {
     backgroundColor: colors.primarySoft,
@@ -227,10 +508,12 @@ const styles = StyleSheet.create({
     fontSize: 9,
     fontWeight: '300',
   },
-  barcode: {
-    color: colors.navy,
-    fontSize: 10,
-    letterSpacing: 1,
+  buttonFullWidth: {
+    flex: 0,
+    marginTop: 12,
+    width: '100%',
+  },
+  barcodeWrap: {
     marginTop: 4,
   },
   cameraButton: {
@@ -243,16 +526,209 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     width: 38,
   },
-  dangerButton: {
+  cartLineRow: {
     alignItems: 'center',
-    backgroundColor: colors.danger,
+    borderTopColor: '#edf2f4',
+    borderTopWidth: 1,
+    flexDirection: 'row',
+    gap: 10,
+    paddingTop: 10,
+  },
+  cartLineRowFirst: {
+    borderTopWidth: 0,
+    marginTop: 2,
+    paddingTop: 0,
+  },
+  cartLineRowList: {
+    borderBottomColor: '#edf2f4',
+    borderBottomWidth: 1,
+    borderTopWidth: 0,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  cartName: {
+    color: colors.navy,
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  cartNameRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 6,
+  },
+  cartPrice: {
+    color: colors.navy,
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  changePhotoBadge: {
+    alignItems: 'center',
+    backgroundColor: colors.primary,
+    borderRadius: radius.pill,
+    bottom: -2,
+    height: 18,
+    justifyContent: 'center',
+    position: 'absolute',
+    right: -2,
+    width: 18,
+  },
+  confirmEditButton: {
+    alignItems: 'center',
+    borderColor: colors.navy,
+    borderRadius: 10,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 8,
+    height: 40,
+    justifyContent: 'center',
+    marginTop: 12,
+    width: '100%',
+  },
+  confirmEditButtonText: {
+    color: colors.navy,
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  confirmPrimaryButton: {
+    alignItems: 'center',
+    backgroundColor: colors.primary,
     borderRadius: radius.md,
+    flexDirection: 'row',
+    gap: 8,
     height: 44,
     justifyContent: 'center',
+    marginTop: 10,
+    width: '100%',
   },
-  dangerButtonText: {
+  confirmPrimaryButtonText: {
     color: colors.surface,
     fontSize: 11,
+    fontWeight: '600',
+  },
+  cobrarButton: {
+    alignItems: 'center',
+    backgroundColor: colors.primary,
+    borderRadius: radius.md,
+    flex: 1,
+    flexDirection: 'row',
+    gap: 6,
+    height: 40,
+    justifyContent: 'center',
+  },
+  cobrarLabel: {
+    color: colors.surface,
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  cobrarSymbol: {
+    color: colors.surface,
+    fontSize: 16,
+    fontWeight: '600',
+    lineHeight: 18,
+  },
+  dangerOutlineButton: {
+    alignItems: 'center',
+    borderColor: colors.danger,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 8,
+    height: 42,
+    justifyContent: 'center',
+    marginTop: 10,
+    width: '100%',
+  },
+  dangerOutlineButtonText: {
+    color: colors.danger,
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  discountActive: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  discountActiveText: {
+    color: colors.surface,
+    fontSize: 9,
+    fontWeight: '600',
+  },
+  discountControls: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    flexShrink: 1,
+    gap: 6,
+  },
+  discountInactive: {
+    backgroundColor: colors.surface,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  discountInactiveText: {
+    color: colors.slate,
+    fontSize: 9,
+    fontWeight: '600',
+  },
+  discountInput: {
+    alignItems: 'center',
+    borderColor: '#dfe7ec',
+    borderRadius: 6,
+    borderWidth: 1,
+    flexDirection: 'row',
+    minWidth: 88,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  discountInputPrefix: {
+    color: colors.navy,
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  discountInputSuffix: {
+    color: colors.navy,
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  discountInputText: {
+    color: colors.navy,
+    flex: 1,
+    fontSize: 10,
+    fontWeight: '600',
+    minWidth: 52,
+    padding: 0,
+    textAlign: 'center',
+  },
+  discountPercentValue: {
+    color: colors.info,
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  discountToggle: {
+    borderColor: '#dfe7ec',
+    borderRadius: 6,
+    borderWidth: 1,
+    flexDirection: 'row',
+    overflow: 'hidden',
+  },
+  discountToggleOption: {
+    backgroundColor: colors.surface,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  discountToggleOptionActive: {
+    backgroundColor: colors.primary,
+  },
+  discountToggleText: {
+    color: colors.slate,
+    fontSize: 9,
+    fontWeight: '600',
+  },
+  discountToggleTextActive: {
+    color: colors.surface,
+  },
+  discountValue: {
+    color: colors.info,
+    fontSize: 10,
     fontWeight: '600',
   },
   fieldBox: {
@@ -267,6 +743,11 @@ const styles = StyleSheet.create({
   },
   fieldBoxGreen: {
     borderColor: colors.primary,
+  },
+  fieldBoxTextarea: {
+    alignItems: 'flex-start',
+    height: 64,
+    paddingVertical: 8,
   },
   fieldLabel: {
     color: colors.navy,
@@ -286,6 +767,9 @@ const styles = StyleSheet.create({
   fieldValueGreen: {
     color: colors.primary,
   },
+  fieldValueTextarea: {
+    lineHeight: 14,
+  },
   filterButton: {
     alignItems: 'center',
     backgroundColor: colors.surface,
@@ -304,6 +788,92 @@ const styles = StyleSheet.create({
   },
   formFieldFull: {
     width: '100%',
+  },
+  infoBanner: {
+    alignItems: 'flex-start',
+    backgroundColor: '#eef8ff',
+    borderRadius: radius.md,
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  infoBannerText: {
+    color: colors.navy,
+    flex: 1,
+    fontSize: 10,
+    fontWeight: '300',
+    lineHeight: 15,
+  },
+  infoBlock: {
+    flex: 1,
+  },
+  infoBlockLabel: {
+    color: colors.slate,
+    fontSize: 9,
+    fontWeight: '300',
+  },
+  infoBlockValue: {
+    color: colors.navy,
+    fontSize: 9,
+    fontWeight: '600',
+    lineHeight: 13,
+    marginTop: 4,
+  },
+  linkedBadgeRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 4,
+  },
+  linkedDeleteName: {
+    color: colors.navy,
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  linkedDeleteRow: {
+    alignItems: 'center',
+    borderTopColor: '#ffd2dc',
+    borderTopWidth: 1,
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 8,
+    paddingTop: 8,
+  },
+  linkedSubproductAction: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 4,
+  },
+  linkedSubproductActionText: {
+    color: colors.primary,
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  linkedSubproductMeta: {
+    color: colors.slate,
+    fontSize: 10,
+    fontWeight: '300',
+  },
+  linkedSubproductName: {
+    color: colors.navy,
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  linkedSubproductRow: {
+    alignItems: 'center',
+    borderTopColor: '#edf2f4',
+    borderTopWidth: 1,
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 10,
+    paddingTop: 10,
+  },
+  linkedText: {
+    color: colors.info,
+    fontSize: 9,
+    fontWeight: '300',
+    marginTop: 4,
   },
   metaGrid: {
     borderTopColor: '#edf2f4',
@@ -334,8 +904,13 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     borderWidth: 1,
     flex: 1,
+    flexDirection: 'row',
+    gap: 6,
     height: 44,
     justifyContent: 'center',
+  },
+  outlineButtonCompact: {
+    height: 40,
   },
   outlineButtonText: {
     color: colors.navy,
@@ -385,6 +960,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
     borderRadius: radius.md,
     flex: 1,
+    flexDirection: 'row',
+    gap: 8,
     height: 44,
     justifyContent: 'center',
   },
@@ -393,8 +970,91 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
   },
+  qtyButton: {
+    alignItems: 'center',
+    borderColor: '#dfe7ec',
+    borderRadius: 6,
+    borderWidth: 1,
+    height: 22,
+    justifyContent: 'center',
+    width: 22,
+  },
+  qtyButtonText: {
+    color: colors.navy,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  qtyControls: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 6,
+    marginTop: 6,
+  },
+  qtyInput: {
+    borderColor: '#dfe7ec',
+    borderRadius: 6,
+    borderWidth: 1,
+    color: colors.navy,
+    fontSize: 10,
+    fontWeight: '600',
+    height: 28,
+    marginTop: 6,
+    minWidth: 72,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  qtyValue: {
+    color: colors.navy,
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  radioCircle: {
+    alignItems: 'center',
+    borderColor: '#cfd8df',
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    height: 16,
+    justifyContent: 'center',
+    width: 16,
+  },
+  radioCircleActive: {
+    borderColor: colors.primary,
+  },
+  radioDot: {
+    backgroundColor: colors.primary,
+    borderRadius: radius.pill,
+    height: 8,
+    width: 8,
+  },
+  radioOption: {
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderColor: '#dfe7ec',
+    borderRadius: radius.md,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  radioOptionActive: {
+    backgroundColor: '#f6fffa',
+    borderColor: colors.primary,
+  },
+  radioOptionMeta: {
+    color: colors.slate,
+    fontSize: 10,
+    fontWeight: '300',
+  },
+  radioOptionName: {
+    color: colors.navy,
+    fontSize: 11,
+    fontWeight: '600',
+  },
   rowActions: {
     flexDirection: 'row',
+    flexShrink: 0,
     gap: 8,
   },
   searchInput: {
@@ -408,6 +1068,10 @@ const styles = StyleSheet.create({
     gap: 10,
     height: 34,
     paddingHorizontal: 12,
+    shadowColor: colors.navy,
+    shadowOffset: { height: 1, width: 0 },
+    shadowOpacity: 0.02,
+    shadowRadius: 8,
   },
   searchPlaceholder: {
     color: '#65708a',
@@ -438,6 +1102,19 @@ const styles = StyleSheet.create({
   sectionCardTitle: {
     color: colors.navy,
     fontSize: 12,
+    fontWeight: '600',
+  },
+  solidDangerButton: {
+    alignItems: 'center',
+    backgroundColor: colors.danger,
+    borderRadius: radius.md,
+    flex: 1,
+    height: 44,
+    justifyContent: 'center',
+  },
+  solidDangerButtonText: {
+    color: colors.surface,
+    fontSize: 11,
     fontWeight: '600',
   },
   stockCol: {
@@ -485,12 +1162,22 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     height: 52,
     justifyContent: 'center',
+    overflow: 'hidden',
     width: 52,
   },
   thumbBrand: {
     color: '#8a5a22',
     fontSize: 6,
     fontWeight: '600',
+    lineHeight: 7,
+  },
+  thumbHighlight: {
+    backgroundColor: '#fff8ea',
+    height: '45%',
+    left: 0,
+    position: 'absolute',
+    right: 0,
+    top: 0,
   },
   thumbQty: {
     color: colors.navy,
@@ -505,6 +1192,50 @@ const styles = StyleSheet.create({
   },
   titleRow: {
     flexDirection: 'row',
-    gap: 10,
+    gap: 4,
+  },
+  totalFinalLabel: {
+    color: colors.primary,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  totalFinalValue: {
+    color: colors.primary,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  totalRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  totalRowFinal: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 2,
+  },
+  totalRowLabel: {
+    color: colors.slate,
+    fontSize: 10,
+    fontWeight: '300',
+  },
+  totalsBlock: {
+    borderTopColor: '#edf2f4',
+    borderTopWidth: 1,
+    marginTop: 10,
+    paddingTop: 10,
+  },
+  weightBadge: {
+    backgroundColor: '#eef8ff',
+    borderRadius: 5,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+  },
+  weightBadgeText: {
+    color: colors.info,
+    fontSize: 8,
+    fontWeight: '300',
   },
 });

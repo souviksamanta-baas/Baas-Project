@@ -46,6 +46,8 @@ export interface MovementMock {
 export interface SellProductMock {
   addKg?: boolean;
   id: string;
+  indent?: boolean;
+  linkedTo?: string;
   name: string;
   price: string;
   stock: string;
@@ -105,8 +107,8 @@ export const sellProducts: SellProductMock[] = [
   { id: 'sp2', name: 'Leche Entera 1L', price: '$1.200', stock: 'Stock 18 u' },
   { id: 'sp3', name: 'Azucar 500g', price: '$950', stock: 'Stock 32 u' },
   { addKg: true, id: 'sp4', name: 'Harina granel', price: '$1.900 / kg', stock: 'Stock 100 kg' },
-  { id: 'sp5', name: 'Harina 1 kg', price: '$2.500', stock: 'Stock 26 u' },
-  { id: 'sp6', name: 'Harina 2 kg', price: '$4.800', stock: 'Stock 14 u' },
+  { id: 'sp5', indent: true, linkedTo: 'Harina granel', name: 'Harina 1 kg', price: '$2.500', stock: 'Stock 26 u' },
+  { id: 'sp6', indent: true, linkedTo: 'Harina granel', name: 'Harina 2 kg', price: '$4.800', stock: 'Stock 14 u' },
   { id: 'sp7', name: 'Arroz Largo Fino 1kg', price: '$2.100', stock: 'Stock 20 u' },
   { id: 'sp8', name: 'Fideos 500g', price: '$1.350', stock: 'Stock 15 u' },
 ];
@@ -117,9 +119,9 @@ export const cartItems: CartItemMock[] = [
 ];
 
 export const confirmSaleItems: CartItemMock[] = [
-  { id: 'cs1', name: 'Yerba Amanda 1kg', price: '$9.600', qty: 'Cantidad: 2 u' },
-  { id: 'cs2', name: 'Harina granel', price: '$8.325', qty: '1,75 kg' },
-  { id: 'cs3', name: 'Leche Entera 1L', price: '$2.400', qty: 'Cantidad: 2 u' },
-  { id: 'cs4', name: 'Azucar 500g', price: '$1.900', qty: 'Cantidad: 2 u' },
-  { id: 'cs5', name: 'Fideos 500g', price: '$4.010', qty: 'Cantidad: 3 u' },
+  { id: 'cs1', name: 'Yerba Amanda 1kg', price: '$9.600', qty: '2 u' },
+  { id: 'cs2', name: 'Harina granel', price: '$8.325', qty: '1,75 kg', weight: true },
+  { id: 'cs3', name: 'Leche Entera 1L', price: '$2.400', qty: '2 u' },
+  { id: 'cs4', name: 'Azucar 500g', price: '$1.900', qty: '2 u' },
+  { id: 'cs5', name: 'Fideos 500g', price: '$4.010', qty: '3 u' },
 ];
