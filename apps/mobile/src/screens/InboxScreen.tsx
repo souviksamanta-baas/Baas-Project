@@ -1,8 +1,8 @@
 import type { ReactElement } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { conversations } from '../api/mockData';
-import type { ConversationMock } from '../api/mockData';
+import type { Channel, ConversationMock } from '../api/mockData';
 import {
   Card,
   ConversationRow,
@@ -11,6 +11,8 @@ import {
   ScreenContent,
   ScreenTitle,
 } from '../components/ui';
+import { ChannelIcon } from '../components/icons';
+import { SearchActionRow } from '../design-system';
 import { FeatureGate } from '../hooks/useFeatureVisibility';
 import { colors } from '../theme';
 
@@ -22,12 +24,7 @@ export function InboxScreen(props: {
       <ScreenTitle subtitle="Todas tus conversaciones en un solo lugar" title="Inbox" />
 
       <FeatureGate feature="inboxSearch">
-        <View style={styles.searchRow}>
-          <Text style={styles.searchText}>Buscar conversaciones</Text>
-          <View style={styles.filterButton}>
-            <Text style={styles.filterText}>≡</Text>
-          </View>
-        </View>
+        <SearchActionRow placeholder="Buscar conversaciones" showFilter />
       </FeatureGate>
 
       <FeatureGate feature="inboxFilters">
@@ -40,7 +37,7 @@ export function InboxScreen(props: {
         </View>
       </FeatureGate>
 
-      <Card>
+      <Card flush>
         <FeatureGate feature="inboxTabs">
           <View style={styles.statusTabs}>
             <Text style={styles.activeStatusTab}>Abiertos 12</Text>
@@ -75,18 +72,22 @@ export function ConversationDetailScreen(props: {
   return (
     <View style={styles.detailRoot}>
       <View style={styles.detailBody}>
-        <Card>
+        <Card flush>
           <FeatureGate feature="chatProfileHeader">
             <View style={styles.threadHeader}>
               <Text onPress={props.onBack} style={styles.backText}>‹</Text>
-              <ConversationRow
-                avatar={props.conversation.avatar}
-                channel={props.conversation.channel}
-                name={props.conversation.customerName}
-                preview="Cliente potencial"
-                statusLabel={props.conversation.statusLabel}
-                time=""
-              />
+              <View style={styles.threadAvatar}>
+                <Text style={styles.threadAvatarText}>{props.conversation.avatar}</Text>
+              </View>
+              <View style={styles.flex}>
+                <Text numberOfLines={1} style={styles.threadName}>{props.conversation.customerName}</Text>
+                <View style={styles.threadTags}>
+                  <ChannelSourceTag channel={props.conversation.channel} />
+                  {props.conversation.statusLabel ? (
+                    <Text style={styles.leadBadge}>{props.conversation.statusLabel}</Text>
+                  ) : null}
+                </View>
+              </View>
             </View>
           </FeatureGate>
           <FeatureGate feature="chatMessages">
@@ -95,7 +96,7 @@ export function ConversationDetailScreen(props: {
                 <MessageBubble
                   direction={message.direction}
                   key={message.id}
-                  source={message.source ?? (message.direction === 'inbound' ? props.conversation.channel : 'owner')}
+                  source={message.source === 'copi' ? 'copi' : undefined}
                   text={message.text}
                   time={message.time}
                 />
@@ -107,6 +108,24 @@ export function ConversationDetailScreen(props: {
       <FeatureGate feature="chatComposer">
         <ReplyComposer placeholder="Escribi un mensaje..." />
       </FeatureGate>
+    </View>
+  );
+}
+
+function ChannelSourceTag(props: { channel: Channel }): ReactElement {
+  const label =
+    props.channel === 'whatsapp'
+      ? 'WhatsApp'
+      : props.channel === 'instagram'
+        ? 'Instagram'
+        : props.channel === 'facebook'
+          ? 'Facebook'
+          : 'Email';
+
+  return (
+    <View style={styles.channelTag}>
+      <ChannelIcon channel={props.channel} size={12} />
+      <Text style={styles.channelTagText}>{label}</Text>
     </View>
   );
 }
@@ -147,6 +166,20 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 7,
   },
+  channelTag: {
+    alignItems: 'center',
+    backgroundColor: '#eef5ff',
+    borderRadius: 999,
+    flexDirection: 'row',
+    gap: 4,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+  },
+  channelTagText: {
+    color: '#1877f2',
+    fontSize: 9,
+    fontWeight: '600',
+  },
   channelText: {
     color: colors.navy,
     fontSize: 10,
@@ -166,35 +199,17 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'space-between',
   },
-  filterButton: {
-    alignItems: 'center',
-    borderColor: colors.border,
-    borderRadius: 9,
-    borderWidth: 1,
-    height: 34,
-    justifyContent: 'center',
-    width: 38,
-  },
-  filterText: {
-    color: colors.slate,
-    fontSize: 18,
-  },
-  searchRow: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  searchText: {
-    backgroundColor: colors.surface,
-    borderColor: colors.border,
-    borderRadius: 9,
-    borderWidth: 1,
-    color: colors.slate,
+  flex: {
     flex: 1,
-    fontSize: 11,
-    fontWeight: '300',
-    height: 34,
-    paddingHorizontal: 12,
-    paddingTop: 9,
+  },
+  leadBadge: {
+    backgroundColor: colors.primarySoft,
+    borderRadius: 999,
+    color: colors.primary,
+    fontSize: 9,
+    fontWeight: '600',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
   },
   statusTab: {
     color: colors.slate,
@@ -210,9 +225,40 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     paddingTop: 12,
   },
+  threadAvatar: {
+    alignItems: 'center',
+    backgroundColor: '#dfaa8b',
+    borderRadius: 999,
+    height: 42,
+    justifyContent: 'center',
+    width: 42,
+  },
+  threadAvatarText: {
+    color: colors.surface,
+    fontSize: 10,
+    fontWeight: '600',
+  },
   threadHeader: {
     alignItems: 'center',
+    borderBottomColor: colors.borderSoft,
+    borderBottomWidth: 1,
     flexDirection: 'row',
-    height: 86,
+    gap: 10,
+    minHeight: 86,
+    paddingHorizontal: 8,
+    paddingVertical: 12,
+  },
+  threadName: {
+    color: colors.navy,
+    fontSize: 14,
+    fontWeight: '600',
+    lineHeight: 18,
+  },
+  threadTags: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 4,
   },
 });

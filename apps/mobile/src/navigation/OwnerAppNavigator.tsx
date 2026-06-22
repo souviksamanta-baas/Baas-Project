@@ -50,8 +50,8 @@ export function OwnerAppNavigator(props: { onSignOut: () => void }): ReactElemen
     onOpenConfirmPayment: () => setRoute('confirm-payment'),
     onOpenDeleteProduct: () => setRoute('delete-product'),
     onOpenEditProduct: () => setRoute('edit-product'),
-    onOpenEditSubproduct: () => setRoute('edit-subproduct'),
-    onOpenProductDetail: () => setRoute('product-detail'),
+    onOpenEditSubproduct: (subproductId: string) => setRoute('edit-subproduct'),
+    onOpenProductDetail: (_productId: string) => setRoute('product-detail'),
     onOpenSellProducts: () => setRoute('sell-products'),
   };
 
@@ -84,7 +84,7 @@ export function OwnerAppNavigator(props: { onSignOut: () => void }): ReactElemen
       case 'product-detail':
         return <ProductDetailScreen {...inventoryNav} onBack={() => setRoute('manage-stock')} />;
       case 'edit-product':
-        return <EditProductScreen onBack={() => setRoute('product-detail')} />;
+        return <EditProductScreen {...inventoryNav} onBack={() => setRoute('product-detail')} />;
       case 'edit-subproduct':
         return <EditSubproductScreen onBack={() => setRoute('product-detail')} />;
       case 'add-stock':
@@ -118,7 +118,12 @@ export function OwnerAppNavigator(props: { onSignOut: () => void }): ReactElemen
         <ScrollView contentContainerStyle={styles.scrollContent} style={styles.scroll}>
           {renderInventoryScreen() ??
             (route === 'home' ? (
-              <HomeScreen onOpenManageStock={openManageStock} onSelectTab={selectTab} />
+              <HomeScreen
+                onOpenConversation={openConversation}
+                onOpenManageStock={openManageStock}
+                onOpenNotifications={() => setRoute('notifications')}
+                onSelectTab={selectTab}
+              />
             ) : route === 'inbox' ? (
               <InboxScreen onOpenConversation={openConversation} />
             ) : route === 'copi' ? (

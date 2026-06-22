@@ -8,17 +8,17 @@ import { requestEmailOtp, signOutOwner, verifyEmailOtp } from '../services/auth'
 import { normalizeEmail } from '../services/email';
 import type { OwnerDashboard } from '../types/dashboard';
 
-export type OwnerRoute = 'loading' | 'login' | 'verify' | 'onboarding' | 'dashboard';
+export type AuthPhase = 'loading' | 'unauthenticated' | 'pending_verify' | 'onboarding' | 'authenticated';
 
 export interface OwnerSessionState {
+  authPhase: AuthPhase;
   businessName: string;
   canSubmitEmail: boolean;
   dashboard: OwnerDashboard | null;
   email: string;
   isSubmitting: boolean;
   otpCode: string;
-  requestOtp: () => Promise<void>;
-  route: OwnerRoute;
+  requestOtp: () => Promise<boolean>;
   setBusinessName: (businessName: string) => void;
   setEmail: (email: string) => void;
   setOtpCode: (otpCode: string) => void;
@@ -28,26 +28,26 @@ export interface OwnerSessionState {
 }
 
 export function useOwnerSession(): OwnerSessionState {
-  const [route, setRoute] = useState<OwnerRoute>('loading');
+  const [bootstrapped, setBootstrapped] = useState(false);
   const [session, setSession] = useState<Session | null>(null);
   const [email, setEmail] = useState('');
   const [otpCode, setOtpCode] = useState('');
   const [businessName, setBusinessName] = useState('');
   const [dashboard, setDashboard] = useState<OwnerDashboard | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [otpSent, setOtpSent] = useState(false);
 
   const canSubmitEmail = useMemo(() => normalizeEmail(email) !== null, [email]);
 
   const bootstrapRoute = useCallback(async (nextSession: Session | null): Promise<void> => {
     if (!nextSession) {
       setDashboard(null);
-      setRoute('login');
       return;
     }
 
     const nextDashboard = await getOwnerDashboard();
     setDashboard(nextDashboard);
-    setRoute(nextDashboard.shouldOnboard ? 'onboarding' : 'dashboard');
+    setOtpSent(false);
   }, []);
 
   useEffect(() => {
@@ -59,7 +59,11 @@ export function useOwnerSession(): OwnerSessionState {
       }
 
       setSession(data.session);
-      void bootstrapRoute(data.session);
+      void bootstrapRoute(data.session).finally(() => {
+        if (mounted) {
+          setBootstrapped(true);
+        }
+      });
     });
 
     const {
@@ -75,10 +79,26 @@ export function useOwnerSession(): OwnerSessionState {
     };
   }, [bootstrapRoute]);
 
-  async function requestOtp(): Promise<void> {
+  const authPhase = useMemo((): AuthPhase => {
+    if (!bootstrapped) {
+      return 'loading';
+    }
+
+    if (!session) {
+      return otpSent ? 'pending_verify' : 'unauthenticated';
+    }
+
+    if (dashboard?.shouldOnboard) {
+      return 'onboarding';
+    }
+
+    return 'authenticated';
+  }, [bootstrapped, dashboard?.shouldOnboard, otpSent, session]);
+
+  async function requestOtp(): Promise<boolean> {
     if (!canSubmitEmail) {
       Alert.alert('Use email format', 'Enter an email address like owner@example.com.');
-      return;
+      return false;
     }
 
     setIsSubmitting(true);
@@ -87,9 +107,11 @@ export function useOwnerSession(): OwnerSessionState {
       const normalizedEmail = normalizeEmail(email);
       await requestEmailOtp(email);
       setEmail(normalizedEmail ?? email);
-      setRoute('verify');
+      setOtpSent(true);
+      return true;
     } catch (error) {
       Alert.alert('Could not send code', error instanceof Error ? error.message : 'Unknown error');
+      return false;
     } finally {
       setIsSubmitting(false);
     }
@@ -126,10 +148,12 @@ export function useOwnerSession(): OwnerSessionState {
   }
 
   async function signOut(): Promise<void> {
+    setOtpSent(false);
     await signOutOwner();
   }
 
   return {
+    authPhase,
     businessName,
     canSubmitEmail,
     dashboard,
@@ -137,7 +161,6 @@ export function useOwnerSession(): OwnerSessionState {
     isSubmitting,
     otpCode,
     requestOtp,
-    route,
     setBusinessName,
     setEmail,
     setOtpCode,

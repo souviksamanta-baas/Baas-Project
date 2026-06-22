@@ -79,6 +79,10 @@ Reusable confirmed components:
   infinity mark, and visible soft shadow.
 - Typography utilities in the mockup intentionally map `.font-extrabold` to 600
   and `.font-medium` to 300 for closer visual parity with the supplied images.
+- **Search rows (Inbox, Gestionar stock, Ventas):** use a single bordered shell
+  (icon + input). Focus highlights the **entire shell** in primary emerald
+  (`#08bd66`); the inner input has no separate focus ring. Implemented in
+  `SearchField` / `SearchActionRow` — see `docs/mobile-design-system.md`.
 - `Resumen del dia` metrics use 18px icons inside soft tone-matched circular
   backgrounds, 12px metric values, left-aligned icon/value/label groups, and
   subtle vertical dividers.

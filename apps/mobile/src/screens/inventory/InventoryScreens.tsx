@@ -36,11 +36,14 @@ import {
   RowActions,
   SaleTotalsBlock,
   SearchFilterRow,
+  SecondaryButton,
   SectionCard,
   SolidDangerButton,
   StockBadge,
 } from '../../components/inventoryUi';
 import { ScreenContent } from '../../components/ui';
+import { ListBox } from '../../design-system';
+import { DEFAULT_BASE_PRODUCT_ID } from '../../navigation/routes';
 import { colors, radius, shadows } from '../../theme';
 
 type InventoryNav = {
@@ -48,8 +51,8 @@ type InventoryNav = {
   onOpenConfirmPayment: () => void;
   onOpenDeleteProduct: () => void;
   onOpenEditProduct: () => void;
-  onOpenEditSubproduct: () => void;
-  onOpenProductDetail: () => void;
+  onOpenEditSubproduct: (subproductId: string) => void;
+  onOpenProductDetail: (productId: string) => void;
   onOpenSellProducts: () => void;
 };
 
@@ -62,19 +65,15 @@ export function ManageStockScreen(props: InventoryNav & { onBack?: () => void })
         title="Gestionar stock"
       />
       <SearchFilterRow />
-      <View style={styles.listCard}>
-        <View style={styles.listHeader}>
-          <Text style={styles.listHeaderTitle}>Productos en inventario</Text>
-          <Text style={styles.listHeaderMeta}>10 productos</Text>
-        </View>
+      <ListBox headerMeta="10 productos" title="Productos en inventario">
         {inventoryProducts.map((product) => (
           <InventoryListRow
             key={product.id}
-            onPress={product.isBase ? props.onOpenProductDetail : undefined}
+            onPress={product.isBase ? () => props.onOpenProductDetail(product.id) : undefined}
             product={product}
           />
         ))}
-      </View>
+      </ListBox>
       <Pressable style={styles.addProductCard}>
         <View style={styles.addProductIcon}>
           <Icon color={colors.primary} kind="plus" size={17} strokeWidth={2} />
@@ -110,15 +109,18 @@ export function ProductDetailScreen(props: InventoryNav & { onBack: () => void }
           <Text style={[styles.actionLabel, styles.dangerText]}>Eliminar</Text>
         </Pressable>
       </View>
-      <View style={styles.listCard}>
-        <View style={styles.listHeaderStacked}>
-          <Text style={styles.listHeaderTitle}>Subproductos</Text>
-          <Text style={styles.listHeaderSubtitle}>Presentaciones creadas a partir de este producto.</Text>
-        </View>
+      <ListBox
+        headerSubtitle="Presentaciones creadas a partir de este producto."
+        title="Subproductos"
+      >
         {subproducts.map((item) => (
-          <InventoryListRow key={item.id} product={subproductAsInventoryRow(item)} />
+          <InventoryListRow
+            key={item.id}
+            onPress={() => props.onOpenEditSubproduct(item.id)}
+            product={subproductAsInventoryRow(item)}
+          />
         ))}
-      </View>
+      </ListBox>
       <SectionCard subtitle="Seguimiento de costo y precio por ingreso." title="Lotes y precios">
         <View style={styles.batchTable}>
           <View style={styles.batchHeader}>
@@ -185,7 +187,7 @@ export function ProductDetailScreen(props: InventoryNav & { onBack: () => void }
   );
 }
 
-export function EditProductScreen(props: { onBack: () => void }): ReactElement {
+export function EditProductScreen(props: InventoryNav & { onBack: () => void }): ReactElement {
   return (
     <ScreenContent>
       <InventoryScreenTitle onBack={props.onBack} subtitle="Actualiza la informacion del producto" title="Editar producto" />
@@ -230,14 +232,14 @@ export function EditProductScreen(props: { onBack: () => void }): ReactElement {
           </Pressable>
         </View>
         {subproducts.slice(0, 2).map((item) => (
-          <LinkedSubproductRow key={item.id} name={item.name} />
+          <LinkedSubproductRow key={item.id} name={item.name} onPress={() => props.onOpenEditSubproduct(item.id)} />
         ))}
       </View>
       <View style={styles.buttonRow}>
-        <OutlineButton label="Cancelar" />
+        <OutlineButton label="Cancelar" onPress={() => props.onOpenProductDetail(DEFAULT_BASE_PRODUCT_ID)} />
         <PrimaryButton label="Guardar cambios" />
       </View>
-      <DangerButton label="Eliminar producto" />
+      <DangerButton label="Eliminar producto" onPress={props.onOpenDeleteProduct} />
     </ScreenContent>
   );
 }
@@ -324,12 +326,9 @@ export function AddStockScreen(props: { onBack: () => void }): ReactElement {
       <InfoBanner>
         Si seleccionas un subproducto, el ingreso se registra directamente sobre esa presentacion.
       </InfoBanner>
-      <Pressable style={styles.addAnotherRow}>
-        <Icon color={colors.primary} kind="plus" size={14} strokeWidth={2} />
-        <Text style={styles.addAnotherText}>Registrar otro ingreso</Text>
-      </Pressable>
+      <SecondaryButton fullWidth label="+ Guardar y Registrar otro ingreso" />
       <View style={styles.buttonRow}>
-        <OutlineButton label="Cancelar" />
+        <OutlineButton label="Cancelar" onPress={props.onBack} />
         <PrimaryButton label="Guardar ingreso" />
       </View>
     </ScreenContent>
@@ -387,7 +386,7 @@ export function SellProductsScreen(props: InventoryNav & { onBack?: () => void }
       <InventoryScreenTitle
         showBack={false}
         subtitle="Busca, agrega y cobra tus productos"
-        title="Vender productos"
+        title="Ventas"
       />
       <SearchFilterRow />
       <View style={styles.listCard}>
@@ -420,7 +419,7 @@ export function SellProductsScreen(props: InventoryNav & { onBack?: () => void }
           <PaymentChip label="QR" small />
         </View>
         <View style={styles.sellButtonRow}>
-          <OutlineButton compact icon="bill" label="Guardar venta" />
+          <OutlineButton compact icon="bill" label="Guardar presupuesto" />
           <CobrarButton onPress={props.onOpenConfirmPayment} />
         </View>
       </SectionCard>
@@ -469,7 +468,7 @@ export function ConfirmPaymentScreen(props: { onBack: () => void }): ReactElemen
           <Text style={styles.clientComprobanteValue}>Factura fiscal ARCA</Text>
         </View>
       </View>
-      <ConfirmEditButton icon="bill" label="Guardar presupuesto" onPress={props.onBack} />
+      <ConfirmEditButton icon="bill" label="Guardar presupuesto" />
       <ConfirmPrimaryButton label="Confirmar pago completo" />
       <View style={styles.confirmFooterNote}>
         <Icon color={colors.primary} kind="shield" size={14} strokeWidth={1.8} />
@@ -624,7 +623,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     flexDirection: 'row',
     gap: 12,
-    marginTop: 12,
     padding: 14,
   },
   addProductIcon: {
@@ -647,16 +645,18 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   addSubproductButton: {
+    alignItems: 'center',
     borderColor: colors.primary,
     borderRadius: 8,
     borderWidth: 1,
     flexShrink: 0,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    height: 36,
+    justifyContent: 'center',
+    paddingHorizontal: 12,
   },
   addSubproductButtonText: {
     color: colors.primary,
-    fontSize: 9,
+    fontSize: 11,
     fontWeight: '600',
   },
   alternativeBody: {
@@ -1001,7 +1001,6 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     borderRadius: radius.lg,
     borderWidth: 1,
-    marginTop: 14,
     overflow: 'hidden',
   },
   listHeader: {
@@ -1067,6 +1066,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     flexDirection: 'row',
     gap: 10,
+    paddingBottom: 10,
     paddingTop: 10,
   },
   movementSymbol: {

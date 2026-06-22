@@ -9,15 +9,17 @@ import {
   NotificationRow,
   RobotAvatar,
   ScreenContent,
-  SectionHeader,
 } from '../components/ui';
 import type { AppTab } from '../components/ui';
 import { Icon } from '../components/icons';
+import { ListBox, colors as dsColors } from '../design-system';
 import { FeatureGate } from '../hooks/useFeatureVisibility';
 import { colors, shadows } from '../theme';
 
 export function HomeScreen(props: {
+  onOpenConversation: (conversationId: string) => void;
   onOpenManageStock: () => void;
+  onOpenNotifications: () => void;
   onSelectTab: (tab: AppTab) => void;
 }): ReactElement {
   return (
@@ -41,7 +43,7 @@ export function HomeScreen(props: {
       </FeatureGate>
 
       <FeatureGate feature="homeMetrics">
-        <Card style={styles.summaryCard}>
+        <Card flush style={styles.summaryCard}>
           <Text style={styles.sectionTitle}>Resumen del dia</Text>
           <Text style={styles.cardDescription}>Asi va tu negocio hasta ahora. Sigue asi!</Text>
           <MetricGrid metrics={dashboardMetrics} />
@@ -49,20 +51,23 @@ export function HomeScreen(props: {
       </FeatureGate>
 
       <FeatureGate feature="homeConversations">
-        <SectionHeader actionLabel="Ver todas" onAction={() => props.onSelectTab('inbox')} title="Conversaciones recientes" />
-        <Card>
+        <ListBox
+          headerAction={{ label: 'Ver todas', onPress: () => props.onSelectTab('inbox') }}
+          title="Conversaciones recientes"
+        >
           {conversations.slice(0, 4).map((conversation) => (
             <ConversationRow
               avatar={conversation.avatar}
               channel={conversation.channel}
               key={conversation.id}
               name={conversation.customerName}
+              onPress={() => props.onOpenConversation(conversation.id)}
               preview={conversation.preview}
               statusLabel={conversation.statusLabel}
               time={conversation.time}
             />
           ))}
-        </Card>
+        </ListBox>
       </FeatureGate>
 
       <FeatureGate feature="homeInventoryCta">
@@ -79,12 +84,14 @@ export function HomeScreen(props: {
       </FeatureGate>
 
       <FeatureGate feature="homeAlerts">
-        <SectionHeader actionLabel="Ver todas" onAction={() => props.onSelectTab('more')} title="Alertas recientes" />
-        <Card>
+        <ListBox
+          headerAction={{ label: 'Ver todas', onPress: props.onOpenNotifications }}
+          title="Alertas recientes"
+        >
           {notifications.slice(0, 3).map((notification) => (
             <NotificationRow key={notification.id} notification={notification} />
           ))}
-        </Card>
+        </ListBox>
       </FeatureGate>
     </ScreenContent>
   );
@@ -115,12 +122,12 @@ const styles = StyleSheet.create({
   copiCard: {
     ...shadows.card,
     alignItems: 'center',
-    backgroundColor: '#f8fbfa',
+    backgroundColor: dsColors.surfaceMint,
     borderColor: colors.border,
     borderRadius: 14,
     borderWidth: 1,
     flexDirection: 'row',
-    height: 82,
+    height: 90,
     paddingHorizontal: 12,
   },
   flex: {
@@ -136,13 +143,13 @@ const styles = StyleSheet.create({
   inventoryCard: {
     ...shadows.card,
     alignItems: 'center',
-    backgroundColor: colors.surface,
+    backgroundColor: dsColors.surfaceMint,
     borderColor: colors.border,
     borderRadius: 14,
     borderWidth: 1,
     flexDirection: 'row',
     gap: 12,
-    height: 58,
+    height: 70,
     paddingHorizontal: 15,
   },
   inventoryIcon: {
@@ -152,10 +159,6 @@ const styles = StyleSheet.create({
     height: 30,
     justifyContent: 'center',
     width: 30,
-  },
-  inventoryIconText: {
-    color: colors.primary,
-    fontSize: 18,
   },
   primaryText: {
     color: colors.primary,

@@ -37,8 +37,38 @@ or any server-only variables.
 
 ## Navigation Flow
 
-Phase 0 keeps navigation intentionally simple and state-based, but Phase 1 split
-the shell into maintainable boundaries before the MVP screens expand:
+The owner app primary entry is **Expo Router** (`expo-router/entry` in
+`package.json`). File-based routes live under `apps/mobile/app/`.
+
+### Route groups
+
+| Group | Paths | Purpose |
+| --- | --- | --- |
+| `(auth)/` | `login`, `verify`, `onboarding` | Supabase OTP and org bootstrap |
+| `(app)/` | `index`, `inbox`, `copi`, `more`, … | Authenticated shell with header + bottom nav |
+| `(app)/inventory/` | `manage-stock`, `product/[id]`, `sell`, … | Inventory and POS stack |
+| `(app)/` | `account`, `notifications` | Header / More destinations |
+
+Route constants and helpers: `apps/mobile/src/navigation/routes.ts` (`tabRoute`,
+`conversationRoute`, inventory helpers, `getActiveTab`, `shouldHideBottomNav`).
+
+Tab switches use `router.replace()` to avoid stacking duplicate tab screens. Nested
+stacks (inbox conversation, Copi chat, inventory) use `router.push()` / `replace()`
+as appropriate.
+
+### Legacy navigator
+
+`OwnerAppNavigator.tsx` remains for the no-Supabase dev fallback and
+`DashboardScreen` embedding. New screens and journeys should wire through Expo
+Router only.
+
+Epic [KAN-259](https://souviksamanta.atlassian.net/browse/KAN-259) tracks the Expo
+Router migration (stories KAN-260–KAN-267). Future Tasks tab routes (KAN-268–KAN-270)
+stay open until Tasks UI exists.
+
+### Phase 0 state machine (historical)
+
+Phase 0 originally used state-based routing in `App.tsx`:
 
 1. `loading`: checks the current Supabase session.
 2. `login`: requests an email OTP with `supabase.auth.signInWithOtp`.
@@ -59,6 +89,16 @@ the shell into maintainable boundaries before the MVP screens expand:
 
 This structure can be replaced with a router once more screens are added in Phase
 2, while keeping screens, hooks, services, and reusable components separate.
+
+_(Superseded for the mockup review app by Expo Router — see **Navigation Flow**
+above.)_
+
+## Design System
+
+Screen polish for Inbox, inventory, and Copi uses shared components in
+`apps/mobile/src/design-system`. See **`docs/mobile-design-system.md`** for tokens,
+`SearchField` / `SearchActionRow` focus behavior (green shell border on focus),
+`ComposerInput`, `ListBox`, and button variants.
 
 ## Authentication Note
 
@@ -231,10 +271,12 @@ Implementation paths:
 | Path | Purpose |
 | --- | --- |
 | `apps/mobile/src/screens/inventory/InventoryScreens.tsx` | Eight inventory/POS screen components. |
-| `apps/mobile/src/components/inventoryUi.tsx` | Shared inventory UI: search row, product cards, form fields, cart rows, totals, and action buttons. |
+| `apps/mobile/src/design-system/components/Input.tsx` | `SearchField`, `SearchActionRow`, form inputs (see `docs/mobile-design-system.md`). |
+| `apps/mobile/src/components/inventoryUi.tsx` | Shared inventory UI: product cards, form fields, cart rows, totals, and action buttons (`SearchFilterRow` wraps `SearchActionRow`). |
 | `apps/mobile/src/components/icons.tsx` | Inventory-specific icons (search, camera, barcode, QR, edit, trash, check, clock, shield, and others). |
 | `apps/mobile/src/api/inventoryMockData.ts` | Static mock data for review. |
-| `apps/mobile/src/navigation/OwnerAppNavigator.tsx` | Route wiring from Home, Más, and bottom-nav `$` into inventory flows. |
+| `apps/mobile/app/(app)/inventory/*` | Expo Router inventory stack (replaces `OwnerAppNavigator` for mock review). |
+| `apps/mobile/src/navigation/routes.ts` | Route constants and tab/inventory navigation helpers. |
 
 Accepted static screens:
 

@@ -11,8 +11,9 @@ import {
   OutlineButton as DsOutlineButton,
   PrimaryButton as DsPrimaryButton,
   ScreenHeader,
-  SearchField,
+  SearchActionRow,
   SectionCard as DsSectionCard,
+  SecondaryButton as DsSecondaryButton,
   colors,
   radius,
   shadows,
@@ -47,15 +48,7 @@ export function InventoryScreenTitle(props: {
 
 export function SearchFilterRow(): ReactElement {
   return (
-    <View style={styles.searchRow}>
-      <SearchField placeholder="Buscar por producto o categoria" shadow style={styles.searchField} />
-      <Pressable style={styles.cameraButton}>
-        <Icon color={colors.primary} kind="camera" size={18} strokeWidth={1.9} />
-      </Pressable>
-      <Pressable style={styles.filterButton}>
-        <Icon color={colors.slate} kind="filter" size={17} strokeWidth={1.7} />
-      </Pressable>
-    </View>
+    <SearchActionRow placeholder="Buscar por producto o categoria" showCamera showFilter />
   );
 }
 
@@ -205,6 +198,25 @@ export function OutlineButton(props: {
   );
 }
 
+export function SecondaryButton(props: {
+  fullWidth?: boolean;
+  icon?: IconKind;
+  label: string;
+  onPress?: () => void;
+}): ReactElement {
+  return (
+    <DsSecondaryButton
+      flex={!props.fullWidth}
+      fullWidth={props.fullWidth}
+      icon={props.icon}
+      label={props.label}
+      onPress={props.onPress}
+      size="compact"
+      style={props.fullWidth ? styles.formSecondaryButton : undefined}
+    />
+  );
+}
+
 export function DangerButton(props: { label: string; onPress?: () => void }): ReactElement {
   return (
     <DsDangerButton
@@ -240,7 +252,7 @@ export function SectionCard(props: { children: ReactNode; title?: string; subtit
     <DsSectionCard style={styles.sectionCard}>
       {props.title ? <Text style={styles.sectionCardTitle}>{props.title}</Text> : null}
       {props.subtitle ? <Text style={styles.sectionCardSubtitle}>{props.subtitle}</Text> : null}
-      {props.children}
+      <View style={styles.sectionCardBody}>{props.children}</View>
     </DsSectionCard>
   );
 }
@@ -336,9 +348,9 @@ export function CodeTypeIcon(props: { code: string; tone?: 'red'; small?: boolea
   return <Icon color={iconColor} kind={iconKind} size={size} strokeWidth={1} />;
 }
 
-export function LinkedSubproductRow(props: { name: string }): ReactElement {
+export function LinkedSubproductRow(props: { name: string; onPress?: () => void }): ReactElement {
   return (
-    <View style={styles.linkedSubproductRow}>
+    <Pressable onPress={props.onPress} style={styles.linkedSubproductRow}>
       <ProductThumb />
       <View style={styles.flex}>
         <Text style={styles.linkedSubproductName}>{props.name}</Text>
@@ -349,7 +361,7 @@ export function LinkedSubproductRow(props: { name: string }): ReactElement {
         <Text style={styles.linkedSubproductActionText}>Editar</Text>
         <Icon color={colors.primary} kind="chevron-right" size={12} strokeWidth={2.2} />
       </View>
-    </View>
+    </Pressable>
   );
 }
 
@@ -508,6 +520,12 @@ const styles = StyleSheet.create({
   buttonFullWidth: {
     flex: 0,
     marginTop: 12,
+    width: '100%',
+  },
+  formSecondaryButton: {
+    alignSelf: 'stretch',
+    flex: 0,
+    height: 38,
     width: '100%',
   },
   barcodeWrap: {
@@ -1041,11 +1059,13 @@ const styles = StyleSheet.create({
   searchRow: {
     flexDirection: 'row',
     gap: 8,
-    marginTop: 14,
   },
   sectionCard: {
-    marginTop: 12,
     padding: 14,
+  },
+  sectionCardBody: {
+    gap: 8,
+    paddingBottom: 2,
   },
   sectionCardSubtitle: {
     color: colors.slate,
@@ -1057,6 +1077,7 @@ const styles = StyleSheet.create({
     color: colors.navy,
     fontSize: 12,
     fontWeight: '600',
+    paddingBottom: 8,
   },
   solidDangerButton: {
     alignItems: 'center',

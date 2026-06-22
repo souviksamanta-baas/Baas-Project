@@ -8,6 +8,7 @@ export const colors = {
   primaryLight: '#8ad5b5',
   primarySoft: '#e9f8ef',
   surface: '#ffffff',
+  surfaceMint: '#f8fbfa',
 
   // Text
   textPrimary: '#101935',

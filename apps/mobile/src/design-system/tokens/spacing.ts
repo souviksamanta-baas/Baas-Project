@@ -2,6 +2,8 @@
 export const spacing = {
   /** 4px — micro gaps */
   xxs: 4,
+  /** 10px — stacked box rhythm on scroll screens */
+  boxGap: 10,
   /** 8px — icon/text spacing */
   xs: 8,
   /** 12px — compact internal spacing */

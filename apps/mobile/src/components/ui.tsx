@@ -1,9 +1,10 @@
 import type { ReactElement, ReactNode } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import type { Channel, DashboardMetricMock, NotificationMock, Tone } from '../api/mockData';
 import {
   Card as DsCard,
+  ComposerInput,
   SectionHeader as DsSectionHeader,
   StatusDot,
   colors,
@@ -72,7 +73,11 @@ export function AppHeader(props: {
 }
 
 export function ScreenContent(props: { children: ReactNode }): ReactElement {
-  return <View style={styles.content}>{props.children}</View>;
+  return (
+    <ScrollView contentContainerStyle={styles.content} style={styles.screenScroll}>
+      {props.children}
+    </ScrollView>
+  );
 }
 
 export function ScreenTitle(props: { subtitle?: string; title: string }): ReactElement {
@@ -84,9 +89,9 @@ export function ScreenTitle(props: { subtitle?: string; title: string }): ReactE
   );
 }
 
-export function Card(props: { children: ReactNode; style?: object }): ReactElement {
+export function Card(props: { children: ReactNode; flush?: boolean; style?: object }): ReactElement {
   return (
-    <DsCard flush style={props.style}>
+    <DsCard flush={props.flush} style={props.style}>
       {props.children}
     </DsCard>
   );
@@ -104,7 +109,7 @@ export function MetricGrid(props: { metrics: DashboardMetricMock[] }): ReactElem
           key={metric.id}
           style={[styles.metricItem, index === props.metrics.length - 1 && styles.metricItemLast]}
         >
-          <ToneIcon tone={metric.tone} />
+          <MetricIcon metricId={metric.id} tone={metric.tone} />
           <Text style={[styles.metricValue, toneText(metric.tone)]}>{metric.value}</Text>
           <Text style={styles.metricLabel}>{metric.label}</Text>
         </View>
@@ -193,11 +198,12 @@ export function MessageBubble(props: {
   time: string;
 }): ReactElement {
   const outbound = props.direction === 'outbound';
+  const showCopiTag = props.source === 'copi';
 
   return (
     <View style={[styles.messageWrap, outbound && styles.outboundMessageWrap]}>
-      <View style={[styles.messageBubble, outbound && styles.outboundMessageBubble, props.source && sourceAccent(props.source)]}>
-        {props.source ? <MessageSourceBadge source={props.source} /> : null}
+      <View style={[styles.messageBubble, outbound && styles.outboundMessageBubble]}>
+        {showCopiTag ? <MessageSourceBadge source="copi" /> : null}
         <Text style={styles.messageText}>{props.text}</Text>
         <Text style={styles.messageTime}>{props.time}</Text>
       </View>
@@ -221,14 +227,19 @@ function MessageSourceBadge(props: { source: MessageSource }): ReactElement {
   );
 }
 
-export function ReplyComposer(props: { placeholder: string }): ReactElement {
+export function ReplyComposer(props: { embedded?: boolean; placeholder: string }): ReactElement {
   return (
-    <View style={styles.replyBar}>
-      <Icon color={colors.primary} kind="plus" size={18} strokeWidth={2.2} />
-      <TextInput editable={false} placeholder={props.placeholder} style={styles.replyInput} />
-      <View style={styles.micButton}>
-        <Icon color={colors.surface} kind="mic" size={19} strokeWidth={2.2} />
-      </View>
+    <View style={[styles.replyBar, props.embedded && styles.replyBarEmbedded]}>
+      <ComposerInput
+        editable={false}
+        leadingIcon="plus"
+        placeholder={props.placeholder}
+        trailing={
+          <View style={styles.micButton}>
+            <Icon color={colors.surface} kind="mic" size={19} strokeWidth={2.2} />
+          </View>
+        }
+      />
     </View>
   );
 }
@@ -283,6 +294,23 @@ function Avatar(props: { channel: Channel; label: string }): ReactElement {
       <View style={styles.channelBadge}>
         <ChannelIcon channel={props.channel} size={12} />
       </View>
+    </View>
+  );
+}
+
+function MetricIcon(props: { metricId: string; tone: Tone }): ReactElement {
+  const kind: IconKind =
+    props.metricId === 'messages'
+      ? 'inbox'
+      : props.metricId === 'tasks'
+        ? 'bell'
+        : props.metricId === 'stock'
+          ? 'alert'
+          : 'money';
+
+  return (
+    <View style={[styles.toneIcon, toneBackground(props.tone)]}>
+      <Icon color={toneColor(props.tone)} kind={kind} size={16} strokeWidth={1.8} />
     </View>
   );
 }
@@ -470,10 +498,13 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   content: {
-    gap: spacing.lg,
+    gap: spacing.boxGap,
     paddingBottom: spacing.lg,
     paddingHorizontal: spacing.xl,
     paddingTop: spacing.sm,
+  },
+  screenScroll: {
+    flex: 1,
   },
   customerAvatar: {
     alignItems: 'center',
@@ -581,7 +612,7 @@ const styles = StyleSheet.create({
     borderColor: colors.borderSoft,
     borderRadius: 13,
     borderWidth: 1,
-    maxWidth: 226,
+    maxWidth: 280,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
   },
@@ -755,16 +786,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xl,
     paddingVertical: spacing.sm,
   },
-  replyInput: {
-    backgroundColor: colors.surface,
-    borderColor: colors.border,
-    borderRadius: radius.pill,
-    borderWidth: 1,
-    color: colors.slateLight,
-    flex: 1,
-    fontSize: 12,
-    height: 36,
-    paddingHorizontal: spacing.lg,
+  replyBarEmbedded: {
+    backgroundColor: 'transparent',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
   },
   robot: {
     alignItems: 'center',

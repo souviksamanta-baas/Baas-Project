@@ -30,16 +30,23 @@ export function CopiScreen(props: { onOpenChat: () => void }): ReactElement {
       </FeatureGate>
 
       <FeatureGate feature="copiQuestionComposer">
-        <View onTouchEnd={props.onOpenChat} style={styles.landingComposer}>
-          <ReplyComposer placeholder="Escribí tu pregunta..." />
-        </View>
+        <Card flush style={styles.composerCard}>
+          <ReplyComposer embedded placeholder="Escribí tu pregunta..." />
+        </Card>
       </FeatureGate>
 
       <FeatureGate feature="copiSuggestedQuestions">
-        <Text style={styles.sectionTitle}>Preguntas sugeridas</Text>
-        <Card>
-          {suggestedQuestions.map((question) => (
-            <ActionRow icon="message" key={question} onPress={props.onOpenChat} title={question} />
+        <Card flush>
+          <View style={styles.listHeader}>
+            <Text style={styles.sectionTitle}>Preguntas sugeridas</Text>
+          </View>
+          {suggestedQuestions.map((question, index) => (
+            <ActionRow
+              icon="message"
+              key={question}
+              onPress={index < 2 ? props.onOpenChat : undefined}
+              title={question}
+            />
           ))}
         </Card>
       </FeatureGate>
@@ -61,7 +68,7 @@ export function CopiChatScreen(props: { onBack: () => void }): ReactElement {
   return (
     <View style={styles.chatRoot}>
       <View style={styles.chatBody}>
-        <Card>
+        <Card flush>
           <FeatureGate feature="chatProfileHeader">
             <View style={styles.threadHeader}>
               <Text onPress={props.onBack} style={styles.backText}>‹</Text>
@@ -78,7 +85,6 @@ export function CopiChatScreen(props: { onBack: () => void }): ReactElement {
                 <MessageBubble
                   direction={message.direction}
                   key={message.id}
-                  source={message.source ?? (message.direction === 'inbound' ? 'copi' : 'owner')}
                   text={message.text}
                   time={message.time}
                 />
@@ -127,12 +133,21 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'space-between',
   },
+  composerCard: {
+    ...shadows.card,
+  },
   flex: {
     flex: 1,
   },
   greenText: {
     color: colors.primary,
     fontWeight: '600',
+  },
+  listHeader: {
+    borderBottomColor: colors.borderSoft,
+    borderBottomWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
   },
   orangeText: {
     color: colors.warning,
@@ -147,9 +162,6 @@ const styles = StyleSheet.create({
   purpleText: {
     color: '#8b5cf6',
     fontWeight: '600',
-  },
-  landingComposer: {
-    marginHorizontal: -20,
   },
   sectionTitle: {
     color: colors.navy,

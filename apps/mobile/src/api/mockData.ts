@@ -82,6 +82,7 @@ export const conversations: ConversationMock[] = [
       { direction: 'outbound', id: 'm2', source: 'owner', text: 'Hola Maria! Si, tenemos stock disponible.', time: '11:33' },
       { direction: 'inbound', id: 'm3', source: 'whatsapp', text: 'Perfecto, cuanto cuesta y hacen envios?', time: '11:34' },
       { direction: 'outbound', id: 'm4', source: 'owner', text: 'Sale $4.800 y hacemos envios a domicilio.', time: '11:35' },
+      { direction: 'outbound', id: 'm5', source: 'copi', text: 'Copi respondio automaticamente con la cotizacion de envio.', time: '11:35' },
     ],
     preview: 'Hola, tienen disponible el producto...?',
     statusLabel: 'Nuevo lead',
