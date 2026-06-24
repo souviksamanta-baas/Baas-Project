@@ -89,6 +89,40 @@ export class WhatsAppConversationMessageRepository {
     };
   }
 
+  async updateMessageStatusByExternalId(params: {
+    externalMessageId: string;
+    messageStatus: 'delivered' | 'failed' | 'read' | 'sent';
+    timestamp?: string | null;
+  }): Promise<boolean> {
+    const client = this.supabaseService.getServiceRoleClient();
+    const timestamp = params.timestamp ?? new Date().toISOString();
+    const patch: Record<string, string | null> = {
+      message_status: params.messageStatus,
+      updated_at: timestamp,
+    };
+
+    if (params.messageStatus === 'sent') {
+      patch.sent_at = timestamp;
+    }
+
+    if (params.messageStatus === 'failed') {
+      patch.failed_at = timestamp;
+    }
+
+    const { data, error } = await client
+      .from('conversation_messages')
+      .update(patch)
+      .eq('external_message_id', params.externalMessageId)
+      .select('id')
+      .maybeSingle<{ id: string }>();
+
+    if (error) {
+      throw new Error(`Failed to update WhatsApp message status: ${error.message}`);
+    }
+
+    return Boolean(data?.id);
+  }
+
   async recordOutboundMessage(params: RecordOutboundWhatsAppMessageParams): Promise<void> {
     const sentAt = params.sentAt ?? new Date().toISOString();
     const conversation = await this.upsertConversation({

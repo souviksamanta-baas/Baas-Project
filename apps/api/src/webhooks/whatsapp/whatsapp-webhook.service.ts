@@ -4,9 +4,11 @@ import { Injectable } from '@nestjs/common';
 
 import {
   WhatsAppInboundMessageLog,
+  WhatsAppMessageStatusLog,
   WhatsAppWebhookPayload,
 } from './whatsapp-webhook.types';
 import { WhatsAppMessageEventRepository } from './whatsapp-message-event.repository';
+import { WhatsAppConversationMessageRepository } from '../../domains/whatsapp/whatsapp-conversation-message.repository';
 
 export class InvalidWebhookSignatureError extends Error {
   constructor(message: string) {
@@ -17,7 +19,10 @@ export class InvalidWebhookSignatureError extends Error {
 
 @Injectable()
 export class WhatsAppWebhookService {
-  constructor(private readonly eventRepository?: WhatsAppMessageEventRepository) {}
+  constructor(
+    private readonly eventRepository?: WhatsAppMessageEventRepository,
+    private readonly conversationMessageRepository?: WhatsAppConversationMessageRepository,
+  ) {}
 
   verifyMetaChallenge(params: {
     mode?: string;
@@ -99,6 +104,78 @@ export class WhatsAppWebhookService {
     }
 
     return events;
+  }
+
+  parseMessageStatusUpdates(payload: WhatsAppWebhookPayload): WhatsAppMessageStatusLog[] {
+    const events: WhatsAppMessageStatusLog[] = [];
+
+    for (const entry of payload.entry ?? []) {
+      for (const change of entry.changes ?? []) {
+        const phoneNumberId = change.value?.metadata?.phone_number_id;
+
+        for (const status of change.value?.statuses ?? []) {
+          if (!status.id || !phoneNumberId) {
+            continue;
+          }
+
+          const mappedStatus = this.mapMetaStatus(status.status);
+          if (!mappedStatus) {
+            continue;
+          }
+
+          events.push({
+            externalMessageId: status.id,
+            messageStatus: mappedStatus,
+            phoneNumberId,
+            recipientPhone: status.recipient_id ?? null,
+            timestamp: this.toIsoTimestamp(status.timestamp),
+          });
+        }
+      }
+    }
+
+    return events;
+  }
+
+  async persistMessageStatusUpdates(
+    events: WhatsAppMessageStatusLog[],
+  ): Promise<number> {
+    if (!this.conversationMessageRepository) {
+      return 0;
+    }
+
+    let updatedCount = 0;
+
+    for (const event of events) {
+      const updated = await this.conversationMessageRepository.updateMessageStatusByExternalId({
+        externalMessageId: event.externalMessageId,
+        messageStatus: event.messageStatus,
+        timestamp: event.timestamp,
+      });
+
+      if (updated) {
+        updatedCount += 1;
+      }
+    }
+
+    return updatedCount;
+  }
+
+  private mapMetaStatus(
+    status?: string,
+  ): WhatsAppMessageStatusLog['messageStatus'] | null {
+    switch (status) {
+      case 'sent':
+        return 'sent';
+      case 'delivered':
+        return 'delivered';
+      case 'read':
+        return 'read';
+      case 'failed':
+        return 'failed';
+      default:
+        return null;
+    }
   }
 
   async persistInboundMessages(

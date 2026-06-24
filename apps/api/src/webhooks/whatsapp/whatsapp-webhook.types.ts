@@ -26,6 +26,14 @@ export interface WhatsAppWebhookChangeValue {
     };
   }>;
   messages?: WhatsAppMessage[];
+  statuses?: WhatsAppStatusUpdate[];
+}
+
+export interface WhatsAppStatusUpdate {
+  id?: string;
+  recipient_id?: string;
+  status?: string;
+  timestamp?: string;
 }
 
 export interface WhatsAppMessage {
@@ -47,6 +55,14 @@ export interface WhatsAppInboundMessageLog {
   messageType: string;
   textBody: string | null;
   duplicate: boolean;
+}
+
+export interface WhatsAppMessageStatusLog {
+  externalMessageId: string;
+  messageStatus: 'delivered' | 'read' | 'failed' | 'sent';
+  phoneNumberId: string;
+  recipientPhone: string | null;
+  timestamp: string | null;
 }
 
 export interface WhatsAppWebhookResponse {

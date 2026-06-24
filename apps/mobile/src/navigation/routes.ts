@@ -17,6 +17,7 @@ export const routes = {
   inventoryManageStock: '/(app)/inventory/manage-stock',
   inventorySell: '/(app)/inventory/sell',
   inventoryConfirmPayment: '/(app)/inventory/confirm-payment',
+  whatsappConnect: '/(app)/whatsapp-connect',
 } as const;
 
 export function tabRoute(tab: AppTab): string {
@@ -79,7 +80,11 @@ export function getActiveTab(pathname: string): AppTab {
 }
 
 export function shouldHideBottomNav(pathname: string): boolean {
-  return /\/inbox\/[^/]+$/.test(pathname) || pathname.endsWith('/copi/chat');
+  return (
+    /\/inbox\/[^/]+$/.test(pathname) ||
+    pathname.endsWith('/copi/chat') ||
+    pathname.endsWith('/whatsapp-connect')
+  );
 }
 
 export function shouldUseScrollShell(_pathname: string): boolean {

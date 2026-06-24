@@ -50,6 +50,7 @@ These values must never be bundled into mobile/client code.
 | `SUPABASE_DB_PASSWORD` | Database password for migration workflows when needed | Local dev, CI secret store |
 | `WHATSAPP_VERIFY_TOKEN` | Meta webhook setup token checked by `GET /webhooks/whatsapp` | API server, deployment secret store |
 | `WHATSAPP_APP_SECRET` | Meta app secret used to validate `x-hub-signature-256` | API server, deployment secret store |
+| `WHATSAPP_CLOUD_ACCESS_TOKEN` | Meta Cloud API access token for phone verification during connection registration and outbound sends | API server, deployment secret store |
 | `WHATSAPP_WEBHOOK_PATH` | Documented webhook path for deployment routing | API server, local dev |
 | `BAAS_TASKS_JOB_SECRET` | Shared secret required by `POST /tasks/run-maintenance` | API server, scheduler secret store |
 | `SUPABASE_AUTH_SMS_PROVIDER` | Name of the hosted SMS provider configured for phone OTP | Supabase dashboard or deployment notes only |

@@ -128,6 +128,9 @@ export class WhatsAppWebhookController {
     const events = await this.webhookService.persistInboundMessages(
       this.webhookService.parseInboundMessages(payload),
     );
+    const statusUpdates = await this.webhookService.persistMessageStatusUpdates(
+      this.webhookService.parseMessageStatusUpdates(payload),
+    );
 
     for (const event of events) {
       this.logger.log(
@@ -143,16 +146,16 @@ export class WhatsAppWebhookController {
       );
     }
 
-    if (events.length === 0) {
+    if (events.length === 0 && statusUpdates === 0) {
       this.logger.log(
         JSON.stringify({
           event: 'whatsapp.webhook.received',
-          message: 'No inbound message events found in payload',
+          message: 'No inbound message or status events found in payload',
         }),
       );
     }
 
-    return { received: true, eventCount: events.length };
+    return { received: true, eventCount: events.length + statusUpdates };
   }
 
   private verifySignatureIfConfigured(

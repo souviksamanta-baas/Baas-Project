@@ -143,6 +143,25 @@ The dashboard renders only non-secret WhatsApp metadata:
 The mobile app never reads WhatsApp access tokens, webhook verify tokens, app
 secrets, or service-role configuration.
 
+## WhatsApp Connection (KAN-75)
+
+Owners connect WhatsApp Business from **Mi cuenta → WhatsApp** or the setup banner on
+Home/Inbox when `whatsappConnection.status` is not `connected`.
+
+Route: `/(app)/whatsapp-connect` (`WhatsAppConnectScreen`)
+
+Flow:
+
+1. Owner enters Meta **Phone Number ID**, optional **WABA ID**, and visible phone number.
+2. Mobile calls `POST /whatsapp/connection/register` with the Supabase session bearer token.
+3. API verifies the number against Meta Graph API using server-only
+   `WHATSAPP_CLOUD_ACCESS_TOKEN`, then upserts `whatsapp_config` for the organization.
+4. Mobile refreshes `get_owner_dashboard` and shows live connection state on Home,
+   Inbox, and Account.
+
+Connection labels and banners use `whatsappConnectionLabel()` in
+`apps/mobile/src/services/whatsapp.ts`.
+
 ## Realtime Message Delivery
 
 Phase 2 message history is stored in `conversation_messages`, which is registered
@@ -153,7 +172,8 @@ inbox uses the active/default business center for reads and subscriptions.
 The dashboard now includes a compact live WhatsApp message preview that:
 
 - Loads recent `conversation_messages` rows for the active business center.
-- Subscribes to `INSERT` events with `business_center_id=eq.<active-center-id>`.
+- Subscribes to `INSERT` and `UPDATE` events with
+  `business_center_id=eq.<active-center-id>`.
 - Updates the visible preview when new messages arrive without manual refresh.
 
 ## Universal Inbox

@@ -1,20 +1,55 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo, type ReactElement } from 'react';
 
-import { conversations } from '../../../src/api/mockData';
-import { ConversationDetailScreen } from '../../../src/screens/InboxScreen';
+import { useOwnerSessionContext } from '../../../src/context/OwnerSessionProvider';
+import { useConversationThread } from '../../../src/hooks/useConversationThread';
+import { useInbox } from '../../../src/hooks/useInbox';
+import {
+  conversationAvatarLabel,
+  conversationDisplayName,
+  leadStatusLabel,
+} from '../../../src/lib/inboxPresentation';
 import { routes } from '../../../src/navigation/routes';
+import { ConversationDetailScreen } from '../../../src/screens/InboxScreen';
 
 export default function ConversationDetailRoute(): ReactElement {
   const router = useRouter();
   const { conversationId } = useLocalSearchParams<{ conversationId: string }>();
+  const { dashboard } = useOwnerSessionContext();
+  const organizationId = dashboard?.organization?.id ?? null;
+  const businessCenterId = dashboard?.businessCenter?.id ?? null;
+  const inbox = useInbox(organizationId, businessCenterId);
+  const thread = useConversationThread({
+    businessCenterId,
+    conversationId: conversationId ?? null,
+    organizationId,
+  });
 
   const conversation = useMemo(
-    () => conversations.find((item) => item.id === conversationId) ?? conversations[0],
-    [conversationId],
+    () => inbox.conversations.find((item) => item.id === conversationId) ?? null,
+    [conversationId, inbox.conversations],
   );
 
+  if (!conversation) {
+    return (
+      <ConversationDetailScreen
+        customerName="Conversación"
+        isLoading={inbox.isLoading || thread.isLoading}
+        messages={thread.messages}
+        onBack={() => router.replace(routes.appInbox)}
+        statusLabel={undefined}
+      />
+    );
+  }
+
   return (
-    <ConversationDetailScreen conversation={conversation} onBack={() => router.replace(routes.appInbox)} />
+    <ConversationDetailScreen
+      customerName={conversationDisplayName(conversation)}
+      isLoading={thread.isLoading}
+      messages={thread.messages}
+      onBack={() => router.replace(routes.appInbox)}
+      statusLabel={leadStatusLabel(conversation.contact.leadStatus)}
+      threadAvatar={conversationAvatarLabel(conversation)}
+    />
   );
 }

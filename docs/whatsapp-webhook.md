@@ -21,6 +21,7 @@ The NestJS API exposes:
 | `API_PORT` | Local or hosted API port. Defaults to `3000`. |
 | `WHATSAPP_VERIFY_TOKEN` | Shared token used by Meta during webhook setup. |
 | `WHATSAPP_APP_SECRET` | Meta app secret used to validate `x-hub-signature-256`. |
+| `WHATSAPP_CLOUD_ACCESS_TOKEN` | Meta Cloud API token used to verify phone numbers during owner connection registration and to send outbound messages. |
 | `WHATSAPP_WEBHOOK_PATH` | Documented webhook path, default `/webhooks/whatsapp`. |
 | `SUPABASE_URL` | Server-side Supabase project URL used for event persistence. |
 | `SUPABASE_SERVICE_ROLE_KEY` | Server-only key used by the API to persist webhook events. |
@@ -90,6 +91,24 @@ metadata with tenant mapping when a WhatsApp config exists and database-level
 deduplication for every received message ID. Phase 2 also stores message bodies
 in tenant-scoped conversation history when the inbound phone number maps to a
 configured organization.
+
+Meta **delivery status** callbacks (`statuses` in the webhook payload) update
+`conversation_messages.message_status` to `sent`, `delivered`, `read`, or `failed`
+by `external_message_id`.
+
+## Owner Connection Registration
+
+Authenticated owners register WhatsApp via:
+
+```text
+POST /whatsapp/connection/register
+Authorization: Bearer <supabase-access-token>
+```
+
+Body: `organizationId`, `phoneNumberId`, `displayPhoneNumber`, optional `wabaId`.
+
+The API validates owner membership, checks the phone number against Meta Graph API,
+and upserts `whatsapp_config` for the organization's default business center.
 
 ## Event Persistence
 

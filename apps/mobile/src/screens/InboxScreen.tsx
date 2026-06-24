@@ -1,8 +1,6 @@
 import type { ReactElement } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { conversations } from '../api/mockData';
-import type { Channel, ConversationMock } from '../api/mockData';
 import {
   Card,
   ConversationRow,
@@ -11,51 +9,98 @@ import {
   ScreenContent,
   ScreenTitle,
 } from '../components/ui';
-import { ChannelIcon } from '../components/icons';
-import { SearchActionRow } from '../design-system';
+import { InfoBanner, PrimaryButton, SearchActionRow } from '../design-system';
 import { FeatureGate } from '../hooks/useFeatureVisibility';
+import {
+  conversationAvatarLabel,
+  conversationDisplayName,
+  conversationPreview,
+  formatConversationTime,
+  leadStatusLabel,
+  messageBubbleText,
+  messageBubbleTime,
+  openConversationCount,
+} from '../lib/inboxPresentation';
+import type { OwnerDashboard } from '../types/dashboard';
+import type { InboxConversationSummary, WhatsAppMessagePreview } from '../types/messages';
+import { whatsappConnectionLabel } from '../services/whatsapp';
 import { colors } from '../theme';
 
 export function InboxScreen(props: {
+  conversations: InboxConversationSummary[];
+  errorMessage: string | null;
+  isLoading: boolean;
   onOpenConversation: (conversationId: string) => void;
+  onOpenWhatsAppSetup: () => void;
+  whatsappConnection: OwnerDashboard['whatsappConnection'] | null;
 }): ReactElement {
+  const connection = props.whatsappConnection ?? {
+    status: 'not_configured' as const,
+    phoneNumberId: null,
+    displayPhoneNumber: null,
+    verifiedAt: null,
+    lastStatusCheckAt: null,
+    lastError: null,
+  };
+  const connectionCopy = whatsappConnectionLabel(connection);
+  const openCount = openConversationCount(props.conversations);
+
   return (
     <ScreenContent>
       <ScreenTitle subtitle="Todas tus conversaciones en un solo lugar" title="Inbox" />
+
+      {connection.status !== 'connected' ? (
+        <View style={styles.setupBlock}>
+          <InfoBanner>{`${connectionCopy.title}\n${connectionCopy.subtitle}`}</InfoBanner>
+          <PrimaryButton
+            fullWidth
+            label="Configurar WhatsApp"
+            onPress={props.onOpenWhatsAppSetup}
+          />
+        </View>
+      ) : null}
 
       <FeatureGate feature="inboxSearch">
         <SearchActionRow placeholder="Buscar conversaciones" showFilter />
       </FeatureGate>
 
-      <FeatureGate feature="inboxFilters">
-        <View style={styles.channelRow}>
-          {['Todos', 'WhatsApp', 'Instagram', 'Facebook', 'Email'].map((channel, index) => (
-            <View key={channel} style={[styles.channelPill, index === 0 && styles.activeChannelPill]}>
-              <Text style={[styles.channelText, index === 0 && styles.activeChannelText]}>{channel}</Text>
-            </View>
-          ))}
-        </View>
-      </FeatureGate>
-
       <Card flush>
         <FeatureGate feature="inboxTabs">
           <View style={styles.statusTabs}>
-            <Text style={styles.activeStatusTab}>Abiertos 12</Text>
-            <Text style={styles.statusTab}>Pendientes 5</Text>
-            <Text style={styles.statusTab}>Resueltos 28</Text>
+            <Text style={styles.activeStatusTab}>Abiertos {openCount}</Text>
+            <Text style={styles.statusTab}>WhatsApp</Text>
           </View>
         </FeatureGate>
-        {conversations.map((conversation) => (
+
+        {props.isLoading ? (
+          <View style={styles.centered}>
+            <ActivityIndicator color={colors.primary} />
+          </View>
+        ) : null}
+
+        {!props.isLoading && props.errorMessage ? (
+          <Text style={styles.errorText}>{props.errorMessage}</Text>
+        ) : null}
+
+        {!props.isLoading && props.conversations.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyTitle}>Todavía no hay conversaciones</Text>
+            <Text style={styles.emptyBody}>
+              Cuando un cliente escriba por WhatsApp, la conversación va a aparecer acá en tiempo real.
+            </Text>
+          </View>
+        ) : null}
+
+        {props.conversations.map((conversation) => (
           <ConversationRow
-            avatar={conversation.avatar}
-            channel={conversation.channel}
+            avatar={conversationAvatarLabel(conversation)}
+            channel="whatsapp"
             key={conversation.id}
-            name={conversation.customerName}
+            name={conversationDisplayName(conversation)}
             onPress={() => props.onOpenConversation(conversation.id)}
-            preview={conversation.preview}
-            statusLabel={conversation.statusLabel}
-            time={conversation.time}
-            unreadCount={conversation.unreadCount}
+            preview={conversationPreview(conversation)}
+            statusLabel={leadStatusLabel(conversation.contact.leadStatus)}
+            time={formatConversationTime(conversation.lastMessageAt)}
           />
         ))}
       </Card>
@@ -64,41 +109,46 @@ export function InboxScreen(props: {
 }
 
 export function ConversationDetailScreen(props: {
-  conversation: ConversationMock;
+  customerName: string;
+  isLoading: boolean;
+  messages: WhatsAppMessagePreview[];
   onBack: () => void;
+  statusLabel?: string;
+  threadAvatar?: string;
 }): ReactElement {
-  const messages = props.conversation.messages.length > 0 ? props.conversation.messages : conversations[0].messages;
-
   return (
     <View style={styles.detailRoot}>
       <View style={styles.detailBody}>
         <Card flush>
           <FeatureGate feature="chatProfileHeader">
             <View style={styles.threadHeader}>
-              <Text onPress={props.onBack} style={styles.backText}>‹</Text>
+              <Pressable onPress={props.onBack}>
+                <Text style={styles.backText}>‹</Text>
+              </Pressable>
               <View style={styles.threadAvatar}>
-                <Text style={styles.threadAvatarText}>{props.conversation.avatar}</Text>
+                <Text style={styles.threadAvatarText}>{props.threadAvatar ?? 'WA'}</Text>
               </View>
               <View style={styles.flex}>
-                <Text numberOfLines={1} style={styles.threadName}>{props.conversation.customerName}</Text>
+                <Text numberOfLines={1} style={styles.threadName}>{props.customerName}</Text>
                 <View style={styles.threadTags}>
-                  <ChannelSourceTag channel={props.conversation.channel} />
-                  {props.conversation.statusLabel ? (
-                    <Text style={styles.leadBadge}>{props.conversation.statusLabel}</Text>
-                  ) : null}
+                  <Text style={styles.channelTagText}>WhatsApp</Text>
+                  {props.statusLabel ? <Text style={styles.leadBadge}>{props.statusLabel}</Text> : null}
                 </View>
               </View>
             </View>
           </FeatureGate>
           <FeatureGate feature="chatMessages">
             <View style={styles.chatArea}>
-              {messages.map((message) => (
+              {props.isLoading ? <ActivityIndicator color={colors.primary} /> : null}
+              {!props.isLoading && props.messages.length === 0 ? (
+                <Text style={styles.emptyBody}>Todavía no hay mensajes en este hilo.</Text>
+              ) : null}
+              {props.messages.map((message) => (
                 <MessageBubble
-                  direction={message.direction}
+                  direction={message.direction === 'outbound' ? 'outbound' : 'inbound'}
                   key={message.id}
-                  source={message.source === 'copi' ? 'copi' : undefined}
-                  text={message.text}
-                  time={message.time}
+                  text={messageBubbleText(message)}
+                  time={messageBubbleTime(message)}
                 />
               ))}
             </View>
@@ -112,32 +162,7 @@ export function ConversationDetailScreen(props: {
   );
 }
 
-function ChannelSourceTag(props: { channel: Channel }): ReactElement {
-  const label =
-    props.channel === 'whatsapp'
-      ? 'WhatsApp'
-      : props.channel === 'instagram'
-        ? 'Instagram'
-        : props.channel === 'facebook'
-          ? 'Facebook'
-          : 'Email';
-
-  return (
-    <View style={styles.channelTag}>
-      <ChannelIcon channel={props.channel} size={12} />
-      <Text style={styles.channelTagText}>{label}</Text>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
-  activeChannelPill: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
-  activeChannelText: {
-    color: colors.surface,
-  },
   activeStatusTab: {
     borderBottomColor: colors.primary,
     borderBottomWidth: 2,
@@ -154,39 +179,18 @@ const styles = StyleSheet.create({
     lineHeight: 42,
     paddingHorizontal: 14,
   },
-  channelPill: {
-    borderColor: colors.border,
-    borderRadius: 999,
-    borderWidth: 1,
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-  },
-  channelRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 7,
-  },
-  channelTag: {
+  centered: {
     alignItems: 'center',
-    backgroundColor: '#eef5ff',
-    borderRadius: 999,
-    flexDirection: 'row',
-    gap: 4,
-    paddingHorizontal: 7,
-    paddingVertical: 3,
+    paddingVertical: 24,
   },
   channelTagText: {
     color: '#1877f2',
     fontSize: 9,
     fontWeight: '600',
   },
-  channelText: {
-    color: colors.navy,
-    fontSize: 10,
-    fontWeight: '300',
-  },
   chatArea: {
     backgroundColor: '#fcfdfc',
+    gap: 12,
     minHeight: 448,
     paddingHorizontal: 18,
     paddingVertical: 20,
@@ -199,6 +203,28 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'space-between',
   },
+  emptyBody: {
+    color: colors.slate,
+    fontSize: 12,
+    lineHeight: 18,
+    textAlign: 'center',
+  },
+  emptyState: {
+    gap: 8,
+    paddingHorizontal: 18,
+    paddingVertical: 24,
+  },
+  emptyTitle: {
+    color: colors.navy,
+    fontSize: 14,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  errorText: {
+    color: colors.danger,
+    fontSize: 12,
+    padding: 16,
+  },
   flex: {
     flex: 1,
   },
@@ -210,6 +236,10 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     paddingHorizontal: 8,
     paddingVertical: 3,
+  },
+  setupBlock: {
+    gap: 12,
+    marginBottom: 12,
   },
   statusTab: {
     color: colors.slate,

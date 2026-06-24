@@ -20,7 +20,41 @@ import {
 } from '../screens/inventory/InventoryScreens';
 import { MoreScreen } from '../screens/MoreScreen';
 import { NotificationsScreen } from '../screens/NotificationsScreen';
+import type { InboxConversationSummary } from '../types/messages';
+import type { OwnerDashboard } from '../types/dashboard';
 import { colors } from '../theme';
+
+const legacyWhatsAppConnection: OwnerDashboard['whatsappConnection'] = {
+  status: 'connected',
+  phoneNumberId: null,
+  displayPhoneNumber: '+54 9 11 6000-0000',
+  verifiedAt: null,
+  lastStatusCheckAt: null,
+  lastError: null,
+};
+
+const legacyInboxConversations: InboxConversationSummary[] = conversations.map((conversation) => ({
+  contact: {
+    displayName: conversation.customerName,
+    id: conversation.id,
+    leadStatus: 'new',
+    phoneNumber: null,
+  },
+  externalContactId: conversation.id,
+  id: conversation.id,
+  lastMessageAt: null,
+  latestMessage: {
+    body: conversation.preview,
+    conversationId: conversation.id,
+    createdAt: new Date().toISOString(),
+    direction: 'inbound',
+    id: `${conversation.id}-preview`,
+    messageStatus: 'received',
+    recipientPhone: null,
+    senderPhone: null,
+  },
+  status: 'open',
+}));
 
 export type InventoryRoute =
   | 'add-stock'
@@ -111,7 +145,23 @@ export function OwnerAppNavigator(props: { onSignOut: () => void }): ReactElemen
         showBranches={showBranches}
       />
       {route === 'conversation' ? (
-        <ConversationDetailScreen conversation={selectedConversation} onBack={() => selectTab('inbox')} />
+        <ConversationDetailScreen
+          customerName={selectedConversation.customerName}
+          isLoading={false}
+          messages={selectedConversation.messages.map((message) => ({
+            body: message.text,
+            conversationId: selectedConversation.id,
+            createdAt: new Date().toISOString(),
+            direction: message.direction,
+            id: message.id,
+            messageStatus: message.direction === 'outbound' ? 'sent' : 'received',
+            recipientPhone: null,
+            senderPhone: null,
+          }))}
+          onBack={() => selectTab('inbox')}
+          statusLabel={selectedConversation.statusLabel}
+          threadAvatar={selectedConversation.avatar}
+        />
       ) : route === 'copi-chat' ? (
         <CopiChatScreen onBack={() => selectTab('copi')} />
       ) : (
@@ -119,19 +169,38 @@ export function OwnerAppNavigator(props: { onSignOut: () => void }): ReactElemen
           {renderInventoryScreen() ??
             (route === 'home' ? (
               <HomeScreen
+                conversations={legacyInboxConversations}
+                metrics={null}
                 onOpenConversation={openConversation}
                 onOpenManageStock={openManageStock}
                 onOpenNotifications={() => setRoute('notifications')}
+                onOpenWhatsAppSetup={() => setRoute('account')}
                 onSelectTab={selectTab}
+                ownerGreeting="Hola!"
+                whatsappConnection={legacyWhatsAppConnection}
               />
             ) : route === 'inbox' ? (
-              <InboxScreen onOpenConversation={openConversation} />
+              <InboxScreen
+                conversations={legacyInboxConversations}
+                errorMessage={null}
+                isLoading={false}
+                onOpenConversation={openConversation}
+                onOpenWhatsAppSetup={() => setRoute('account')}
+                whatsappConnection={legacyWhatsAppConnection}
+              />
             ) : route === 'copi' ? (
               <CopiScreen onOpenChat={() => setRoute('copi-chat')} />
             ) : route === 'notifications' ? (
               <NotificationsScreen />
             ) : route === 'account' ? (
-              <AccountScreen onSignOut={props.onSignOut} />
+              <AccountScreen
+                businessCenterName={ownerProfile.activeBranch}
+                businessName={ownerProfile.businessName}
+                onOpenWhatsAppSetup={() => setRoute('account')}
+                onSignOut={props.onSignOut}
+                role="owner"
+                whatsappConnection={legacyWhatsAppConnection}
+              />
             ) : (
               <MoreScreen onOpenAccount={() => setRoute('account')} onOpenInventory={openManageStock} />
             ))}

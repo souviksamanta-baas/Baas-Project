@@ -111,6 +111,18 @@ export function subscribeToConversationMessages(
         onMessage(toWhatsAppMessagePreview(payload.new as ConversationMessageRow));
       },
     )
+    .on(
+      'postgres_changes',
+      {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'conversation_messages',
+        filter: `business_center_id=eq.${businessCenterId}`,
+      },
+      (payload) => {
+        onMessage(toWhatsAppMessagePreview(payload.new as ConversationMessageRow));
+      },
+    )
     .subscribe();
 
   return () => {

@@ -1,33 +1,65 @@
 import type { ReactElement } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { conversations, dashboardMetrics, notifications } from '../api/mockData';
-import {
-  Card,
-  ConversationRow,
-  MetricGrid,
-  NotificationRow,
-  RobotAvatar,
-  ScreenContent,
-} from '../components/ui';
+import type { IconKind } from '../components/icons';
+import { ActionRow, Card, ConversationRow, MetricGrid, NotificationRow, RobotAvatar, ScreenContent } from '../components/ui';
 import type { AppTab } from '../components/ui';
 import { Icon } from '../components/icons';
-import { ListBox, colors as dsColors } from '../design-system';
+import { InfoBanner, ListBox, PrimaryButton, colors as dsColors } from '../design-system';
 import { FeatureGate } from '../hooks/useFeatureVisibility';
+import {
+  conversationAvatarLabel,
+  conversationDisplayName,
+  conversationPreview,
+  formatConversationTime,
+  leadStatusLabel,
+} from '../lib/inboxPresentation';
+import type { OwnerDashboard } from '../types/dashboard';
+import type { InboxConversationSummary } from '../types/messages';
+import { whatsappConnectionLabel } from '../services/whatsapp';
+import { notifications } from '../api/mockData';
 import { colors, shadows } from '../theme';
 
 export function HomeScreen(props: {
+  conversations: InboxConversationSummary[];
+  metrics: OwnerDashboard['metrics'] | null;
   onOpenConversation: (conversationId: string) => void;
   onOpenManageStock: () => void;
   onOpenNotifications: () => void;
+  onOpenWhatsAppSetup: () => void;
   onSelectTab: (tab: AppTab) => void;
+  ownerGreeting: string;
+  whatsappConnection: OwnerDashboard['whatsappConnection'] | null;
 }): ReactElement {
+  const connection = props.whatsappConnection ?? {
+    status: 'not_configured' as const,
+    phoneNumberId: null,
+    displayPhoneNumber: null,
+    verifiedAt: null,
+    lastStatusCheckAt: null,
+    lastError: null,
+  };
+  const connectionCopy = whatsappConnectionLabel(connection);
+  const dashboardMetrics = [
+    { id: 'contacts', label: 'Contactos', tone: 'green' as const, value: String(props.metrics?.contacts ?? 0) },
+    { id: 'conversations', label: 'Conversaciones', tone: 'blue' as const, value: String(props.metrics?.openConversations ?? 0) },
+    { id: 'products', label: 'Productos', tone: 'purple' as const, value: String(props.metrics?.products ?? 0) },
+    { id: 'low-stock', label: 'Stock bajo', tone: 'red' as const, value: String(props.metrics?.lowStockItems ?? 0) },
+  ];
+
   return (
     <ScreenContent>
       <View>
-        <Text style={styles.greeting}>Hola Juli!</Text>
+        <Text style={styles.greeting}>{props.ownerGreeting}</Text>
         <Text style={styles.subtitle}>En que puedo ayudarte hoy?</Text>
       </View>
+
+      {connection.status !== 'connected' ? (
+        <View style={styles.setupBlock}>
+          <InfoBanner>{`${connectionCopy.title}\n${connectionCopy.subtitle}`}</InfoBanner>
+          <PrimaryButton fullWidth label="Conectar WhatsApp" onPress={props.onOpenWhatsAppSetup} />
+        </View>
+      ) : null}
 
       <FeatureGate feature="homeAssistant">
         <Pressable onPress={() => props.onSelectTab('copi')} style={styles.copiCard}>
@@ -55,16 +87,19 @@ export function HomeScreen(props: {
           headerAction={{ label: 'Ver todas', onPress: () => props.onSelectTab('inbox') }}
           title="Conversaciones recientes"
         >
-          {conversations.slice(0, 4).map((conversation) => (
+          {props.conversations.length === 0 ? (
+            <Text style={styles.emptyBody}>Todavía no hay conversaciones de WhatsApp.</Text>
+          ) : null}
+          {props.conversations.slice(0, 4).map((conversation) => (
             <ConversationRow
-              avatar={conversation.avatar}
-              channel={conversation.channel}
+              avatar={conversationAvatarLabel(conversation)}
+              channel="whatsapp"
               key={conversation.id}
-              name={conversation.customerName}
+              name={conversationDisplayName(conversation)}
               onPress={() => props.onOpenConversation(conversation.id)}
-              preview={conversation.preview}
-              statusLabel={conversation.statusLabel}
-              time={conversation.time}
+              preview={conversationPreview(conversation)}
+              statusLabel={leadStatusLabel(conversation.contact.leadStatus)}
+              time={formatConversationTime(conversation.lastMessageAt)}
             />
           ))}
         </ListBox>
@@ -100,85 +135,96 @@ export function HomeScreen(props: {
 const styles = StyleSheet.create({
   cardDescription: {
     color: colors.slate,
-    fontSize: 10.5,
+    fontSize: 10,
     fontWeight: '300',
-    lineHeight: 14,
+    lineHeight: 15,
     marginTop: 4,
   },
   cardTitle: {
     color: colors.navy,
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '600',
-    lineHeight: 17,
+    lineHeight: 16,
   },
   chatButton: {
     alignItems: 'center',
-    backgroundColor: colors.surface,
+    backgroundColor: dsColors.primarySoft,
     borderRadius: 999,
-    height: 38,
+    height: 34,
     justifyContent: 'center',
-    width: 38,
+    width: 34,
   },
   copiCard: {
     ...shadows.card,
     alignItems: 'center',
-    backgroundColor: dsColors.surfaceMint,
+    backgroundColor: colors.surface,
     borderColor: colors.border,
     borderRadius: 14,
     borderWidth: 1,
     flexDirection: 'row',
-    height: 90,
+    gap: 12,
+    minHeight: 88,
+    paddingHorizontal: 14,
+  },
+  emptyBody: {
+    color: colors.slate,
+    fontSize: 11,
+    lineHeight: 16,
     paddingHorizontal: 12,
+    paddingVertical: 8,
   },
   flex: {
     flex: 1,
   },
   greeting: {
     color: colors.navy,
-    fontSize: 20,
-    fontWeight: '600',
-    letterSpacing: -0.5,
-    lineHeight: 22,
+    fontSize: 24,
+    fontWeight: '700',
+    lineHeight: 30,
   },
   inventoryCard: {
     ...shadows.card,
     alignItems: 'center',
-    backgroundColor: dsColors.surfaceMint,
+    backgroundColor: colors.surface,
     borderColor: colors.border,
     borderRadius: 14,
     borderWidth: 1,
     flexDirection: 'row',
     gap: 12,
-    height: 70,
-    paddingHorizontal: 15,
+    minHeight: 78,
+    paddingHorizontal: 14,
   },
   inventoryIcon: {
     alignItems: 'center',
-    backgroundColor: colors.primarySoft,
+    backgroundColor: dsColors.primarySoft,
     borderRadius: 999,
-    height: 30,
+    height: 34,
     justifyContent: 'center',
-    width: 30,
+    width: 34,
   },
   primaryText: {
     color: colors.primary,
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '600',
   },
   sectionTitle: {
     color: colors.navy,
     fontSize: 12,
     fontWeight: '600',
-    lineHeight: 17,
+    paddingHorizontal: 14,
+    paddingTop: 14,
+  },
+  setupBlock: {
+    gap: 12,
   },
   subtitle: {
     color: colors.slate,
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '300',
-    marginTop: 5,
+    marginTop: 4,
   },
   summaryCard: {
-    paddingHorizontal: 12,
-    paddingVertical: 13,
+    gap: 8,
+    paddingBottom: 12,
   },
 });

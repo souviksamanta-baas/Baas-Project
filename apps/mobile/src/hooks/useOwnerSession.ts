@@ -28,6 +28,7 @@ export interface OwnerSessionState {
   setLoginIdentifier: (loginIdentifier: string) => void;
   setOtpCode: (otpCode: string) => void;
   createOrganization: () => Promise<void>;
+  refreshDashboard: () => Promise<void>;
   signOut: () => Promise<void>;
   verifyOtp: () => Promise<void>;
 }
@@ -181,6 +182,11 @@ export function useOwnerSession(): OwnerSessionState {
     }
   }
 
+  async function refreshDashboard(): Promise<void> {
+    const { data } = await supabase.auth.getSession();
+    await bootstrapRoute(data.session);
+  }
+
   async function signOut(): Promise<void> {
     setOtpSent(false);
     await signOutOwner();
@@ -206,6 +212,7 @@ export function useOwnerSession(): OwnerSessionState {
     setLoginIdentifier: handleSetLoginIdentifier,
     setOtpCode,
     createOrganization,
+    refreshDashboard,
     signOut,
     verifyOtp,
   };

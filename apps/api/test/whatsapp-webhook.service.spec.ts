@@ -121,6 +121,48 @@ describe('WhatsAppWebhookService', () => {
     expect(service.parseInboundMessages(payload)[0]?.duplicate).toBe(false);
   });
 
+  it('extracts message status updates from Meta webhook payloads', () => {
+    const service = new WhatsAppWebhookService();
+    const payload: WhatsAppWebhookPayload = {
+      object: 'whatsapp_business_account',
+      entry: [
+        {
+          id: 'waba-test',
+          changes: [
+            {
+              field: 'messages',
+              value: {
+                messaging_product: 'whatsapp',
+                metadata: {
+                  display_phone_number: '15551234567',
+                  phone_number_id: 'phone-number-id-1',
+                },
+                statuses: [
+                  {
+                    id: 'wamid.outbound-1',
+                    recipient_id: '15557654321',
+                    status: 'delivered',
+                    timestamp: '1717243300',
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      ],
+    };
+
+    expect(service.parseMessageStatusUpdates(payload)).toEqual([
+      {
+        externalMessageId: 'wamid.outbound-1',
+        messageStatus: 'delivered',
+        phoneNumberId: 'phone-number-id-1',
+        recipientPhone: '15557654321',
+        timestamp: '2024-06-01T12:01:40.000Z',
+      },
+    ]);
+  });
+
   it('uses persistent event storage as the durable dedupe boundary', async () => {
     const seenEventKeys = new Set<string>();
     const repository = {

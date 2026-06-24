@@ -5,6 +5,7 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 
 import { getRateLimitMax, getRateLimitTtl } from './config/api-config';
 import { envValidationSchema } from './config/env.validation';
+import { WhatsAppConversationMessageRepository } from './domains/whatsapp/whatsapp-conversation-message.repository';
 import { DomainModule } from './domains/domain.module';
 import { HealthController } from './health.controller';
 import { SupabaseService } from './supabase/supabase.service';
@@ -41,6 +42,7 @@ import { WhatsAppWebhookService } from './webhooks/whatsapp/whatsapp-webhook.ser
     },
     SupabaseService,
     WhatsAppMessageEventRepository,
+    WhatsAppConversationMessageRepository,
     WhatsAppWebhookService,
   ],
 })
