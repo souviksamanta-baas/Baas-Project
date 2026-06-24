@@ -3,10 +3,15 @@ import type { ReactElement } from 'react';
 
 import { useOwnerSessionContext } from '../../src/context/OwnerSessionProvider';
 import { routes } from '../../src/navigation/routes';
+import { LoadingScreen } from '../../src/screens/LoadingScreen';
 import { OnboardingScreen } from '../../src/screens/OnboardingScreen';
 
 export default function OnboardingRoute(): ReactElement {
   const session = useOwnerSessionContext();
+
+  if (session.authPhase === 'loading') {
+    return <LoadingScreen />;
+  }
 
   if (session.authPhase === 'authenticated') {
     return <Redirect href={routes.appHome} />;

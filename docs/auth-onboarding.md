@@ -11,7 +11,7 @@ After login, the mobile app resolves whether the user already belongs to an
 organization. If not, it prompts for business creation and creates the user as
 the organization owner.
 
-Production phone OTP is configured via Twilio in Supabase (KAN-129). A future
+Production phone OTP is configured via Twilio in Supabase (**KAN-129 — Done**). A future
 upgrade to Twilio Verify with WhatsApp delivery is tracked under
 [KAN-271](https://souviksamanta.atlassian.net/browse/KAN-271).
 
@@ -67,8 +67,11 @@ await supabase.auth.verifyOtp({
 
 Recommended client error handling:
 
-- Validate E.164 phone format before requesting an OTP.
-- Show rate-limit and invalid-code errors as user-readable messages.
+- Normalize Argentina phone numbers before requesting an OTP (`apps/mobile/src/services/phone.ts`).
+- Accepted input formats: `011…`, `+5411…`, `+54911…`, and `5411…` (without `+`). The client
+  converts them to E.164 (`+549…`) before calling Supabase.
+- Show rate-limit and invalid-code errors as inline messages on web (React Native `Alert` is
+  unreliable in the browser) and as alerts on native.
 - Allow resend only after the configured cooldown.
 - Never log OTP codes or full phone numbers.
 

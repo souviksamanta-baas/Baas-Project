@@ -43,6 +43,11 @@ export const styles = StyleSheet.create({
     fontSize: 16,
     lineHeight: 24,
   },
+  errorText: {
+    color: '#dc2626',
+    fontSize: 14,
+    lineHeight: 20,
+  },
   input: {
     backgroundColor: '#ffffff',
     borderColor: '#cbd5e1',

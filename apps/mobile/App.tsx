@@ -44,6 +44,7 @@ function OwnerRouteView(props: { ownerSession: OwnerSessionState }): ReactElemen
   if (route === 'login') {
     return (
       <LoginScreen
+        authError={ownerSession.authError}
         canSubmitLogin={ownerSession.canSubmitLogin}
         channel={ownerSession.otpChannel}
         isSubmitting={ownerSession.isSubmitting}

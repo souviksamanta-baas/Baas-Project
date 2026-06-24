@@ -114,7 +114,8 @@ Rules:
   service IDs.
 - Do not log OTP codes, full phone numbers, or SMS provider responses with
   credentials.
-- Use E.164 phone numbers in client and test data.
+- Use E.164 phone numbers in client and test data. The mobile app accepts `011…`,
+  `+5411…`, `+54911…`, and `5411…`, then normalizes to `+549…` before calling Supabase.
 
 ## WhatsApp Webhook Secret Handling
 

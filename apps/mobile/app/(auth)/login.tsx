@@ -15,6 +15,7 @@ export default function LoginRoute(): ReactElement {
 
   return (
     <LoginScreen
+      authError={session.authError}
       canSubmitLogin={session.canSubmitLogin}
       channel={session.otpChannel}
       isSubmitting={session.isSubmitting}
