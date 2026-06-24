@@ -32,7 +32,7 @@ refresh_token_reuse_interval = 10
 [auth.sms]
 enable_signup = true
 enable_confirmations = false
-template = "Your BaaS login code is {{ .Code }}"
+template = "El código para ingresar a nexolia es {{ .Code }}"
 max_frequency = "60s"
 
 [storage]

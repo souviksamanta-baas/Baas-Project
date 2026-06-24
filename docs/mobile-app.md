@@ -104,8 +104,21 @@ Screen polish for Inbox, inventory, and Copi uses shared components in
 
 The simulator verification flow currently uses Supabase email OTP so KAN-88
 Realtime behavior can be tested without a configured SMS provider. Production
-phone OTP remains the target owner login path and is tracked separately under
-KAN-129 for Twilio/Supabase Phone provider setup.
+Phone OTP is the production owner login method (KAN-129). Set
+`EXPO_PUBLIC_AUTH_OTP_CHANNEL=sms` and configure Twilio in the Supabase dashboard.
+Future Twilio Verify + WhatsApp OTP: [KAN-271](https://souviksamanta.atlassian.net/browse/KAN-271).
+
+SMS template (hosted dashboard + `supabase/config.toml`):
+
+`El código para ingresar a nexolia es {{ .Code }}`
+
+Smoke test:
+
+```bash
+export SUPABASE_ANON_KEY='your-anon-or-publishable-key'
+./scripts/test-phone-otp.sh +54911XXXXXXXX
+./scripts/test-phone-otp.sh +54911XXXXXXXX 123456
+```
 
 ## Empty Dashboard
 

@@ -2,7 +2,7 @@ import type { ReactElement } from 'react';
 import { SafeAreaView, ScrollView, Text } from 'react-native';
 
 import { useOwnerSession } from './src/hooks/useOwnerSession';
-import type { OwnerSessionState } from './src/hooks/useOwnerSession';
+import type { AuthPhase, OwnerSessionState } from './src/hooks/useOwnerSession';
 import { hasSupabaseConfig } from './src/lib/supabase';
 import { OwnerAppNavigator } from './src/navigation/OwnerAppNavigator';
 import { DashboardScreen } from './src/screens/DashboardScreen';
@@ -14,7 +14,7 @@ import { styles } from './src/styles';
 
 export default function App(): ReactElement {
   const ownerSession = useOwnerSession();
-  const isDashboardRoute = ownerSession.route === 'dashboard' && ownerSession.dashboard;
+  const isDashboardRoute = ownerSession.authPhase === 'authenticated' && ownerSession.dashboard;
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -35,27 +35,30 @@ export default function App(): ReactElement {
 
 function OwnerRouteView(props: { ownerSession: OwnerSessionState }): ReactElement | null {
   const { ownerSession } = props;
+  const route = authPhaseToRoute(ownerSession.authPhase);
 
-  if (ownerSession.route === 'loading') {
+  if (route === 'loading') {
     return <LoadingScreen />;
   }
 
-  if (ownerSession.route === 'login') {
+  if (route === 'login') {
     return (
       <LoginScreen
-        canSubmitEmail={ownerSession.canSubmitEmail}
-        email={ownerSession.email}
+        canSubmitLogin={ownerSession.canSubmitLogin}
+        channel={ownerSession.otpChannel}
         isSubmitting={ownerSession.isSubmitting}
-        onChangeEmail={ownerSession.setEmail}
+        loginIdentifier={ownerSession.loginIdentifier}
+        onChangeLoginIdentifier={ownerSession.setLoginIdentifier}
         onRequestOtp={ownerSession.requestOtp}
       />
     );
   }
 
-  if (ownerSession.route === 'verify') {
+  if (route === 'verify') {
     return (
       <VerifyOtpScreen
-        email={ownerSession.email}
+        channel={ownerSession.otpChannel}
+        destination={ownerSession.loginIdentifier}
         isSubmitting={ownerSession.isSubmitting}
         onChangeOtpCode={ownerSession.setOtpCode}
         onVerifyOtp={ownerSession.verifyOtp}
@@ -64,7 +67,7 @@ function OwnerRouteView(props: { ownerSession: OwnerSessionState }): ReactElemen
     );
   }
 
-  if (ownerSession.route === 'onboarding') {
+  if (route === 'onboarding') {
     return (
       <OnboardingScreen
         businessName={ownerSession.businessName}
@@ -75,9 +78,26 @@ function OwnerRouteView(props: { ownerSession: OwnerSessionState }): ReactElemen
     );
   }
 
-  if (ownerSession.route === 'dashboard' && ownerSession.dashboard) {
+  if (route === 'dashboard' && ownerSession.dashboard) {
     return <DashboardScreen dashboard={ownerSession.dashboard} onSignOut={ownerSession.signOut} />;
   }
 
   return null;
+}
+
+function authPhaseToRoute(
+  authPhase: AuthPhase,
+): 'loading' | 'login' | 'verify' | 'onboarding' | 'dashboard' {
+  switch (authPhase) {
+    case 'loading':
+      return 'loading';
+    case 'unauthenticated':
+      return 'login';
+    case 'pending_verify':
+      return 'verify';
+    case 'onboarding':
+      return 'onboarding';
+    case 'authenticated':
+      return 'dashboard';
+  }
 }

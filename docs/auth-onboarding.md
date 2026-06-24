@@ -11,8 +11,9 @@ After login, the mobile app resolves whether the user already belongs to an
 organization. If not, it prompts for business creation and creates the user as
 the organization owner.
 
-Production phone OTP remains the target owner login path and is tracked under
-KAN-129.
+Production phone OTP is configured via Twilio in Supabase (KAN-129). A future
+upgrade to Twilio Verify with WhatsApp delivery is tracked under
+[KAN-271](https://souviksamanta.atlassian.net/browse/KAN-271).
 
 ## Email OTP for Simulator Verification
 
@@ -36,12 +37,19 @@ still use public Supabase client variables only.
 ## Phone OTP
 
 The local Supabase config enables SMS signup and defines the OTP message
-template in `supabase/config.toml`.
+template in `supabase/config.toml`:
+
+```toml
+template = "El código para ingresar a nexolia es {{ .Code }}"
+```
 
 Hosted Supabase phone OTP also requires an SMS provider in the Supabase
 dashboard. Store provider credentials only in Supabase or deployment secret
 storage. Do not commit SMS provider credentials or paste them into Jira,
 Confluence, or chat.
+
+**Hosted dashboard:** Authentication → Providers → Phone → set the same SMS
+template string as above.
 
 Mobile client flow:
 
@@ -81,8 +89,7 @@ created together.
 
 ## First Login Flow
 
-1. Owner enters email address for the current simulator flow, or phone number
-   after KAN-129 provider setup.
+1. Owner enters phone number when `EXPO_PUBLIC_AUTH_OTP_CHANNEL=sms`, or email when set to `email`.
 2. App calls `signInWithOtp`.
 3. Owner enters OTP code.
 4. App calls `verifyOtp`.

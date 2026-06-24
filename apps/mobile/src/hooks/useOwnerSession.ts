@@ -4,8 +4,10 @@ import type { Session } from '@supabase/supabase-js';
 
 import { createOrganizationWithOwner, getOwnerDashboard } from '../features/onboarding';
 import { supabase } from '../lib/supabase';
-import { requestEmailOtp, signOutOwner, verifyEmailOtp } from '../services/auth';
+import { requestLoginOtp, signOutOwner, verifyLoginOtp } from '../services/auth';
+import { getAuthOtpChannel, isPhoneOtpChannel } from '../services/authChannel';
 import { normalizeEmail } from '../services/email';
+import { normalizePhoneNumber } from '../services/phone';
 import type { OwnerDashboard } from '../types/dashboard';
 
 export type AuthPhase = 'loading' | 'unauthenticated' | 'pending_verify' | 'onboarding' | 'authenticated';
@@ -13,14 +15,15 @@ export type AuthPhase = 'loading' | 'unauthenticated' | 'pending_verify' | 'onbo
 export interface OwnerSessionState {
   authPhase: AuthPhase;
   businessName: string;
-  canSubmitEmail: boolean;
+  canSubmitLogin: boolean;
   dashboard: OwnerDashboard | null;
-  email: string;
   isSubmitting: boolean;
+  loginIdentifier: string;
+  otpChannel: ReturnType<typeof getAuthOtpChannel>;
   otpCode: string;
   requestOtp: () => Promise<boolean>;
   setBusinessName: (businessName: string) => void;
-  setEmail: (email: string) => void;
+  setLoginIdentifier: (loginIdentifier: string) => void;
   setOtpCode: (otpCode: string) => void;
   createOrganization: () => Promise<void>;
   signOut: () => Promise<void>;
@@ -28,16 +31,23 @@ export interface OwnerSessionState {
 }
 
 export function useOwnerSession(): OwnerSessionState {
+  const otpChannel = getAuthOtpChannel();
   const [bootstrapped, setBootstrapped] = useState(false);
   const [session, setSession] = useState<Session | null>(null);
-  const [email, setEmail] = useState('');
+  const [loginIdentifier, setLoginIdentifier] = useState('');
   const [otpCode, setOtpCode] = useState('');
   const [businessName, setBusinessName] = useState('');
   const [dashboard, setDashboard] = useState<OwnerDashboard | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [otpSent, setOtpSent] = useState(false);
 
-  const canSubmitEmail = useMemo(() => normalizeEmail(email) !== null, [email]);
+  const canSubmitLogin = useMemo(() => {
+    if (isPhoneOtpChannel()) {
+      return normalizePhoneNumber(loginIdentifier) !== null;
+    }
+
+    return normalizeEmail(loginIdentifier) !== null;
+  }, [loginIdentifier]);
 
   const bootstrapRoute = useCallback(async (nextSession: Session | null): Promise<void> => {
     if (!nextSession) {
@@ -96,17 +106,25 @@ export function useOwnerSession(): OwnerSessionState {
   }, [bootstrapped, dashboard?.shouldOnboard, otpSent, session]);
 
   async function requestOtp(): Promise<boolean> {
-    if (!canSubmitEmail) {
-      Alert.alert('Use email format', 'Enter an email address like owner@example.com.');
+    if (!canSubmitLogin) {
+      Alert.alert(
+        isPhoneOtpChannel() ? 'Invalid phone number' : 'Use email format',
+        isPhoneOtpChannel()
+          ? 'Enter your number in international format, for example +54911…'
+          : 'Enter an email address like owner@example.com.',
+      );
       return false;
     }
 
     setIsSubmitting(true);
 
     try {
-      const normalizedEmail = normalizeEmail(email);
-      await requestEmailOtp(email);
-      setEmail(normalizedEmail ?? email);
+      const normalizedIdentifier = isPhoneOtpChannel()
+        ? (normalizePhoneNumber(loginIdentifier) ?? loginIdentifier)
+        : (normalizeEmail(loginIdentifier) ?? loginIdentifier);
+
+      await requestLoginOtp(loginIdentifier);
+      setLoginIdentifier(normalizedIdentifier);
       setOtpSent(true);
       return true;
     } catch (error) {
@@ -121,7 +139,7 @@ export function useOwnerSession(): OwnerSessionState {
     setIsSubmitting(true);
 
     try {
-      await verifyEmailOtp({ email, otpCode });
+      await verifyLoginOtp({ identifier: loginIdentifier, otpCode });
     } catch (error) {
       Alert.alert('Could not verify code', error instanceof Error ? error.message : 'Unknown error');
     } finally {
@@ -155,14 +173,15 @@ export function useOwnerSession(): OwnerSessionState {
   return {
     authPhase,
     businessName,
-    canSubmitEmail,
+    canSubmitLogin,
     dashboard,
-    email,
     isSubmitting,
+    loginIdentifier,
+    otpChannel,
     otpCode,
     requestOtp,
     setBusinessName,
-    setEmail,
+    setLoginIdentifier,
     setOtpCode,
     createOrganization,
     signOut,

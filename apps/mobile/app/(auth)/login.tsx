@@ -15,10 +15,11 @@ export default function LoginRoute(): ReactElement {
 
   return (
     <LoginScreen
-      canSubmitEmail={session.canSubmitEmail}
-      email={session.email}
+      canSubmitLogin={session.canSubmitLogin}
+      channel={session.otpChannel}
       isSubmitting={session.isSubmitting}
-      onChangeEmail={session.setEmail}
+      loginIdentifier={session.loginIdentifier}
+      onChangeLoginIdentifier={session.setLoginIdentifier}
       onRequestOtp={async () => {
         const sent = await session.requestOtp();
         if (sent) {

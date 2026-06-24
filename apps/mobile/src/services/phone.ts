@@ -20,6 +20,9 @@ export function normalizePhoneNumber(phone: string): string | null {
   return normalizeArgentinaDomesticPhone(compactPhone);
 }
 
+/** @alias normalizePhoneNumber */
+export const normalizePhoneE164 = normalizePhoneNumber;
+
 function normalizeArgentinaDomesticPhone(phoneDigits: string): string | null {
   const nationalPhone = phoneDigits.startsWith('0') ? phoneDigits.slice(1) : phoneDigits;
   const mobilePrefixIndex = nationalPhone.indexOf('15');

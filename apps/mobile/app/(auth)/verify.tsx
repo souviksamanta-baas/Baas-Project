@@ -22,7 +22,8 @@ export default function VerifyRoute(): ReactElement {
 
   return (
     <VerifyOtpScreen
-      email={session.email}
+      channel={session.otpChannel}
+      destination={session.loginIdentifier}
       isSubmitting={session.isSubmitting}
       onChangeOtpCode={session.setOtpCode}
       onVerifyOtp={session.verifyOtp}
