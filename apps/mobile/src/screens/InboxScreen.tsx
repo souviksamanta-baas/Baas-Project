@@ -49,6 +49,10 @@ export function InboxScreen(props: {
     <ScreenContent>
       <ScreenTitle subtitle="Todas tus conversaciones en un solo lugar" title="Inbox" />
 
+      {connection.status === 'connected' && connection.displayPhoneNumber ? (
+        <InfoBanner>{`Respondiendo desde ${connection.displayPhoneNumber}`}</InfoBanner>
+      ) : null}
+
       {connection.status !== 'connected' ? (
         <View style={styles.setupBlock}>
           <InfoBanner>{`${connectionCopy.title}\n${connectionCopy.subtitle}`}</InfoBanner>
@@ -110,6 +114,7 @@ export function InboxScreen(props: {
 
 export function ConversationDetailScreen(props: {
   customerName: string;
+  displayPhoneNumber?: string | null;
   isLoading: boolean;
   messages: WhatsAppMessagePreview[];
   onBack: () => void;
@@ -131,7 +136,12 @@ export function ConversationDetailScreen(props: {
               <View style={styles.flex}>
                 <Text numberOfLines={1} style={styles.threadName}>{props.customerName}</Text>
                 <View style={styles.threadTags}>
-                  <Text style={styles.channelTagText}>WhatsApp</Text>
+                  <View style={styles.channelBadgePill}>
+                    <Text style={styles.channelTagText}>WhatsApp</Text>
+                  </View>
+                  {props.displayPhoneNumber ? (
+                    <Text style={styles.businessNumberText}>{props.displayPhoneNumber}</Text>
+                  ) : null}
                   {props.statusLabel ? <Text style={styles.leadBadge}>{props.statusLabel}</Text> : null}
                 </View>
               </View>
@@ -182,6 +192,17 @@ const styles = StyleSheet.create({
   centered: {
     alignItems: 'center',
     paddingVertical: 24,
+  },
+  channelBadgePill: {
+    backgroundColor: colors.badgeGreenBg,
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  businessNumberText: {
+    color: colors.slate,
+    fontSize: 9,
+    fontWeight: '500',
   },
   channelTagText: {
     color: '#1877f2',

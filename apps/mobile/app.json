@@ -11,7 +11,13 @@
     ],
     "plugins": [
       "expo-router",
-      "expo-notifications"
+      "expo-notifications",
+      [
+        "expo-contacts",
+        {
+          "contactsPermission": "Nexolia usa contactos para invitar miembros del equipo y agregar clientes."
+        }
+      ]
     ],
     "ios": {
       "supportsTablet": true

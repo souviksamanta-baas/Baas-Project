@@ -18,6 +18,8 @@ export const routes = {
   inventorySell: '/(app)/inventory/sell',
   inventoryConfirmPayment: '/(app)/inventory/confirm-payment',
   whatsappConnect: '/(app)/whatsapp-connect',
+  staffInvite: '/(app)/staff-invite',
+  staffInviteAccept: '/(auth)/invite-accept',
 } as const;
 
 export function tabRoute(tab: AppTab): string {
@@ -83,7 +85,8 @@ export function shouldHideBottomNav(pathname: string): boolean {
   return (
     /\/inbox\/[^/]+$/.test(pathname) ||
     pathname.endsWith('/copi/chat') ||
-    pathname.endsWith('/whatsapp-connect')
+    pathname.endsWith('/whatsapp-connect') ||
+    pathname.endsWith('/staff-invite')
   );
 }
 

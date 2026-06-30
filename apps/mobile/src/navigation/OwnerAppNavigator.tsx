@@ -196,6 +196,7 @@ export function OwnerAppNavigator(props: { onSignOut: () => void }): ReactElemen
               <AccountScreen
                 businessCenterName={ownerProfile.activeBranch}
                 businessName={ownerProfile.businessName}
+                onOpenStaffInvite={() => undefined}
                 onOpenWhatsAppSetup={() => setRoute('account')}
                 onSignOut={props.onSignOut}
                 role="owner"

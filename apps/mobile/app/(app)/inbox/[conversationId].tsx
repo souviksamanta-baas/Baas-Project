@@ -45,6 +45,7 @@ export default function ConversationDetailRoute(): ReactElement {
   return (
     <ConversationDetailScreen
       customerName={conversationDisplayName(conversation)}
+      displayPhoneNumber={dashboard?.whatsappConnection?.displayPhoneNumber ?? null}
       isLoading={thread.isLoading}
       messages={thread.messages}
       onBack={() => router.replace(routes.appInbox)}

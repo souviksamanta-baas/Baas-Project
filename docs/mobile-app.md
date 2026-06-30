@@ -29,7 +29,7 @@ The mobile app uses only public Expo environment variables:
 
 - `EXPO_PUBLIC_SUPABASE_URL`
 - `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
-- `EXPO_PUBLIC_AUTH_OTP_CHANNEL`
+- `EXPO_PUBLIC_AUTH_LOGIN_CHANNELS` (production default: `email`)
 - `EXPO_PUBLIC_API_BASE_URL`
 
 The app does not read service-role keys, database passwords, WhatsApp secrets,
@@ -102,10 +102,7 @@ Screen polish for Inbox, inventory, and Copi uses shared components in
 
 ## Authentication Note
 
-Phone OTP is the production owner login method (**KAN-129 — Done**). Set
-`EXPO_PUBLIC_AUTH_OTP_CHANNEL=sms` and configure Twilio in the Supabase dashboard.
-For simulator-only testing without SMS, set `EXPO_PUBLIC_AUTH_OTP_CHANNEL=email`.
-Future Twilio Verify + WhatsApp OTP: [KAN-271](https://souviksamanta.atlassian.net/browse/KAN-271).
+Phone OTP is available as an optional **SMS** channel via **Twilio only** (Supabase Auth → Phone provider). **Email** uses Supabase email OTP. **WhatsApp** uses Meta platform WABA via the NestJS API — not Twilio. See [auth-onboarding.md](./auth-onboarding.md) and **KAN-272**.
 
 Argentina phone input accepts `011…`, `+5411…`, `+54911…`, and `5411…`. The client
 normalizes to E.164 (`+549…`) in `apps/mobile/src/services/phone.ts` before

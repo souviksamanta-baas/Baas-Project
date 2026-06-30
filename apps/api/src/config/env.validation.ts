@@ -56,4 +56,8 @@ export const envValidationSchema = Joi.object({
   }),
   WHATSAPP_APP_SECRET: productionSecret,
   WHATSAPP_VERIFY_TOKEN: productionSecret,
+  NEXOLIA_AUTH_WABA_ACCESS_TOKEN: Joi.string().trim().optional().allow(''),
+  NEXOLIA_AUTH_WABA_PHONE_NUMBER_ID: Joi.string().trim().optional().allow(''),
+  NEXOLIA_AUTH_OTP_TEMPLATE_LANGUAGE: Joi.string().trim().optional().allow(''),
+  NEXOLIA_AUTH_OTP_TEMPLATE_NAME: Joi.string().trim().optional().allow(''),
 });

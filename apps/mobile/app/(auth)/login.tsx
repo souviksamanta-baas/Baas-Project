@@ -20,6 +20,7 @@ export default function LoginRoute(): ReactElement {
       channel={session.otpChannel}
       isSubmitting={session.isSubmitting}
       loginIdentifier={session.loginIdentifier}
+      onChangeChannel={session.setOtpChannel}
       onChangeLoginIdentifier={session.setLoginIdentifier}
       onRequestOtp={async () => {
         const sent = await session.requestOtp();

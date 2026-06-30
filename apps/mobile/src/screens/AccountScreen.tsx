@@ -11,6 +11,7 @@ import { colors, shadows } from '../theme';
 export function AccountScreen(props: {
   businessCenterName: string | null;
   businessName: string | null;
+  onOpenStaffInvite: () => void;
   onOpenWhatsAppSetup: () => void;
   onSignOut: () => void;
   role: OwnerDashboard['organization'] extends infer T
@@ -50,10 +51,10 @@ export function AccountScreen(props: {
 
       <FeatureGate feature="accountSettings">
         <Card>
+          <ActionRow icon="users" onPress={props.onOpenStaffInvite} title="Invitar miembro (QR)" />
           {[
             ['user', 'Editar perfil'],
             ['store', 'Cambiar sucursal'],
-            ['users', 'Usuarios y permisos'],
             ['gear', 'Configuracion del negocio'],
             ['bell', 'Notificaciones'],
             ['help', 'Ayuda y soporte'],

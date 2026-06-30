@@ -24,8 +24,11 @@ from environment configuration instead of hardcoded in source files.
 | `EXPO_PUBLIC_SUPABASE_URL` | Supabase API URL for the mobile app | Current development URL: `https://efcyejbvcskbnipwdfge.supabase.co` |
 | `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Supabase publishable key for client requests | Prefer this for new client work |
 | `EXPO_PUBLIC_SUPABASE_ANON_KEY` | Legacy anon key for client requests | Use only if a library or integration requires the legacy JWT key |
-| `EXPO_PUBLIC_AUTH_OTP_CHANNEL` | OTP channel used by the mobile app | `sms` for Twilio phone OTP (production); set `email` for simulator-only email OTP. |
-| `EXPO_PUBLIC_API_BASE_URL` | Deployed NestJS API base URL for authenticated mobile actions | Current production URL: `https://baas-project-production.up.railway.app` |
+| `EXPO_PUBLIC_API_BASE_URL` | Deployed NestJS API base URL for authenticated mobile actions | Required for WhatsApp OTP login and staff invites. Current production URL: `https://baas-project-production.up.railway.app` |
+
+The mobile login screen reads `EXPO_PUBLIC_AUTH_LOGIN_CHANNELS` (comma-separated). Production ships with **`email` only** until Meta business verification and the Spanish AUTHENTICATION template are approved. Set `email,whatsapp,sms` locally to exercise all channels.
+
+The legacy `EXPO_PUBLIC_AUTH_OTP_CHANNEL` variable is no longer used by the login picker.
 
 The Expo app in `apps/mobile` must only use `EXPO_PUBLIC_*` variables. Server-only
 values below must never be referenced from mobile source files.
@@ -50,11 +53,15 @@ These values must never be bundled into mobile/client code.
 | `SUPABASE_DB_PASSWORD` | Database password for migration workflows when needed | Local dev, CI secret store |
 | `WHATSAPP_VERIFY_TOKEN` | Meta webhook setup token checked by `GET /webhooks/whatsapp` | API server, deployment secret store |
 | `WHATSAPP_APP_SECRET` | Meta app secret used to validate `x-hub-signature-256` | API server, deployment secret store |
-| `WHATSAPP_CLOUD_ACCESS_TOKEN` | Meta Cloud API access token for phone verification during connection registration and outbound sends | API server, deployment secret store |
+| `WHATSAPP_CLOUD_ACCESS_TOKEN` | Meta Cloud API access token for merchant messaging and fallback platform auth | API server, deployment secret store |
+| `NEXOLIA_AUTH_WABA_PHONE_NUMBER_ID` | Platform WABA phone number ID for login OTP | API server |
+| `NEXOLIA_AUTH_WABA_ACCESS_TOKEN` | Optional dedicated token for platform auth OTP | API server |
+| `NEXOLIA_AUTH_OTP_TEMPLATE_NAME` | Meta authentication template name (default `nexolia_auth_otp`) | API server |
+| `NEXOLIA_AUTH_OTP_TEMPLATE_LANGUAGE` | Template locale (default `es`) | API server |
 | `WHATSAPP_WEBHOOK_PATH` | Documented webhook path for deployment routing | API server, local dev |
 | `BAAS_TASKS_JOB_SECRET` | Shared secret required by `POST /tasks/run-maintenance` | API server, scheduler secret store |
-| `SUPABASE_AUTH_SMS_PROVIDER` | Name of the hosted SMS provider configured for phone OTP | Supabase dashboard or deployment notes only |
-| `SUPABASE_AUTH_SMS_PROVIDER_SECRET` | Provider token/password/API key for phone OTP | Supabase dashboard secret storage only |
+| `SUPABASE_AUTH_SMS_PROVIDER` | SMS provider for the **SMS login channel only** (use `twilio`) | Supabase dashboard only — never in mobile code |
+| `SUPABASE_AUTH_SMS_PROVIDER_SECRET` | Twilio credentials for Supabase phone OTP | Supabase dashboard secret storage only |
 
 The API reads `API_PORT`, then `PORT`, then falls back to `3000`. Railway usually
 provides `PORT` automatically.

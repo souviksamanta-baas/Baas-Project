@@ -6,7 +6,11 @@ import { createOrganizationWithOwner, getOwnerDashboard } from '../features/onbo
 import { supabase } from '../lib/supabase';
 import { requestLoginOtp, signOutOwner, verifyLoginOtp } from '../services/auth';
 import { formatAuthError } from '../services/authErrors';
-import { getAuthOtpChannel, isPhoneOtpChannel } from '../services/authChannel';
+import {
+  DEFAULT_AUTH_OTP_CHANNEL,
+  isPhoneAuthChannel,
+  type AuthOtpChannel,
+} from '../services/authChannel';
 import { normalizeEmail } from '../services/email';
 import { normalizePhoneNumber } from '../services/phone';
 import type { OwnerDashboard } from '../types/dashboard';
@@ -21,11 +25,12 @@ export interface OwnerSessionState {
   dashboard: OwnerDashboard | null;
   isSubmitting: boolean;
   loginIdentifier: string;
-  otpChannel: ReturnType<typeof getAuthOtpChannel>;
+  otpChannel: AuthOtpChannel;
   otpCode: string;
   requestOtp: () => Promise<boolean>;
   setBusinessName: (businessName: string) => void;
   setLoginIdentifier: (loginIdentifier: string) => void;
+  setOtpChannel: (channel: AuthOtpChannel) => void;
   setOtpCode: (otpCode: string) => void;
   createOrganization: () => Promise<void>;
   refreshDashboard: () => Promise<void>;
@@ -34,7 +39,7 @@ export interface OwnerSessionState {
 }
 
 export function useOwnerSession(): OwnerSessionState {
-  const otpChannel = getAuthOtpChannel();
+  const [otpChannel, setOtpChannel] = useState<AuthOtpChannel>(DEFAULT_AUTH_OTP_CHANNEL);
   const [bootstrapped, setBootstrapped] = useState(false);
   const [session, setSession] = useState<Session | null>(null);
   const [loginIdentifier, setLoginIdentifier] = useState('');
@@ -47,12 +52,12 @@ export function useOwnerSession(): OwnerSessionState {
   const [authError, setAuthError] = useState<string | null>(null);
 
   const canSubmitLogin = useMemo(() => {
-    if (isPhoneOtpChannel()) {
+    if (isPhoneAuthChannel(otpChannel)) {
       return normalizePhoneNumber(loginIdentifier) !== null;
     }
 
     return normalizeEmail(loginIdentifier) !== null;
-  }, [loginIdentifier]);
+  }, [loginIdentifier, otpChannel]);
 
   const bootstrapRoute = useCallback(async (nextSession: Session | null): Promise<void> => {
     if (!nextSession) {
@@ -120,10 +125,10 @@ export function useOwnerSession(): OwnerSessionState {
   async function requestOtp(): Promise<boolean> {
     if (!canSubmitLogin) {
       Alert.alert(
-        isPhoneOtpChannel() ? 'Invalid phone number' : 'Use email format',
-        isPhoneOtpChannel()
+        isPhoneAuthChannel(otpChannel) ? 'Número inválido' : 'Correo inválido',
+        isPhoneAuthChannel(otpChannel)
           ? 'Ingresá tu número como +5411…, +54911… o 011….'
-          : 'Enter an email address like owner@example.com.',
+          : 'Ingresá un correo como dueño@ejemplo.com.',
       );
       return false;
     }
@@ -132,18 +137,18 @@ export function useOwnerSession(): OwnerSessionState {
     setAuthError(null);
 
     try {
-      const normalizedIdentifier = isPhoneOtpChannel()
+      const normalizedIdentifier = isPhoneAuthChannel(otpChannel)
         ? (normalizePhoneNumber(loginIdentifier) ?? loginIdentifier)
         : (normalizeEmail(loginIdentifier) ?? loginIdentifier);
 
-      await requestLoginOtp(loginIdentifier);
+      await requestLoginOtp({ channel: otpChannel, identifier: loginIdentifier });
       setLoginIdentifier(normalizedIdentifier);
       setOtpSent(true);
       return true;
     } catch (error) {
       const message = formatAuthError(error);
       setAuthError(message);
-      Alert.alert('Could not send code', message);
+      Alert.alert('No se pudo enviar el código', message);
       return false;
     } finally {
       setIsSubmitting(false);
@@ -154,11 +159,18 @@ export function useOwnerSession(): OwnerSessionState {
     setIsSubmitting(true);
 
     try {
-      await verifyLoginOtp({ identifier: loginIdentifier, otpCode });
+      await verifyLoginOtp({
+        channel: otpChannel,
+        identifier: loginIdentifier,
+        otpCode,
+      });
       const { data } = await supabase.auth.getSession();
       await bootstrapRoute(data.session);
     } catch (error) {
-      Alert.alert('Could not verify code', error instanceof Error ? error.message : 'Unknown error');
+      Alert.alert(
+        'No se pudo verificar el código',
+        error instanceof Error ? error.message : 'Error desconocido',
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -166,7 +178,7 @@ export function useOwnerSession(): OwnerSessionState {
 
   async function createOrganization(): Promise<void> {
     if (!businessName.trim()) {
-      Alert.alert('Business name required', 'Enter your business name to continue.');
+      Alert.alert('Nombre requerido', 'Ingresá el nombre de tu negocio para continuar.');
       return;
     }
 
@@ -176,7 +188,10 @@ export function useOwnerSession(): OwnerSessionState {
       await createOrganizationWithOwner(businessName.trim());
       await bootstrapRoute(session);
     } catch (error) {
-      Alert.alert('Could not create business', error instanceof Error ? error.message : 'Unknown error');
+      Alert.alert(
+        'No se pudo crear el negocio',
+        error instanceof Error ? error.message : 'Error desconocido',
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -197,6 +212,11 @@ export function useOwnerSession(): OwnerSessionState {
     setLoginIdentifier(value);
   }
 
+  function handleSetOtpChannel(channel: AuthOtpChannel): void {
+    setAuthError(null);
+    setOtpChannel(channel);
+  }
+
   return {
     authError,
     authPhase,
@@ -210,6 +230,7 @@ export function useOwnerSession(): OwnerSessionState {
     requestOtp,
     setBusinessName,
     setLoginIdentifier: handleSetLoginIdentifier,
+    setOtpChannel: handleSetOtpChannel,
     setOtpCode,
     createOrganization,
     refreshDashboard,

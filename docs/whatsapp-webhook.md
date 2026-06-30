@@ -31,6 +31,17 @@ The NestJS API exposes:
 Do not expose these values to the Expo/mobile client. Store real values only in
 ignored local env files or deployment secret stores.
 
+## Platform WABA vs merchant WABA
+
+| WABA | Env vars | Purpose |
+| --- | --- | --- |
+| **Nexolia platform** | `NEXOLIA_AUTH_WABA_*` | Login/staff verification OTP (`POST /auth/otp/whatsapp/*`) |
+| **Merchant** | Per-row in `whatsapp_config` | Customer inbox webhooks and outbound replies |
+
+Webhooks on `/webhooks/whatsapp` route inbound **customer** messages by merchant `phone_number_id`. Auth OTP messages use the platform WABA and do not appear in the merchant inbox.
+
+See [meta-platform-waba-setup.md](./meta-platform-waba-setup.md) for developer setup and test limits.
+
 ## Connection Status
 
 WhatsApp Business connection metadata is stored in:

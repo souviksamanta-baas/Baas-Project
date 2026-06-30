@@ -1,132 +1,91 @@
 # Auth and Organization Onboarding
 
-This document tracks the Phase 0 auth and onboarding work for `KAN-7`.
+This document tracks auth and onboarding for Nexolia owners and staff (**KAN-272**).
 
-## Scope
+## Tri-channel login
 
-Phase 0 planned Supabase Auth with phone OTP as the primary owner login method.
-During Phase 2 simulator verification, the mobile app uses Supabase email OTP so
-Realtime behavior can be tested before Twilio/SMS provider setup is complete.
-After login, the mobile app resolves whether the user already belongs to an
-organization. If not, it prompts for business creation and creates the user as
-the organization owner.
+Owners and staff choose how to receive a one-time code at login:
 
-Production phone OTP is configured via Twilio in Supabase (**KAN-129 — Done**). A future
-upgrade to Twilio Verify with WhatsApp delivery is tracked under
-[KAN-271](https://souviksamanta.atlassian.net/browse/KAN-271).
+| Channel | Delivery | Cost profile |
+| --- | --- | --- |
+| **Email** (recommended) | Supabase Auth email OTP | ~ARS 0 |
+| **WhatsApp** | Meta AUTHENTICATION template from **Nexolia platform WABA** via NestJS | ~ARS 29 / OTP |
+| **SMS** (optional) | Supabase phone OTP → **Twilio SMS only** (hosted dashboard) | ~ARS 114+ / OTP |
 
-## Email OTP for Simulator Verification
+**Provider rule:** Twilio is used **only** for the SMS login channel. Email stays on Supabase Auth. WhatsApp login uses Meta Cloud API (platform WABA) via NestJS — never Twilio.
 
-The current Expo simulator flow calls:
+**Important:** The phone used for login does **not** need to be the merchant business WhatsApp number. Customer messaging uses each merchant's own WABA (`whatsapp_config`) after login.
 
-```typescript
-await supabase.auth.signInWithOtp({
-  email: normalizedEmail,
-});
-
-await supabase.auth.verifyOtp({
-  email: normalizedEmail,
-  token: otpCode,
-  type: 'email',
-});
-```
-
-This avoids blocking Realtime verification on SMS provider setup. Email OTP must
-still use public Supabase client variables only.
-
-## Phone OTP
-
-The local Supabase config enables SMS signup and defines the OTP message
-template in `supabase/config.toml`:
-
-```toml
-template = "El código para ingresar a nexolia es {{ .Code }}"
-```
-
-Hosted Supabase phone OTP also requires an SMS provider in the Supabase
-dashboard. Store provider credentials only in Supabase or deployment secret
-storage. Do not commit SMS provider credentials or paste them into Jira,
-Confluence, or chat.
-
-**Hosted dashboard:** Authentication → Providers → Phone → set the same SMS
-template string as above.
-
-Mobile client flow:
+## Email OTP
 
 ```typescript
-await supabase.auth.signInWithOtp({
-  phone: e164PhoneNumber,
-});
-
-await supabase.auth.verifyOtp({
-  phone: e164PhoneNumber,
-  token: otpCode,
-  type: 'sms',
-});
+await supabase.auth.signInWithOtp({ email: normalizedEmail });
+await supabase.auth.verifyOtp({ email: normalizedEmail, token: otpCode, type: 'email' });
 ```
 
-Recommended client error handling:
+## WhatsApp OTP (platform WABA)
 
-- Normalize Argentina phone numbers before requesting an OTP (`apps/mobile/src/services/phone.ts`).
-- Accepted input formats: `011…`, `+5411…`, `+54911…`, and `5411…` (without `+`). The client
-  converts them to E.164 (`+549…`) before calling Supabase.
-- Show rate-limit and invalid-code errors as inline messages on web (React Native `Alert` is
-  unreliable in the browser) and as alerts on native.
-- Allow resend only after the configured cooldown.
-- Never log OTP codes or full phone numbers.
+```typescript
+await fetch(`${API}/auth/otp/whatsapp/request`, {
+  method: 'POST',
+  body: JSON.stringify({ phone: '+5491112345678' }),
+});
+
+const { tokenHash } = await fetch(`${API}/auth/otp/whatsapp/verify`, {
+  method: 'POST',
+  body: JSON.stringify({ phone: '+5491112345678', code: otpCode }),
+}).then((r) => r.json());
+
+await supabase.auth.verifyOtp({ token_hash: tokenHash, type: 'email' });
+```
+
+Supabase native `channel: 'whatsapp'` requires Twilio — Nexolia uses direct Meta Cloud API instead.
+
+## SMS OTP (optional — Twilio only)
+
+SMS is the **only** channel that uses Twilio. Configure Twilio under Supabase → Authentication → Providers → Phone. The mobile app never calls Twilio directly; Supabase sends the SMS.
+
+```typescript
+await supabase.auth.signInWithOtp({ phone: e164PhoneNumber });
+await supabase.auth.verifyOtp({ phone: e164PhoneNumber, token: otpCode, type: 'sms' });
+```
+
+Hosted template (Spanish):
+
+```text
+El código para ingresar a nexolia es {{ .Code }}
+```
+
+Do **not** enable Supabase WhatsApp OTP via Twilio — Nexolia WhatsApp login uses Meta direct (see above).
+
+## Staff QR invite (KAN-273)
+
+1. Owner creates invite with intended phone (contacts picker or manual entry)
+2. App shows QR encoding `baas-owner://invite-accept?token=…`
+3. Staff verifies **the same phone** via WhatsApp or SMS
+4. API accepts invite → `organization_members` for the same `organization_id`
+
+See [contacts-permissions.md](./contacts-permissions.md).
 
 ## Onboarding RPCs
 
-`20260601190000_create_owner_onboarding_rpc.sql` adds these authenticated RPCs:
+After any channel login:
 
-| Function | Purpose |
+1. App calls `get_owner_dashboard`
+2. If `shouldOnboard`, owner creates business via `create_organization_with_owner`
+3. Owner may connect merchant WABA later (independent of login phone)
+
+## Architecture notes
+
+| WABA | Purpose |
 | --- | --- |
-| `create_organization_with_owner(org_name, org_timezone, org_business_hours)` | Creates the organization and inserts the authenticated user as `owner`. |
-| `get_my_organizations()` | Resolves organizations visible to the authenticated user through RLS. |
-| `get_owner_dashboard()` | Returns the dashboard bootstrap payload and empty-state metrics. |
+| Nexolia platform WABA | Login / staff verification OTP only |
+| Merchant WABA | Customer inbox and outbound messaging |
 
-`create_organization_with_owner` is intentionally exposed only to the
-`authenticated` role and validates `auth.uid()` before writing. It uses a
-security definer transaction boundary so organization and owner membership are
-created together.
-
-## First Login Flow
-
-1. Owner enters phone number when `EXPO_PUBLIC_AUTH_OTP_CHANNEL=sms`, or email when set to `email`.
-2. App calls `signInWithOtp`.
-3. Owner enters OTP code.
-4. App calls `verifyOtp`.
-5. App calls `get_owner_dashboard`.
-6. If `shouldOnboard` is `true`, app shows the business creation form.
-7. App calls `create_organization_with_owner`.
-8. App calls `get_owner_dashboard` again and renders the empty dashboard.
-
-## Empty Dashboard Contract
-
-The dashboard bootstrap response includes:
-
-- `shouldOnboard`: whether business creation is still required.
-- `organization`: active organization ID, name, role, and timezone.
-- `metrics`: zero-count Phase 0 dashboard metrics.
-- `emptyStates`: setup prompts for WhatsApp, products, and follow-up rules.
-
-Phase 1 feature tables will replace the placeholder zero counts with real
-queries as inbox, CRM, catalog, and follow-up modules are added.
+Supersedes Twilio-only direction from KAN-129. Replaces KAN-271 (Twilio Verify) with KAN-272.
 
 ## Verification
-
-The scripted verification lives at:
 
 ```text
 supabase/tests/onboarding_flow.sql
 ```
-
-It simulates a phone-authenticated user and verifies:
-
-- First login returns `shouldOnboard = true`.
-- Organization creation inserts the user as `owner`.
-- The active organization resolves through `get_my_organizations`.
-- The dashboard no longer prompts onboarding after organization creation.
-- Empty dashboard metrics start at zero.
-
-The transaction rolls back at the end, so no test organization remains.

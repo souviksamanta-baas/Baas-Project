@@ -13,6 +13,7 @@ export default function AccountRoute(): ReactElement {
     <AccountScreen
       businessCenterName={dashboard?.businessCenter?.name ?? null}
       businessName={dashboard?.organization?.name ?? null}
+      onOpenStaffInvite={() => router.push(routes.staffInvite)}
       onOpenWhatsAppSetup={() => router.push(routes.whatsappConnect)}
       onSignOut={signOut}
       role={dashboard?.organization?.role ?? null}
