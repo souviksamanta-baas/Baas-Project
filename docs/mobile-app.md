@@ -102,6 +102,8 @@ Screen polish for Inbox, inventory, and Copi uses shared components in
 
 ## Authentication Note
 
+**Production pilot:** set `EXPO_PUBLIC_AUTH_LOGIN_CHANNELS=email` (email-only login). WhatsApp and SMS channels remain in code for local/dev testing.
+
 Phone OTP is available as an optional **SMS** channel via **Twilio only** (Supabase Auth → Phone provider). **Email** uses Supabase email OTP. **WhatsApp** uses Meta platform WABA via the NestJS API — not Twilio. See [auth-onboarding.md](./auth-onboarding.md) and **KAN-272**.
 
 Argentina phone input accepts `011…`, `+5411…`, `+54911…`, and `5411…`. The client
