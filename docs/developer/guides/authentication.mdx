@@ -17,11 +17,27 @@ Authorization: Bearer <supabase-access-token>
 
 Current owner-authenticated endpoints include:
 
+- `POST /organizations/invites` — create a staff invite (owner bearer token)
+- `POST /organizations/invites/accept` — accept invite after phone verification
+- `POST /whatsapp/connection/register` — register merchant WhatsApp Cloud API number
 - `POST /ai/drafts/{draftId}/approve`
 - `POST /ai/drafts/{draftId}/reject`
 - `POST /ai/copilot/query`
 
 These endpoints validate the token server-side before allowing access to organization-scoped data.
+
+## Public auth OTP endpoints
+
+WhatsApp login OTP uses the Nexolia **platform WABA** (not merchant inbox numbers). These routes are unauthenticated and rate-limited at the edge in production:
+
+- `POST /auth/otp/whatsapp/request` — send Meta authentication-template OTP
+- `POST /auth/otp/whatsapp/verify` — verify OTP and return a Supabase `tokenHash`
+
+The mobile client exchanges `tokenHash` with Supabase Auth (`verifyOtp`) to establish the session.
+
+**Production pilot:** owner login ships **email-only** (`EXPO_PUBLIC_AUTH_LOGIN_CHANNELS=email`). WhatsApp OTP remains implemented but disabled until Meta business verification and a Spanish AUTHENTICATION template are approved.
+
+Email and optional SMS OTP use Supabase Auth directly from the mobile client (no NestJS route).
 
 ## Scheduler authentication
 

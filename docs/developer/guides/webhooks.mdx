@@ -5,7 +5,16 @@ description: "How WhatsApp webhook verification and inbound payload processing w
 
 Nexolia currently supports inbound WhatsApp Business Cloud webhooks.
 
-## Verification
+## Platform WABA vs merchant WABA
+
+| WABA | Configuration | Purpose |
+| --- | --- | --- |
+| **Nexolia platform** | `NEXOLIA_AUTH_WABA_*` env vars | Login/staff OTP via `POST /auth/otp/whatsapp/*` |
+| **Merchant** | `whatsapp_config` row per organization | Customer inbox inbound/outbound on `/webhooks/whatsapp` |
+
+Inbound customer messages on `POST /webhooks/whatsapp` are mapped by merchant `phone_number_id`. Platform auth OTP traffic does not appear in the merchant inbox.
+
+See also `docs/whatsapp-webhook.md` and `docs/meta-platform-waba-setup.md` in the repo.
 
 Meta verifies the webhook URL with:
 

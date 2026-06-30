@@ -171,6 +171,212 @@
         ]
       }
     },
+    "/auth/otp/whatsapp/request": {
+      "post": {
+        "description": "Sends a Meta authentication template OTP from the Nexolia platform WABA. Auth phone is independent of merchant WABA numbers.",
+        "operationId": "Auth_requestWhatsAppOtp",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "phone": {
+                    "example": "+5491112345678",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "phone"
+                ],
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OTP requested."
+          }
+        },
+        "summary": "Request WhatsApp OTP for login",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/auth/otp/whatsapp/verify": {
+      "post": {
+        "description": "Validates the OTP challenge and returns a Supabase token hash the mobile client can exchange for a session.",
+        "operationId": "Auth_verifyWhatsAppOtp",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "code": {
+                    "example": "123456",
+                    "type": "string"
+                  },
+                  "phone": {
+                    "example": "+5491112345678",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code",
+                  "phone"
+                ],
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OTP verified; session token hash returned."
+          },
+          "401": {
+            "description": "Invalid or expired OTP.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Verify WhatsApp OTP and mint Supabase session token",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/organizations/invites": {
+      "post": {
+        "operationId": "Organizations_createInvite",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "businessCenterId": {
+                    "type": "string"
+                  },
+                  "invitedDisplayName": {
+                    "type": "string"
+                  },
+                  "invitedPhoneE164": {
+                    "example": "+5491112345678",
+                    "type": "string"
+                  },
+                  "organizationId": {
+                    "type": "string"
+                  },
+                  "role": {
+                    "enum": [
+                      "employee",
+                      "manager",
+                      "co_owner"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "invitedPhoneE164",
+                  "organizationId",
+                  "role"
+                ],
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Invite created."
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "SupabaseAuth": []
+          }
+        ],
+        "summary": "Create a staff invite QR token",
+        "tags": [
+          "Organizations"
+        ]
+      }
+    },
+    "/organizations/invites/accept": {
+      "post": {
+        "operationId": "Organizations_acceptInvite",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "inviteToken": {
+                    "type": "string"
+                  },
+                  "verifiedPhoneE164": {
+                    "example": "+5491112345678",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "inviteToken",
+                  "verifiedPhoneE164"
+                ],
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Invite accepted."
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "SupabaseAuth": []
+          }
+        ],
+        "summary": "Accept a staff invite after phone verification",
+        "tags": [
+          "Organizations"
+        ]
+      }
+    },
     "/tasks/run-maintenance": {
       "post": {
         "description": "Secured scheduler endpoint that creates idle-lead follow-up tasks, low-stock alerts, and push notifications.",
@@ -380,6 +586,70 @@
         "summary": "Ask Copi an owner question",
         "tags": [
           "AI"
+        ]
+      }
+    },
+    "/whatsapp/connection/register": {
+      "post": {
+        "description": "Owner-secured endpoint that validates Meta phone number metadata and stores tenant WhatsApp configuration.",
+        "operationId": "WhatsApp_registerConnection",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "displayPhoneNumber": {
+                    "example": "+54 9 11 6000-0000",
+                    "type": "string"
+                  },
+                  "organizationId": {
+                    "example": "00000000-0000-0000-0000-000000000001",
+                    "type": "string"
+                  },
+                  "phoneNumberId": {
+                    "example": "123456789012345",
+                    "type": "string"
+                  },
+                  "wabaId": {
+                    "example": "987654321098765",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "displayPhoneNumber",
+                  "organizationId",
+                  "phoneNumberId"
+                ],
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "WhatsApp connection registered."
+          },
+          "401": {
+            "description": "The Supabase authorization token is missing or invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "SupabaseAuth": []
+          }
+        ],
+        "summary": "Register WhatsApp Business connection",
+        "tags": [
+          "WhatsApp"
         ]
       }
     }
