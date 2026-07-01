@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase';
 import type { OwnerDashboard } from '../types/dashboard';
+import { apiFetch } from './apiClient';
 
 const apiBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL;
 
@@ -18,6 +19,50 @@ export interface RegisterWhatsAppConnectionResult {
   verifiedAt: string | null;
 }
 
+export interface SendConversationReplyParams {
+  body: string;
+  businessCenterId: string;
+  conversationId: string;
+  organizationId: string;
+}
+
+export interface SendConversationReplyResult {
+  externalMessageId: string | null;
+  status: 'sent';
+}
+
+export async function sendConversationReply(
+  params: SendConversationReplyParams,
+): Promise<SendConversationReplyResult> {
+  if (!apiBaseUrl) {
+    throw new Error('EXPO_PUBLIC_API_BASE_URL is required to send WhatsApp replies.');
+  }
+
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  if (!session?.access_token) {
+    throw new Error('Iniciá sesión antes de responder.');
+  }
+
+  const response = await apiFetch(`${apiBaseUrl}/whatsapp/messages/send`, {
+    body: JSON.stringify(params),
+    headers: {
+      Authorization: `Bearer ${session.access_token}`,
+      'Content-Type': 'application/json',
+    },
+    method: 'POST',
+  });
+
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(message || `No se pudo enviar el mensaje (HTTP ${response.status}).`);
+  }
+
+  return (await response.json()) as SendConversationReplyResult;
+}
+
 export async function registerWhatsAppConnection(
   params: RegisterWhatsAppConnectionParams,
 ): Promise<RegisterWhatsAppConnectionResult> {
@@ -33,7 +78,7 @@ export async function registerWhatsAppConnection(
     throw new Error('Iniciá sesión antes de conectar WhatsApp.');
   }
 
-  const response = await fetch(`${apiBaseUrl}/whatsapp/connection/register`, {
+  const response = await apiFetch(`${apiBaseUrl}/whatsapp/connection/register`, {
     body: JSON.stringify(params),
     headers: {
       Authorization: `Bearer ${session.access_token}`,

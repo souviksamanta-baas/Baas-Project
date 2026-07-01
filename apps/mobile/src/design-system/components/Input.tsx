@@ -128,9 +128,13 @@ type ComposerInputProps = {
   leadingIcon?: IconKind;
   leadingIconColor?: string;
   leadingIconSize?: number;
+  onChangeText?: (text: string) => void;
+  onSubmitEditing?: () => void;
   placeholder: string;
+  returnKeyType?: 'default' | 'send';
   style?: StyleProp<ViewStyle>;
   trailing?: ReactNode;
+  value?: string;
 };
 
 /** Copi composer — icon outside; border and focus ring on the TextInput itself. */
@@ -150,10 +154,14 @@ export function ComposerInput(props: ComposerInputProps): ReactElement {
       <TextInput
         editable={props.editable ?? true}
         onBlur={() => setFocused(false)}
+        onChangeText={props.onChangeText}
         onFocus={() => setFocused(true)}
+        onSubmitEditing={props.onSubmitEditing}
         placeholder={props.placeholder}
         placeholderTextColor={colors.placeholder}
+        returnKeyType={props.returnKeyType}
         style={[styles.composerInput, focused && styles.composerInputFocused, composerInputWeb]}
+        value={props.value}
       />
       {props.trailing}
     </View>

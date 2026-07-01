@@ -1,10 +1,13 @@
 import type { ReactElement } from 'react';
-import { Text, TextInput, View } from 'react-native';
 
-import { PrimaryButton } from '../components/Buttons';
+import { AuthScreenShell } from '../components/AuthScreenShell';
 import type { AuthOtpChannel } from '../services/authChannel';
-import { authChannelLabel } from '../services/authChannel';
-import { styles } from '../styles';
+import {
+  getOtpCodeLength,
+  isOtpCodeComplete,
+  normalizeOtpInput,
+} from '../services/authOtp';
+import { PrimaryButton, TextField } from '../design-system';
 
 export function VerifyOtpScreen(props: {
   channel: AuthOtpChannel;
@@ -14,6 +17,7 @@ export function VerifyOtpScreen(props: {
   onVerifyOtp: () => void;
   otpCode: string;
 }): ReactElement {
+  const codeLength = getOtpCodeLength(props.channel);
   const senderLabel =
     props.channel === 'whatsapp'
       ? 'Nexolia por WhatsApp'
@@ -21,31 +25,29 @@ export function VerifyOtpScreen(props: {
         ? 'SMS'
         : 'correo electrónico';
 
+  const subtitle =
+    props.channel === 'whatsapp'
+      ? `Enviamos un código por ${senderLabel} a ${props.destination}. Este mensaje viene de Nexolia, no del WhatsApp de tu negocio.`
+      : `Enviamos un código de ${codeLength} dígitos por ${senderLabel} a ${props.destination}.`;
+
   return (
-    <View style={styles.card}>
-      <Text style={styles.heading}>Ingresá el código</Text>
-      <Text style={styles.bodyText}>
-        Enviamos un código por {senderLabel} a {props.destination}.
-      </Text>
-      {props.channel === 'whatsapp' ? (
-        <Text style={styles.bodyText}>
-          Este mensaje viene de Nexolia, no del WhatsApp de tu negocio.
-        </Text>
-      ) : null}
-      <TextInput
+    <AuthScreenShell subtitle={subtitle} title="Ingresá el código">
+      <TextField
+        autoComplete="one-time-code"
         keyboardType="number-pad"
-        maxLength={6}
-        onChangeText={props.onChangeOtpCode}
-        placeholder="123456"
-        style={styles.input}
+        label={`Código de ${codeLength} dígitos`}
+        maxLength={codeLength}
+        onChangeText={(value) => props.onChangeOtpCode(normalizeOtpInput(value, props.channel))}
+        placeholder={'0'.repeat(codeLength)}
+        textContentType="oneTimeCode"
         value={props.otpCode}
       />
       <PrimaryButton
-        disabled={props.isSubmitting || props.otpCode.trim().length === 0}
-        label="Verificar"
+        disabled={props.isSubmitting || !isOtpCodeComplete(props.otpCode, props.channel)}
+        fullWidth
+        label={props.isSubmitting ? 'Verificando…' : 'Verificar'}
         onPress={props.onVerifyOtp}
       />
-      <Text style={styles.bodyText}>Canal: {authChannelLabel(props.channel)}</Text>
-    </View>
+    </AuthScreenShell>
   );
 }

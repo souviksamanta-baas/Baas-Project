@@ -23,6 +23,45 @@ await supabase.auth.signInWithOtp({ email: normalizedEmail });
 await supabase.auth.verifyOtp({ email: normalizedEmail, token: otpCode, type: 'email' });
 ```
 
+Hosted Supabase sends an **8-digit** code. The mobile app accepts 8 digits for email OTP.
+
+### Spanish Nexolia email template (hosted dashboard)
+
+Repo source of truth: `supabase/templates/magic_link.html` and `supabase/config.toml` (`[auth.email.template.magic_link]`).
+
+**Apply on hosted Supabase** (project `efcyejbvcskbnipwdfge`):
+
+1. [Supabase Dashboard](https://supabase.com/dashboard/project/efcyejbvcskbnipwdfge/auth/templates) → **Authentication** → **Email Templates** → **Magic Link**
+2. **Subject:** `Tu código para ingresar a Nexolia`
+3. **Body** (must include `{{ .Token }}` for OTP, not only a link):
+
+```html
+<h2>Tu código para ingresar a Nexolia</h2>
+
+<p>Tu código de acceso es:</p>
+
+<p style="font-size: 28px; font-weight: 700; letter-spacing: 4px; margin: 16px 0;">{{ .Token }}</p>
+
+<p>Ingresá este código en la app para continuar.</p>
+
+<p style="color: #56627b; font-size: 14px;">Si no pediste este código, podés ignorar este correo.</p>
+```
+
+4. Save. Request a new login code to verify the Spanish Nexolia copy.
+
+### Email rate limits (testing)
+
+Supabase throttles OTP emails on the hosted project:
+
+| Limit | Default (built-in email) |
+| --- | --- |
+| Emails per hour (project-wide) | **2** — only raised with [custom SMTP](https://supabase.com/docs/guides/auth/auth-smtp) |
+| Cooldown per email address | **60 seconds** between requests |
+
+If login shows a rate-limit error during QA, wait 60s for the per-user cooldown or up to an hour for the project email cap. Reuse the last code if it has not expired. Adjust OTP cooldowns in [Authentication → Rate Limits](https://supabase.com/dashboard/project/efcyejbvcskbnipwdfge/auth/rate-limits).
+
+Replace any legacy **BaaS** subject/body in the dashboard — hosted templates are **not** deployed from git.
+
 ## WhatsApp OTP (platform WABA)
 
 ```typescript

@@ -257,6 +257,42 @@ Start the API:
 npm run dev:api
 ```
 
+## Inbound message not in inbox
+
+Symptom: WhatsApp shows the message as **delivered**, but Nexolia Inbox stays on seed/test data only.
+
+### Quick diagnosis
+
+| Check | Healthy | Your project (if broken) |
+| --- | --- | --- |
+| `whatsapp_config` row for your `phone_number_id` | Present, `connected` | OK (`1251908627996729`) |
+| `whatsapp_message_events` after you text the business number | New row per message | **Empty** → webhook never persisted |
+| `conversation_messages` | New inbound row | Only seed “Realtime Test Customer” |
+
+An empty `whatsapp_message_events` table means Meta did not successfully POST to Railway (or every POST was rejected before insert).
+
+### Fix checklist (Meta console)
+
+1. **Test recipient** — [WhatsApp → API Setup](https://developers.facebook.com/) → add your personal number (E.164, e.g. `+54911…`). Test WABAs only accept inbound chats from listed numbers.
+2. **Webhook URL** — `https://baas-project-production.up.railway.app/webhooks/whatsapp`
+3. **Subscribe to `messages`** — WhatsApp → Configuration → Webhook fields → `messages` must be **Subscribed**.
+4. **Verify token** — must equal Railway `WHATSAPP_VERIFY_TOKEN`.
+5. **App secret** — Railway `WHATSAPP_APP_SECRET` must equal Meta App → Settings → Basic → App secret. A mismatch returns **401** and Meta shows failed deliveries.
+6. **Recent deliveries** — Meta app → Webhooks → inspect POST status codes and response bodies.
+
+### Fix checklist (Railway)
+
+1. Open API service logs and search for `whatsapp.webhook` or `401` around the time you sent the message.
+2. Confirm `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are set (otherwise production webhook persistence throws).
+3. After fixing, send **one** new test message and re-query `whatsapp_message_events`.
+
+### Expected flow when working
+
+```text
+Your phone → Meta WABA → POST /webhooks/whatsapp → whatsapp_message_events
+  → conversation_messages + conversations → Inbox (Supabase Realtime)
+```
+
 ## Verification Status
 
 For KAN-8, completion is verified when:

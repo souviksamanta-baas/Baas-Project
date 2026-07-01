@@ -92,13 +92,26 @@ export async function getConversationMessages(
   return (data as ConversationMessageRow[]).map(toWhatsAppMessagePreview);
 }
 
+function removeExistingRealtimeChannel(channelName: string): void {
+  const topic = `realtime:${channelName}`;
+
+  for (const channel of supabase.getChannels()) {
+    if (channel.topic === topic) {
+      void supabase.removeChannel(channel);
+    }
+  }
+}
+
 export function subscribeToConversationMessages(
   organizationId: string,
   businessCenterId: string,
   onMessage: (message: WhatsAppMessagePreview) => void,
 ): () => void {
+  const channelName = `conversation-messages:${organizationId}:${businessCenterId}`;
+  removeExistingRealtimeChannel(channelName);
+
   const channel = supabase
-    .channel(`conversation-messages:${organizationId}:${businessCenterId}`)
+    .channel(channelName)
     .on(
       'postgres_changes',
       {
@@ -138,8 +151,11 @@ export function subscribeToInboxChanges(
     onMessage: (message: WhatsAppMessagePreview) => void;
   },
 ): () => void {
+  const channelName = `inbox:${organizationId}:${businessCenterId}`;
+  removeExistingRealtimeChannel(channelName);
+
   const channel = supabase
-    .channel(`inbox:${organizationId}:${businessCenterId}`)
+    .channel(channelName)
     .on(
       'postgres_changes',
       {

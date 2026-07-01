@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert } from 'react-native';
 
 import {
@@ -26,6 +26,9 @@ export function useInbox(
   const [isLoading, setIsLoading] = useState(false);
   const [messages, setMessages] = useState<WhatsAppMessagePreview[]>([]);
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
+  const selectedConversationIdRef = useRef<string | null>(selectedConversationId);
+
+  selectedConversationIdRef.current = selectedConversationId;
 
   const selectedConversation = useMemo(
     () => conversations.find((conversation) => conversation.id === selectedConversationId) ?? null,
@@ -80,7 +83,7 @@ export function useInbox(
       },
       onMessage: (message) => {
         setMessages((currentMessages) => {
-          if (message.conversationId !== selectedConversationId) {
+          if (message.conversationId !== selectedConversationIdRef.current) {
             return currentMessages;
           }
 
@@ -93,7 +96,7 @@ export function useInbox(
       mounted = false;
       unsubscribe();
     };
-  }, [businessCenterId, loadConversations, organizationId, selectedConversationId]);
+  }, [businessCenterId, loadConversations, organizationId]);
 
   useEffect(() => {
     if (!selectedConversationId) {

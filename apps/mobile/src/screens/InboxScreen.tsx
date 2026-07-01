@@ -1,4 +1,5 @@
 import type { ReactElement } from 'react';
+import { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import {
@@ -118,9 +119,32 @@ export function ConversationDetailScreen(props: {
   isLoading: boolean;
   messages: WhatsAppMessagePreview[];
   onBack: () => void;
+  onSendReply?: (body: string) => Promise<void>;
   statusLabel?: string;
   threadAvatar?: string;
 }): ReactElement {
+  const [draft, setDraft] = useState('');
+  const [isSending, setIsSending] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
+
+  async function handleSend(): Promise<void> {
+    if (!props.onSendReply || !draft.trim() || isSending) {
+      return;
+    }
+
+    setIsSending(true);
+    setSendError(null);
+
+    try {
+      await props.onSendReply(draft.trim());
+      setDraft('');
+    } catch (error) {
+      setSendError(error instanceof Error ? error.message : 'No se pudo enviar el mensaje.');
+    } finally {
+      setIsSending(false);
+    }
+  }
+
   return (
     <View style={styles.detailRoot}>
       <View style={styles.detailBody}>
@@ -166,7 +190,14 @@ export function ConversationDetailScreen(props: {
         </Card>
       </View>
       <FeatureGate feature="chatComposer">
-        <ReplyComposer placeholder="Escribi un mensaje..." />
+        {sendError ? <Text style={styles.sendErrorText}>{sendError}</Text> : null}
+        <ReplyComposer
+          isSending={isSending}
+          onChangeText={setDraft}
+          onSend={props.onSendReply ? handleSend : undefined}
+          placeholder="Escribi un mensaje..."
+          value={draft}
+        />
       </FeatureGate>
     </View>
   );
@@ -261,6 +292,12 @@ const styles = StyleSheet.create({
   setupBlock: {
     gap: 12,
     marginBottom: 12,
+  },
+  sendErrorText: {
+    color: colors.danger,
+    fontSize: 11,
+    paddingHorizontal: 18,
+    paddingTop: 4,
   },
   statusTab: {
     color: colors.slate,

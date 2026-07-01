@@ -1,5 +1,5 @@
 import type { ReactElement, ReactNode } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import type { Channel, DashboardMetricMock, NotificationMock, Tone } from '../api/mockData';
 import {
@@ -227,17 +227,44 @@ function MessageSourceBadge(props: { source: MessageSource }): ReactElement {
   );
 }
 
-export function ReplyComposer(props: { embedded?: boolean; placeholder: string }): ReactElement {
+export function ReplyComposer(props: {
+  embedded?: boolean;
+  editable?: boolean;
+  isSending?: boolean;
+  onChangeText?: (text: string) => void;
+  onSend?: () => void;
+  placeholder: string;
+  value?: string;
+}): ReactElement {
+  const canSend = Boolean(props.onSend && props.value?.trim() && !props.isSending);
+
   return (
     <View style={[styles.replyBar, props.embedded && styles.replyBarEmbedded]}>
       <ComposerInput
-        editable={false}
+        editable={props.editable ?? true}
         leadingIcon="plus"
+        onChangeText={props.onChangeText}
+        onSubmitEditing={canSend ? props.onSend : undefined}
         placeholder={props.placeholder}
+        returnKeyType="send"
+        value={props.value}
         trailing={
-          <View style={styles.micButton}>
-            <Icon color={colors.surface} kind="mic" size={19} strokeWidth={2.2} />
-          </View>
+          <Pressable
+            disabled={!canSend}
+            onPress={props.onSend}
+            style={styles.micButton}
+          >
+            {props.isSending ? (
+              <ActivityIndicator color={colors.surface} size="small" />
+            ) : (
+              <Icon
+                color={colors.surface}
+                kind={canSend ? 'message' : 'mic'}
+                size={19}
+                strokeWidth={2.2}
+              />
+            )}
+          </Pressable>
         }
       />
     </View>

@@ -1,22 +1,28 @@
 import { Stack } from 'expo-router';
 import type { ReactElement } from 'react';
-import { SafeAreaView, ScrollView, Text } from 'react-native';
+import { SafeAreaView, ScrollView, StyleSheet } from 'react-native';
 
-import { hasSupabaseConfig } from '../../src/lib/supabase';
-import { styles } from '../../src/styles';
+import { colors } from '../../src/design-system';
 
 export default function AuthLayout(): ReactElement {
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ScrollView contentContainerStyle={styles.container}>
-        {hasSupabaseConfig ? null : (
-          <>
-            <Text style={styles.eyebrow}>BaaS Phase 0</Text>
-            <Text style={styles.title}>Owner Assistant</Text>
-          </>
-        )}
+      <ScrollView
+        contentContainerStyle={styles.container}
+        keyboardShouldPersistTaps="handled"
+      >
         <Stack screenOptions={{ headerShown: false }} />
       </ScrollView>
     </SafeAreaView>
   );
 }
+
+const styles = StyleSheet.create({
+  safeArea: {
+    backgroundColor: colors.background,
+    flex: 1,
+  },
+  container: {
+    flexGrow: 1,
+  },
+});

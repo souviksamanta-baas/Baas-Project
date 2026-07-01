@@ -2,6 +2,10 @@
 
 This document tracks the Phase 0 Expo owner app work for `KAN-9`.
 
+For the incremental **API client layer** rollout (hooks → `src/api/*`), see
+[mobile-api-client.md](./mobile-api-client.md) and epic
+[KAN-278](https://souviksamanta.atlassian.net/browse/KAN-278).
+
 ## Scope
 
 The MVP is mobile-first. Phase 0 adds an Expo TypeScript app skeleton at
@@ -114,6 +118,11 @@ SMS template (hosted dashboard + `supabase/config.toml`):
 
 `El código para ingresar a nexolia es {{ .Code }}`
 
+Email OTP template (hosted dashboard → **Magic Link** template + `supabase/templates/magic_link.html`):
+
+- Subject: `Tu código para ingresar a Nexolia`
+- Body must include `{{ .Token }}` (see `docs/auth-onboarding.md`)
+
 Smoke test:
 
 ```bash
@@ -160,6 +169,26 @@ Flow:
 
 Connection labels and banners use `whatsappConnectionLabel()` in
 `apps/mobile/src/services/whatsapp.ts`.
+
+### Expo Web + API CORS
+
+WhatsApp connect, staff invites, and Copilot call the NestJS API with `fetch`.
+On **Chrome** (`expo start --web`), the browser sends an `Origin` header. If
+Railway does not allow that origin, connect fails with **Failed to fetch** (network
+error before HTTP).
+
+Set on Railway (API service variables):
+
+```bash
+BAAS_CORS_ALLOWED_ORIGINS=http://localhost:8153,http://localhost:8152,http://localhost:8081
+```
+
+Redeploy or restart the API after saving. Native Expo Go does not need CORS
+(no browser `Origin` header).
+
+The inbox can still show seeded or historical `conversations` rows even when
+`whatsapp_config` is empty — Home/Account read connection state from
+`get_owner_dashboard`, not from inbox data.
 
 ## Realtime Message Delivery
 
@@ -327,7 +356,7 @@ Accepted static screens:
 Review locally:
 
 ```bash
-cd apps/mobile && npx expo start --web --port 8152 --host localhost
+cd apps/mobile && npx expo start --web --port 8153 --host localhost
 ```
 
 Static review uses mock data only. API wiring for catalog, stock, lots, and POS

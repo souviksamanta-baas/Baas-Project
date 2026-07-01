@@ -167,10 +167,8 @@ export function useOwnerSession(): OwnerSessionState {
       const { data } = await supabase.auth.getSession();
       await bootstrapRoute(data.session);
     } catch (error) {
-      Alert.alert(
-        'No se pudo verificar el código',
-        error instanceof Error ? error.message : 'Error desconocido',
-      );
+      const message = formatAuthError(error);
+      Alert.alert('No se pudo verificar el código', message);
     } finally {
       setIsSubmitting(false);
     }
