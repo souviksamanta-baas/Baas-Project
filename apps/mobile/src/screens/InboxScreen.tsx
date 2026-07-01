@@ -24,7 +24,7 @@ import {
 } from '../lib/inboxPresentation';
 import type { OwnerDashboard } from '../types/dashboard';
 import type { InboxConversationSummary, WhatsAppMessagePreview } from '../types/messages';
-import { whatsappConnectionLabel } from '../services/whatsapp';
+import { whatsappConnectionLabel } from '../lib/whatsappPresentation';
 import { colors } from '../theme';
 
 export function InboxScreen(props: {

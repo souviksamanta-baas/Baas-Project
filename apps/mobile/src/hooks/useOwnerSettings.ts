@@ -5,7 +5,7 @@ import {
   createSettingsFormValues,
   updateOwnerSettings,
   validateOwnerSettings,
-} from '../services/settings';
+} from '../api/settings';
 import type { OwnerDashboard } from '../types/dashboard';
 import type { OwnerSettingsFormValues } from '../types/settings';
 

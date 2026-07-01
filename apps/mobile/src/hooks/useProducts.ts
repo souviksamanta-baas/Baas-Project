@@ -9,7 +9,7 @@ import {
   toProductForm,
   updateProduct,
   validateProductForm,
-} from '../services/products';
+} from '../api/inventory';
 import { supabase } from '../lib/supabase';
 import type { Product, ProductFormValues } from '../types/products';
 

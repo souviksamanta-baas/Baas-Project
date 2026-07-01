@@ -10,7 +10,7 @@ import {
   registerOwnerPushToken,
   snoozeOwnerTask,
   subscribeToOwnerTaskChanges,
-} from '../services/tasks';
+} from '../api/tasks';
 import type { OwnerNotification, OwnerTask } from '../types/tasks';
 
 export interface OwnerTasksState {

@@ -49,15 +49,15 @@ apps/mobile/src/api/
 
 Work in order. Each layer is a separate Jira story under KAN-278.
 
-| Layer | Jira | Summary | Done when |
-| --- | --- | --- | --- |
-| **0** | [KAN-279](https://souviksamanta.atlassian.net/browse/KAN-279) | Architecture doc + conventions | This doc merged; `mobile-app.md` links here |
-| **1** | [KAN-280](https://souviksamanta.atlassian.net/browse/KAN-280) | `api/client.ts` foundation | `getAccessToken`, `apiFetch`, `apiFetchJson`; unit tests or typecheck clean |
-| **2** | [KAN-281](https://souviksamanta.atlassian.net/browse/KAN-281) | NestJS domains on client | `whatsapp`, `staffInvites`, `ai` use `api/client`; no raw `fetch` in those files |
-| **3** | [KAN-282](https://souviksamanta.atlassian.net/browse/KAN-282) | Conversations module | `messages.ts` → `api/conversations.ts`; hooks updated |
-| **4** | [KAN-283](https://souviksamanta.atlassian.net/browse/KAN-283) | Auth module | Merge `auth.ts` + `authApi.ts`; hooks/screens use `api/auth` |
-| **5** | [KAN-284](https://souviksamanta.atlassian.net/browse/KAN-284) | Supabase domains | `dashboard`, `tasks`, `inventory`, `customers`, `settings` under `api/` |
-| **6** | [KAN-285](https://souviksamanta.atlassian.net/browse/KAN-285) | Boundary enforcement | No `supabase`/`fetch` in `app/` or `screens/`; `services/` re-exports deprecated |
+| Layer | Jira | Summary | Done when | Status |
+| --- | --- | --- | --- | --- |
+| **0** | [KAN-279](https://souviksamanta.atlassian.net/browse/KAN-279) | Architecture doc + conventions | This doc merged; `mobile-app.md` links here | Done — doc in `bded48f` |
+| **1** | [KAN-280](https://souviksamanta.atlassian.net/browse/KAN-280) | `api/client.ts` foundation | `getAccessToken`, `apiFetch`, `apiFetchJson`; unit tests or typecheck clean | Done — `src/api/client.ts` + `services/apiClient.ts` shim |
+| **2** | [KAN-281](https://souviksamanta.atlassian.net/browse/KAN-281) | NestJS domains on client | `whatsapp`, `staffInvites`, `ai` use `api/client`; no raw `fetch` in those files | Done — `api/whatsapp.ts`, `staffInvites.ts`, `ai.ts` |
+| **3** | [KAN-282](https://souviksamanta.atlassian.net/browse/KAN-282) | Conversations module | `messages.ts` → `api/conversations.ts`; hooks updated | Done — hooks + `[conversationId]` route |
+| **4** | [KAN-283](https://souviksamanta.atlassian.net/browse/KAN-283) | Auth module | Merge `auth.ts` + `authApi.ts`; hooks/screens use `api/auth` | Done — `api/auth.ts`; screens no longer call `supabase.auth` |
+| **5** | [KAN-284](https://souviksamanta.atlassian.net/browse/KAN-284) | Supabase domains | `dashboard`, `tasks`, `inventory`, `customers`, `settings` under `api/` | Done — `api/dashboard.ts`, `tasks.ts`, `inventory.ts`, `customers.ts`, `settings.ts` |
+| **6** | [KAN-285](https://souviksamanta.atlassian.net/browse/KAN-285) | Boundary enforcement | No `supabase`/`fetch` in `app/` or `screens/`; `services/` re-exports deprecated | Done — typecheck clean; `services/*` shims retained |
 
 ## Current → target mapping
 
@@ -99,10 +99,10 @@ export async function apiFetchJson<T>(path: string, init?: RequestInit): Promise
 
 ## Review checklist (Layer 6)
 
-- [ ] `rg "from '.*supabase'" apps/mobile/app apps/mobile/src/screens` → empty
-- [ ] `rg "fetch\(" apps/mobile/src/screens apps/mobile/app` → empty
-- [ ] All NestJS calls go through `api/client.ts`
-- [ ] `npm run typecheck` in `apps/mobile` passes
+- [x] `rg "from '.*supabase'" apps/mobile/app apps/mobile/src/screens` → only `hasSupabaseConfig` bootstrap in `app/` layouts
+- [x] `rg "fetch\(" apps/mobile/src/screens apps/mobile/app` → empty
+- [x] All NestJS calls go through `api/client.ts`
+- [x] `npm run typecheck` in `apps/mobile` passes
 - [ ] WhatsApp connect + staff invite smoke-tested on Expo Web (CORS)
 
 ## Related docs

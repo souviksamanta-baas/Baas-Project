@@ -1,9 +1,9 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import type { ReactElement } from 'react';
 
+import { parseStaffInviteToken } from '../../src/lib/staffInviteToken';
 import { routes } from '../../src/navigation/routes';
 import { StaffInviteAcceptScreen } from '../../src/screens/StaffInviteAcceptScreen';
-import { parseStaffInviteToken } from '../../src/services/staffInvites';
 
 export default function InviteAcceptRoute(): ReactElement {
   const router = useRouter();

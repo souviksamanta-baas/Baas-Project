@@ -20,11 +20,11 @@ render the empty owner dashboard.
 | `apps/mobile/app.json` | Expo app metadata. |
 | `apps/mobile/tsconfig.json` | Mobile TypeScript configuration. |
 | `apps/mobile/src/lib/supabase.ts` | Supabase client configured for React Native. |
-| `apps/mobile/src/features/onboarding.ts` | Calls onboarding/dashboard RPCs. |
+| `apps/mobile/src/api/*` | Domain API modules (NestJS + Supabase I/O). See [mobile-api-client.md](./mobile-api-client.md). |
 | `apps/mobile/src/hooks/useOwnerSession.ts` | Owner session, OTP, onboarding, dashboard, and sign-out state. |
 | `apps/mobile/src/screens/*` | Loading, login, OTP, onboarding, and dashboard screen components. |
 | `apps/mobile/src/components/*` | Reusable button and metric components. |
-| `apps/mobile/src/services/auth.ts` | Supabase auth operation wrappers. |
+| `apps/mobile/src/services/*` | Deprecated shims re-exporting `src/api/*` (auth channel/OTP helpers remain here). |
 | `apps/mobile/src/types/dashboard.ts` | Dashboard bootstrap response type. |
 
 ## Supabase Client

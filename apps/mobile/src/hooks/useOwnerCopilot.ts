@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react';
 import { Alert } from 'react-native';
 
-import { askOwnerCopilot } from '../services/copilot';
+import { askOwnerCopilot } from '../api/ai';
 import type { CopilotMessage } from '../types/copilot';
 
 export interface OwnerCopilotState {

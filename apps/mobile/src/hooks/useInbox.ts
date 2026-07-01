@@ -5,7 +5,7 @@ import {
   getConversationMessages,
   getInboxConversations,
   subscribeToInboxChanges,
-} from '../services/messages';
+} from '../api/conversations';
 import type { InboxConversationSummary, WhatsAppMessagePreview } from '../types/messages';
 
 export interface InboxState {

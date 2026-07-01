@@ -14,18 +14,17 @@ import QRCode from 'react-native-qrcode-svg';
 
 import { PrimaryButton } from '../components/Buttons';
 import { ScreenContent, ScreenTitle } from '../components/ui';
-import { supabase } from '../lib/supabase';
 import {
   filterContactOptions,
   loadDeviceContacts,
   type DeviceContactOption,
-} from '../services/contacts';
+} from '../api/customers';
 import { normalizePhoneNumber } from '../services/phone';
 import {
   buildStaffInviteDeepLink,
   createStaffInvite,
   type StaffInviteRole,
-} from '../services/staffInvites';
+} from '../api/staffInvites';
 import { colors } from '../theme';
 import type { OwnerDashboard } from '../types/dashboard';
 
@@ -81,16 +80,7 @@ export function StaffInviteScreen(props: {
     setErrorMessage(null);
 
     try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      if (!session?.access_token) {
-        throw new Error('Iniciá sesión antes de invitar miembros.');
-      }
-
       const invite = await createStaffInvite({
-        authorizationToken: session.access_token,
         businessCenterId: props.dashboard.businessCenter?.id,
         invitedDisplayName: displayName.trim() || undefined,
         invitedPhoneE164,

@@ -12,7 +12,7 @@ import {
   textStyles,
 } from '../design-system';
 import type { OwnerDashboard } from '../types/dashboard';
-import { whatsappConnectionLabel } from '../services/whatsapp';
+import { whatsappConnectionLabel } from '../lib/whatsappPresentation';
 
 export function WhatsAppConnectScreen(props: {
   connection: OwnerDashboard['whatsappConnection'];

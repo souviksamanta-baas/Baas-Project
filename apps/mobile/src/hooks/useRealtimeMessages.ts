@@ -4,7 +4,7 @@ import { Alert } from 'react-native';
 import {
   getRecentConversationMessages,
   subscribeToConversationMessages,
-} from '../services/messages';
+} from '../api/conversations';
 import type { WhatsAppMessagePreview } from '../types/messages';
 
 export function useRealtimeMessages(

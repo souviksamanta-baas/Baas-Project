@@ -5,7 +5,7 @@ import type { IconKind } from '../components/icons';
 import { ActionRow, Card, ScreenContent, ScreenTitle } from '../components/ui';
 import { FeatureGate } from '../hooks/useFeatureVisibility';
 import type { OwnerDashboard } from '../types/dashboard';
-import { whatsappConnectionLabel } from '../services/whatsapp';
+import { whatsappConnectionLabel } from '../lib/whatsappPresentation';
 import { colors, shadows } from '../theme';
 
 export function AccountScreen(props: {

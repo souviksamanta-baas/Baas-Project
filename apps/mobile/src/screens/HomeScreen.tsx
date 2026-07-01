@@ -16,7 +16,7 @@ import {
 } from '../lib/inboxPresentation';
 import type { OwnerDashboard } from '../types/dashboard';
 import type { InboxConversationSummary } from '../types/messages';
-import { whatsappConnectionLabel } from '../services/whatsapp';
+import { whatsappConnectionLabel } from '../lib/whatsappPresentation';
 import { notifications } from '../api/mockData';
 import { colors, shadows } from '../theme';
 

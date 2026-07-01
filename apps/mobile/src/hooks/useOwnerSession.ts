@@ -2,9 +2,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert } from 'react-native';
 import type { Session } from '@supabase/supabase-js';
 
-import { createOrganizationWithOwner, getOwnerDashboard } from '../features/onboarding';
+import { createOrganizationWithOwner, getOwnerDashboard } from '../api/dashboard';
+import { requestLoginOtp, signOutOwner, verifyLoginOtp } from '../api/auth';
 import { supabase } from '../lib/supabase';
-import { requestLoginOtp, signOutOwner, verifyLoginOtp } from '../services/auth';
 import { formatAuthError } from '../services/authErrors';
 import {
   DEFAULT_AUTH_OTP_CHANNEL,

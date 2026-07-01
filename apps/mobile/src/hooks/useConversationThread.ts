@@ -1,10 +1,52 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 import {
+  getInboxConversations,
   getConversationMessages,
   subscribeToConversationMessages,
-} from '../services/messages';
-import type { WhatsAppMessagePreview } from '../types/messages';
+} from '../api/conversations';
+import { sendConversationReply } from '../api/whatsapp';
+import type { InboxConversationSummary, WhatsAppMessagePreview } from '../types/messages';
+
+export function useInboxConversation(params: {
+  businessCenterId: string | null;
+  conversationId: string | null;
+  organizationId: string | null;
+}): {
+  conversation: InboxConversationSummary | null;
+  isLoading: boolean;
+} {
+  const [conversation, setConversation] = useState<InboxConversationSummary | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    if (!params.organizationId || !params.businessCenterId || !params.conversationId) {
+      setConversation(null);
+      return;
+    }
+
+    let mounted = true;
+    setIsLoading(true);
+
+    getInboxConversations(params.organizationId, params.businessCenterId)
+      .then((conversations) => {
+        if (mounted) {
+          setConversation(conversations.find((item) => item.id === params.conversationId) ?? null);
+        }
+      })
+      .finally(() => {
+        if (mounted) {
+          setIsLoading(false);
+        }
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [params.businessCenterId, params.conversationId, params.organizationId]);
+
+  return { conversation, isLoading };
+}
 
 export function useConversationThread(params: {
   businessCenterId: string | null;
@@ -14,6 +56,7 @@ export function useConversationThread(params: {
   errorMessage: string | null;
   isLoading: boolean;
   messages: WhatsAppMessagePreview[];
+  sendReply: (body: string) => Promise<void>;
 } {
   const [messages, setMessages] = useState<WhatsAppMessagePreview[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -75,9 +118,26 @@ export function useConversationThread(params: {
     };
   }, [params.businessCenterId, params.conversationId, params.organizationId]);
 
+  const sendReply = useCallback(
+    async (body: string): Promise<void> => {
+      if (!params.organizationId || !params.businessCenterId || !params.conversationId) {
+        throw new Error('Missing conversation context.');
+      }
+
+      await sendConversationReply({
+        body,
+        businessCenterId: params.businessCenterId,
+        conversationId: params.conversationId,
+        organizationId: params.organizationId,
+      });
+    },
+    [params.businessCenterId, params.conversationId, params.organizationId],
+  );
+
   return {
     errorMessage,
     isLoading,
     messages,
+    sendReply,
   };
 }

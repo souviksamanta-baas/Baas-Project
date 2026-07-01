@@ -4,15 +4,14 @@ import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { PrimaryButton } from '../components/Buttons';
 import { ScreenContent, ScreenTitle } from '../components/ui';
-import { supabase } from '../lib/supabase';
-import { requestLoginOtp, verifyLoginOtp } from '../services/auth';
+import { requestLoginOtp, verifyLoginOtp } from '../api/auth';
 import {
   authChannelLabel,
   getStaffPhoneAuthChannels,
   type AuthOtpChannel,
 } from '../services/authChannel';
 import { normalizePhoneNumber } from '../services/phone';
-import { acceptStaffInvite } from '../services/staffInvites';
+import { acceptStaffInvite } from '../api/staffInvites';
 import { colors } from '../theme';
 import { VerifyOtpScreen } from './VerifyOtpScreen';
 import { styles } from '../styles';
@@ -70,16 +69,7 @@ export function StaffInviteAcceptScreen(props: {
         throw new Error('La invitación requiere verificar un número de teléfono.');
       }
 
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      if (!session?.access_token) {
-        throw new Error('No hay sesión activa después de verificar el código.');
-      }
-
       await acceptStaffInvite({
-        authorizationToken: session.access_token,
         inviteToken: props.inviteToken,
         verifiedPhoneE164,
       });

@@ -6,7 +6,7 @@ import {
   getPendingAiDrafts,
   rejectAiDraft,
   subscribeToAiDraftChanges,
-} from '../services/aiDrafts';
+} from '../api/ai';
 import type { AiDraft } from '../types/aiDrafts';
 
 export interface AiDraftsState {
