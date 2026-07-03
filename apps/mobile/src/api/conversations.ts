@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase';
 import type { InboxConversationSummary, WhatsAppMessagePreview } from '../types/messages';
+import type { ConversationChannel } from '../types/messages';
 
 interface ConversationMessageRow {
   conversation_id: string;
@@ -21,6 +22,7 @@ interface ContactRow {
 
 interface ConversationRow {
   id: string;
+  channel: ConversationChannel;
   external_contact_id: string;
   customer_display_name: string | null;
   status: 'open' | 'closed';
@@ -35,7 +37,7 @@ export async function getInboxConversations(
   const { data, error } = await supabase
     .from('conversations')
     .select(
-      'id, external_contact_id, customer_display_name, status, last_message_at, contacts(id, display_name, phone_number, lead_status)',
+      'id, channel, external_contact_id, customer_display_name, status, last_message_at, contacts(id, display_name, phone_number, lead_status)',
     )
     .eq('organization_id', organizationId)
     .eq('business_center_id', businessCenterId)
@@ -47,9 +49,14 @@ export async function getInboxConversations(
 
   const conversations = (data as ConversationRow[]).map(toInboxConversationSummary);
   const messages = await getRecentConversationMessages(organizationId, businessCenterId);
-  const latestMessagesByConversation = new Map(
-    messages.map((message) => [message.conversationId, message]),
-  );
+
+  // Messages arrive newest-first; keep the first (latest) message seen per conversation.
+  const latestMessagesByConversation = new Map<string, WhatsAppMessagePreview>();
+  for (const message of messages) {
+    if (!latestMessagesByConversation.has(message.conversationId)) {
+      latestMessagesByConversation.set(message.conversationId, message);
+    }
+  }
 
   return conversations.map((conversation) => ({
     ...conversation,
@@ -67,7 +74,7 @@ export async function getRecentConversationMessages(
     .eq('organization_id', organizationId)
     .eq('business_center_id', businessCenterId)
     .order('created_at', { ascending: false })
-    .limit(10);
+    .limit(200);
 
   if (error) {
     throw new Error(error.message);
@@ -205,6 +212,7 @@ function toInboxConversationSummary(row: ConversationRow): InboxConversationSumm
   const contact = Array.isArray(row.contacts) ? row.contacts[0] : row.contacts;
 
   return {
+    channel: row.channel ?? 'whatsapp',
     contact: {
       displayName: contact?.display_name ?? row.customer_display_name,
       id: contact?.id ?? null,

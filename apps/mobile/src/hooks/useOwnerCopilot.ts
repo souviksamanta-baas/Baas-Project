@@ -14,7 +14,7 @@ export interface OwnerCopilotState {
 }
 
 const starterMessage: CopilotMessage = {
-  body: 'Ask about messages today, low stock, or pending follow-ups.',
+  body: 'Preguntame por mensajes de hoy, stock bajo o seguimientos pendientes.',
   createdAt: new Date(0).toISOString(),
   id: 'starter',
   role: 'assistant',
@@ -61,7 +61,7 @@ export function useOwnerCopilot(organizationId: string | null): OwnerCopilotStat
         setMessages((currentMessages) => [
           ...currentMessages,
           {
-            body: `${response.answer}\n\nAnswered in ${response.responseTimeMs}ms using ${response.tools.join(', ')}.`,
+            body: response.answer,
             createdAt: answeredAt,
             id: `assistant:${answeredAt}`,
             role: 'assistant',

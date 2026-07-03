@@ -169,8 +169,10 @@ export function ComposerInput(props: ComposerInputProps): ReactElement {
 }
 
 type SearchFieldProps = {
+  onChangeText?: (text: string) => void;
   placeholder?: string;
   style?: StyleProp<ViewStyle>;
+  value?: string;
 };
 
 /**
@@ -214,10 +216,12 @@ export function SearchField(props: SearchFieldProps): ReactElement {
         <TextInput
           ref={inputRef}
           onBlur={() => setFocused(false)}
+          onChangeText={props.onChangeText}
           onFocus={() => setFocused(true)}
           placeholder={props.placeholder ?? 'Buscar'}
           placeholderTextColor={colors.placeholder}
           style={[styles.searchFieldInput, searchInputWeb]}
+          value={props.value}
         />
       </View>
     </View>
@@ -225,7 +229,10 @@ export function SearchField(props: SearchFieldProps): ReactElement {
 }
 
 type SearchActionRowProps = {
+  onChangeText?: (text: string) => void;
+  onPressFilter?: () => void;
   placeholder?: string;
+  searchValue?: string;
   showCamera?: boolean;
   showFilter?: boolean;
   style?: StyleProp<ViewStyle>;
@@ -234,14 +241,19 @@ type SearchActionRowProps = {
 export function SearchActionRow(props: SearchActionRowProps): ReactElement {
   return (
     <View style={[styles.searchRow, props.style]}>
-      <SearchField placeholder={props.placeholder} style={styles.searchFieldFlex} />
+      <SearchField
+        onChangeText={props.onChangeText}
+        placeholder={props.placeholder}
+        style={styles.searchFieldFlex}
+        value={props.searchValue}
+      />
       {props.showCamera ? (
         <Pressable style={styles.searchIconButton}>
           <Icon color={colors.slate} kind="camera" size={18} strokeWidth={1.9} />
         </Pressable>
       ) : null}
       {props.showFilter ? (
-        <Pressable style={styles.searchIconButton}>
+        <Pressable onPress={props.onPressFilter} style={styles.searchIconButton}>
           <Icon color={colors.slate} kind="filter" size={17} strokeWidth={1.7} />
         </Pressable>
       ) : null}

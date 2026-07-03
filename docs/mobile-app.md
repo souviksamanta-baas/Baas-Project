@@ -199,7 +199,7 @@ inbox uses the active/default business center for reads and subscriptions.
 
 The dashboard now includes a compact live WhatsApp message preview that:
 
-- Loads recent `conversation_messages` rows for the active business center.
+- Loads recent `conversation_messages` rows for the active business center (newest-first; keeps the **latest** message per conversation for list previews).
 - Subscribes to `INSERT` and `UPDATE` events with
   `business_center_id=eq.<active-center-id>`.
 - Updates the visible preview when new messages arrive without manual refresh.
@@ -212,7 +212,8 @@ Phase 2 expands the dashboard preview into a lightweight Universal Inbox:
 - Shows the latest message preview and timestamp for each conversation.
 - Opens a selected thread and loads persisted `conversation_messages`.
 - Groups message bubbles by `inbound` and `outbound` direction.
-- Shows contact identity, phone number, and lead status inline.
+- Shows contact identity, phone number, and lead status inline (see
+  `docs/crm-lead-status.md` — tags are static until KAN-313).
 - Subscribes to conversation and message changes through Supabase Realtime and
   cleans up the subscription when the dashboard unmounts.
 
@@ -300,7 +301,7 @@ sends can happen.
 
 ## Mobile UI Screen Redesign
 
-KAN-170 introduces the design-to-code implementation for the mobile mockups:
+[KAN-170](https://souviksamanta.atlassian.net/browse/KAN-170) introduces the design-to-code implementation for the mobile mockups:
 
 - The dashboard route now renders a mobile app shell with Nexolia header,
   notification shortcut, business-center switcher, avatar entry point, bottom
@@ -362,6 +363,30 @@ cd apps/mobile && npx expo start --web --port 8153 --host localhost
 Static review uses mock data only. API wiring for catalog, stock, lots, and POS
 checkout remains future work under epic
 [KAN-201](https://souviksamanta.atlassian.net/browse/KAN-201).
+
+## Jul 2026 pilot UX batch (KAN-304)
+
+Jira epic [KAN-304](https://souviksamanta.atlassian.net/browse/KAN-304). Confluence:
+[Mobile pilot UX batch (Jul 2026)](https://souviksamanta.atlassian.net/wiki/spaces/BaaS/pages/19070977/Mobile+pilot+UX+batch+Jul+2026).
+
+| Area | Jira | Notes |
+| --- | --- | --- |
+| Home metrics (Resumen del día) | KAN-305 | Mockup icons/labels; `messagesToday` + `weeklySalesCents` via migration |
+| Stock CSV import | KAN-306 | `docs/inventory-stock-import.md`, `scripts/import-stock-csv.mjs` |
+| Staff invite | KAN-307 | Branding; mandatory nombre; multi-sucursal (`businessCenterIds`) |
+| Editar perfil | KAN-308 | `app/(app)/edit-profile.tsx` |
+| Conversation previews + channels | KAN-309 | Latest message preview; `instagram`/`facebook`/`email` in DB |
+| Inbox search/filters | KAN-310 | `SearchActionRow` wired; filter sheet |
+| Copi API | KAN-311 | `OwnerCopilotProvider`, `POST /ai/copilot/query` |
+| iPhone install | KAN-312 | `docs/mobile-iphone-install.md`, `apps/mobile/eas.json` |
+
+**Ops before production QA:** apply migration
+`supabase/migrations/20260703163000_jul_pilot_dashboard_channels_invites.sql` and
+redeploy Railway API (staff invite multi-branch).
+
+**Deferred:** contact lead status tags — epic
+[KAN-313](https://souviksamanta.atlassian.net/browse/KAN-313), see
+`docs/crm-lead-status.md`.
 
 ## Local Commands
 

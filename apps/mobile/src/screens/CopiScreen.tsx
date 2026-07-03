@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { copiMessages, suggestedQuestions } from '../api/mockData';
+import { suggestedQuestions } from '../api/mockData';
 import {
   ActionRow,
   Card,
@@ -12,9 +12,21 @@ import {
   ScreenTitle,
 } from '../components/ui';
 import { FeatureGate } from '../hooks/useFeatureVisibility';
+import type { OwnerCopilotState } from '../hooks/useOwnerCopilot';
+import type { OwnerDashboard } from '../types/dashboard';
 import { colors, shadows } from '../theme';
 
-export function CopiScreen(props: { onOpenChat: () => void }): ReactElement {
+export function CopiScreen(props: {
+  metrics: OwnerDashboard['metrics'] | null;
+  onAskQuestion: (question: string) => Promise<void>;
+  onOpenChat: () => void;
+  questionDraft: string;
+  setQuestionDraft: (value: string) => void;
+}): ReactElement {
+  const openConversations = props.metrics?.openConversations ?? 0;
+  const lowStockItems = props.metrics?.lowStockItems ?? 0;
+  const pendingFollowUps = props.metrics?.pendingFollowUps ?? 0;
+
   return (
     <ScreenContent>
       <ScreenTitle subtitle="Tu asistente IA para el negocio" title="Copi" />
@@ -31,7 +43,23 @@ export function CopiScreen(props: { onOpenChat: () => void }): ReactElement {
 
       <FeatureGate feature="copiQuestionComposer">
         <Card flush style={styles.composerCard}>
-          <ReplyComposer embedded placeholder="Escribí tu pregunta..." />
+          <ReplyComposer
+            embedded
+            onChangeText={props.setQuestionDraft}
+            onSend={() => {
+              const question = props.questionDraft.trim();
+              if (!question) {
+                return;
+              }
+
+              void props.onAskQuestion(question).then(() => {
+                props.setQuestionDraft('');
+                props.onOpenChat();
+              });
+            }}
+            placeholder="Escribí tu pregunta..."
+            value={props.questionDraft}
+          />
         </Card>
       </FeatureGate>
 
@@ -40,11 +68,13 @@ export function CopiScreen(props: { onOpenChat: () => void }): ReactElement {
           <View style={styles.listHeader}>
             <Text style={styles.sectionTitle}>Preguntas sugeridas</Text>
           </View>
-          {suggestedQuestions.map((question, index) => (
+          {suggestedQuestions.map((question) => (
             <ActionRow
               icon="message"
               key={question}
-              onPress={index < 2 ? props.onOpenChat : undefined}
+              onPress={() => {
+                void props.onAskQuestion(question).then(() => props.onOpenChat());
+              }}
               title={question}
             />
           ))}
@@ -54,9 +84,9 @@ export function CopiScreen(props: { onOpenChat: () => void }): ReactElement {
       <FeatureGate feature="copiQuickSummary">
         <Card style={styles.summaryCard}>
           <Text style={styles.summaryText}>
-            Hoy tenes <Text style={styles.greenText}>12 conversaciones</Text> abiertas,{' '}
-            <Text style={styles.orangeText}>3 productos</Text> con bajo stock y{' '}
-            <Text style={styles.purpleText}>4 seguimientos</Text> pendientes.
+            Hoy tenes <Text style={styles.greenText}>{openConversations} conversaciones</Text> abiertas,{' '}
+            <Text style={styles.orangeText}>{lowStockItems} productos</Text> con bajo stock y{' '}
+            <Text style={styles.purpleText}>{pendingFollowUps} seguimientos</Text> pendientes.
           </Text>
         </Card>
       </FeatureGate>
@@ -64,7 +94,10 @@ export function CopiScreen(props: { onOpenChat: () => void }): ReactElement {
   );
 }
 
-export function CopiChatScreen(props: { onBack: () => void }): ReactElement {
+export function CopiChatScreen(props: {
+  copilot: OwnerCopilotState;
+  onBack: () => void;
+}): ReactElement {
   return (
     <View style={styles.chatRoot}>
       <View style={styles.chatBody}>
@@ -81,12 +114,17 @@ export function CopiChatScreen(props: { onBack: () => void }): ReactElement {
           </FeatureGate>
           <FeatureGate feature="chatMessages">
             <View style={styles.chatArea}>
-              {copiMessages.map((message) => (
+              {props.copilot.messages.map((message) => (
                 <MessageBubble
-                  direction={message.direction}
+                  direction={message.role === 'owner' ? 'outbound' : 'inbound'}
                   key={message.id}
-                  text={message.text}
-                  time={message.time}
+                  source={message.role === 'owner' ? 'owner' : 'copi'}
+                  text={message.body}
+                  time={new Date(message.createdAt).toLocaleTimeString('es-AR', {
+                    hour: 'numeric',
+                    hour12: true,
+                    minute: '2-digit',
+                  })}
                 />
               ))}
             </View>
@@ -94,7 +132,13 @@ export function CopiChatScreen(props: { onBack: () => void }): ReactElement {
         </Card>
       </View>
       <FeatureGate feature="copiComposer">
-        <ReplyComposer placeholder="Escribí tu pregunta..." />
+        <ReplyComposer
+          isSending={props.copilot.isAsking}
+          onChangeText={props.copilot.setInputValue}
+          onSend={() => void props.copilot.askQuestion()}
+          placeholder="Escribí tu pregunta..."
+          value={props.copilot.inputValue}
+        />
       </FeatureGate>
     </View>
   );
@@ -121,6 +165,7 @@ const styles = StyleSheet.create({
   },
   chatArea: {
     backgroundColor: '#fcfdfc',
+    gap: 12,
     minHeight: 448,
     paddingHorizontal: 18,
     paddingVertical: 20,

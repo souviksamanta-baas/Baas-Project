@@ -42,6 +42,11 @@ Evidence:
 - `supabase/tests/rls_cross_tenant.sql` covers `contacts`, `conversations`, and
   `conversation_messages`.
 
+**Known limitation (Jul 2026):** lead status badges default to **Nuevo lead** and
+do not yet update with conversation activity. Tracked under
+[KAN-313](https://souviksamanta.atlassian.net/browse/KAN-313); see
+`docs/crm-lead-status.md`.
+
 ### Product Catalog and Inventory
 
 Status: Ready for pilot.

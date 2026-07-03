@@ -24,6 +24,7 @@ import {
 
 interface CreateInviteBody {
   businessCenterId?: string;
+  businessCenterIds?: string[];
   invitedDisplayName?: string;
   invitedPhoneE164: string;
   organizationId: string;
@@ -48,6 +49,7 @@ export class OrganizationsController {
     schema: {
       properties: {
         businessCenterId: { type: 'string' },
+        businessCenterIds: { items: { type: 'string' }, type: 'array' },
         invitedDisplayName: { type: 'string' },
         invitedPhoneE164: { example: '+5491112345678', type: 'string' },
         organizationId: { type: 'string' },
@@ -67,6 +69,7 @@ export class OrganizationsController {
       return await this.invitesService.createInvite({
         authorizationHeader,
         businessCenterId: body.businessCenterId,
+        businessCenterIds: body.businessCenterIds,
         invitedDisplayName: body.invitedDisplayName,
         invitedPhoneE164: body.invitedPhoneE164,
         organizationId: body.organizationId,

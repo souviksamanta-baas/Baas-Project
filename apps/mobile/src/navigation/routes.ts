@@ -20,6 +20,7 @@ export const routes = {
   whatsappConnect: '/(app)/whatsapp-connect',
   staffInvite: '/(app)/staff-invite',
   staffInviteAccept: '/(auth)/invite-accept',
+  editProfile: '/(app)/edit-profile',
 } as const;
 
 export function tabRoute(tab: AppTab): string {
@@ -86,7 +87,8 @@ export function shouldHideBottomNav(pathname: string): boolean {
     /\/inbox\/[^/]+$/.test(pathname) ||
     pathname.endsWith('/copi/chat') ||
     pathname.endsWith('/whatsapp-connect') ||
-    pathname.endsWith('/staff-invite')
+    pathname.endsWith('/staff-invite') ||
+    pathname.endsWith('/edit-profile')
   );
 }
 

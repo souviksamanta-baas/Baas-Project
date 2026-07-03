@@ -30,11 +30,13 @@ export interface OwnerDashboard {
   };
   metrics: {
     contacts: number;
-    openConversations: number;
-    products: number;
     lowStockItems: number;
-    pendingFollowUps: number;
+    messagesToday: number;
+    openConversations: number;
     pendingAiDrafts: number;
+    pendingFollowUps: number;
+    products: number;
+    weeklySalesCents: number;
   };
   emptyStates: string[];
 }

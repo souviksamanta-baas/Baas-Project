@@ -48,6 +48,7 @@ export default function ConversationDetailRoute(): ReactElement {
 
   return (
     <ConversationDetailScreen
+      channel={conversation.channel}
       customerName={conversationDisplayName(conversation)}
       displayPhoneNumber={dashboard?.whatsappConnection?.displayPhoneNumber ?? null}
       isLoading={thread.isLoading}

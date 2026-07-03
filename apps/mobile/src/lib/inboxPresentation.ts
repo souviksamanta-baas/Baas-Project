@@ -1,5 +1,9 @@
 import type { InboxConversationSummary, WhatsAppMessagePreview } from '../types/messages';
 
+function startOfLocalDay(date: Date): Date {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
 export function formatConversationTime(value: string | null): string {
   if (!value) {
     return '';
@@ -10,9 +14,29 @@ export function formatConversationTime(value: string | null): string {
     return '';
   }
 
-  return date.toLocaleTimeString('es-AR', {
-    hour: '2-digit',
-    minute: '2-digit',
+  const now = new Date();
+  const dayDiff =
+    (startOfLocalDay(now).getTime() - startOfLocalDay(date).getTime()) / (24 * 60 * 60 * 1000);
+
+  if (dayDiff === 0) {
+    return date.toLocaleTimeString('es-AR', {
+      hour: 'numeric',
+      hour12: true,
+      minute: '2-digit',
+    });
+  }
+
+  if (dayDiff === 1) {
+    return 'Ayer';
+  }
+
+  if (dayDiff < 7) {
+    return date.toLocaleDateString('es-AR', { weekday: 'short' });
+  }
+
+  return date.toLocaleDateString('es-AR', {
+    day: 'numeric',
+    month: 'short',
   });
 }
 
@@ -46,9 +70,9 @@ export function leadStatusLabel(
 ): string | undefined {
   switch (status) {
     case 'new':
-      return 'Nuevo';
+      return 'Nuevo lead';
     case 'active':
-      return 'Activo';
+      return 'Seguimiento';
     case 'cold':
       return 'Frío';
     case 'won':

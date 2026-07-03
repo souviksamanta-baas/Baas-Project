@@ -20,6 +20,7 @@
       ]
     ],
     "ios": {
+      "bundleIdentifier": "com.nexolia.owner",
       "supportsTablet": true
     },
     "android": {

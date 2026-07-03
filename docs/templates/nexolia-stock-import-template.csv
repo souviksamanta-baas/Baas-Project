@@ -1,0 +1,4 @@
+sku,product_name,description,unit_code,unit_price_ars,quantity_on_hand,reorder_threshold,lot_code,expires_at
+AMANDA-1KG,Amanda 1kg,Harina de trigo 000,kg,4800,120,20,LOTE-2026-01,2026-12-31
+ACEITE-900,Aceite girasol 900ml,Aceite de girasol,botella,3200,48,12,,
+YERBA-500,Yerba mate 500g,Yerba seleccionada,paquete,2500,80,15,LOTE-2026-02,

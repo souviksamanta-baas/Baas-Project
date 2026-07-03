@@ -110,8 +110,8 @@ export function MetricGrid(props: { metrics: DashboardMetricMock[] }): ReactElem
           style={[styles.metricItem, index === props.metrics.length - 1 && styles.metricItemLast]}
         >
           <MetricIcon metricId={metric.id} tone={metric.tone} />
-          <Text style={[styles.metricValue, toneText(metric.tone)]}>{metric.value}</Text>
-          <Text style={styles.metricLabel}>{metric.label}</Text>
+          <Text numberOfLines={1} style={[styles.metricValue, toneText(metric.tone)]}>{metric.value}</Text>
+          <Text numberOfLines={2} style={styles.metricLabel}>{metric.label}</Text>
         </View>
       ))}
     </View>
@@ -131,10 +131,10 @@ export function ConversationRow(props: {
   return (
     <Pressable onPress={props.onPress} style={styles.listRow}>
       <Avatar channel={props.channel} label={props.avatar} />
-      <View style={styles.flex}>
+      <View style={styles.flexShrink}>
         <Text numberOfLines={1} style={styles.listTitle}>{props.name}</Text>
         <Text numberOfLines={1} style={styles.listDescription}>{props.preview}</Text>
-        {props.statusLabel ? <Text style={styles.leadBadge}>{props.statusLabel}</Text> : null}
+        {props.statusLabel ? <Text numberOfLines={1} style={styles.leadBadge}>{props.statusLabel}</Text> : null}
       </View>
       <View style={styles.rowMeta}>
         <Text style={styles.timestamp}>{props.time}</Text>
@@ -328,16 +328,16 @@ function Avatar(props: { channel: Channel; label: string }): ReactElement {
 function MetricIcon(props: { metricId: string; tone: Tone }): ReactElement {
   const kind: IconKind =
     props.metricId === 'messages'
-      ? 'inbox'
+      ? 'message'
       : props.metricId === 'tasks'
         ? 'bell'
         : props.metricId === 'stock'
-          ? 'alert'
+          ? 'box'
           : 'money';
 
   return (
     <View style={[styles.toneIcon, toneBackground(props.tone)]}>
-      <Icon color={toneColor(props.tone)} kind={kind} size={16} strokeWidth={1.8} />
+      <Icon color={toneColor(props.tone)} kind={kind} size={18} strokeWidth={1.8} />
     </View>
   );
 }
@@ -555,6 +555,10 @@ const styles = StyleSheet.create({
   flex: {
     flex: 1,
   },
+  flexShrink: {
+    flex: 1,
+    minWidth: 0,
+  },
   greenText: {
     color: colors.primary,
   },
@@ -679,27 +683,31 @@ const styles = StyleSheet.create({
     paddingTop: spacing.lg,
   },
   metricItem: {
+    alignItems: 'center',
     borderRightColor: colors.borderSoft,
     borderRightWidth: 1,
     flex: 1,
-    minHeight: 60,
-    paddingHorizontal: 7,
+    minHeight: 72,
+    minWidth: 0,
+    paddingHorizontal: 4,
   },
   metricItemLast: {
     borderRightWidth: 0,
   },
   metricLabel: {
     color: colors.slate,
-    fontSize: 9,
+    fontSize: 8,
     fontWeight: '300',
-    lineHeight: 12,
+    lineHeight: 11,
     marginTop: 4,
+    textAlign: 'center',
   },
   metricValue: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
-    lineHeight: 16,
+    lineHeight: 14,
     marginTop: 6,
+    textAlign: 'center',
   },
   micButton: {
     alignItems: 'center',

@@ -16,6 +16,7 @@ import {
 } from '../lib/inboxPresentation';
 import type { OwnerDashboard } from '../types/dashboard';
 import type { InboxConversationSummary } from '../types/messages';
+import { formatWeeklySales } from '../lib/formatCurrency';
 import { whatsappConnectionLabel } from '../lib/whatsappPresentation';
 import { notifications } from '../api/mockData';
 import { colors, shadows } from '../theme';
@@ -41,10 +42,25 @@ export function HomeScreen(props: {
   };
   const connectionCopy = whatsappConnectionLabel(connection);
   const dashboardMetrics = [
-    { id: 'contacts', label: 'Contactos', tone: 'green' as const, value: String(props.metrics?.contacts ?? 0) },
-    { id: 'conversations', label: 'Conversaciones', tone: 'blue' as const, value: String(props.metrics?.openConversations ?? 0) },
-    { id: 'products', label: 'Productos', tone: 'purple' as const, value: String(props.metrics?.products ?? 0) },
-    { id: 'low-stock', label: 'Stock bajo', tone: 'red' as const, value: String(props.metrics?.lowStockItems ?? 0) },
+    { id: 'messages', label: 'Mensajes hoy', tone: 'green' as const, value: String(props.metrics?.messagesToday ?? 0) },
+    {
+      id: 'tasks',
+      label: 'Seguimientos pendientes',
+      tone: 'orange' as const,
+      value: String(props.metrics?.pendingFollowUps ?? 0),
+    },
+    {
+      id: 'stock',
+      label: 'Productos con bajo stock',
+      tone: 'red' as const,
+      value: String(props.metrics?.lowStockItems ?? 0),
+    },
+    {
+      id: 'sales',
+      label: 'Ventas (Semana)',
+      tone: 'green' as const,
+      value: formatWeeklySales(props.metrics?.weeklySalesCents ?? 0),
+    },
   ];
 
   return (
@@ -64,9 +80,11 @@ export function HomeScreen(props: {
       <FeatureGate feature="homeAssistant">
         <Pressable onPress={() => props.onSelectTab('copi')} style={styles.copiCard}>
           <RobotAvatar />
-          <View style={styles.flex}>
+          <View style={[styles.flex, styles.flexShrink]}>
             <Text style={styles.cardTitle}>Copi - Tu asistente IA</Text>
-            <Text style={styles.cardDescription}>Preguntame sobre tus ventas, stock, clientes y mas.</Text>
+            <Text numberOfLines={2} style={styles.cardDescription}>
+              Preguntame sobre tus ventas, stock, clientes y mas.
+            </Text>
           </View>
           <View style={styles.chatButton}>
             <Icon color={colors.primary} kind="message" size={18} strokeWidth={1.8} />
@@ -76,8 +94,8 @@ export function HomeScreen(props: {
 
       <FeatureGate feature="homeMetrics">
         <Card flush style={styles.summaryCard}>
-          <Text style={styles.sectionTitle}>Resumen del dia</Text>
-          <Text style={styles.cardDescription}>Asi va tu negocio hasta ahora. Sigue asi!</Text>
+          <Text style={styles.sectionTitle}>Resumen del día</Text>
+          <Text style={styles.cardDescription}>¡Así va tu negocio hasta ahora. Sigue así! 💚</Text>
           <MetricGrid metrics={dashboardMetrics} />
         </Card>
       </FeatureGate>
@@ -93,7 +111,7 @@ export function HomeScreen(props: {
           {props.conversations.slice(0, 4).map((conversation) => (
             <ConversationRow
               avatar={conversationAvatarLabel(conversation)}
-              channel="whatsapp"
+              channel={conversation.channel}
               key={conversation.id}
               name={conversationDisplayName(conversation)}
               onPress={() => props.onOpenConversation(conversation.id)}
@@ -175,6 +193,10 @@ const styles = StyleSheet.create({
   },
   flex: {
     flex: 1,
+  },
+  flexShrink: {
+    flex: 1,
+    minWidth: 0,
   },
   greeting: {
     color: colors.navy,

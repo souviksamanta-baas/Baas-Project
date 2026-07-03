@@ -1,7 +1,8 @@
 import type { ReactElement } from 'react';
-import { useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import type { Channel } from '../api/mockData';
 import {
   Card,
   ConversationRow,
@@ -12,6 +13,13 @@ import {
 } from '../components/ui';
 import { InfoBanner, PrimaryButton, SearchActionRow } from '../design-system';
 import { FeatureGate } from '../hooks/useFeatureVisibility';
+import {
+  defaultInboxFilters,
+  filterInboxConversations,
+  type InboxChannelFilter,
+  type InboxListFilters,
+  type InboxStatusFilter,
+} from '../lib/inboxFilters';
 import {
   conversationAvatarLabel,
   conversationDisplayName,
@@ -27,6 +35,21 @@ import type { InboxConversationSummary, WhatsAppMessagePreview } from '../types/
 import { whatsappConnectionLabel } from '../lib/whatsappPresentation';
 import { colors } from '../theme';
 
+const CHANNEL_OPTIONS: Array<{ id: InboxChannelFilter; label: string }> = [
+  { id: 'all', label: 'Todos' },
+  { id: 'whatsapp', label: 'WhatsApp' },
+  { id: 'instagram', label: 'Instagram' },
+  { id: 'facebook', label: 'Facebook' },
+  { id: 'email', label: 'Email' },
+];
+
+const STATUS_OPTIONS: Array<{ id: InboxStatusFilter; label: string }> = [
+  { id: 'all', label: 'Todos' },
+  { id: 'new', label: 'Nuevo' },
+  { id: 'open', label: 'Abierto' },
+  { id: 'archived', label: 'Archivado' },
+];
+
 export function InboxScreen(props: {
   conversations: InboxConversationSummary[];
   errorMessage: string | null;
@@ -35,6 +58,8 @@ export function InboxScreen(props: {
   onOpenWhatsAppSetup: () => void;
   whatsappConnection: OwnerDashboard['whatsappConnection'] | null;
 }): ReactElement {
+  const [filters, setFilters] = useState<InboxListFilters>(defaultInboxFilters);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const connection = props.whatsappConnection ?? {
     status: 'not_configured' as const,
     phoneNumberId: null,
@@ -44,6 +69,10 @@ export function InboxScreen(props: {
     lastError: null,
   };
   const connectionCopy = whatsappConnectionLabel(connection);
+  const filteredConversations = useMemo(
+    () => filterInboxConversations(props.conversations, filters),
+    [filters, props.conversations],
+  );
   const openCount = openConversationCount(props.conversations);
 
   return (
@@ -66,14 +95,22 @@ export function InboxScreen(props: {
       ) : null}
 
       <FeatureGate feature="inboxSearch">
-        <SearchActionRow placeholder="Buscar conversaciones" showFilter />
+        <SearchActionRow
+          onChangeText={(query) => setFilters((current) => ({ ...current, query }))}
+          onPressFilter={() => setFiltersOpen(true)}
+          placeholder="Buscar conversaciones"
+          searchValue={filters.query}
+          showFilter
+        />
       </FeatureGate>
 
       <Card flush>
         <FeatureGate feature="inboxTabs">
           <View style={styles.statusTabs}>
             <Text style={styles.activeStatusTab}>Abiertos {openCount}</Text>
-            <Text style={styles.statusTab}>WhatsApp</Text>
+            <Text style={styles.statusTab}>
+              {filters.channel === 'all' ? 'Todos los canales' : filters.channel}
+            </Text>
           </View>
         </FeatureGate>
 
@@ -87,19 +124,21 @@ export function InboxScreen(props: {
           <Text style={styles.errorText}>{props.errorMessage}</Text>
         ) : null}
 
-        {!props.isLoading && props.conversations.length === 0 ? (
+        {!props.isLoading && filteredConversations.length === 0 ? (
           <View style={styles.emptyState}>
-            <Text style={styles.emptyTitle}>Todavía no hay conversaciones</Text>
+            <Text style={styles.emptyTitle}>No hay conversaciones</Text>
             <Text style={styles.emptyBody}>
-              Cuando un cliente escriba por WhatsApp, la conversación va a aparecer acá en tiempo real.
+              {filters.query || filters.channel !== 'all' || filters.status !== 'all'
+                ? 'Probá con otro término de búsqueda o filtro.'
+                : 'Cuando un cliente escriba por WhatsApp, Instagram u otro canal, la conversación va a aparecer acá.'}
             </Text>
           </View>
         ) : null}
 
-        {props.conversations.map((conversation) => (
+        {filteredConversations.map((conversation) => (
           <ConversationRow
             avatar={conversationAvatarLabel(conversation)}
-            channel="whatsapp"
+            channel={conversation.channel as Channel}
             key={conversation.id}
             name={conversationDisplayName(conversation)}
             onPress={() => props.onOpenConversation(conversation.id)}
@@ -109,11 +148,92 @@ export function InboxScreen(props: {
           />
         ))}
       </Card>
+
+      <InboxFilterModal
+        filters={filters}
+        onApply={setFilters}
+        onClose={() => setFiltersOpen(false)}
+        visible={filtersOpen}
+      />
     </ScreenContent>
   );
 }
 
+function InboxFilterModal(props: {
+  filters: InboxListFilters;
+  onApply: (filters: InboxListFilters) => void;
+  onClose: () => void;
+  visible: boolean;
+}): ReactElement {
+  const [draft, setDraft] = useState<InboxListFilters>(props.filters);
+
+  useEffect(() => {
+    if (props.visible) {
+      setDraft(props.filters);
+    }
+  }, [props.filters, props.visible]);
+
+  return (
+    <Modal animationType="slide" onRequestClose={props.onClose} transparent visible={props.visible}>
+      <Pressable onPress={props.onClose} style={styles.modalBackdrop}>
+        <Pressable onPress={(event) => event.stopPropagation()} style={styles.modalSheet}>
+          <Text style={styles.modalTitle}>Filtrar conversaciones</Text>
+
+          <Text style={styles.modalSection}>Canal</Text>
+          <View style={styles.chipRow}>
+            {CHANNEL_OPTIONS.map((option) => (
+              <Pressable
+                key={option.id}
+                onPress={() => setDraft((current) => ({ ...current, channel: option.id }))}
+                style={[styles.chip, draft.channel === option.id && styles.chipActive]}
+              >
+                <Text style={[styles.chipText, draft.channel === option.id && styles.chipTextActive]}>
+                  {option.label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+
+          <Text style={styles.modalSection}>Estado</Text>
+          <View style={styles.chipRow}>
+            {STATUS_OPTIONS.map((option) => (
+              <Pressable
+                key={option.id}
+                onPress={() => setDraft((current) => ({ ...current, status: option.id }))}
+                style={[styles.chip, draft.status === option.id && styles.chipActive]}
+              >
+                <Text style={[styles.chipText, draft.status === option.id && styles.chipTextActive]}>
+                  {option.label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+
+          <View style={styles.modalActions}>
+            <PrimaryButton
+              label="Limpiar"
+              onPress={() => {
+                setDraft(defaultInboxFilters);
+                props.onApply(defaultInboxFilters);
+                props.onClose();
+              }}
+            />
+            <PrimaryButton
+              label="Aplicar"
+              onPress={() => {
+                props.onApply({ ...draft, query: props.filters.query });
+                props.onClose();
+              }}
+            />
+          </View>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
 export function ConversationDetailScreen(props: {
+  channel?: Channel;
   customerName: string;
   displayPhoneNumber?: string | null;
   isLoading: boolean;
@@ -126,6 +246,14 @@ export function ConversationDetailScreen(props: {
   const [draft, setDraft] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
+  const channelLabel =
+    props.channel === 'instagram'
+      ? 'Instagram'
+      : props.channel === 'facebook'
+        ? 'Facebook'
+        : props.channel === 'email'
+          ? 'Email'
+          : 'WhatsApp';
 
   async function handleSend(): Promise<void> {
     if (!props.onSendReply || !draft.trim() || isSending) {
@@ -161,7 +289,7 @@ export function ConversationDetailScreen(props: {
                 <Text numberOfLines={1} style={styles.threadName}>{props.customerName}</Text>
                 <View style={styles.threadTags}>
                   <View style={styles.channelBadgePill}>
-                    <Text style={styles.channelTagText}>WhatsApp</Text>
+                    <Text style={styles.channelTagText}>{channelLabel}</Text>
                   </View>
                   {props.displayPhoneNumber ? (
                     <Text style={styles.businessNumberText}>{props.displayPhoneNumber}</Text>
@@ -247,6 +375,31 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingVertical: 20,
   },
+  chip: {
+    backgroundColor: colors.surfaceMint,
+    borderColor: colors.borderSoft,
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  chipActive: {
+    backgroundColor: colors.primarySoft,
+    borderColor: colors.primary,
+  },
+  chipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  chipText: {
+    color: colors.slate,
+    fontSize: 11,
+  },
+  chipTextActive: {
+    color: colors.primary,
+    fontWeight: '600',
+  },
   detailBody: {
     flex: 1,
     paddingHorizontal: 8,
@@ -288,6 +441,36 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     paddingHorizontal: 8,
     paddingVertical: 3,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 16,
+  },
+  modalBackdrop: {
+    backgroundColor: 'rgba(15, 23, 42, 0.35)',
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  modalSection: {
+    color: colors.navy,
+    fontSize: 12,
+    fontWeight: '600',
+    marginBottom: 8,
+    marginTop: 12,
+  },
+  modalSheet: {
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: 18,
+    borderTopRightRadius: 18,
+    padding: 18,
+    paddingBottom: 28,
+  },
+  modalTitle: {
+    color: colors.navy,
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 8,
   },
   setupBlock: {
     gap: 12,

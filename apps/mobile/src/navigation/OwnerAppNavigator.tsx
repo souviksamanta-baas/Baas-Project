@@ -20,6 +20,7 @@ import {
 } from '../screens/inventory/InventoryScreens';
 import { MoreScreen } from '../screens/MoreScreen';
 import { NotificationsScreen } from '../screens/NotificationsScreen';
+import { useOwnerCopilot } from '../hooks/useOwnerCopilot';
 import type { InboxConversationSummary } from '../types/messages';
 import type { OwnerDashboard } from '../types/dashboard';
 import { colors } from '../theme';
@@ -34,6 +35,7 @@ const legacyWhatsAppConnection: OwnerDashboard['whatsappConnection'] = {
 };
 
 const legacyInboxConversations: InboxConversationSummary[] = conversations.map((conversation) => ({
+  channel: conversation.channel,
   contact: {
     displayName: conversation.customerName,
     id: conversation.id,
@@ -73,6 +75,8 @@ export function OwnerAppNavigator(props: { onSignOut: () => void }): ReactElemen
   const [activeTab, setActiveTab] = useState<AppTab>('home');
   const [selectedConversationId, setSelectedConversationId] = useState(conversations[0].id);
   const [showBranches, setShowBranches] = useState(false);
+  const [copiDraft, setCopiDraft] = useState('');
+  const legacyCopilot = useOwnerCopilot(null);
 
   const selectedConversation = useMemo(
     () => conversations.find((conversation) => conversation.id === selectedConversationId) ?? conversations[0],
@@ -163,7 +167,7 @@ export function OwnerAppNavigator(props: { onSignOut: () => void }): ReactElemen
           threadAvatar={selectedConversation.avatar}
         />
       ) : route === 'copi-chat' ? (
-        <CopiChatScreen onBack={() => selectTab('copi')} />
+        <CopiChatScreen copilot={legacyCopilot} onBack={() => selectTab('copi')} />
       ) : (
         <ScrollView contentContainerStyle={styles.scrollContent} style={styles.scroll}>
           {renderInventoryScreen() ??
@@ -189,13 +193,20 @@ export function OwnerAppNavigator(props: { onSignOut: () => void }): ReactElemen
                 whatsappConnection={legacyWhatsAppConnection}
               />
             ) : route === 'copi' ? (
-              <CopiScreen onOpenChat={() => setRoute('copi-chat')} />
+              <CopiScreen
+                metrics={null}
+                onAskQuestion={async () => undefined}
+                onOpenChat={() => setRoute('copi-chat')}
+                questionDraft={copiDraft}
+                setQuestionDraft={setCopiDraft}
+              />
             ) : route === 'notifications' ? (
               <NotificationsScreen />
             ) : route === 'account' ? (
               <AccountScreen
                 businessCenterName={ownerProfile.activeBranch}
                 businessName={ownerProfile.businessName}
+                onOpenEditProfile={() => undefined}
                 onOpenStaffInvite={() => undefined}
                 onOpenWhatsAppSetup={() => setRoute('account')}
                 onSignOut={props.onSignOut}

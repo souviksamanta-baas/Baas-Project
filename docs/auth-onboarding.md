@@ -97,12 +97,17 @@ El código para ingresar a nexolia es {{ .Code }}
 
 Do **not** enable Supabase WhatsApp OTP via Twilio — Nexolia WhatsApp login uses Meta direct (see above).
 
-## Staff QR invite (KAN-273)
+## Staff QR invite (KAN-273 / KAN-307)
 
-1. Owner creates invite with intended phone (contacts picker or manual entry)
-2. App shows QR encoding `baas-owner://invite-accept?token=…`
-3. Staff verifies **the same phone** via WhatsApp or SMS
-4. API accepts invite → `organization_members` for the same `organization_id`
+1. Owner opens **Invitar miembro** (profile → staff invite).
+2. Enters **nombre** (required), **teléfono**, **rol**, and one or more **sucursales** (`+ Agregar sucursal`).
+3. API `POST /organizations/invites` accepts `businessCenterIds[]` (stored on
+   `organization_invites.invited_business_center_ids`).
+4. App shows QR encoding `baas-owner://invite-accept?token=…`
+5. Staff verifies **the same phone** via email/WhatsApp/SMS login OTP.
+6. API accepts invite → `organization_members` + `business_center_members` per selected branch.
+
+Contact picker (`Elegir de contactos`) is removed until a future release.
 
 See [contacts-permissions.md](./contacts-permissions.md).
 

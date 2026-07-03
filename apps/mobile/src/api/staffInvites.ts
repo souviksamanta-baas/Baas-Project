@@ -14,6 +14,7 @@ export interface CreateStaffInviteResult {
 
 export async function createStaffInvite(params: {
   businessCenterId?: string;
+  businessCenterIds?: string[];
   invitedDisplayName?: string;
   invitedPhoneE164: string;
   organizationId: string;
@@ -22,6 +23,7 @@ export async function createStaffInvite(params: {
   return apiFetchAuthJson<CreateStaffInviteResult>('/organizations/invites', {
     body: JSON.stringify({
       businessCenterId: params.businessCenterId,
+      businessCenterIds: params.businessCenterIds,
       invitedDisplayName: params.invitedDisplayName,
       invitedPhoneE164: params.invitedPhoneE164,
       organizationId: params.organizationId,

@@ -9,6 +9,7 @@ export type OrganizationInviteRole = 'employee' | 'manager' | 'co_owner';
 export interface CreateOrganizationInviteParams {
   authorizationHeader: string | undefined;
   businessCenterId?: string;
+  businessCenterIds?: string[];
   invitedDisplayName?: string;
   invitedPhoneE164: string;
   organizationId: string;
@@ -48,13 +49,15 @@ export class OrganizationInvitesService {
     const tokenHash = createHash('sha256').update(inviteToken).digest('hex');
     const expiresAt = new Date(Date.now() + 72 * 60 * 60 * 1000).toISOString();
     const { orgRole, centerRole } = mapInviteRole(params.role);
+    const businessCenterIds = resolveBusinessCenterIds(params);
 
     const client = this.supabaseService.getServiceRoleClient();
     const { data, error } = await client
       .from('organization_invites')
       .insert({
         organization_id: params.organizationId,
-        business_center_id: params.businessCenterId ?? null,
+        business_center_id: businessCenterIds[0] ?? null,
+        invited_business_center_ids: businessCenterIds,
         invited_phone_e164: params.invitedPhoneE164,
         invited_display_name: params.invitedDisplayName?.trim() || null,
         org_role: orgRole,
@@ -97,7 +100,7 @@ export class OrganizationInvitesService {
     const { data: invite, error } = await client
       .from('organization_invites')
       .select(
-        'id, organization_id, business_center_id, invited_phone_e164, org_role, center_role, expires_at, accepted_at, revoked_at',
+        'id, organization_id, business_center_id, invited_business_center_ids, invited_phone_e164, org_role, center_role, expires_at, accepted_at, revoked_at',
       )
       .eq('token_hash', tokenHash)
       .maybeSingle<{
@@ -106,6 +109,7 @@ export class OrganizationInvitesService {
         center_role: 'manager' | 'staff';
         expires_at: string;
         id: string;
+        invited_business_center_ids: string[] | null;
         invited_phone_e164: string;
         org_role: 'owner' | 'staff';
         organization_id: string;
@@ -150,11 +154,9 @@ export class OrganizationInvitesService {
         throw new Error(`Failed to add organization member: ${memberError?.message}`);
       }
 
-      const businessCenterId =
-        invite.business_center_id ??
-        (await this.getDefaultBusinessCenterId(invite.organization_id));
+      const businessCenterIds = await this.resolveAcceptedBusinessCenterIds(invite);
 
-      if (businessCenterId) {
+      for (const businessCenterId of businessCenterIds) {
         await client.from('business_center_members').insert({
           organization_id: invite.organization_id,
           business_center_id: businessCenterId,
@@ -201,6 +203,24 @@ export class OrganizationInvitesService {
     return userId;
   }
 
+  private async resolveAcceptedBusinessCenterIds(invite: {
+    business_center_id: string | null;
+    invited_business_center_ids: string[] | null;
+    organization_id: string;
+  }): Promise<string[]> {
+    const ids = invite.invited_business_center_ids?.filter(Boolean) ?? [];
+    if (ids.length > 0) {
+      return [...new Set(ids)];
+    }
+
+    if (invite.business_center_id) {
+      return [invite.business_center_id];
+    }
+
+    const defaultId = await this.getDefaultBusinessCenterId(invite.organization_id);
+    return defaultId ? [defaultId] : [];
+  }
+
   private async getDefaultBusinessCenterId(organizationId: string): Promise<string | null> {
     const client = this.supabaseService.getServiceRoleClient();
     const { data, error } = await client
@@ -230,4 +250,13 @@ function mapInviteRole(role: OrganizationInviteRole): {
     default:
       return { orgRole: 'staff', centerRole: 'staff' };
   }
+}
+
+function resolveBusinessCenterIds(params: CreateOrganizationInviteParams): string[] {
+  const ids = params.businessCenterIds?.filter(Boolean) ?? [];
+  if (ids.length > 0) {
+    return [...new Set(ids)];
+  }
+
+  return params.businessCenterId ? [params.businessCenterId] : [];
 }

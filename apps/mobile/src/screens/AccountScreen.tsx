@@ -11,6 +11,7 @@ import { colors, shadows } from '../theme';
 export function AccountScreen(props: {
   businessCenterName: string | null;
   businessName: string | null;
+  onOpenEditProfile: () => void;
   onOpenStaffInvite: () => void;
   onOpenWhatsAppSetup: () => void;
   onSignOut: () => void;
@@ -52,8 +53,8 @@ export function AccountScreen(props: {
       <FeatureGate feature="accountSettings">
         <Card>
           <ActionRow icon="users" onPress={props.onOpenStaffInvite} title="Invitar miembro (QR)" />
+          <ActionRow icon="user" onPress={props.onOpenEditProfile} title="Editar perfil" />
           {[
-            ['user', 'Editar perfil'],
             ['store', 'Cambiar sucursal'],
             ['gear', 'Configuracion del negocio'],
             ['bell', 'Notificaciones'],

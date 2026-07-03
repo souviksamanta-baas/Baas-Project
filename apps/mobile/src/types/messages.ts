@@ -16,7 +16,10 @@ export interface ContactSummary {
   phoneNumber: string | null;
 }
 
+export type ConversationChannel = 'email' | 'facebook' | 'instagram' | 'whatsapp';
+
 export interface InboxConversationSummary {
+  channel: ConversationChannel;
   contact: ContactSummary;
   externalContactId: string;
   id: string;
