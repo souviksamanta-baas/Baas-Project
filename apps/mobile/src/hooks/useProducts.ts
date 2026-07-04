@@ -6,11 +6,11 @@ import {
   createProduct,
   deleteProduct,
   getProducts,
+  subscribeToProductCatalogChanges,
   toProductForm,
   updateProduct,
   validateProductForm,
 } from '../api/inventory';
-import { supabase } from '../lib/supabase';
 import type { Product, ProductFormValues } from '../types/products';
 
 export interface ProductCatalogState {
@@ -72,37 +72,13 @@ export function useProducts(
         }
       });
 
-    const channel = supabase
-      .channel(`products:${organizationId}:${businessCenterId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'products',
-        filter: `organization_id=eq.${organizationId}`,
-        },
-        () => {
-          void loadProducts();
-        },
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'inventory_items',
-          filter: `business_center_id=eq.${businessCenterId}`,
-        },
-        () => {
-          void loadProducts();
-        },
-      )
-      .subscribe();
+    const unsubscribe = subscribeToProductCatalogChanges(organizationId, businessCenterId, () => {
+      void loadProducts();
+    });
 
     return () => {
       mounted = false;
-      void supabase.removeChannel(channel);
+      unsubscribe();
     };
   }, [businessCenterId, loadProducts, organizationId]);
 

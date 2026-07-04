@@ -1,6 +1,8 @@
 import type { ReactElement } from 'react';
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+
+import { MobileContainedModal } from '../components/MobileContainedModal';
 
 import type { Channel } from '../api/mockData';
 import {
@@ -174,10 +176,8 @@ function InboxFilterModal(props: {
   }, [props.filters, props.visible]);
 
   return (
-    <Modal animationType="slide" onRequestClose={props.onClose} transparent visible={props.visible}>
-      <Pressable onPress={props.onClose} style={styles.modalBackdrop}>
-        <Pressable onPress={(event) => event.stopPropagation()} style={styles.modalSheet}>
-          <Text style={styles.modalTitle}>Filtrar conversaciones</Text>
+    <MobileContainedModal animationType="slide" onClose={props.onClose} visible={props.visible}>
+      <Text style={styles.modalTitle}>Filtrar conversaciones</Text>
 
           <Text style={styles.modalSection}>Canal</Text>
           <View style={styles.chipRow}>
@@ -226,9 +226,7 @@ function InboxFilterModal(props: {
               }}
             />
           </View>
-        </Pressable>
-      </Pressable>
-    </Modal>
+    </MobileContainedModal>
   );
 }
 

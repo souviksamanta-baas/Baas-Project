@@ -1,5 +1,6 @@
 import type { ReactElement } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import {
   baseProduct,
@@ -14,7 +15,13 @@ import {
   type SellProductMock,
   type SubproductMock,
 } from '../../api/inventoryMockData';
-import { Icon } from '../../components/icons';
+import {
+  InventoryMoneyField,
+  InventoryPercentField,
+  InventoryReadOnlyField,
+  InventorySelectField,
+  InventoryTextField,
+} from '../../components/ProductEditFormFields';
 import {
   CartLineRow,
   CobrarButton,
@@ -43,8 +50,32 @@ import {
 } from '../../components/inventoryUi';
 import { ScreenContent } from '../../components/ui';
 import { ListBox } from '../../design-system';
-import { DEFAULT_BASE_PRODUCT_ID } from '../../navigation/routes';
+import {
+  buildProductSummaryMeta,
+  filterInventoryProducts,
+  filterSellProducts,
+  formatProductCost,
+  formatProductStockLabel,
+  formatProductUnitPrice,
+  getProductStatusLabel,
+  mapProductToInventoryRow,
+  mapProductsToSellRows,
+} from '../../lib/inventoryPresentation';
+import {
+  BASE_UNIT_OPTIONS,
+  PRODUCT_STATUS_OPTIONS,
+  sortOptionsAlphabetically,
+  type ProductStatusSlug,
+} from '../../lib/productCatalog';
+import {
+  applyCostToFormValues,
+  applyMarginToFormValues,
+  applyUnitPriceToFormValues,
+  productToEditFormValues,
+} from '../../lib/productEditForm';
 import { colors, radius, shadows } from '../../theme';
+import type { Product, ProductEditFormValues } from '../../types/products';
+import { Icon } from '../../components/icons';
 
 type InventoryNav = {
   onOpenAddStock: () => void;
@@ -56,7 +87,25 @@ type InventoryNav = {
   onOpenSellProducts: () => void;
 };
 
-export function ManageStockScreen(props: InventoryNav & { onBack?: () => void }): ReactElement {
+export function ManageStockScreen(
+  props: {
+    errorMessage?: string | null;
+    isLoading?: boolean;
+    onAddStockProduct: (productId: string) => void;
+    onDeleteProduct: (productId: string) => void;
+    onEditProduct: (productId: string) => void;
+    onOpenProductDetail: (productId: string) => void;
+    products?: InventoryProductMock[];
+  },
+): ReactElement {
+  const [searchQuery, setSearchQuery] = useState('');
+  const products = props.products ?? inventoryProducts;
+  const filteredProducts = useMemo(
+    () => filterInventoryProducts(products, searchQuery),
+    [products, searchQuery],
+  );
+  const productCountLabel = `${filteredProducts.length} producto${filteredProducts.length === 1 ? '' : 's'}`;
+
   return (
     <ScreenContent>
       <InventoryScreenTitle
@@ -64,15 +113,27 @@ export function ManageStockScreen(props: InventoryNav & { onBack?: () => void })
         subtitle="Busca, escanea y actualiza tu inventario"
         title="Gestionar stock"
       />
-      <SearchFilterRow />
-      <ListBox headerMeta="10 productos" title="Productos en inventario">
-        {inventoryProducts.map((product) => (
-          <InventoryListRow
-            key={product.id}
-            onPress={product.isBase ? () => props.onOpenProductDetail(product.id) : undefined}
-            product={product}
-          />
-        ))}
+      <SearchFilterRow onChangeText={setSearchQuery} searchValue={searchQuery} />
+      {props.errorMessage ? <InfoBanner>{props.errorMessage}</InfoBanner> : null}
+      <ListBox headerMeta={productCountLabel} title="Productos en inventario">
+        {props.isLoading ? (
+          <Text style={styles.loadingText}>Cargando inventario...</Text>
+        ) : products.length === 0 ? (
+          <Text style={styles.loadingText}>No hay productos cargados en esta sucursal.</Text>
+        ) : filteredProducts.length === 0 ? (
+          <Text style={styles.loadingText}>No se encontraron productos para esta busqueda.</Text>
+        ) : (
+          filteredProducts.map((product) => (
+            <InventoryListRow
+              key={product.id}
+              onAddStock={() => props.onAddStockProduct(product.id)}
+              onDelete={() => props.onDeleteProduct(product.id)}
+              onEdit={() => props.onEditProduct(product.id)}
+              onPress={() => props.onOpenProductDetail(product.id)}
+              product={product}
+            />
+          ))
+        )}
       </ListBox>
       <Pressable style={styles.addProductCard}>
         <View style={styles.addProductIcon}>
@@ -88,11 +149,45 @@ export function ManageStockScreen(props: InventoryNav & { onBack?: () => void })
   );
 }
 
-export function ProductDetailScreen(props: InventoryNav & { onBack: () => void }): ReactElement {
+export function ProductDetailScreen(
+  props: InventoryNav & {
+    businessCenterName?: string | null;
+    movements?: typeof movements;
+    onBack: () => void;
+    product?: Product | null;
+    childProducts?: Product[];
+  },
+): ReactElement {
+  const product = props.product;
+  const childProducts = props.childProducts ?? [];
+  const productName = product?.name ?? baseProduct.name;
+  const productStock = product ? formatProductStockLabel(product) : baseProduct.stock;
+  const productCategory = product?.category ?? baseProduct.category;
+  const productNotes = product?.description ?? baseProduct.notes;
+  const productCode = product?.sku ?? baseProduct.code;
+  const summaryMeta = product ? buildProductSummaryMeta(product, props.businessCenterName) : undefined;
+  const productStatus = product ? getProductStatusLabel(product) : 'En stock';
+  const productStatusTone = product?.isLowStock ? 'orange' : 'green';
+  const displayChildRows = product
+    ? childProducts.map((item) => mapProductToInventoryRow(item, { indent: true }))
+    : subproducts.map((item) => subproductAsInventoryRow(item));
+  const batchRows = product ? [] : batches;
+  const movementRows = props.movements ?? (product ? [] : movements);
+  const hasChildProducts = displayChildRows.length > 0;
+
   return (
     <ScreenContent>
       <InventoryScreenTitle onBack={props.onBack} subtitle="Detalle y gestion del producto" title="Producto" />
-      <ProductSummaryCard showBarcode showMeta stock={baseProduct.stock} title={baseProduct.name} />
+      <ProductSummaryCard
+        category={productCategory}
+        meta={summaryMeta}
+        showBarcode
+        showMeta
+        statusLabel={productStatus}
+        statusTone={productStatusTone}
+        stock={productStock}
+        title={productName}
+      />
       <View style={styles.actionBar}>
         <Pressable onPress={props.onOpenEditProduct} style={styles.actionItem}>
           <Icon color={colors.info} kind="edit" size={15} strokeWidth={2} />
@@ -109,70 +204,83 @@ export function ProductDetailScreen(props: InventoryNav & { onBack: () => void }
           <Text style={[styles.actionLabel, styles.dangerText]}>Eliminar</Text>
         </Pressable>
       </View>
-      <ListBox
-        headerSubtitle="Presentaciones creadas a partir de este producto."
-        title="Subproductos"
-      >
-        {subproducts.map((item) => (
-          <InventoryListRow
-            key={item.id}
-            onPress={() => props.onOpenEditSubproduct(item.id)}
-            product={subproductAsInventoryRow(item)}
-          />
-        ))}
-      </ListBox>
-      <SectionCard subtitle="Seguimiento de costo y precio por ingreso." title="Lotes y precios">
-        <View style={styles.batchTable}>
-          <View style={styles.batchHeader}>
-            <View style={styles.batchColMain} />
-            <Text style={styles.batchHeaderLabel}>Costo / Precio</Text>
-            <Text style={styles.batchHeaderStatus}>Estado</Text>
-          </View>
-          {batches.map((batch) => (
-            <View key={batch.id} style={styles.batchRow}>
-              <View style={styles.batchColMain}>
-                <Text style={styles.rowTitle}>{batch.lot}</Text>
-                <Text style={styles.rowMeta}>{batch.date}</Text>
-                <Text style={styles.batchQty}>{batch.qty}</Text>
-              </View>
-              <Text style={styles.batchCostPrice}>
-                {batch.cost} <Text style={styles.rowMeta}>/</Text> {batch.price}
-              </Text>
-              <View style={styles.batchStatusCol}>
-                <StockBadge
-                  label={batch.status}
-                  tone={batch.statusTone === 'green' ? 'green' : 'neutral'}
-                />
-              </View>
-            </View>
+      {hasChildProducts ? (
+        <ListBox
+          headerSubtitle="Presentaciones creadas a partir de este producto."
+          title="Subproductos"
+        >
+          {displayChildRows.map((item) => (
+            <LinkedSubproductRow
+              key={item.id}
+              name={item.name}
+              onEditPress={() => props.onOpenEditSubproduct(item.id)}
+              onPress={() => props.onOpenProductDetail(item.id)}
+            />
           ))}
-        </View>
-        <Text style={styles.footerNote}>Precio actual actualizado segun el ultimo lote.</Text>
+        </ListBox>
+      ) : null}
+      <SectionCard subtitle="Seguimiento de costo y precio por ingreso." title="Lotes y precios">
+        {batchRows.length > 0 ? (
+          <>
+            <View style={styles.batchTable}>
+              <View style={styles.batchHeader}>
+                <View style={styles.batchColMain} />
+                <Text style={styles.batchHeaderLabel}>Costo / Precio</Text>
+                <Text style={styles.batchHeaderStatus}>Estado</Text>
+              </View>
+              {batchRows.map((batch) => (
+                <View key={batch.id} style={styles.batchRow}>
+                  <View style={styles.batchColMain}>
+                    <Text style={styles.rowTitle}>{batch.lot}</Text>
+                    <Text style={styles.rowMeta}>{batch.date}</Text>
+                    <Text style={styles.batchQty}>{batch.qty}</Text>
+                  </View>
+                  <Text style={styles.batchCostPrice}>
+                    {batch.cost} <Text style={styles.rowMeta}>/</Text> {batch.price}
+                  </Text>
+                  <View style={styles.batchStatusCol}>
+                    <StockBadge
+                      label={batch.status}
+                      tone={batch.statusTone === 'green' ? 'green' : 'neutral'}
+                    />
+                  </View>
+                </View>
+              ))}
+            </View>
+            <Text style={styles.footerNote}>Precio actual actualizado segun el ultimo lote.</Text>
+          </>
+        ) : (
+          <Text style={styles.rowMeta}>Sin lotes registrados para este producto.</Text>
+        )}
       </SectionCard>
       <SectionCard title="Movimientos recientes">
-        {movements.map((movement) => (
-          <View key={movement.id} style={styles.movementRow}>
-            <View style={[styles.movementIcon, movementToneStyle(movement.tone)]}>
-              <Text style={styles.movementSymbol}>{movement.tone === 'green' ? '↓' : movement.tone === 'red' ? '↑' : '$'}</Text>
+        {movementRows.length > 0 ? (
+          movementRows.map((movement) => (
+            <View key={movement.id} style={styles.movementRow}>
+              <View style={[styles.movementIcon, movementToneStyle(movement.tone)]}>
+                <Text style={styles.movementSymbol}>{movement.tone === 'green' ? '↓' : movement.tone === 'red' ? '↑' : '$'}</Text>
+              </View>
+              <View style={styles.flex}>
+                <Text style={styles.rowTitle}>{movement.label}</Text>
+                <Text style={styles.rowMeta}>{movement.time}</Text>
+              </View>
+              {movement.amount ? (
+                <Text style={movement.tone === 'green' ? styles.movementAmountGreen : styles.movementAmountRed}>
+                  {movement.amount}
+                </Text>
+              ) : null}
             </View>
-            <View style={styles.flex}>
-              <Text style={styles.rowTitle}>{movement.label}</Text>
-              <Text style={styles.rowMeta}>{movement.time}</Text>
-            </View>
-            {movement.amount ? (
-              <Text style={movement.tone === 'green' ? styles.movementAmountGreen : styles.movementAmountRed}>
-                {movement.amount}
-              </Text>
-            ) : null}
-          </View>
-        ))}
+          ))
+        ) : (
+          <Text style={styles.rowMeta}>Sin movimientos recientes para este producto.</Text>
+        )}
       </SectionCard>
       <SectionCard title="Codigo asociado">
         <View style={styles.barcodeRow}>
           <Icon color={colors.navy} kind="barcode" size={18} strokeWidth={1} />
           <View>
-            <Text style={styles.codeValue}>7791234567890</Text>
-            <Text style={styles.rowMeta}>Codigo de barras</Text>
+            <Text style={styles.codeValue}>{productCode}</Text>
+            <Text style={styles.rowMeta}>{product?.sku ? 'Codigo de barras' : 'Sin codigo asignado'}</Text>
           </View>
         </View>
         <Pressable style={styles.outlineLink}>
@@ -181,126 +289,368 @@ export function ProductDetailScreen(props: InventoryNav & { onBack: () => void }
         </Pressable>
       </SectionCard>
       <SectionCard title="Notas">
-        <Text style={styles.rowMeta}>{baseProduct.notes}</Text>
+        <Text style={styles.rowMeta}>{productNotes || 'Sin notas cargadas.'}</Text>
       </SectionCard>
     </ScreenContent>
   );
 }
 
-export function EditProductScreen(props: InventoryNav & { onBack: () => void }): ReactElement {
+export function EditProductScreen(
+  props: {
+    businessCenterId: string;
+    businessCenterName?: string | null;
+    businessCenters: Array<{ id: string; name: string }>;
+    categories: string[];
+    isSaving?: boolean;
+    onBack: () => void;
+    onOpenDeleteProduct: () => void;
+    onOpenEditSubproduct: (subproductId: string) => void;
+    onOpenSubproductDetail: (subproductId: string) => void;
+    onSave: (values: ProductEditFormValues) => Promise<void>;
+    product: Product;
+    subproducts?: Product[];
+  },
+): ReactElement {
+  const childProducts = props.subproducts ?? [];
+  const [formValues, setFormValues] = useState<ProductEditFormValues>(() =>
+    productToEditFormValues(props.product, props.businessCenterId),
+  );
+
+  useEffect(() => {
+    setFormValues(productToEditFormValues(props.product, props.businessCenterId));
+  }, [props.businessCenterId, props.product]);
+
+  const categoryOptions = useMemo(
+    () =>
+      sortOptionsAlphabetically(
+        props.categories.map((category) => ({ label: category, value: category })),
+      ),
+    [props.categories],
+  );
+
+  const branchOptions = useMemo(
+    () =>
+      sortOptionsAlphabetically(
+        props.businessCenters.map((center) => ({ label: center.name, value: center.id })),
+      ),
+    [props.businessCenters],
+  );
+
+  async function handleSave(): Promise<void> {
+    try {
+      await props.onSave(formValues);
+    } catch (error) {
+      Alert.alert(
+        'No se pudo guardar',
+        error instanceof Error ? error.message : 'Error desconocido',
+      );
+    }
+  }
+
   return (
     <ScreenContent>
       <InventoryScreenTitle onBack={props.onBack} subtitle="Actualiza la informacion del producto" title="Editar producto" />
-      <ProductSummaryCard badge="Producto con subproductos" changePhoto title={baseProduct.name} />
+      <ProductSummaryCard
+        badge={childProducts.length > 0 ? 'Producto con subproductos' : undefined}
+        changePhoto
+        title={formValues.name}
+      />
       <SectionCard>
-        <FormField full label="Nombre del producto" value={baseProduct.name} />
+        <InventoryTextField
+          full
+          label="Nombre del producto"
+          onChangeText={(name) => setFormValues((current) => ({ ...current, name }))}
+          value={formValues.name}
+        />
         <View style={styles.fieldRow}>
-          <FormField label="Categoria" select value="Almacen" />
-          <FormField green label="Estado" select value="En stock" />
+          <InventorySelectField
+            highlight
+            label="Estado"
+            onChange={(status: ProductStatusSlug) =>
+              setFormValues((current) => ({ ...current, status }))
+            }
+            options={PRODUCT_STATUS_OPTIONS}
+            value={formValues.status}
+          />
+          <InventorySelectField
+            label="Categoria"
+            onChange={(category) => setFormValues((current) => ({ ...current, category }))}
+            options={categoryOptions}
+            value={formValues.category}
+          />
         </View>
         <View style={styles.fieldRow}>
-          <FormField label="Codigo" value={baseProduct.code} />
-          <FormField label="Tipo de codigo" select value="Codigo de barras" />
+          <InventoryReadOnlyField label="SKU" value={props.product.sku ?? 'Generado por la app'} />
+          <InventorySelectField
+            label="Unidad base"
+            onChange={(baseUnitCode) => setFormValues((current) => ({ ...current, baseUnitCode }))}
+            options={BASE_UNIT_OPTIONS}
+            value={formValues.baseUnitCode}
+          />
         </View>
         <View style={styles.fieldRow}>
-          <FormField label="SKU" value={baseProduct.sku} />
-          <FormField label="Unidad base" select value={baseProduct.unit} />
+          <InventoryMoneyField
+            label="Costo"
+            onChangeText={(cost) =>
+              setFormValues((current) => applyCostToFormValues({ ...current, cost }))
+            }
+            value={formValues.cost}
+          />
+          <InventoryMoneyField
+            label="Precio de venta"
+            onChangeText={(unitPrice) =>
+              setFormValues((current) => applyUnitPriceToFormValues({ ...current, unitPrice }))
+            }
+            value={formValues.unitPrice}
+          />
+          <InventoryPercentField
+            label="Margen"
+            onChangeText={(marginPercent) =>
+              setFormValues((current) => applyMarginToFormValues({ ...current, marginPercent }))
+            }
+            value={formValues.marginPercent}
+          />
         </View>
-        <View style={styles.fieldRow}>
-          <FormField label="Costo" value={baseProduct.cost} />
-          <FormField label="Precio de venta" value={baseProduct.price} />
-          <FormField label="Margen (%)" value={baseProduct.margin} />
-        </View>
-        <FormField full label="Sucursal" select value="Sucursal Centro" />
-        <FormField
+        <InventorySelectField
+          disabled
+          full
+          label="Sucursal"
+          onChange={() => undefined}
+          options={branchOptions}
+          value={formValues.businessCenterId}
+        />
+        <InventoryTextField
           full
           label="Notas"
-          textarea
-          value="Producto base para fraccionado en presentaciones menores."
+          multiline
+          onChangeText={(description) => setFormValues((current) => ({ ...current, description }))}
+          value={formValues.description}
         />
       </SectionCard>
-      <View style={styles.subproductSection}>
-        <View style={styles.subproductSectionHeader}>
-          <View style={styles.flex}>
-            <Text style={styles.subproductSectionTitle}>Subproductos vinculados</Text>
-            <Text style={styles.subproductSectionSubtitle}>
-              Estos productos usan el stock y el costo del producto base.
-            </Text>
+      {childProducts.length > 0 ? (
+        <View style={styles.subproductSection}>
+          <View style={styles.subproductSectionHeader}>
+            <View style={styles.flex}>
+              <Text style={styles.subproductSectionTitle}>Subproductos</Text>
+              <Text style={styles.subproductSectionSubtitle}>
+                Estos productos usan el stock y el costo del producto base.
+              </Text>
+            </View>
+            <Pressable style={styles.addSubproductButton}>
+              <Text style={styles.addSubproductButtonText}>+ Agregar subproducto</Text>
+            </Pressable>
           </View>
-          <Pressable style={styles.addSubproductButton}>
-            <Text style={styles.addSubproductButtonText}>+ Agregar subproducto</Text>
-          </Pressable>
+          {childProducts.map((item) => (
+            <LinkedSubproductRow
+              key={item.id}
+              name={item.name}
+              onEditPress={() => props.onOpenEditSubproduct(item.id)}
+              onPress={() => props.onOpenSubproductDetail(item.id)}
+            />
+          ))}
         </View>
-        {subproducts.slice(0, 2).map((item) => (
-          <LinkedSubproductRow key={item.id} name={item.name} onPress={() => props.onOpenEditSubproduct(item.id)} />
-        ))}
-      </View>
+      ) : null}
       <View style={styles.buttonRow}>
-        <OutlineButton label="Cancelar" onPress={() => props.onOpenProductDetail(DEFAULT_BASE_PRODUCT_ID)} />
-        <PrimaryButton label="Guardar cambios" />
+        <OutlineButton label="Cancelar" onPress={props.onBack} />
+        <PrimaryButton
+          label={props.isSaving ? 'Guardando...' : 'Guardar cambios'}
+          onPress={() => {
+            void handleSave();
+          }}
+        />
       </View>
       <DangerButton label="Eliminar producto" onPress={props.onOpenDeleteProduct} />
     </ScreenContent>
   );
 }
 
-export function EditSubproductScreen(props: { onBack: () => void }): ReactElement {
+export function EditSubproductScreen(
+  props: {
+    businessCenterId: string;
+    businessCenterName?: string | null;
+    businessCenters: Array<{ id: string; name: string }>;
+    categories: string[];
+    isSaving?: boolean;
+    onBack: () => void;
+    onSave: (values: ProductEditFormValues) => Promise<void>;
+    parentProduct?: Product | null;
+    subproduct: Product;
+  },
+): ReactElement {
+  const parentProduct = props.parentProduct;
+  const parentName = parentProduct?.name ?? baseProduct.name;
+  const parentStock = parentProduct ? formatProductStockLabel(parentProduct) : baseProduct.stock;
+  const [formValues, setFormValues] = useState<ProductEditFormValues>(() =>
+    productToEditFormValues(props.subproduct, props.businessCenterId),
+  );
+
+  useEffect(() => {
+    setFormValues(productToEditFormValues(props.subproduct, props.businessCenterId));
+  }, [props.businessCenterId, props.subproduct]);
+
+  const categoryOptions = useMemo(
+    () =>
+      sortOptionsAlphabetically(
+        props.categories.map((category) => ({ label: category, value: category })),
+      ),
+    [props.categories],
+  );
+
+  const branchOptions = useMemo(
+    () =>
+      sortOptionsAlphabetically(
+        props.businessCenters.map((center) => ({ label: center.name, value: center.id })),
+      ),
+    [props.businessCenters],
+  );
+
+  async function handleSave(): Promise<void> {
+    try {
+      await props.onSave(formValues);
+    } catch (error) {
+      Alert.alert(
+        'No se pudo guardar',
+        error instanceof Error ? error.message : 'Error desconocido',
+      );
+    }
+  }
+
   return (
     <ScreenContent>
-      <InventoryScreenTitle onBack={props.onBack} subtitle="Actualiza la informacion del subproducto" title="Editar subproducto" />
-      <ProductSummaryCard changePhoto linkedTo={baseProduct.name} title="Harina 1 kg" />
+      <InventoryScreenTitle
+        onBack={props.onBack}
+        subtitle="Actualiza la informacion del subproducto"
+        title="Editar subproducto"
+      />
+      <ProductSummaryCard changePhoto linkedTo={parentName} title={formValues.name} />
       <SectionCard>
-        <FormField full label="Nombre del producto" value="Harina 1 kg" />
+        <InventoryTextField
+          full
+          label="Nombre del producto"
+          onChangeText={(name) => setFormValues((current) => ({ ...current, name }))}
+          value={formValues.name}
+        />
         <View style={styles.fieldRow}>
-          <FormField label="Categoria" select value="Almacen" />
-          <FormField green label="Estado" select value="En stock" />
+          <InventorySelectField
+            highlight
+            label="Estado"
+            onChange={(status: ProductStatusSlug) =>
+              setFormValues((current) => ({ ...current, status }))
+            }
+            options={PRODUCT_STATUS_OPTIONS}
+            value={formValues.status}
+          />
+          <InventorySelectField
+            label="Categoria"
+            onChange={(category) => setFormValues((current) => ({ ...current, category }))}
+            options={categoryOptions}
+            value={formValues.category}
+          />
         </View>
         <View style={styles.fieldRow}>
-          <FormField label="Codigo" value="7791234567001" />
-          <FormField label="Tipo de codigo" select value="Codigo de barras" />
+          <InventoryReadOnlyField
+            label="SKU"
+            value={props.subproduct.sku ?? 'Generado por la app'}
+          />
+          <InventorySelectField
+            label="Unidad base"
+            onChange={(baseUnitCode) => setFormValues((current) => ({ ...current, baseUnitCode }))}
+            options={BASE_UNIT_OPTIONS}
+            value={formValues.baseUnitCode}
+          />
         </View>
         <View style={styles.fieldRow}>
-          <FormField label="SKU" value="HAR-1KG" />
-          <FormField label="Unidad" select value="unidad" />
+          <InventoryMoneyField
+            label="Costo"
+            onChangeText={(cost) =>
+              setFormValues((current) => applyCostToFormValues({ ...current, cost }))
+            }
+            value={formValues.cost}
+          />
+          <InventoryMoneyField
+            label="Precio de venta"
+            onChangeText={(unitPrice) =>
+              setFormValues((current) => applyUnitPriceToFormValues({ ...current, unitPrice }))
+            }
+            value={formValues.unitPrice}
+          />
+          <InventoryPercentField
+            label="Margen"
+            onChangeText={(marginPercent) =>
+              setFormValues((current) => applyMarginToFormValues({ ...current, marginPercent }))
+            }
+            value={formValues.marginPercent}
+          />
         </View>
-        <View style={styles.fieldRow}>
-          <FormField label="Costo" value="$1.250" />
-          <FormField label="Precio de venta" value="$1.900" />
-          <FormField label="Margen (%)" value="34%" />
-        </View>
-        <FormField full label="Sucursal" select value="Sucursal Centro" />
-        <FormField
+        <InventorySelectField
+          disabled
+          full
+          label="Sucursal"
+          onChange={() => undefined}
+          options={branchOptions}
+          value={formValues.businessCenterId}
+        />
+        <InventoryTextField
           full
           label="Notas"
-          textarea
-          value="Subproducto derivado de harina granel. Mantener relacion con producto base."
+          multiline
+          onChangeText={(description) => setFormValues((current) => ({ ...current, description }))}
+          value={formValues.description}
         />
       </SectionCard>
       <SectionCard title="Relacion con producto base">
         <View style={styles.infoBlockRow}>
-          <InfoBlock label="Producto base" value={baseProduct.name} />
-          <InfoBlock label="Conversion" value="1 kg = 1 kg del producto base" />
-          <InfoBlock label="Stock disponible del base" value={baseProduct.stock} />
+          <InfoBlock label="Producto base" value={parentName} />
+          <InfoBlock
+            label="Conversion"
+            value={`1 ${formValues.baseUnitCode} = 1 ${parentProduct?.unitCode ?? baseProduct.unit} del producto base`}
+          />
+          <InfoBlock label="Stock disponible del base" value={parentStock} />
         </View>
       </SectionCard>
       <View style={styles.buttonRow}>
-        <OutlineButton label="Cancelar" />
-        <PrimaryButton label="Guardar cambios" />
+        <OutlineButton label="Cancelar" onPress={props.onBack} />
+        <PrimaryButton
+          label={props.isSaving ? 'Guardando...' : 'Guardar cambios'}
+          onPress={() => {
+            void handleSave();
+          }}
+        />
       </View>
-      <DangerButton label="Eliminar subproducto" />
     </ScreenContent>
   );
 }
 
-export function AddStockScreen(props: { onBack: () => void }): ReactElement {
+function linkedProductStockLabel(item: Product | SubproductMock): string {
+  if ('stockQuantity' in item) {
+    return formatProductStockLabel(item);
+  }
+
+  return item.stock;
+}
+
+export function AddStockScreen(props: {
+  onBack: () => void;
+  product?: Product | null;
+  subproducts?: Product[];
+}): ReactElement {
+  const product = props.product;
+  const childProducts = props.subproducts ?? (product ? [] : subproducts);
+  const productName = product?.name ?? baseProduct.name;
+  const productStock = product ? formatProductStockLabel(product) : baseProduct.stock;
+
   return (
     <ScreenContent>
       <InventoryScreenTitle onBack={props.onBack} subtitle="Registra ingresos para el producto base o sus subproductos" title="Agregar stock" />
-      <ProductSummaryCard stock={baseProduct.stock} title={baseProduct.name} />
+      <ProductSummaryCard stock={productStock} title={productName} />
       <Text style={styles.sectionLabel}>A que producto queres agregar stock?</Text>
-      <RadioProductOption active meta={`Producto base • Stock actual: ${baseProduct.stock}`} name={baseProduct.name} />
-      {subproducts.map((item) => (
-        <RadioProductOption key={item.id} meta={`Stock actual: ${item.stock}`} name={item.name} />
+      <RadioProductOption active meta={`Producto base • Stock actual: ${productStock}`} name={productName} />
+      {childProducts.map((item) => (
+        <RadioProductOption
+          key={item.id}
+          meta={`Stock actual: ${linkedProductStockLabel(item)}`}
+          name={item.name}
+        />
       ))}
       <Text style={styles.sectionLabel}>Detalle del ingreso</Text>
       <SectionCard>
@@ -335,23 +685,39 @@ export function AddStockScreen(props: { onBack: () => void }): ReactElement {
   );
 }
 
-export function DeleteProductScreen(props: { onBack: () => void }): ReactElement {
+export function DeleteProductScreen(props: {
+  onBack: () => void;
+  product?: Product | null;
+  subproducts?: Product[];
+}): ReactElement {
+  const product = props.product;
+  const childProducts = props.subproducts ?? (product ? [] : subproducts);
+  const productName = product?.name ?? baseProduct.name;
+  const productStock = product ? formatProductStockLabel(product) : baseProduct.stock;
+  const hasLinkedSubproducts = childProducts.length > 0;
+
   return (
     <ScreenContent>
       <InventoryScreenTitle onBack={props.onBack} subtitle="Confirma si queres eliminar este producto" title="Eliminar producto" />
-      <ProductSummaryCard showBarcode stock={baseProduct.stock} title={baseProduct.name} />
+      <ProductSummaryCard showBarcode stock={productStock} title={productName} />
       <View style={styles.deleteWarningCard}>
         <View style={styles.deleteWarningHeader}>
           <Icon color={colors.danger} kind="alert" size={16} strokeWidth={1.8} />
           <Text style={styles.deleteWarningTitle}>Atencion</Text>
         </View>
         <Text style={styles.deleteWarningBody}>
-          Al eliminar este producto base, tambien se veran afectados los subproductos vinculados y sus codigos asociados.
+          {hasLinkedSubproducts
+            ? 'Al eliminar este producto base, tambien se veran afectados los subproductos vinculados y sus codigos asociados.'
+            : 'Al eliminar este producto, se eliminara su stock y codigos asociados en esta sucursal.'}
         </Text>
-        <Text style={styles.deleteWarningSubtitle}>Subproductos vinculados</Text>
-        {subproducts.map((item) => (
-          <LinkedDeleteRow key={item.id} name={item.name} />
-        ))}
+        {hasLinkedSubproducts ? (
+          <>
+            <Text style={styles.deleteWarningSubtitle}>Subproductos vinculados</Text>
+            {childProducts.map((item) => (
+              <LinkedDeleteRow key={item.id} name={item.name} />
+            ))}
+          </>
+        ) : null}
       </View>
       <View style={styles.alternativeCard}>
         <View style={styles.alternativeIconWrap}>
@@ -380,7 +746,22 @@ export function DeleteProductScreen(props: { onBack: () => void }): ReactElement
   );
 }
 
-export function SellProductsScreen(props: InventoryNav & { onBack?: () => void }): ReactElement {
+export function SellProductsScreen(
+  props: {
+    errorMessage?: string | null;
+    isLoading?: boolean;
+    onOpenConfirmPayment: () => void;
+    products?: SellProductMock[];
+  },
+): ReactElement {
+  const [searchQuery, setSearchQuery] = useState('');
+  const products = props.products ?? sellProducts;
+  const filteredProducts = useMemo(
+    () => filterSellProducts(products, searchQuery),
+    [products, searchQuery],
+  );
+  const productCountLabel = `${filteredProducts.length} producto${filteredProducts.length === 1 ? '' : 's'}`;
+
   return (
     <ScreenContent>
       <InventoryScreenTitle
@@ -388,14 +769,19 @@ export function SellProductsScreen(props: InventoryNav & { onBack?: () => void }
         subtitle="Busca, agrega y cobra tus productos"
         title="Ventas"
       />
-      <SearchFilterRow />
+      <SearchFilterRow onChangeText={setSearchQuery} searchValue={searchQuery} />
+      {props.errorMessage ? <InfoBanner>{props.errorMessage}</InfoBanner> : null}
       <View style={styles.listCard}>
         <View style={styles.sellListHeader}>
-          <Text style={styles.listHeaderMeta}>8 productos</Text>
+          <Text style={styles.listHeaderMeta}>{productCountLabel}</Text>
         </View>
-        {sellProducts.map((product) => (
-          <SellProductRow key={product.id} product={product} />
-        ))}
+        {props.isLoading ? (
+          <Text style={styles.loadingText}>Cargando productos...</Text>
+        ) : filteredProducts.length === 0 ? (
+          <Text style={styles.loadingText}>No se encontraron productos para esta busqueda.</Text>
+        ) : (
+          filteredProducts.map((product) => <SellProductRow key={product.id} product={product} />)
+        )}
       </View>
       <SectionCard title="Cobrar y emitir factura">
         {cartItems.map((item, index) => (
@@ -499,7 +885,13 @@ function subproductAsInventoryRow(item: SubproductMock): InventoryProductMock {
   };
 }
 
-function InventoryListRow(props: { onPress?: () => void; product: InventoryProductMock }): ReactElement {
+function InventoryListRow(props: {
+  onAddStock?: () => void;
+  onDelete?: () => void;
+  onEdit?: () => void;
+  onPress?: () => void;
+  product: InventoryProductMock;
+}): ReactElement {
   return (
     <Pressable onPress={props.onPress} style={[styles.inventoryRow, props.product.indent && styles.inventoryRowIndent]}>
       <View style={styles.inventoryRowMain}>
@@ -518,7 +910,11 @@ function InventoryListRow(props: { onPress?: () => void; product: InventoryProdu
             </View>
           ) : null}
         </View>
-        <RowActions />
+        <RowActions
+          onAddStock={props.onAddStock}
+          onDelete={props.onDelete}
+          onEdit={props.onEdit}
+        />
       </View>
       {props.product.createCode ? (
         <View style={styles.createCodeRow}>
@@ -988,6 +1384,14 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     flexDirection: 'row',
     gap: 10,
+  },
+  loadingText: {
+    color: colors.slate,
+    fontSize: 11,
+    fontWeight: '400',
+    paddingHorizontal: 12,
+    paddingVertical: 16,
+    textAlign: 'center',
   },
   linkedToText: {
     color: colors.info,

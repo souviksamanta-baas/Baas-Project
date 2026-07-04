@@ -1,4 +1,5 @@
-sku,product_name,description,unit_code,unit_price_ars,quantity_on_hand,reorder_threshold,lot_code,expires_at
-AMANDA-1KG,Amanda 1kg,Harina de trigo 000,kg,4800,120,20,LOTE-2026-01,2026-12-31
-ACEITE-900,Aceite girasol 900ml,Aceite de girasol,botella,3200,48,12,,
-YERBA-500,Yerba mate 500g,Yerba seleccionada,paquete,2500,80,15,LOTE-2026-02,
+nombre_producto,categoria,tipo_producto,producto_base,proveedor,notas,sucursal,unidad,precio_costo,precio_venta,cantidad_stock,umbral_reorden,lote_fecha,fecha_vencimiento
+Harina granel 100 kg,Almacén,producto,,Molinos Norte,Producto base para fraccionado en presentaciones menores.,Main,kg,1250,1900,100,20,15/01/2026,31/12/2026
+Harina Amanda 1 kg,Almacén,subproducto,Harina granel 100 kg,Molinos Norte,Presentación 1 kg derivada del granel.,Main,kg,1250,1900,26,5,15/01/2026,
+Yerba mate 500g,Almacén,producto,,Las Marías,Yerba seleccionada para venta al público.,Main,paquete,1800,2500,80,15,,
+Aceite girasol 900ml,Lácteos y aceites,producto,,Aceitera del Sur,Aceite de girasol 900 ml.,Main,botella,2200,3200,48,12,10/01/2026,30/06/2026

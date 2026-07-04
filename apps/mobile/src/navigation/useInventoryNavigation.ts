@@ -1,7 +1,6 @@
 import { useRouter } from 'expo-router';
 
 import {
-  DEFAULT_BASE_PRODUCT_ID,
   productAddStockRoute,
   productDeleteRoute,
   productDetailRoute,
@@ -10,17 +9,26 @@ import {
   subproductEditRoute,
 } from './routes';
 
-export function useInventoryNavigation(productId: string = DEFAULT_BASE_PRODUCT_ID) {
+export function useInventoryNavigation(productId: string) {
   const router = useRouter();
 
   return {
     onOpenAddStock: () => router.push(productAddStockRoute(productId)),
     onOpenConfirmPayment: () => router.push(routes.inventoryConfirmPayment),
     onOpenDeleteProduct: () => router.push(productDeleteRoute(productId)),
-    onOpenEditProduct: () => router.push(productEditRoute(productId)),
-    onOpenEditSubproduct: (subproductId: string) => router.push(subproductEditRoute(subproductId)),
+    onOpenEditProduct: () => router.push(productEditRoute(productId, 'product-detail')),
+    onOpenEditSubproduct: (subproductId: string) =>
+      router.push(subproductEditRoute(subproductId, 'product-detail')),
     onOpenProductDetail: (nextProductId: string = productId) => router.push(productDetailRoute(nextProductId)),
     onOpenSellProducts: () => router.push(routes.inventorySell),
+  };
+}
+
+export function useSellNavigation() {
+  const router = useRouter();
+
+  return {
+    onOpenConfirmPayment: () => router.push(routes.inventoryConfirmPayment),
   };
 }
 

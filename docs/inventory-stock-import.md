@@ -1,30 +1,88 @@
 # Inventory stock import (KAN-306)
 
-Use this template to load real test catalog + stock into Nexolia before reviewing **Gestionar stock**, **Ventas**, and **Lotes**.
+Plantilla en español para cargar catálogo y stock real en Nexolia antes de revisar **Gestionar stock**, **Ventas** y **Lotes**.
 
-## Template
+## Plantilla
 
-Download/copy:
+Descargá o copiá:
 
 - `docs/templates/nexolia-stock-import-template.csv`
 
-Open in Excel or Google Sheets and save as `.xlsx` if you prefer. Column headers must stay unchanged.
+Abrila en Excel o Google Sheets. **No cambies los nombres de las columnas** (primera fila).
 
-| Column | Required | Description |
+### Columnas
+
+| Columna | Obligatoria | Descripción | Campo en base de datos |
+| --- | --- | --- | --- |
+| `nombre_producto` | Sí | Nombre visible del producto | `products.name` |
+| `categoria` | No | Rubro (ej. `Almacén`) | `products.metadata.categoria` |
+| `tipo_producto` | No | `producto` (default) o `subproducto` | `products.metadata.tipo_producto` + `parent_product_id` |
+| `producto_base` | Condicional | Nombre del producto base | `products.parent_product_id` |
+| `proveedor` | No | Proveedor o marca | `products.metadata.proveedor`, `inventory_lots.supplier_reference` |
+| `notas` | No | Observaciones internas del comercio | `products.description` |
+| `sucursal` | Sí* | Nombre de la sucursal en Nexolia | `inventory_items.business_center_id`, `inventory_lots.business_center_id` |
+| `unidad` | Sí | Unidad de stock (ej. `kg`, `paquete`) | `products.base_unit_code`, `inventory_items.unit_code` |
+| `precio_costo` | Sí | Costo de compra en pesos enteros | `products.metadata.precio_costo_cents`, `inventory_lots.unit_cost_cents` (con lote) |
+| `precio_venta` | Sí | Precio de venta en pesos enteros | `products.unit_price_cents` |
+| `cantidad_stock` | Sí | Stock actual en esa sucursal | `inventory_items.quantity_on_hand` |
+| `umbral_reorden` | Sí | Alerta de bajo stock | `inventory_items.reorder_threshold` |
+| `lote_fecha` | No | Fecha del lote `dd/mm/aaaa` | `inventory_lots.received_at` + código generado |
+| `fecha_vencimiento` | No | Vencimiento `dd/mm/aaaa` | `inventory_lots.expires_at` |
+
+\* `sucursal` puede omitirse solo si pasás `--business-center-id` al comando (usa esa sucursal para todas las filas).
+
+### SKU (código interno)
+
+No va en la plantilla. El sistema genera un SKU único por organización a partir del nombre.
+
+### Sucursal
+
+El valor debe coincidir con el **nombre** (o `code`) de una sucursal activa en Nexolia, por ejemplo `Main` para la sucursal por defecto. Una misma planilla puede cargar stock en varias sucursales usando filas con distinto valor en `sucursal`.
+
+### Precio de venta vs costo
+
+- **`precio_venta`** → precio al cliente (`products.unit_price_cents`).
+- **`precio_costo`** → costo de compra. Se guarda en `products.metadata.precio_costo_cents` para el cálculo de margen en la UI, y también en `inventory_lots.unit_cost_cents` cuando cargás `lote_fecha`.
+
+Ejemplo mockup: costo `$1.250 / kg`, venta `$1.900 / kg` → `precio_costo=1250`, `precio_venta=1900`.
+
+### Lotes
+
+Cada fila del CSV puede representar **un lote distinto**, incluso si `nombre_producto` se repite (ej. dos ingresos de leche con fechas distintas).
+
+- **`lote_fecha`** en la fila → crea un lote con código `LOT-AAAAMMDD` (sufijo `-02`, `-03` si se repite producto + fecha).
+- **`cantidad_stock`** en filas repetidas **se suma** en el stock de la sucursal (30 + 30 = 60).
+- **`subproducto` sin `lote_fecha`** → hereda fecha, vencimiento y costo del lote más reciente del `producto_base` en la misma sucursal.
+- **`precio_venta` vacío** en productos granel → se importa en $0; podés editarlo después en la app.
+
+### Producto vs subproducto
+
+| `tipo_producto` | Cuándo | `producto_base` |
 | --- | --- | --- |
-| `sku` | Yes | Unique SKU per organization |
-| `product_name` | Yes | Display name |
-| `description` | No | Product description |
-| `unit_code` | Yes | e.g. `kg`, `unit`, `botella` |
-| `unit_price_ars` | Yes | Price in whole pesos (no cents column) |
-| `quantity_on_hand` | Yes | Current stock for the active business center |
-| `reorder_threshold` | Yes | Low-stock alert threshold |
-| `lot_code` | No | Optional lot identifier |
-| `expires_at` | No | `YYYY-MM-DD` expiry for optional lot row |
+| `producto` | Ítem principal o vendible | Vacío |
+| `subproducto` | Presentación derivada | Nombre exacto del producto base |
 
-## Import command
+Importá productos base antes que subproductos. El script ordena automáticamente.
 
-From repo root, with Supabase service role env vars set:
+## Columnas extra (no en la plantilla)
+
+El importador acepta columnas adicionales si las necesitás más adelante:
+
+| Columna | Campo destino |
+| --- | --- |
+| `codigo_barras` | `products.metadata.codigo_barras` |
+
+## Comando de importación
+
+Desde la raíz del repo:
+
+```bash
+node scripts/import-stock-csv.mjs \
+  --organization-id <ORG_UUID> \
+  --file docs/templates/nexolia-stock-import-template.csv
+```
+
+Opcional: sucursal por defecto para filas sin `sucursal`:
 
 ```bash
 node scripts/import-stock-csv.mjs \
@@ -33,15 +91,13 @@ node scripts/import-stock-csv.mjs \
   --file docs/templates/nexolia-stock-import-template.csv
 ```
 
-Required env:
+Variables requeridas:
 
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY`
 
-The script upserts `products` by `(organization_id, sku)` and upserts `inventory_items` for the given business center. Optional lot rows create `inventory_lots` when `lot_code` is present.
+## Después de importar
 
-## After import
-
-1. Refresh the mobile app home metrics (**Productos con bajo stock**).
-2. Open **Gestionar stock** and confirm quantities.
-3. Exercise **Ventas** and **Lotes** flows with the imported SKUs.
+1. Refrescá la app y revisá **Productos con bajo stock** en Inicio.
+2. Abrí **Gestionar stock** por sucursal y confirmá cantidades y precios.
+3. Probá **Ventas** y **Lotes** con los productos importados.

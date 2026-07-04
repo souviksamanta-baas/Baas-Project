@@ -3,6 +3,7 @@ import { useEffect, useState, type ReactElement } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 
 import { branches, ownerProfile } from '../../src/api/mockData';
+import { MobileOverlayProvider } from '../../src/components/MobileContainedModal';
 import { AppHeader, BottomNavigation } from '../../src/components/ui';
 import type { AppTab } from '../../src/components/ui';
 import { useOwnerSessionContext } from '../../src/context/OwnerSessionProvider';
@@ -73,9 +74,11 @@ export default function AppLayout(): ReactElement {
         onToggleBranches={() => setShowBranches((current) => !current)}
         showBranches={showBranches}
       />
-      <View style={styles.content}>
-        <Slot />
-      </View>
+      <MobileOverlayProvider>
+        <View style={styles.content}>
+          <Slot />
+        </View>
+      </MobileOverlayProvider>
       {hideBottomNav ? null : (
         <BottomNavigation activeTab={activeTab} onOpenSell={openSellProducts} onSelectTab={selectTab} />
       )}

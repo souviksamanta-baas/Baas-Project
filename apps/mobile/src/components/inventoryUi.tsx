@@ -46,9 +46,18 @@ export function InventoryScreenTitle(props: {
   );
 }
 
-export function SearchFilterRow(): ReactElement {
+export function SearchFilterRow(props: {
+  onChangeText?: (text: string) => void;
+  searchValue?: string;
+}): ReactElement {
   return (
-    <SearchActionRow placeholder="Buscar por producto o categoria" showCamera showFilter />
+    <SearchActionRow
+      onChangeText={props.onChangeText}
+      placeholder="Buscar por producto o categoria"
+      searchValue={props.searchValue}
+      showCamera
+      showFilter
+    />
   );
 }
 
@@ -69,13 +78,35 @@ export function StockBadge(props: { label: string; tone?: StockTone | 'neutral' 
 
 export function ProductSummaryCard(props: {
   badge?: string;
+  category?: string;
   changePhoto?: boolean;
   linkedTo?: string;
+  meta?: {
+    branch?: string;
+    code?: string;
+    cost?: string;
+    margin?: string;
+    price?: string;
+    sku?: string;
+    unit?: string;
+  };
   showBarcode?: boolean;
   showMeta?: boolean;
+  statusLabel?: string;
+  statusTone?: StockTone | 'neutral';
   stock?: string;
   title: string;
 }): ReactElement {
+  const meta = props.meta ?? {
+    branch: 'Sucursal Centro',
+    code: '7791234567890',
+    cost: '$1.250 / kg',
+    margin: '34%',
+    price: '$1.900 / kg',
+    sku: 'HAR-GRAN-100KG',
+    unit: 'kg',
+  };
+
   return (
     <View style={styles.summaryCard}>
       <View style={styles.summaryTop}>
@@ -89,12 +120,12 @@ export function ProductSummaryCard(props: {
         </View>
         <View style={styles.flex}>
           <Text style={styles.summaryName}>{props.title}</Text>
-          <Text style={styles.summaryCategory}>Almacen</Text>
+          <Text style={styles.summaryCategory}>{props.category ?? 'Almacen'}</Text>
           {props.linkedTo ? <Text style={styles.linkedText}>Vinculado a: {props.linkedTo}</Text> : null}
           {props.badge ? (
             <Badge icon="box" label={props.badge} tone="blue" />
           ) : (
-            <StockBadge label="En stock" />
+            <StockBadge label={props.statusLabel ?? 'En stock'} tone={props.statusTone} />
           )}
         </View>
         {props.stock ? (
@@ -111,14 +142,14 @@ export function ProductSummaryCard(props: {
       </View>
       {props.showMeta ? (
         <View style={styles.metaGrid}>
-          <MetaItem label="Codigo" value="7791234567890" />
-          <MetaItem label="Precio de venta" value="$1.900 / kg" />
+          <MetaItem label="Codigo" value={meta.code ?? '—'} />
+          <MetaItem label="Precio de venta" value={meta.price ?? '—'} />
           <MetaItem label="Tipo de codigo" value="Codigo de barras" />
-          <MetaItem label="Costo" value="$1.250 / kg" />
-          <MetaItem label="SKU" value="HAR-GRAN-100KG" />
-          <MetaItem label="Margen" value="34%" />
-          <MetaItem label="Unidad" value="kg" />
-          <MetaItem label="Sucursal" value="Sucursal Centro" />
+          <MetaItem label="Costo" value={meta.cost ?? '—'} />
+          <MetaItem label="SKU" value={meta.sku ?? '—'} />
+          <MetaItem label="Margen" value={meta.margin ?? '—'} />
+          <MetaItem label="Unidad" value={meta.unit ?? '—'} />
+          <MetaItem label="Sucursal" value={meta.branch ?? '—'} />
         </View>
       ) : null}
     </View>
@@ -257,12 +288,37 @@ export function SectionCard(props: { children: ReactNode; title?: string; subtit
   );
 }
 
-export function RowActions(): ReactElement {
+export function RowActions(props: {
+  onAddStock?: () => void;
+  onDelete?: () => void;
+  onEdit?: () => void;
+}): ReactElement {
   return (
     <View style={styles.rowActions}>
-      <Icon color={colors.info} kind="edit" size={15} strokeWidth={2} />
-      <Icon color={colors.danger} kind="trash" size={15} strokeWidth={1.8} />
-      <Icon color={colors.primary} kind="plus" size={17} strokeWidth={2} />
+      <Pressable
+        accessibilityLabel="Editar producto"
+        hitSlop={8}
+        onPress={props.onEdit}
+        style={styles.rowActionButton}
+      >
+        <Icon color={colors.info} kind="edit" size={15} strokeWidth={2} />
+      </Pressable>
+      <Pressable
+        accessibilityLabel="Eliminar producto"
+        hitSlop={8}
+        onPress={props.onDelete}
+        style={styles.rowActionButton}
+      >
+        <Icon color={colors.danger} kind="trash" size={15} strokeWidth={1.8} />
+      </Pressable>
+      <Pressable
+        accessibilityLabel="Agregar stock"
+        hitSlop={8}
+        onPress={props.onAddStock}
+        style={styles.rowActionButton}
+      >
+        <Icon color={colors.primary} kind="plus" size={17} strokeWidth={2} />
+      </Pressable>
     </View>
   );
 }
@@ -348,7 +404,11 @@ export function CodeTypeIcon(props: { code: string; tone?: 'red'; small?: boolea
   return <Icon color={iconColor} kind={iconKind} size={size} strokeWidth={1} />;
 }
 
-export function LinkedSubproductRow(props: { name: string; onPress?: () => void }): ReactElement {
+export function LinkedSubproductRow(props: {
+  name: string;
+  onEditPress?: () => void;
+  onPress?: () => void;
+}): ReactElement {
   return (
     <Pressable onPress={props.onPress} style={styles.linkedSubproductRow}>
       <ProductThumb />
@@ -356,11 +416,16 @@ export function LinkedSubproductRow(props: { name: string; onPress?: () => void 
         <Text style={styles.linkedSubproductName}>{props.name}</Text>
         <Text style={styles.linkedSubproductMeta}>Usa stock del producto base</Text>
       </View>
-      <View style={styles.linkedSubproductAction}>
-        <Icon color={colors.primary} kind="edit" size={12} strokeWidth={2} />
-        <Text style={styles.linkedSubproductActionText}>Editar</Text>
-        <Icon color={colors.primary} kind="chevron-right" size={12} strokeWidth={2.2} />
-      </View>
+      <Pressable
+        onPress={(event) => {
+          event.stopPropagation?.();
+          props.onEditPress?.();
+        }}
+        style={styles.linkedSubproductAction}
+      >
+        <Icon color={colors.info} kind="edit" size={12} strokeWidth={2} />
+        <Text style={[styles.linkedSubproductActionText, styles.linkedSubproductEditText]}>Editar</Text>
+      </Pressable>
     </Pressable>
   );
 }
@@ -820,9 +885,11 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   linkedSubproductActionText: {
-    color: colors.primary,
     fontSize: 10,
     fontWeight: '600',
+  },
+  linkedSubproductEditText: {
+    color: colors.info,
   },
   linkedSubproductMeta: {
     color: colors.slate,
@@ -1031,6 +1098,10 @@ const styles = StyleSheet.create({
     flexShrink: 0,
     gap: 8,
   },
+  rowActionButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   searchInput: {
     alignItems: 'center',
     backgroundColor: colors.surface,
@@ -1065,7 +1136,7 @@ const styles = StyleSheet.create({
   },
   sectionCardBody: {
     gap: 8,
-    paddingBottom: 2,
+    paddingBottom: 10,
   },
   sectionCardSubtitle: {
     color: colors.slate,

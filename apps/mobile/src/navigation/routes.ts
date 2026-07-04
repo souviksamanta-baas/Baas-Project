@@ -44,8 +44,39 @@ export function productDetailRoute(productId: string): string {
   return `/(app)/inventory/product/${productId}`;
 }
 
-export function productEditRoute(productId: string): string {
-  return `/(app)/inventory/product/${productId}/edit`;
+export type InventoryReturnTo = 'manage-stock' | 'product-detail';
+
+export function parseInventoryReturnTo(
+  value: string | string[] | undefined,
+): InventoryReturnTo | undefined {
+  const raw = Array.isArray(value) ? value[0] : value;
+
+  if (raw === 'manage-stock' || raw === 'product-detail') {
+    return raw;
+  }
+
+  return undefined;
+}
+
+export function resolveInventoryReturnRoute(
+  returnTo: InventoryReturnTo | undefined,
+  productId: string,
+): string {
+  if (returnTo === 'product-detail') {
+    return productDetailRoute(productId);
+  }
+
+  return routes.inventoryManageStock;
+}
+
+export function productEditRoute(productId: string, returnTo?: InventoryReturnTo): string {
+  const path = `/(app)/inventory/product/${productId}/edit`;
+
+  if (!returnTo) {
+    return path;
+  }
+
+  return `${path}?returnTo=${returnTo}`;
 }
 
 export function productAddStockRoute(productId: string): string {
@@ -56,8 +87,46 @@ export function productDeleteRoute(productId: string): string {
   return `/(app)/inventory/product/${productId}/delete`;
 }
 
-export function subproductEditRoute(subproductId: string): string {
-  return `/(app)/inventory/subproduct/${subproductId}/edit`;
+export type SubproductReturnTo = 'manage-stock' | 'product-detail' | 'product-edit';
+
+export function parseSubproductReturnTo(
+  value: string | string[] | undefined,
+): SubproductReturnTo | undefined {
+  const raw = Array.isArray(value) ? value[0] : value;
+
+  if (raw === 'manage-stock' || raw === 'product-detail' || raw === 'product-edit') {
+    return raw;
+  }
+
+  return undefined;
+}
+
+export function resolveSubproductReturnRoute(
+  returnTo: SubproductReturnTo | undefined,
+  parentProductId: string,
+): string {
+  switch (returnTo) {
+    case 'product-edit':
+      return productEditRoute(parentProductId, 'product-detail');
+    case 'manage-stock':
+      return routes.inventoryManageStock;
+    case 'product-detail':
+    default:
+      return productDetailRoute(parentProductId);
+  }
+}
+
+export function subproductEditRoute(
+  subproductId: string,
+  returnTo?: SubproductReturnTo,
+): string {
+  const path = `/(app)/inventory/subproduct/${subproductId}/edit`;
+
+  if (!returnTo) {
+    return path;
+  }
+
+  return `${path}?returnTo=${returnTo}`;
 }
 
 export function getActiveTab(pathname: string): AppTab {

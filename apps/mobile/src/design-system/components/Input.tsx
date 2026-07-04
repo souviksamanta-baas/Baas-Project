@@ -78,6 +78,7 @@ export function TextField(props: TextFieldProps): ReactElement {
           focused && styles.inputFocused,
           error && styles.inputError,
           inputProps.multiline && styles.inputMultiline,
+          Platform.OS === 'web' && styles.inputWeb,
         ]}
         {...inputProps}
       />
@@ -343,7 +344,12 @@ const styles = StyleSheet.create({
   },
   inputMultiline: {
     minHeight: 80,
+    paddingBottom: spacing.sm,
     textAlignVertical: 'top',
+  },
+  inputWeb: {
+    outlineStyle: 'solid',
+    outlineWidth: 0,
   },
   labelCompact: {
     fontSize: 11,

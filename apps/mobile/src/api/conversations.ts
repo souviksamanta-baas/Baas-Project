@@ -1,3 +1,4 @@
+import { removeExistingRealtimeChannel } from '../lib/realtime';
 import { supabase } from '../lib/supabase';
 import type { InboxConversationSummary, WhatsAppMessagePreview } from '../types/messages';
 import type { ConversationChannel } from '../types/messages';
@@ -97,16 +98,6 @@ export async function getConversationMessages(
   }
 
   return (data as ConversationMessageRow[]).map(toWhatsAppMessagePreview);
-}
-
-function removeExistingRealtimeChannel(channelName: string): void {
-  const topic = `realtime:${channelName}`;
-
-  for (const channel of supabase.getChannels()) {
-    if (channel.topic === topic) {
-      void supabase.removeChannel(channel);
-    }
-  }
 }
 
 export function subscribeToConversationMessages(

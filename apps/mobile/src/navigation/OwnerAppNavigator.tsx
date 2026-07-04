@@ -2,6 +2,7 @@ import { useMemo, useState, type ReactElement } from 'react';
 import { Platform, ScrollView, StyleSheet, View } from 'react-native';
 
 import { branches, conversations, ownerProfile } from '../api/mockData';
+import { baseProduct } from '../api/inventoryMockData';
 import { AppHeader, BottomNavigation } from '../components/ui';
 import type { AppTab } from '../components/ui';
 import { AccountScreen } from '../screens/AccountScreen';
@@ -23,6 +24,8 @@ import { NotificationsScreen } from '../screens/NotificationsScreen';
 import { useOwnerCopilot } from '../hooks/useOwnerCopilot';
 import type { InboxConversationSummary } from '../types/messages';
 import type { OwnerDashboard } from '../types/dashboard';
+import type { Product } from '../types/products';
+import { DEFAULT_BASE_PRODUCT_ID } from './routes';
 import { colors } from '../theme';
 
 const legacyWhatsAppConnection: OwnerDashboard['whatsappConnection'] = {
@@ -70,12 +73,40 @@ export type InventoryRoute =
 
 type OwnerRoute = AppTab | 'account' | 'copi-chat' | 'conversation' | 'notifications' | InventoryRoute;
 
+const legacyEditProduct: Product = {
+  baseUnitCode: 'kg',
+  category: baseProduct.category,
+  currency: 'USD',
+  description: baseProduct.notes,
+  id: DEFAULT_BASE_PRODUCT_ID,
+  inventoryItemId: null,
+  isActive: true,
+  isLowStock: false,
+  metadata: {
+    categoria: baseProduct.category,
+    estado: 'en_stock',
+    margen_pct: 34,
+    precio_costo_cents: 125000,
+  },
+  name: baseProduct.name,
+  organizationId: 'legacy',
+  parentProductId: null,
+  productType: null,
+  reorderThreshold: 0,
+  sku: baseProduct.sku,
+  stockQuantity: 100,
+  unitCode: 'kg',
+  unitPriceCents: 190000,
+};
+
 export function OwnerAppNavigator(props: { onSignOut: () => void }): ReactElement {
   const [route, setRoute] = useState<OwnerRoute>('home');
   const [activeTab, setActiveTab] = useState<AppTab>('home');
   const [selectedConversationId, setSelectedConversationId] = useState(conversations[0].id);
   const [showBranches, setShowBranches] = useState(false);
   const [copiDraft, setCopiDraft] = useState('');
+  const [selectedProductId, setSelectedProductId] = useState(DEFAULT_BASE_PRODUCT_ID);
+  const [selectedSubproductId, setSelectedSubproductId] = useState('s1');
   const legacyCopilot = useOwnerCopilot(null);
 
   const selectedConversation = useMemo(
@@ -88,10 +119,21 @@ export function OwnerAppNavigator(props: { onSignOut: () => void }): ReactElemen
     onOpenConfirmPayment: () => setRoute('confirm-payment'),
     onOpenDeleteProduct: () => setRoute('delete-product'),
     onOpenEditProduct: () => setRoute('edit-product'),
-    onOpenEditSubproduct: (subproductId: string) => setRoute('edit-subproduct'),
-    onOpenProductDetail: (_productId: string) => setRoute('product-detail'),
+    onOpenEditSubproduct: (subproductId: string) => {
+      setSelectedSubproductId(subproductId);
+      setRoute('edit-subproduct');
+    },
+    onOpenProductDetail: (productId: string) => {
+      setSelectedProductId(productId);
+      setRoute('product-detail');
+    },
     onOpenSellProducts: () => setRoute('sell-products'),
   };
+
+  function openProductFlow(productId: string, nextRoute: InventoryRoute): void {
+    setSelectedProductId(productId);
+    setRoute(nextRoute);
+  }
 
   function selectTab(tab: AppTab): void {
     setActiveTab(tab);
@@ -118,19 +160,58 @@ export function OwnerAppNavigator(props: { onSignOut: () => void }): ReactElemen
   function renderInventoryScreen(): ReactElement | null {
     switch (route) {
       case 'manage-stock':
-        return <ManageStockScreen {...inventoryNav} />;
+        return (
+          <ManageStockScreen
+            onAddStockProduct={(productId) => openProductFlow(productId, 'add-stock')}
+            onDeleteProduct={(productId) => openProductFlow(productId, 'delete-product')}
+            onEditProduct={(productId) => openProductFlow(productId, 'edit-product')}
+            onOpenProductDetail={(productId) => openProductFlow(productId, 'product-detail')}
+          />
+        );
       case 'product-detail':
         return <ProductDetailScreen {...inventoryNav} onBack={() => setRoute('manage-stock')} />;
       case 'edit-product':
-        return <EditProductScreen {...inventoryNav} onBack={() => setRoute('product-detail')} />;
+        return (
+          <EditProductScreen
+            businessCenterId="legacy"
+            businessCenters={[{ id: 'legacy', name: ownerProfile.activeBranch }]}
+            categories={[baseProduct.category]}
+            onBack={() => setRoute('manage-stock')}
+            onOpenDeleteProduct={() => setRoute('delete-product')}
+            onOpenEditSubproduct={() => setRoute('edit-subproduct')}
+            onOpenSubproductDetail={() => setRoute('product-detail')}
+            onSave={async () => {
+              setRoute('manage-stock');
+            }}
+            product={{ ...legacyEditProduct, id: selectedProductId }}
+            subproducts={[]}
+          />
+        );
       case 'edit-subproduct':
-        return <EditSubproductScreen onBack={() => setRoute('product-detail')} />;
+        return (
+          <EditSubproductScreen
+            businessCenterId="legacy"
+            businessCenters={[{ id: 'legacy', name: ownerProfile.activeBranch }]}
+            categories={[baseProduct.category]}
+            onBack={() => setRoute('product-detail')}
+            onSave={async () => {
+              setRoute('product-detail');
+            }}
+            parentProduct={{ ...legacyEditProduct, id: selectedProductId }}
+            subproduct={{
+              ...legacyEditProduct,
+              id: 'legacy-subproduct',
+              name: 'Harina 1 kg',
+              parentProductId: selectedProductId,
+            }}
+          />
+        );
       case 'add-stock':
-        return <AddStockScreen onBack={() => setRoute('product-detail')} />;
+        return <AddStockScreen onBack={() => setRoute('manage-stock')} />;
       case 'delete-product':
-        return <DeleteProductScreen onBack={() => setRoute('product-detail')} />;
+        return <DeleteProductScreen onBack={() => setRoute('manage-stock')} />;
       case 'sell-products':
-        return <SellProductsScreen {...inventoryNav} />;
+        return <SellProductsScreen onOpenConfirmPayment={() => setRoute('confirm-payment')} />;
       case 'confirm-payment':
         return <ConfirmPaymentScreen onBack={() => setRoute('sell-products')} />;
       default:
