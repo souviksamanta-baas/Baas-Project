@@ -9,7 +9,7 @@ function voiceFilenameForMime(mimeType: string): string {
     return 'voice.m4a';
   }
   if (normalized.includes('caf')) {
-    return 'voice.caf';
+    return 'voice.m4a';
   }
   if (normalized.includes('wav')) {
     return 'voice.wav';

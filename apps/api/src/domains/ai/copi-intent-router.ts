@@ -1,12 +1,25 @@
 import type { CopiToolName } from './copi.types';
 
-const SALES_PATTERN = /\b(sale|sales|venta|ventas|factur|ingreso|cobr|vend[ií])\b/;
+const SALES_PATTERN =
+  /\b(sale|sales|venta|ventas|factur|ingreso|cobr|vend(?:i|í|e|é|o|ó|a|á|imos|iste|ieron|iendo|ido|ida|idas|idos)?)\b/;
 const MESSAGE_PATTERN = /\b(message|messages|chat|chats|inbox|mensaje|mensajes)\b/;
+const ATTENTION_PATTERN = /\b(atencion|attention|prioridad|resumen del dia|resumen del día)\b/;
+
+export function normalizeCopiQuestion(question: string): string {
+  return question
+    .toLocaleLowerCase()
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '');
+}
 
 export function selectCopiTools(question: string): CopiToolName[] {
-  const normalized = question.toLocaleLowerCase();
+  const normalized = normalizeCopiQuestion(question);
   const tools = new Set<CopiToolName>();
-  const asksSales = SALES_PATTERN.test(normalized);
+  const asksSales =
+    SALES_PATTERN.test(normalized) ||
+    (/\b(lista|detalle|detallado|productos?|items?|precios?|total)\b/.test(normalized) &&
+      /\b(ayer|hoy|semana)\b/.test(normalized) &&
+      /\bvend/.test(normalized));
   const asksMessages = MESSAGE_PATTERN.test(normalized);
 
   if (asksSales) {
@@ -38,7 +51,7 @@ export function selectCopiTools(question: string): CopiToolName[] {
     tools.add('pending_ai_drafts');
   }
 
-  if (/\b(atencion|attention|prioridad|resumen|resumen del dia)\b/.test(normalized)) {
+  if (ATTENTION_PATTERN.test(normalized)) {
     tools.add('attention_summary');
   }
 
@@ -74,8 +87,13 @@ export function selectCopiTools(question: string): CopiToolName[] {
 }
 
 export function detectProActionIntent(question: string): boolean {
-  const normalized = question.toLocaleLowerCase();
-  return /\b(crea|crear|creá|asign|assign|marcá|marca|complet|cancel|pospon|snooze|recordá|recordar)\b/.test(
+  const normalized = normalizeCopiQuestion(question);
+  return /\b(crea|crear|crea|asign|assign|marca|marcar|complet|cancel|pospon|snooze|recorda|recordar)\b/.test(
     normalized,
   );
+}
+
+export function wantsDetailedSalesList(question: string): boolean {
+  const normalized = normalizeCopiQuestion(question);
+  return /\b(lista|detalle|detallado|productos?|items?|precios?|total)\b/.test(normalized);
 }

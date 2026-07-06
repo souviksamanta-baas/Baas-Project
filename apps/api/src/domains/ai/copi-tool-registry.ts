@@ -4,6 +4,7 @@ import { InventoryService } from '../inventory/inventory.service';
 import { TasksService } from '../tasks/tasks.service';
 import { SupabaseService } from '../../supabase/supabase.service';
 import { getZonedDayBounds, normalizeTimeZone } from './copi-timezone.util';
+import { wantsDetailedSalesList } from './copi-intent-router';
 import type { CopiQueryContext, CopiToolName, CopiToolResult } from './copi.types';
 
 interface MessageRow {
@@ -170,15 +171,41 @@ export class CopiToolRegistry {
   ): Promise<Omit<CopiToolResult, 'key'>> {
     const timeZone = normalizeTimeZone(context.timezone);
     const { end, start } = getZonedDayBounds(context.now, timeZone, dayOffset);
-    const { rows, totalCents } = await this.loadSaleMovements(context, start, end);
+    const { items, rows, totalCents } = await this.loadSaleMovements(context, start, end);
+    const wantsDetail = wantsDetailedSalesList(context.question);
 
     return {
-      payload: { dayOffset, period: label, saleCount: rows.length, salesCents: totalCents },
-      summary:
-        rows.length === 0
-          ? `Ventas de ${label}: no hay movimientos registrados.`
-          : `Ventas de ${label}: ${rows.length} movimiento(s), aprox. $${this.formatCents(totalCents)} en valor.`,
+      payload: { dayOffset, items, period: label, saleCount: rows.length, salesCents: totalCents },
+      summary: this.buildSalesDaySummary({ items, label, saleCount: rows.length, totalCents, wantsDetail }),
     };
+  }
+
+  private buildSalesDaySummary(params: {
+    items: Array<{
+      lineTotalCents: number;
+      name: string;
+      quantity: number;
+      unitPriceCents: number;
+    }>;
+    label: 'hoy' | 'ayer';
+    saleCount: number;
+    totalCents: number;
+    wantsDetail: boolean;
+  }): string {
+    if (params.saleCount === 0) {
+      return `Ventas de ${params.label}: no hay movimientos registrados.`;
+    }
+
+    if (!params.wantsDetail) {
+      return `Ventas de ${params.label}: ${params.saleCount} movimiento(s), aprox. $${this.formatCents(params.totalCents)} en valor.`;
+    }
+
+    const lines = params.items.map(
+      (item, index) =>
+        `${index + 1}. ${item.name} — ${item.quantity} u. × $${this.formatCents(item.unitPriceCents)} = $${this.formatCents(item.lineTotalCents)}`,
+    );
+
+    return [`Ventas de ${params.label}:`, ...lines, '', `Total: $${this.formatCents(params.totalCents)}`].join('\n');
   }
 
   private formatCents(cents: number): string {
@@ -190,6 +217,13 @@ export class CopiToolRegistry {
     rangeStart: Date,
     rangeEnd: Date,
   ): Promise<{
+    items: Array<{
+      createdAt: string;
+      lineTotalCents: number;
+      name: string;
+      quantity: number;
+      unitPriceCents: number;
+    }>;
     rows: Array<{
       created_at: string;
       quantity_delta: number;
@@ -220,12 +254,30 @@ export class CopiToolRegistry {
     }>;
 
     let totalCents = 0;
+    const items: Array<{
+      createdAt: string;
+      lineTotalCents: number;
+      name: string;
+      quantity: number;
+      unitPriceCents: number;
+    }> = [];
+
     for (const row of rows) {
       const product = Array.isArray(row.products) ? row.products[0] : row.products;
-      totalCents += Math.round(Math.abs(Number(row.quantity_delta)) * (product?.unit_price_cents ?? 0));
+      const quantity = Math.abs(Number(row.quantity_delta));
+      const unitPriceCents = product?.unit_price_cents ?? 0;
+      const lineTotalCents = Math.round(quantity * unitPriceCents);
+      totalCents += lineTotalCents;
+      items.push({
+        createdAt: row.created_at,
+        lineTotalCents,
+        name: product?.name ?? 'Producto sin nombre',
+        quantity,
+        unitPriceCents,
+      });
     }
 
-    return { rows, totalCents };
+    return { items, rows, totalCents };
   }
 
   private async openConversations(context: CopiQueryContext): Promise<Omit<CopiToolResult, 'key'>> {

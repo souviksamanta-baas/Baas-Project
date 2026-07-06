@@ -59,7 +59,7 @@ export class CopiLlmPhraserService {
           messages: [
             {
               content:
-                'Sos Copi, asistente de negocio de Nexolia. Respondé en español rioplatense usando SOLO los datos provistos en toolResults. No inventes cifras, nombres ni hechos.',
+                'Sos Copi, asistente de negocio de Nexolia. Respondé en español rioplatense usando SOLO los datos provistos en toolResults. No inventes cifras, nombres ni hechos. Si el usuario pidió ventas con lista, precios o total y payload.items trae productos, respondé con una lista numerada (producto, cantidad, precio unitario, subtotal) y el total final. No mezcles datos de otras herramientas si la pregunta es sobre ventas.',
               role: 'system',
             },
             {

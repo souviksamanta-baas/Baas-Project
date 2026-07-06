@@ -7,7 +7,33 @@ import { analyzeCopiVision, transcribeCopiVoice } from '../api/ai';
 
 type RecordingRef = Audio.Recording | null;
 
-const MIN_AUDIO_BYTES = 1000;
+const MIN_AUDIO_BYTES = 400;
+
+const COPI_RECORDING_OPTIONS: Audio.RecordingOptions = {
+  android: {
+    audioEncoder: Audio.AndroidAudioEncoder.AAC,
+    bitRate: 128000,
+    extension: '.m4a',
+    numberOfChannels: 1,
+    outputFormat: Audio.AndroidOutputFormat.MPEG_4,
+    sampleRate: 44100,
+  },
+  ios: {
+    audioQuality: Audio.IOSAudioQuality.HIGH,
+    bitRate: 128000,
+    extension: '.m4a',
+    linearPCMBitDepth: 16,
+    linearPCMIsBigEndian: false,
+    linearPCMIsFloat: false,
+    numberOfChannels: 1,
+    outputFormat: Audio.IOSOutputFormat.MPEG4AAC,
+    sampleRate: 44100,
+  },
+  web: {
+    bitsPerSecond: 128000,
+    mimeType: 'audio/webm',
+  },
+};
 
 async function blobToBase64(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -61,6 +87,33 @@ function pickWebRecorderMimeType(): string {
     return 'audio/mp4';
   }
   return 'audio/webm';
+}
+
+async function readAudioBlob(uri: string): Promise<Blob> {
+  const response = await fetch(uri);
+  if (!response.ok) {
+    throw new Error('No se pudo leer la grabación de voz.');
+  }
+
+  const blob = await response.blob();
+  if (blob.size > 0) {
+    return blob;
+  }
+
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.onload = () => {
+      if (xhr.response instanceof Blob && xhr.response.size > 0) {
+        resolve(xhr.response);
+        return;
+      }
+      reject(new Error('La grabación de voz quedó vacía.'));
+    };
+    xhr.onerror = () => reject(new Error('No se pudo leer la grabación de voz.'));
+    xhr.responseType = 'blob';
+    xhr.open('GET', uri);
+    xhr.send();
+  });
 }
 
 export function useCopiMediaActions(params: {
@@ -240,8 +293,7 @@ export function useCopiMediaActions(params: {
         return;
       }
 
-      const response = await fetch(uri);
-      const blob = await response.blob();
+      const blob = await readAudioBlob(uri);
       const mimeType = guessAudioMimeType(uri, blob.type);
       await deliverVoiceTranscription(blob, mimeType);
     } catch (error) {
@@ -328,7 +380,7 @@ export function useCopiMediaActions(params: {
       });
 
       const recording = new Audio.Recording();
-      await recording.prepareToRecordAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
+      await recording.prepareToRecordAsync(COPI_RECORDING_OPTIONS);
       await recording.startAsync();
       recordingRef.current = recording;
       setIsRecordingVoice(true);
