@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -8,7 +9,10 @@ import {
   Post,
   Query,
   UnauthorizedException,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import {
   ApiBearerAuth,
   ApiBody,
@@ -40,6 +44,13 @@ import { CopiVoiceService } from './copi-voice.service';
 import { OwnerCopilotService, type OwnerCopilotResponse } from './owner-copilot.service';
 import { SalesAiService } from './sales-ai.service';
 import { SupabaseService } from '../../supabase/supabase.service';
+
+interface UploadedAudioFile {
+  buffer: Buffer;
+  mimetype: string;
+  originalname: string;
+  size: number;
+}
 
 @ApiTags('AI')
 @ApiBearerAuth('SupabaseAuth')
@@ -198,6 +209,30 @@ export class AiController {
       audioBase64: body.audioBase64,
       featureFlags: flags,
       mimeType: body.mimeType,
+    });
+  }
+
+  @Post('copilot/voice/upload')
+  @HttpCode(200)
+  @UseInterceptors(FileInterceptor('audio', { limits: { fileSize: 12 * 1024 * 1024 } }))
+  @ApiOperation({ summary: 'Transcribe a Copi voice note from multipart upload' })
+  async transcribeVoiceUpload(
+    @UploadedFile() file: UploadedAudioFile,
+    @Body('organizationId') organizationId: string,
+  ): Promise<{ text: string }> {
+    if (!organizationId?.trim()) {
+      throw new BadRequestException('organizationId is required');
+    }
+
+    if (!file?.buffer?.length) {
+      return { text: '' };
+    }
+
+    const flags = await this.policyService.loadFeatureFlags(organizationId);
+    return this.voiceService.transcribeBuffer({
+      audioBuffer: file.buffer,
+      featureFlags: flags,
+      mimeType: file.mimetype || 'audio/m4a',
     });
   }
 

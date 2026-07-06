@@ -1,7 +1,7 @@
 import { supabase } from '../lib/supabase';
 import type { AiDraft } from '../types/aiDrafts';
 import type { CopilotResponse } from '../types/copilot';
-import { apiFetchAuthJson } from './client';
+import { apiFetchAuthForm, apiFetchAuthJson } from './client';
 
 interface AiDraftRow {
   auto_send_eligible: boolean;
@@ -87,6 +87,35 @@ export async function transcribeCopiVoice(params: {
     body: JSON.stringify(params),
     method: 'POST',
   });
+}
+
+export async function transcribeCopiVoiceFile(params: {
+  mimeType: string;
+  organizationId: string;
+  uri: string;
+}): Promise<{ text: string }> {
+  const form = new FormData();
+  form.append('organizationId', params.organizationId);
+  form.append('audio', {
+    name: 'voice.m4a',
+    type: params.mimeType,
+    uri: params.uri,
+  } as unknown as Blob);
+
+  return apiFetchAuthForm('/ai/copilot/voice/upload', form);
+}
+
+export async function transcribeCopiVoiceBlob(params: {
+  blob: Blob;
+  mimeType: string;
+  organizationId: string;
+}): Promise<{ text: string }> {
+  const form = new FormData();
+  form.append('organizationId', params.organizationId);
+  const extension = params.mimeType.includes('mp4') || params.mimeType.includes('m4a') ? 'm4a' : 'webm';
+  form.append('audio', params.blob, `voice.${extension}`);
+
+  return apiFetchAuthForm('/ai/copilot/voice/upload', form);
 }
 
 export async function analyzeCopiVision(params: {

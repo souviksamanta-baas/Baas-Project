@@ -29,6 +29,19 @@ export class CopiVoiceService {
     featureFlags: CopiFeatureFlags;
     mimeType: string;
   }): Promise<{ text: string }> {
+    const audioBuffer = Buffer.from(params.audioBase64, 'base64');
+    return this.transcribeBuffer({
+      audioBuffer,
+      featureFlags: params.featureFlags,
+      mimeType: params.mimeType,
+    });
+  }
+
+  async transcribeBuffer(params: {
+    audioBuffer: Buffer;
+    featureFlags: CopiFeatureFlags;
+    mimeType: string;
+  }): Promise<{ text: string }> {
     if (!this.policyService.canUseFeature(params.featureFlags, 'copi_voice')) {
       throw new Error('La voz de Copi requiere Copi Pro.');
     }
@@ -38,14 +51,18 @@ export class CopiVoiceService {
       return { text: 'Transcripción de voz no disponible: falta configuración del proveedor.' };
     }
 
-    const audioBuffer = Buffer.from(params.audioBase64, 'base64');
-    if (audioBuffer.length < 1000) {
+    const audioBuffer = params.audioBuffer;
+    if (audioBuffer.length < 400) {
       return { text: '' };
     }
 
     const mimeType = params.mimeType.trim() || 'audio/webm';
     const form = new FormData();
-    form.append('file', new Blob([audioBuffer], { type: mimeType }), voiceFilenameForMime(mimeType));
+    form.append(
+      'file',
+      new Blob([new Uint8Array(audioBuffer)], { type: mimeType }),
+      voiceFilenameForMime(mimeType),
+    );
     form.append('model', 'whisper-1');
     form.append('language', 'es');
 

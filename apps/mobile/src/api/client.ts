@@ -46,13 +46,56 @@ export async function apiFetch(input: RequestInfo | URL, init?: RequestInit): Pr
   }
 }
 
+function parseApiErrorMessage(raw: string): string {
+  const trimmed = raw.trim();
+  if (!trimmed) {
+    return '';
+  }
+
+  try {
+    const parsed = JSON.parse(trimmed) as { message?: string | string[] };
+    if (Array.isArray(parsed.message)) {
+      return parsed.message.join(', ');
+    }
+    if (typeof parsed.message === 'string') {
+      return parsed.message;
+    }
+  } catch {
+    return trimmed;
+  }
+
+  return trimmed;
+}
+
+async function readApiError(response: Response): Promise<string> {
+  const message = await response.text();
+  return parseApiErrorMessage(message) || `Request failed (HTTP ${response.status}).`;
+}
+
 export async function apiFetchJson<T>(path: string, init?: RequestInit): Promise<T> {
   const url = path.startsWith('http') ? path : `${getApiBaseUrl()}${path}`;
   const response = await apiFetch(url, init);
 
   if (!response.ok) {
-    const message = await response.text();
-    throw new Error(message || `Request failed (HTTP ${response.status}).`);
+    throw new Error(await readApiError(response));
+  }
+
+  return (await response.json()) as T;
+}
+
+export async function apiFetchAuthForm<T>(path: string, form: FormData): Promise<T> {
+  const token = await getAccessToken();
+  const url = path.startsWith('http') ? path : `${getApiBaseUrl()}${path}`;
+  const response = await apiFetch(url, {
+    body: form,
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    method: 'POST',
+  });
+
+  if (!response.ok) {
+    throw new Error(await readApiError(response));
   }
 
   return (await response.json()) as T;
