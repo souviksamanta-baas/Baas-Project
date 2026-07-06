@@ -3,6 +3,7 @@ import { Injectable } from '@nestjs/common';
 import { InventoryService } from '../inventory/inventory.service';
 import { TasksService } from '../tasks/tasks.service';
 import { SupabaseService } from '../../supabase/supabase.service';
+import { getZonedDayBounds, normalizeTimeZone } from './copi-timezone.util';
 import type { CopiQueryContext, CopiToolName, CopiToolResult } from './copi.types';
 
 interface MessageRow {
@@ -93,8 +94,8 @@ export class CopiToolRegistry {
   }
 
   private async messagesToday(context: CopiQueryContext): Promise<Omit<CopiToolResult, 'key'>> {
-    const startOfDay = new Date(context.now);
-    startOfDay.setUTCHours(0, 0, 0, 0);
+    const timeZone = normalizeTimeZone(context.timezone);
+    const { start } = getZonedDayBounds(context.now, timeZone, 0);
     const client = this.supabaseService.getServiceRoleClient();
     const { data, error } = await client
       .from('conversation_messages')
@@ -102,7 +103,7 @@ export class CopiToolRegistry {
       .eq('organization_id', context.organizationId)
       .eq('business_center_id', context.businessCenterId)
       .eq('direction', 'inbound')
-      .gte('created_at', startOfDay.toISOString())
+      .gte('created_at', start.toISOString())
       .order('created_at', { ascending: false })
       .limit(10);
 
@@ -167,7 +168,8 @@ export class CopiToolRegistry {
     dayOffset: number,
     label: 'hoy' | 'ayer',
   ): Promise<Omit<CopiToolResult, 'key'>> {
-    const { end, start } = this.dayBoundsUtc(context.now, dayOffset);
+    const timeZone = normalizeTimeZone(context.timezone);
+    const { end, start } = getZonedDayBounds(context.now, timeZone, dayOffset);
     const { rows, totalCents } = await this.loadSaleMovements(context, start, end);
 
     return {
@@ -177,15 +179,6 @@ export class CopiToolRegistry {
           ? `Ventas de ${label}: no hay movimientos registrados.`
           : `Ventas de ${label}: ${rows.length} movimiento(s), aprox. $${this.formatCents(totalCents)} en valor.`,
     };
-  }
-
-  private dayBoundsUtc(reference: Date, dayOffset: number): { end: Date; start: Date } {
-    const start = new Date(reference);
-    start.setUTCDate(start.getUTCDate() + dayOffset);
-    start.setUTCHours(0, 0, 0, 0);
-    const end = new Date(start);
-    end.setUTCDate(end.getUTCDate() + 1);
-    return { end, start };
   }
 
   private formatCents(cents: number): string {

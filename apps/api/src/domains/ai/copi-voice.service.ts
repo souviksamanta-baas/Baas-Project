@@ -3,6 +3,23 @@ import { Injectable } from '@nestjs/common';
 import { CopiPolicyService } from './copi-policy.service';
 import type { CopiFeatureFlags } from './copi.types';
 
+function voiceFilenameForMime(mimeType: string): string {
+  const normalized = mimeType.toLowerCase();
+  if (normalized.includes('m4a') || normalized.includes('mp4')) {
+    return 'voice.m4a';
+  }
+  if (normalized.includes('caf')) {
+    return 'voice.caf';
+  }
+  if (normalized.includes('wav')) {
+    return 'voice.wav';
+  }
+  if (normalized.includes('mpeg') || normalized.includes('mp3')) {
+    return 'voice.mp3';
+  }
+  return 'voice.webm';
+}
+
 @Injectable()
 export class CopiVoiceService {
   constructor(private readonly policyService: CopiPolicyService) {}
@@ -13,7 +30,7 @@ export class CopiVoiceService {
     mimeType: string;
   }): Promise<{ text: string }> {
     if (!this.policyService.canUseFeature(params.featureFlags, 'copi_voice')) {
-      throw new Error('Copi voice requires the copi_voice feature flag');
+      throw new Error('La voz de Copi requiere Copi Pro.');
     }
 
     const apiKey = process.env.OPENAI_API_KEY?.trim();
@@ -22,9 +39,15 @@ export class CopiVoiceService {
     }
 
     const audioBuffer = Buffer.from(params.audioBase64, 'base64');
+    if (audioBuffer.length < 1000) {
+      return { text: '' };
+    }
+
+    const mimeType = params.mimeType.trim() || 'audio/webm';
     const form = new FormData();
-    form.append('file', new Blob([audioBuffer], { type: params.mimeType }), 'voice.webm');
+    form.append('file', new Blob([audioBuffer], { type: mimeType }), voiceFilenameForMime(mimeType));
     form.append('model', 'whisper-1');
+    form.append('language', 'es');
 
     const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
       body: form,
@@ -35,7 +58,8 @@ export class CopiVoiceService {
     });
 
     if (!response.ok) {
-      throw new Error('Failed to transcribe Copi voice note');
+      const errorBody = await response.text();
+      throw new Error(`No se pudo transcribir el audio (${response.status}): ${errorBody.slice(0, 120)}`);
     }
 
     const body = (await response.json()) as { text?: string };

@@ -85,6 +85,7 @@ export interface CopiQueryContext {
   organizationId: string;
   question: string;
   sessionId?: string;
+  timezone: string;
   userId: string;
 }
 

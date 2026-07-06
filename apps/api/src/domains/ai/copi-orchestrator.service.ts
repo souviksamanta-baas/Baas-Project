@@ -43,8 +43,8 @@ export class CopiOrchestratorService {
       return this.buildDeniedResponse(startedAt, 'Copi no está habilitado para esta organización.');
     }
 
-    const businessCenterId =
-      params.businessCenterId ?? (await this.getDefaultBusinessCenterId(params.organizationId));
+    const businessCenter = await this.getBusinessCenter(params.organizationId, params.businessCenterId);
+    const businessCenterId = businessCenter.id;
     const now = params.now ?? new Date();
     const sessionId = await this.sessionService.ensureSession({
       businessCenterId,
@@ -60,6 +60,7 @@ export class CopiOrchestratorService {
       organizationId: params.organizationId,
       question: params.question,
       sessionId,
+      timezone: businessCenter.timezone,
       userId,
     };
 
@@ -150,21 +151,33 @@ export class CopiOrchestratorService {
     };
   }
 
-  private async getDefaultBusinessCenterId(organizationId: string): Promise<string> {
+  private async getBusinessCenter(
+    organizationId: string,
+    businessCenterId?: string,
+  ): Promise<{ id: string; timezone: string }> {
     const client = this.supabaseService.getServiceRoleClient();
-    const { data, error } = await client
+    let query = client
       .from('business_centers')
-      .select('id')
+      .select('id, timezone')
       .eq('organization_id', organizationId)
-      .eq('is_default', true)
-      .eq('is_active', true)
-      .single<{ id: string }>();
+      .eq('is_active', true);
 
-    if (error) {
-      throw new Error(`Failed to load default business center for copilot: ${error.message}`);
+    if (businessCenterId) {
+      query = query.eq('id', businessCenterId);
+    } else {
+      query = query.eq('is_default', true);
     }
 
-    return data.id;
+    const { data, error } = await query.single<{ id: string; timezone: string | null }>();
+
+    if (error) {
+      throw new Error(`Failed to load business center for copilot: ${error.message}`);
+    }
+
+    return {
+      id: data.id,
+      timezone: data.timezone?.trim() || 'America/Argentina/Buenos_Aires',
+    };
   }
 
   private async assertMember(params: {

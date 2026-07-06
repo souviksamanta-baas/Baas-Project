@@ -7,6 +7,8 @@ import { analyzeCopiVision, transcribeCopiVoice } from '../api/ai';
 
 type RecordingRef = Audio.Recording | null;
 
+const MIN_AUDIO_BYTES = 1000;
+
 async function blobToBase64(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -21,6 +23,44 @@ async function blobToBase64(blob: Blob): Promise<string> {
     reader.onerror = () => reject(reader.error ?? new Error('No se pudo leer el archivo'));
     reader.readAsDataURL(blob);
   });
+}
+
+function guessAudioMimeType(uri: string, blobType?: string): string {
+  const normalizedBlobType = blobType?.trim();
+  if (normalizedBlobType) {
+    return normalizedBlobType;
+  }
+
+  const lower = uri.toLowerCase();
+  if (lower.endsWith('.caf')) {
+    return 'audio/x-caf';
+  }
+  if (lower.endsWith('.m4a')) {
+    return 'audio/m4a';
+  }
+  if (lower.endsWith('.webm')) {
+    return 'audio/webm';
+  }
+  if (lower.endsWith('.wav')) {
+    return 'audio/wav';
+  }
+  return 'audio/m4a';
+}
+
+function pickWebRecorderMimeType(): string {
+  if (typeof MediaRecorder === 'undefined') {
+    return 'audio/webm';
+  }
+  if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+    return 'audio/webm;codecs=opus';
+  }
+  if (MediaRecorder.isTypeSupported('audio/webm')) {
+    return 'audio/webm';
+  }
+  if (MediaRecorder.isTypeSupported('audio/mp4')) {
+    return 'audio/mp4';
+  }
+  return 'audio/webm';
 }
 
 export function useCopiMediaActions(params: {
@@ -46,11 +86,57 @@ export function useCopiMediaActions(params: {
   const [isAnalyzingImage, setIsAnalyzingImage] = useState(false);
   const recordingRef = useRef<RecordingRef>(null);
   const webRecorderRef = useRef<MediaRecorder | null>(null);
+  const webStreamRef = useRef<MediaStream | null>(null);
   const webChunksRef = useRef<Blob[]>([]);
+  const webMimeTypeRef = useRef('audio/webm');
 
   const closeAttachmentMenu = useCallback(() => {
     setAttachmentMenuOpen(false);
   }, []);
+
+  const stopWebStream = useCallback(() => {
+    webStreamRef.current?.getTracks().forEach((track) => track.stop());
+    webStreamRef.current = null;
+  }, []);
+
+  const deliverVoiceTranscription = useCallback(
+    async (blob: Blob, mimeType: string): Promise<void> => {
+      if (!params.organizationId) {
+        Alert.alert('Copi voz', 'No encontramos tu organización. Volvé a iniciar sesión.');
+        return;
+      }
+
+      if (blob.size < MIN_AUDIO_BYTES) {
+        Alert.alert('Copi voz', 'La grabación fue muy corta. Mantené el micrófono un poco más.');
+        return;
+      }
+
+      setIsTranscribingVoice(true);
+      try {
+        const base64 = await blobToBase64(blob);
+        const result = await transcribeCopiVoice({
+          audioBase64: base64,
+          mimeType,
+          organizationId: params.organizationId,
+        });
+
+        const text = result.text.trim();
+        if (!text) {
+          Alert.alert('Copi voz', 'No se entendió el audio. Probá de nuevo hablando más cerca del micrófono.');
+          return;
+        }
+
+        await params.onVoiceText(text);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'No se pudo transcribir el audio';
+        Alert.alert('Copi voz', message);
+      } finally {
+        setIsTranscribingVoice(false);
+        setIsRecordingVoice(false);
+      }
+    },
+    [params],
+  );
 
   const onPressPlus = useCallback(() => {
     if (!params.canUseVision) {
@@ -141,81 +227,63 @@ export function useCopiMediaActions(params: {
     const recording = recordingRef.current;
     recordingRef.current = null;
     if (!recording) {
+      setIsRecordingVoice(false);
       return;
     }
 
-    await recording.stopAndUnloadAsync();
-    const uri = recording.getURI();
-    if (!uri || !params.organizationId) {
-      return;
-    }
-
-    setIsTranscribingVoice(true);
     try {
+      await recording.stopAndUnloadAsync();
+      const uri = recording.getURI();
+      if (!uri) {
+        Alert.alert('Copi voz', 'No se pudo guardar la grabación. Probá de nuevo.');
+        setIsRecordingVoice(false);
+        return;
+      }
+
       const response = await fetch(uri);
       const blob = await response.blob();
-      const base64 = await blobToBase64(blob);
-      const result = await transcribeCopiVoice({
-        audioBase64: base64,
-        mimeType: 'audio/m4a',
-        organizationId: params.organizationId,
-      });
-      if (result.text.trim()) {
-        await params.onVoiceText(result.text.trim());
-      }
+      const mimeType = guessAudioMimeType(uri, blob.type);
+      await deliverVoiceTranscription(blob, mimeType);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'No se pudo transcribir el audio';
       Alert.alert('Copi voz', message);
-    } finally {
-      setIsTranscribingVoice(false);
       setIsRecordingVoice(false);
     }
-  }, [params]);
+  }, [deliverVoiceTranscription]);
 
   const stopWebRecording = useCallback(async (): Promise<void> => {
     const recorder = webRecorderRef.current;
     if (!recorder || recorder.state === 'inactive') {
+      stopWebStream();
       setIsRecordingVoice(false);
       return;
     }
 
+    const mimeType = webMimeTypeRef.current;
     await new Promise<void>((resolve) => {
-      recorder.onstop = () => resolve();
+      recorder.onstop = () => {
+        stopWebStream();
+        resolve();
+      };
+      if (recorder.state === 'recording') {
+        recorder.requestData();
+      }
       recorder.stop();
     });
 
     webRecorderRef.current = null;
-    const blob = new Blob(webChunksRef.current, { type: 'audio/webm' });
+    const blob = new Blob(webChunksRef.current, { type: mimeType.split(';')[0] ?? 'audio/webm' });
     webChunksRef.current = [];
-
-    if (!params.organizationId) {
-      setIsRecordingVoice(false);
-      return;
-    }
-
-    setIsTranscribingVoice(true);
-    try {
-      const base64 = await blobToBase64(blob);
-      const result = await transcribeCopiVoice({
-        audioBase64: base64,
-        mimeType: 'audio/webm',
-        organizationId: params.organizationId,
-      });
-      if (result.text.trim()) {
-        await params.onVoiceText(result.text.trim());
-      }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'No se pudo transcribir el audio';
-      Alert.alert('Copi voz', message);
-    } finally {
-      setIsTranscribingVoice(false);
-      setIsRecordingVoice(false);
-    }
-  }, [params]);
+    await deliverVoiceTranscription(blob, mimeType);
+  }, [deliverVoiceTranscription, stopWebStream]);
 
   const onPressVoice = useCallback(() => {
     if (!params.canUseVoice) {
       Alert.alert('Copi Pro', 'La voz requiere Copi Pro.');
+      return;
+    }
+
+    if (isTranscribingVoice) {
       return;
     }
 
@@ -228,17 +296,21 @@ export function useCopiMediaActions(params: {
       if (Platform.OS === 'web') {
         try {
           const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-          const recorder = new MediaRecorder(stream);
+          const mimeType = pickWebRecorderMimeType();
+          const recorder = new MediaRecorder(stream, { mimeType });
           webChunksRef.current = [];
+          webMimeTypeRef.current = mimeType;
+          webStreamRef.current = stream;
           recorder.ondataavailable = (event) => {
             if (event.data.size > 0) {
               webChunksRef.current.push(event.data);
             }
           };
-          recorder.start();
+          recorder.start(250);
           webRecorderRef.current = recorder;
           setIsRecordingVoice(true);
         } catch {
+          stopWebStream();
           Alert.alert('Micrófono', 'No pudimos acceder al micrófono.');
         }
         return;
@@ -261,7 +333,14 @@ export function useCopiMediaActions(params: {
       recordingRef.current = recording;
       setIsRecordingVoice(true);
     })();
-  }, [isRecordingVoice, params.canUseVoice, stopNativeRecording, stopWebRecording]);
+  }, [
+    isRecordingVoice,
+    isTranscribingVoice,
+    params.canUseVoice,
+    stopNativeRecording,
+    stopWebRecording,
+    stopWebStream,
+  ]);
 
   return {
     attachmentMenuOpen,
