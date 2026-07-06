@@ -6,6 +6,7 @@ import { useOwnerSessionContext } from '../../../src/context/OwnerSessionProvide
 import { useProducts } from '../../../src/hooks/useProducts';
 import { mapProductsToInventoryRows } from '../../../src/lib/inventoryPresentation';
 import {
+  productAddRoute,
   productAddStockRoute,
   productDeleteRoute,
   productDetailRoute,
@@ -28,10 +29,11 @@ export default function ManageStockRoute(): ReactElement {
     <ManageStockScreen
       errorMessage={catalog.errorMessage}
       isLoading={catalog.isLoading}
-      onAddStockProduct={(productId) => router.push(productAddStockRoute(productId))}
-      onDeleteProduct={(productId) => router.push(productDeleteRoute(productId))}
+      onAddProduct={() => router.push(productAddRoute('manage-stock'))}
+      onAddStockProduct={(productId) => router.push(productAddStockRoute(productId, 'manage-stock'))}
+      onDeleteProduct={(productId) => router.push(productDeleteRoute(productId, 'manage-stock'))}
       onEditProduct={(productId) => router.push(productEditRoute(productId, 'manage-stock'))}
-      onOpenProductDetail={(productId) => router.push(productDetailRoute(productId))}
+      onOpenProductDetail={(productId) => router.push(productDetailRoute(productId, 'manage-stock'))}
       products={products}
     />
   );

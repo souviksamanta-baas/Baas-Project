@@ -53,6 +53,16 @@ export function mapInventoryMovementRow(row: InventoryMovementRow): MovementMock
     };
   }
 
+  if (row.movement_type === 'conversion_out') {
+    return {
+      amount: formatSignedQuantity(quantity, row.unit_code, 'red'),
+      id: row.id,
+      label: note.length > 0 ? note : 'Conversion a subproducto',
+      time: formatMovementTime(row.created_at),
+      tone: 'red',
+    };
+  }
+
   if (note.toLowerCase().includes('precio')) {
     return {
       id: row.id,

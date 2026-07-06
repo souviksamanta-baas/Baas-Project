@@ -14,15 +14,31 @@ if (!organizationId || !businessCenterId || !filePath) {
 const outputPath = process.argv[5] ?? '/tmp/nexolia-stock-import.sql';
 
 function parseCsv(content) {
-  const lines = content.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
-  const [headerLine, ...dataLines] = lines;
+  const lines = content
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  if (lines.length === 0) {
+    return [];
+  }
+
+  const headerLine = lines[0];
   const delimiter = headerLine.includes(';') && !headerLine.includes(',') ? ';' : ',';
   const headers = headerLine.split(delimiter).map((value) => value.trim());
-  return dataLines.map((line) => {
+
+  return lines.slice(1).map((line) => {
     const values = line.split(delimiter).map((value) => value.trim());
     return Object.fromEntries(headers.map((header, index) => [header, values[index] ?? '']));
   });
 }
+
+const rows = parseCsv(readFileSync(filePath, 'utf8')).sort((left, right) => {
+  const leftType = parseTipoProducto(left.tipo_producto);
+  const rightType = parseTipoProducto(right.tipo_producto);
+  if (leftType === rightType) return 0;
+  return leftType === 'producto' ? -1 : 1;
+});
 
 function sqlText(value) {
   if (value == null || value === '') return 'null';
@@ -74,12 +90,15 @@ function parseTipoProducto(value) {
   return normalized === 'subproducto' ? 'subproducto' : 'producto';
 }
 
-const rows = parseCsv(readFileSync(filePath, 'utf8')).sort((left, right) => {
-  const leftType = parseTipoProducto(left.tipo_producto);
-  const rightType = parseTipoProducto(right.tipo_producto);
-  if (leftType === rightType) return 0;
-  return leftType === 'producto' ? -1 : 1;
-});
+function parseBaseUnitEquivalent(value) {
+  const trimmed = normalizeText(value);
+  if (!trimmed) return null;
+  const amount = Number.parseFloat(trimmed.replace(',', '.'));
+  if (Number.isNaN(amount) || amount <= 0) {
+    throw new Error(`equivalente_unidad_base inválido "${value}".`);
+  }
+  return amount;
+}
 
 const reservedSkus = new Set();
 const importedByName = new Map();
@@ -110,18 +129,36 @@ for (const row of rows) {
   const tipoProducto = parseTipoProducto(row.tipo_producto);
   const parentName = normalizeText(row.producto_base);
   const salePriceCents = parsePesos(row.precio_venta) ?? 0;
-  const costPriceCents = parsePesos(row.precio_costo);
+  let costPriceCents = parsePesos(row.precio_costo);
   const quantityOnHand = Number.parseFloat(normalizeText(row.cantidad_stock) || '0');
   const reorderThreshold = Number.parseFloat(normalizeText(row.umbral_reorden) || '0');
   const unitCode = normalizeText(row.unidad) || 'unit';
   const category = normalizeText(row.categoria) || null;
   const vendor = normalizeText(row.proveedor) || null;
   const notes = normalizeText(row.notas) || null;
+  const baseUnitEquivalent =
+    tipoProducto === 'subproducto' ? parseBaseUnitEquivalent(row.equivalente_unidad_base) : null;
+
+  if (tipoProducto === 'subproducto' && baseUnitEquivalent === null) {
+    throw new Error(`"${productName}" es subproducto pero falta equivalente_unidad_base.`);
+  }
+
+  if (costPriceCents == null && parentName) {
+    const parentRow = rows.find(
+      (candidate) => normalizeText(candidate.nombre_producto).toLowerCase() === parentName.toLowerCase(),
+    );
+    const parentCostCents = parentRow ? parsePesos(parentRow.precio_costo) : null;
+    if (parentCostCents != null && baseUnitEquivalent != null) {
+      costPriceCents = Math.round(parentCostCents * baseUnitEquivalent);
+    }
+  }
+
   const sku = reserveSku(productName);
   const metadata = {
     ...(category ? { categoria: category } : {}),
     ...(vendor ? { proveedor: vendor } : {}),
     ...(costPriceCents != null ? { precio_costo_cents: costPriceCents } : {}),
+    ...(baseUnitEquivalent != null ? { equivalente_unidad_base: baseUnitEquivalent } : {}),
     tipo_producto: tipoProducto,
     import_source: 'stock_csv',
   };

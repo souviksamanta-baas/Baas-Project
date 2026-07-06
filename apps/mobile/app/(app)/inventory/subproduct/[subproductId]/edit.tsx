@@ -1,15 +1,14 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import type { ReactElement } from 'react';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Alert, Text } from 'react-native';
 
-import { listBusinessCenters } from '../../../../../src/api/dashboard';
 import { updateProductDetails } from '../../../../../src/api/inventory';
 import { ScreenContent } from '../../../../../src/components/ui';
 import { InventoryScreenTitle } from '../../../../../src/components/inventoryUi';
 import { useOwnerSessionContext } from '../../../../../src/context/OwnerSessionProvider';
+import { useBusinessCenters } from '../../../../../src/hooks/useBusinessCenters';
 import { useInventorySubproduct } from '../../../../../src/hooks/useInventoryProduct';
-import { useProducts } from '../../../../../src/hooks/useProducts';
 import { collectCategoryOptions } from '../../../../../src/lib/productCatalog';
 import { navigateSubproductReturn } from '../../../../../src/navigation/inventoryNavigation';
 import { parseSubproductReturnTo } from '../../../../../src/navigation/routes';
@@ -25,33 +24,22 @@ export default function EditSubproductRoute(): ReactElement {
     subproductId: string;
   }>();
   const returnTo = parseSubproductReturnTo(rawReturnTo);
-  const { businessCenterName, isLoading, parentProduct, subproduct, subproductId } =
-    useInventorySubproduct(rawSubproductId);
-  const catalog = useProducts(organizationId, businessCenterId);
-  const [businessCenters, setBusinessCenters] = useState<Array<{ id: string; name: string }>>([]);
+  const {
+    businessCenterName,
+    isLoading,
+    parentProduct,
+    products,
+    reloadProducts,
+    subproduct,
+    subproductId,
+  } = useInventorySubproduct(rawSubproductId);
+  const businessCenters = useBusinessCenters();
   const [isSaving, setIsSaving] = useState(false);
   const parentProductId = parentProduct?.id ?? subproduct?.parentProductId ?? null;
 
-  useEffect(() => {
-    if (!organizationId) {
-      setBusinessCenters([]);
-      return;
-    }
-
-    listBusinessCenters(organizationId)
-      .then(setBusinessCenters)
-      .catch(() => {
-        setBusinessCenters(
-          businessCenterId && businessCenterName
-            ? [{ id: businessCenterId, name: businessCenterName }]
-            : [],
-        );
-      });
-  }, [businessCenterId, businessCenterName, organizationId]);
-
   const categories = useMemo(
-    () => collectCategoryOptions(catalog.products, subproduct?.category),
-    [catalog.products, subproduct?.category],
+    () => collectCategoryOptions(products, subproduct?.category),
+    [products, subproduct?.category],
   );
 
   const goBack = () => {
@@ -125,6 +113,7 @@ export default function EditSubproductRoute(): ReactElement {
             values,
             subproduct,
           );
+          await reloadProducts();
           navigateSubproductReturn(router, {
             parentProductId,
             returnTo,

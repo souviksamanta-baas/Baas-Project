@@ -1,19 +1,19 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import type { ReactElement } from 'react';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Alert, Text } from 'react-native';
 
-import { listBusinessCenters } from '../../../../../src/api/dashboard';
 import { updateProductDetails } from '../../../../../src/api/inventory';
 import { ScreenContent } from '../../../../../src/components/ui';
 import { InventoryScreenTitle } from '../../../../../src/components/inventoryUi';
 import { useOwnerSessionContext } from '../../../../../src/context/OwnerSessionProvider';
+import { useBusinessCenters } from '../../../../../src/hooks/useBusinessCenters';
 import { useInventoryProduct } from '../../../../../src/hooks/useInventoryProduct';
-import { useProducts } from '../../../../../src/hooks/useProducts';
 import { collectCategoryOptions } from '../../../../../src/lib/productCatalog';
-import { navigateInventoryReturn } from '../../../../../src/navigation/inventoryNavigation';
+import { navigateAfterProductArchive, navigateInventoryReturn } from '../../../../../src/navigation/inventoryNavigation';
 import {
   parseInventoryReturnTo,
+  productAddSubproductRoute,
   productDeleteRoute,
   productDetailRoute,
   subproductEditRoute,
@@ -25,40 +25,24 @@ export default function EditProductRoute(): ReactElement {
   const { dashboard } = useOwnerSessionContext();
   const organizationId = dashboard?.organization?.id ?? null;
   const businessCenterId = dashboard?.businessCenter?.id ?? null;
-  const { productId: rawProductId, returnTo: rawReturnTo } = useLocalSearchParams<{
+  const { productId: rawProductId, returnTo: rawReturnTo, mode: rawMode } = useLocalSearchParams<{
+    mode?: string | string[];
     productId: string;
     returnTo?: string | string[];
   }>();
   const returnTo = parseInventoryReturnTo(rawReturnTo);
+  const archiveMode = (Array.isArray(rawMode) ? rawMode[0] : rawMode) === 'archive';
   const routeProductId = Array.isArray(rawProductId) ? rawProductId[0] : rawProductId;
-  const { businessCenterName, childProducts, isLoading, product, productId } =
+  const { businessCenterName, childProducts, isLoading, product, productId, products, reloadProducts } =
     useInventoryProduct(rawProductId);
   const goBack = () =>
     navigateInventoryReturn(router, { productId: productId ?? routeProductId ?? '', returnTo });
-  const catalog = useProducts(organizationId, businessCenterId);
-  const [businessCenters, setBusinessCenters] = useState<Array<{ id: string; name: string }>>([]);
+  const businessCenters = useBusinessCenters();
   const [isSaving, setIsSaving] = useState(false);
 
-  useEffect(() => {
-    if (!organizationId) {
-      setBusinessCenters([]);
-      return;
-    }
-
-    listBusinessCenters(organizationId)
-      .then(setBusinessCenters)
-      .catch(() => {
-        setBusinessCenters(
-          businessCenterId && businessCenterName
-            ? [{ id: businessCenterId, name: businessCenterName }]
-            : [],
-        );
-      });
-  }, [businessCenterId, businessCenterName, organizationId]);
-
   const categories = useMemo(
-    () => collectCategoryOptions(catalog.products, product?.category),
-    [catalog.products, product?.category],
+    () => collectCategoryOptions(products, product?.category),
+    [product?.category, products],
   );
 
   if (!productId || !businessCenterId || !organizationId) {
@@ -112,7 +96,8 @@ export default function EditProductRoute(): ReactElement {
       categories={categories}
       isSaving={isSaving}
       onBack={() => navigateInventoryReturn(router, { productId, returnTo })}
-      onOpenDeleteProduct={() => router.push(productDeleteRoute(productId))}
+      onOpenDeleteProduct={() => router.push(productDeleteRoute(productId, returnTo))}
+      onOpenAddSubproduct={() => router.push(productAddSubproductRoute(productId, 'product-edit'))}
       onOpenEditSubproduct={(subproductId) =>
         router.push(subproductEditRoute(subproductId, 'product-edit'))
       }
@@ -125,9 +110,16 @@ export default function EditProductRoute(): ReactElement {
             businessCenterId,
             organizationId,
             product.id,
-            values,
+            archiveMode ? { ...values, status: 'archivado' } : values,
             product,
           );
+          await reloadProducts();
+          if (archiveMode) {
+            navigateAfterProductArchive(router, {
+              parentProductId: product.parentProductId,
+            });
+            return;
+          }
           navigateInventoryReturn(router, { productId, returnTo });
         } catch (error) {
           Alert.alert(
@@ -139,6 +131,7 @@ export default function EditProductRoute(): ReactElement {
         }
       }}
       product={product}
+      readOnly={archiveMode}
       subproducts={childProducts}
     />
   );

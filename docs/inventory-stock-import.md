@@ -22,10 +22,11 @@ Abrila en Excel o Google Sheets. **No cambies los nombres de las columnas** (pri
 | `notas` | No | Observaciones internas del comercio | `products.description` |
 | `sucursal` | Sí* | Nombre de la sucursal en Nexolia | `inventory_items.business_center_id`, `inventory_lots.business_center_id` |
 | `unidad` | Sí | Unidad de stock (ej. `kg`, `paquete`) | `products.base_unit_code`, `inventory_items.unit_code` |
-| `precio_costo` | Sí | Costo de compra en pesos enteros | `products.metadata.precio_costo_cents`, `inventory_lots.unit_cost_cents` (con lote) |
-| `precio_venta` | Sí | Precio de venta en pesos enteros | `products.unit_price_cents` |
 | `cantidad_stock` | Sí | Stock actual en esa sucursal | `inventory_items.quantity_on_hand` |
 | `umbral_reorden` | Sí | Alerta de bajo stock | `inventory_items.reorder_threshold` |
+| `equivalente_unidad_base` | Condicional | Cuántas unidades del **producto base** consume **cada unidad** de este subproducto | `products.metadata.equivalente_unidad_base` |
+| `precio_costo` | Sí | Costo de compra en pesos enteros | `products.metadata.precio_costo_cents`, `inventory_lots.unit_cost_cents` (con lote) |
+| `precio_venta` | Sí | Precio de venta en pesos enteros | `products.unit_price_cents` |
 | `lote_fecha` | No | Fecha del lote `dd/mm/aaaa` | `inventory_lots.received_at` + código generado |
 | `fecha_vencimiento` | No | Vencimiento `dd/mm/aaaa` | `inventory_lots.expires_at` |
 
@@ -37,14 +38,16 @@ No va en la plantilla. El sistema genera un SKU único por organización a parti
 
 ### Sucursal
 
-El valor debe coincidir con el **nombre** (o `code`) de una sucursal activa en Nexolia, por ejemplo `Main` para la sucursal por defecto. Una misma planilla puede cargar stock en varias sucursales usando filas con distinto valor en `sucursal`.
+El valor debe coincidir con el **nombre** (o `code`) de una sucursal activa en Nexolia, por ejemplo `Centro` para la sucursal principal. Una misma planilla puede cargar stock en varias sucursales usando filas con distinto valor en `sucursal`.
 
 ### Precio de venta vs costo
 
 - **`precio_venta`** → precio al cliente (`products.unit_price_cents`).
 - **`precio_costo`** → costo de compra. Se guarda en `products.metadata.precio_costo_cents` para el cálculo de margen en la UI, y también en `inventory_lots.unit_cost_cents` cuando cargás `lote_fecha`.
 
-Ejemplo mockup: costo `$1.250 / kg`, venta `$1.900 / kg` → `precio_costo=1250`, `precio_venta=1900`.
+El margen no va en la plantilla: la app lo calcula en la ficha del producto a partir de costo y precio de venta. En subproductos sin costo propio, usa el costo del `producto_base × equivalente_unidad_base`.
+
+Ejemplo mockup: costo `$1.250 / kg`, venta `$1.900 / kg` → `precio_costo=1250`, `precio_venta=1900` (margen mostrado en app: 52%).
 
 ### Lotes
 
@@ -63,6 +66,21 @@ Cada fila del CSV puede representar **un lote distinto**, incluso si `nombre_pro
 | `subproducto` | Presentación derivada | Nombre exacto del producto base |
 
 Importá productos base antes que subproductos. El script ordena automáticamente.
+
+### Relación de stock base ↔ subproducto
+
+Los subproductos pueden venderse en otra unidad que el producto base (ej. granel en **kg**, paquete en **paquete**). La columna **`equivalente_unidad_base`** define cuánto stock del producto base se descuenta por cada unidad del subproducto.
+
+| Ejemplo | `unidad` subproducto | `equivalente_unidad_base` | Efecto |
+| --- | --- | --- | --- |
+| Harina granel | `kg` | *(vacío — es producto base)* | Stock propio en kg |
+| Harina 1 kg | `kg` | `1` | 1 unidad subproducto = 1 kg del granel |
+| Harina paquete 250 g | `paquete` | `0.25` | 1 paquete = 0,25 kg del granel |
+
+- Obligatoria para filas con `tipo_producto=subproducto` (número decimal > 0, coma o punto).
+- Dejala vacía en productos base.
+- La unidad del producto base viene de su columna `unidad` (ej. `kg`).
+- Al agregar stock a un subproducto, la app descuenta `cantidad × equivalente_unidad_base` del stock del producto base y registra un movimiento `conversion_out` en el producto base.
 
 ## Columnas extra (no en la plantilla)
 

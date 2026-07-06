@@ -29,6 +29,7 @@ type ListBoxProps = {
   children: ReactNode;
   headerAction?: { label: string; onPress?: () => void };
   headerMeta?: string;
+  headerRight?: ReactNode;
   headerSubtitle?: string;
   style?: StyleProp<ViewStyle>;
   title: string;
@@ -44,11 +45,12 @@ export function ListBox(props: ListBoxProps): ReactElement {
           {props.headerSubtitle ? <Text style={styles.listBoxSubtitle}>{props.headerSubtitle}</Text> : null}
         </View>
         {props.headerMeta ? <Text style={styles.listBoxMeta}>{props.headerMeta}</Text> : null}
-        {props.headerAction ? (
-          <Pressable onPress={props.headerAction.onPress}>
-            <Text style={styles.listBoxAction}>{props.headerAction.label} ›</Text>
-          </Pressable>
-        ) : null}
+        {props.headerRight ??
+          (props.headerAction ? (
+            <Pressable onPress={props.headerAction.onPress}>
+              <Text style={styles.listBoxAction}>{props.headerAction.label} ›</Text>
+            </Pressable>
+          ) : null)}
       </View>
       {props.children}
     </View>

@@ -2,6 +2,7 @@ import {
   type InventoryReturnTo,
   type SubproductReturnTo,
   productDetailRoute,
+  productEditRoute,
   resolveInventoryReturnRoute,
   resolveSubproductReturnRoute,
   routes,
@@ -15,32 +16,59 @@ type InventoryRouter = {
 
 export function navigateSubproductReturn(
   router: InventoryRouter,
-  options: { parentProductId: string; returnTo?: SubproductReturnTo },
+  options: { parentProductId: string; returnTo?: SubproductReturnTo; preferBack?: boolean },
 ): void {
-  if (options.returnTo) {
-    router.replace(resolveSubproductReturnRoute(options.returnTo, options.parentProductId));
+  if (options.returnTo === 'manage-stock') {
+    router.replace(routes.inventoryManageStock);
     return;
   }
 
-  if (router.canGoBack?.()) {
+  if (options.returnTo === 'sell') {
+    router.replace(routes.inventorySell);
+    return;
+  }
+
+  if (options.returnTo === 'product-edit') {
+    router.replace(productEditRoute(options.parentProductId, 'product-detail'));
+    return;
+  }
+
+  if (options.preferBack !== false && router.canGoBack?.()) {
     router.back();
     return;
   }
 
-  router.replace(productDetailRoute(options.parentProductId));
+  router.replace(resolveSubproductReturnRoute(options.returnTo, options.parentProductId));
 }
 
 export function navigateInventoryReturn(
   router: InventoryRouter,
-  options: { productId: string; returnTo?: InventoryReturnTo },
+  options: { productId: string; returnTo?: InventoryReturnTo; preferBack?: boolean },
 ): void {
-  if (options.returnTo) {
-    router.replace(resolveInventoryReturnRoute(options.returnTo, options.productId));
+  if (options.returnTo === 'manage-stock') {
+    router.replace(routes.inventoryManageStock);
     return;
   }
 
-  if (router.canGoBack?.()) {
+  if (options.returnTo === 'sell') {
+    router.replace(routes.inventorySell);
+    return;
+  }
+
+  if (options.preferBack !== false && router.canGoBack?.()) {
     router.back();
+    return;
+  }
+
+  router.replace(resolveInventoryReturnRoute(options.returnTo, options.productId));
+}
+
+export function navigateAfterProductArchive(
+  router: InventoryRouter,
+  options: { parentProductId?: string | null },
+): void {
+  if (options.parentProductId) {
+    router.replace(productDetailRoute(options.parentProductId, 'manage-stock'));
     return;
   }
 

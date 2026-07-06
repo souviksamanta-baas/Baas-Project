@@ -122,7 +122,7 @@ export function useOwnerSession(): OwnerSessionState {
     return 'authenticated';
   }, [bootstrapped, dashboard?.shouldOnboard, isResolvingDashboard, otpSent, session]);
 
-  async function requestOtp(): Promise<boolean> {
+  const requestOtp = useCallback(async (): Promise<boolean> => {
     if (!canSubmitLogin) {
       Alert.alert(
         isPhoneAuthChannel(otpChannel) ? 'Número inválido' : 'Correo inválido',
@@ -153,9 +153,9 @@ export function useOwnerSession(): OwnerSessionState {
     } finally {
       setIsSubmitting(false);
     }
-  }
+  }, [canSubmitLogin, loginIdentifier, otpChannel]);
 
-  async function verifyOtp(): Promise<void> {
+  const verifyOtp = useCallback(async (): Promise<void> => {
     setIsSubmitting(true);
 
     try {
@@ -172,9 +172,9 @@ export function useOwnerSession(): OwnerSessionState {
     } finally {
       setIsSubmitting(false);
     }
-  }
+  }, [bootstrapRoute, loginIdentifier, otpChannel, otpCode]);
 
-  async function createOrganization(): Promise<void> {
+  const createOrganization = useCallback(async (): Promise<void> => {
     if (!businessName.trim()) {
       Alert.alert('Nombre requerido', 'Ingresá el nombre de tu negocio para continuar.');
       return;
@@ -193,46 +193,66 @@ export function useOwnerSession(): OwnerSessionState {
     } finally {
       setIsSubmitting(false);
     }
-  }
+  }, [bootstrapRoute, businessName, session]);
 
-  async function refreshDashboard(): Promise<void> {
+  const refreshDashboard = useCallback(async (): Promise<void> => {
     const { data } = await supabase.auth.getSession();
     await bootstrapRoute(data.session);
-  }
+  }, [bootstrapRoute]);
 
-  async function signOut(): Promise<void> {
+  const signOut = useCallback(async (): Promise<void> => {
     setOtpSent(false);
     await signOutOwner();
-  }
+  }, []);
 
-  function handleSetLoginIdentifier(value: string): void {
+  const handleSetLoginIdentifier = useCallback((value: string): void => {
     setAuthError(null);
     setLoginIdentifier(value);
-  }
+  }, []);
 
-  function handleSetOtpChannel(channel: AuthOtpChannel): void {
+  const handleSetOtpChannel = useCallback((channel: AuthOtpChannel): void => {
     setAuthError(null);
     setOtpChannel(channel);
-  }
+  }, []);
 
-  return {
-    authError,
-    authPhase,
-    businessName,
-    canSubmitLogin,
-    dashboard,
-    isSubmitting,
-    loginIdentifier,
-    otpChannel,
-    otpCode,
-    requestOtp,
-    setBusinessName,
-    setLoginIdentifier: handleSetLoginIdentifier,
-    setOtpChannel: handleSetOtpChannel,
-    setOtpCode,
-    createOrganization,
-    refreshDashboard,
-    signOut,
-    verifyOtp,
-  };
+  return useMemo(
+    (): OwnerSessionState => ({
+      authError,
+      authPhase,
+      businessName,
+      canSubmitLogin,
+      createOrganization,
+      dashboard,
+      isSubmitting,
+      loginIdentifier,
+      otpChannel,
+      otpCode,
+      refreshDashboard,
+      requestOtp,
+      setBusinessName,
+      setLoginIdentifier: handleSetLoginIdentifier,
+      setOtpChannel: handleSetOtpChannel,
+      setOtpCode,
+      signOut,
+      verifyOtp,
+    }),
+    [
+      authError,
+      authPhase,
+      businessName,
+      canSubmitLogin,
+      createOrganization,
+      dashboard,
+      handleSetLoginIdentifier,
+      handleSetOtpChannel,
+      isSubmitting,
+      loginIdentifier,
+      otpChannel,
+      otpCode,
+      refreshDashboard,
+      requestOtp,
+      signOut,
+      verifyOtp,
+    ],
+  );
 }

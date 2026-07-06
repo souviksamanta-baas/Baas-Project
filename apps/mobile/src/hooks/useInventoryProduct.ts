@@ -41,13 +41,25 @@ export function useInventoryProduct(productIdParam: string | string[] | undefine
     [catalog.products, productId],
   );
 
+  const parentProduct = useMemo((): Product | null => {
+    if (!product?.parentProductId) {
+      return null;
+    }
+
+    return catalog.products.find((item) => item.id === product.parentProductId) ?? null;
+  }, [catalog.products, product?.parentProductId]);
+
   return {
     businessCenterName,
+    catalog,
     childProducts,
     errorMessage: catalog.errorMessage,
     isLoading: catalog.isLoading,
+    parentProduct,
     product,
     productId,
+    products: catalog.products,
+    reloadProducts: catalog.reloadProducts,
   };
 }
 
@@ -73,6 +85,8 @@ export function useInventorySubproduct(subproductIdParam: string | string[] | un
     errorMessage: catalog.errorMessage,
     isLoading: catalog.isLoading,
     parentProduct,
+    products: catalog.products,
+    reloadProducts: catalog.reloadProducts,
     subproduct,
     subproductId,
   };

@@ -1,18 +1,18 @@
-nombre_producto;categoria;tipo_producto;producto_base;proveedor;notas;sucursal;unidad;precio_costo;precio_venta;cantidad_stock;umbral_reorden;lote_fecha;fecha_vencimiento
-Harina 000 granel 100 kg;Almacen;producto;;Molinos Norte;Producto base para fraccionado en presentaciones menores.;Centro;kg;1250;;100;20;15/01/2026;31/12/2026
-Harina 000 1 kg;Almacen;subproducto;Harina 000 granel 100 kg;Molinos Norte;Presentación 1 kg derivada del granel.;Centro;paquete;;1900;26;5;;
-Harina 000 3 kg;Almacen;subproducto;Harina 000 granel 100 kg;Molinos Norte;Presentación 3 kg derivada del granel.;Centro;paquete;;5000;10;5;;
-Yerba mate Amanda 500g;Almacen;producto;;tienda vgb;Yerba seleccionada para venta al público.;Centro;paquete;1800;2500;80;10;15/01/2026;
-Aceite girasol 900ml;Aceites y vinagres;producto;;Aceitera del Sur;Aceite de girasol 900 ml.;Centro;botella;2200;3200;48;10;10/01/2026;30/06/2026
-Café grano colombia granel 50 kg;Infusiones;producto;;valle colombia;Producto base para fraccionado en presentaciones menores.;Centro;Kg;9100;;100;20;15/01/2026;
-Café grano colombia granel 250 g;Infusiones;subproducto;Café grano colombia granel 50 kg;valle colombia;Café en grano o molido;Centro;paquete;;14000;20;5;;
-Leche entera La Serenisima 1 l;Lacteos;producto;;tienda vgb;;Centro;botella;1000;1500;30;8;15/06/2026;10/09/2026
-Yerba mate organica 100 kg;Infusiones;producto;;Boutique calamuchita;Producto base para fraccionado en presentaciones menores.;Centro;Kg;3500;;500;20;15/01/2026;
-Yerba mate organica 500 g;Infusiones;subproducto;Yerba mate organica 100 kg;Boutique calamuchita;Presentación 500 g derivada del granel.;Centro;paquete;;2500;30;5;;
-Yerba mate organica 1 kg;Infusiones;subproducto;Yerba mate organica 100 kg;Boutique calamuchita;Presentación 1 kg derivada del granel.;Centro;paquete;;5000;20;5;;
-Leche entera La Serenisima 1 l;Lacteos;producto;;tienda vgb;;Centro;botella;1000;1500;30;8;04/07/2026;05/10/2026
-Vino Tinto Trumpeter Malbec 750ml Botella Rutini Wines;Bebida alcoholicas;producto;;tienda vgb;;Centro;botella;6500;7850;25;5;04/07/2026;
-Monster Energy Rio Punch Lata 473ml;Aguas, Jugos y gaseosas;producto;;tienda vgb;;Centro;Lata;5500;6190;30;6;04/07/2026;05/10/2026
-Tajín Clásico 400g Origen México;Aderezos y condimentos;producto;;tienda vgb;;Centro;botella;35000;49500;20;2;15/01/2026;05/10/2027
-Castañas De Caju Natural Crudo;Frutos secos;producto;;Boutique calamuchita;Venta x peso;Centro;Kg;12500;18500;50;5;10/01/2026;
-Papas Fritas Lays Clásicas X 330 Gr;Snacks;producto;;tienda vgb;;Centro;paquete;6200;10500;30;5;15/06/2026;10/09/2026
+nombre_producto;categoria;tipo_producto;producto_base;proveedor;notas;sucursal;unidad;cantidad_stock;umbral_reorden;equivalente_unidad_base;precio_costo;precio_venta;lote_fecha;fecha_vencimiento
+Harina 000 granel 100 kg;Almacen;producto;;Molinos Norte;Producto base para fraccionado en presentaciones menores.;Centro;kg;100;20;;1250;;;15/01/2026;31/12/2026
+Harina 000 1 kg;Almacen;subproducto;Harina 000 granel 100 kg;Molinos Norte;Presentación 1 kg derivada del granel.;Centro;paquete;26;5;1;;1900;;
+Harina 000 3 kg;Almacen;subproducto;Harina 000 granel 100 kg;Molinos Norte;Presentación 3 kg derivada del granel.;Centro;paquete;10;5;3;;5000;;
+Yerba mate Amanda 500g;Almacen;producto;;tienda vgb;Yerba seleccionada para venta al público.;Centro;paquete;80;10;;1800;2500;15/01/2026;
+Aceite girasol 900ml;Aceites y vinagres;producto;;Aceitera del Sur;Aceite de girasol 900 ml.;Centro;botella;48;10;;2200;3200;10/01/2026;30/06/2026
+Café grano colombia granel 50 kg;Infusiones;producto;;valle colombia;Producto base para fraccionado en presentaciones menores.;Centro;Kg;100;20;;9100;;;15/01/2026;
+Café grano colombia granel 250 g;Infusiones;subproducto;Café grano colombia granel 50 kg;valle colombia;Café en grano o molido;Centro;paquete;20;5;0.25;;14000;;
+Leche entera La Serenisima 1 l;Lacteos;producto;;tienda vgb;;Centro;botella;30;8;;1000;1500;15/06/2026;10/09/2026
+Yerba mate organica 100 kg;Infusiones;producto;;Boutique calamuchita;Producto base para fraccionado en presentaciones menores.;Centro;Kg;500;20;;3500;;;15/01/2026;
+Yerba mate organica 500 g;Infusiones;subproducto;Yerba mate organica 100 kg;Boutique calamuchita;Presentación 500 g derivada del granel.;Centro;paquete;30;5;.5;;2500;;
+Yerba mate organica 1 kg;Infusiones;subproducto;Yerba mate organica 100 kg;Boutique calamuchita;Presentación 1 kg derivada del granel.;Centro;paquete;20;5;1;;5000;;
+Leche entera La Serenisima 1 l;Lacteos;producto;;tienda vgb;;Centro;botella;30;8;;1000;1500;04/07/2026;05/10/2026
+Vino Tinto Trumpeter Malbec 750ml Botella Rutini Wines;Bebida alcoholicas;producto;;tienda vgb;;Centro;botella;25;5;;6500;7850;04/07/2026;
+Monster Energy Rio Punch Lata 473ml;Aguas, Jugos y gaseosas;producto;;tienda vgb;;Centro;Lata;30;6;;5500;6190;04/07/2026;05/10/2026
+Tajín Clásico 400g Origen México;Aderezos y condimentos;producto;;tienda vgb;;Centro;botella;20;2;;35000;49500;15/01/2026;05/10/2027
+Castañas De Caju Natural Crudo;Frutos secos;producto;;Boutique calamuchita;Venta x peso;Centro;Kg;50;5;;12500;18500;10/01/2026;
+Papas Fritas Lays Clásicas X 330 Gr;Snacks;producto;;tienda vgb;;Centro;paquete;30;5;;6200;10500;15/06/2026;10/09/2026

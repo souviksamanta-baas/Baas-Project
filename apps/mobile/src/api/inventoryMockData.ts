@@ -44,13 +44,15 @@ export interface MovementMock {
 }
 
 export interface SellProductMock {
-  addKg?: boolean;
+  category?: string;
   id: string;
   indent?: boolean;
   linkedTo?: string;
   name: string;
   price: string;
+  soldByWeight?: boolean;
   stock: string;
+  unitPriceCents: number;
 }
 
 export interface CartItemMock {
@@ -103,14 +105,39 @@ export const movements: MovementMock[] = [
 ];
 
 export const sellProducts: SellProductMock[] = [
-  { id: 'sp1', name: 'Yerba Amanda 1kg', price: '$4.800', stock: 'Stock 24 u' },
-  { id: 'sp2', name: 'Leche Entera 1L', price: '$1.200', stock: 'Stock 18 u' },
-  { id: 'sp3', name: 'Azucar 500g', price: '$950', stock: 'Stock 32 u' },
-  { addKg: true, id: 'sp4', name: 'Harina granel', price: '$1.900 / kg', stock: 'Stock 100 kg' },
-  { id: 'sp5', indent: true, linkedTo: 'Harina granel', name: 'Harina 1 kg', price: '$2.500', stock: 'Stock 26 u' },
-  { id: 'sp6', indent: true, linkedTo: 'Harina granel', name: 'Harina 2 kg', price: '$4.800', stock: 'Stock 14 u' },
-  { id: 'sp7', name: 'Arroz Largo Fino 1kg', price: '$2.100', stock: 'Stock 20 u' },
-  { id: 'sp8', name: 'Fideos 500g', price: '$1.350', stock: 'Stock 15 u' },
+  { id: 'sp1', name: 'Yerba Amanda 1kg', price: '$4.800', stock: 'Stock 24 u', unitPriceCents: 480000 },
+  { id: 'sp2', name: 'Leche Entera 1L', price: '$1.200', stock: 'Stock 18 u', unitPriceCents: 120000 },
+  { id: 'sp3', name: 'Azucar 500g', price: '$950', stock: 'Stock 32 u', unitPriceCents: 95000 },
+  {
+    id: 'sp4',
+    name: 'Harina granel',
+    price: '$1.900 / kg',
+    soldByWeight: true,
+    stock: 'Stock 100 kg',
+    unitPriceCents: 190000,
+  },
+  {
+    category: 'Almacen',
+    id: 'sp5',
+    indent: true,
+    linkedTo: 'Harina granel',
+    name: 'Harina 1 kg',
+    price: '$2.500',
+    stock: 'Stock 26 u',
+    unitPriceCents: 250000,
+  },
+  {
+    category: 'Almacen',
+    id: 'sp6',
+    indent: true,
+    linkedTo: 'Harina granel',
+    name: 'Harina 2 kg',
+    price: '$4.800',
+    stock: 'Stock 14 u',
+    unitPriceCents: 480000,
+  },
+  { id: 'sp7', name: 'Arroz Largo Fino 1kg', price: '$2.100', stock: 'Stock 20 u', unitPriceCents: 210000 },
+  { id: 'sp8', name: 'Fideos 500g', price: '$1.350', stock: 'Stock 15 u', unitPriceCents: 135000 },
 ];
 
 export const cartItems: CartItemMock[] = [

@@ -40,18 +40,27 @@ export function conversationRoute(conversationId: string): string {
   return `/inbox/${conversationId}`;
 }
 
-export function productDetailRoute(productId: string): string {
-  return `/(app)/inventory/product/${productId}`;
+export function productDetailRoute(
+  productId: string,
+  returnTo?: InventoryReturnTo,
+): string {
+  const path = `/(app)/inventory/product/${productId}`;
+
+  if (!returnTo) {
+    return path;
+  }
+
+  return `${path}?returnTo=${returnTo}`;
 }
 
-export type InventoryReturnTo = 'manage-stock' | 'product-detail';
+export type InventoryReturnTo = 'manage-stock' | 'product-detail' | 'sell';
 
 export function parseInventoryReturnTo(
   value: string | string[] | undefined,
 ): InventoryReturnTo | undefined {
   const raw = Array.isArray(value) ? value[0] : value;
 
-  if (raw === 'manage-stock' || raw === 'product-detail') {
+  if (raw === 'manage-stock' || raw === 'product-detail' || raw === 'sell') {
     return raw;
   }
 
@@ -66,11 +75,18 @@ export function resolveInventoryReturnRoute(
     return productDetailRoute(productId);
   }
 
+  if (returnTo === 'sell') {
+    return routes.inventorySell;
+  }
+
   return routes.inventoryManageStock;
 }
 
-export function productEditRoute(productId: string, returnTo?: InventoryReturnTo): string {
-  const path = `/(app)/inventory/product/${productId}/edit`;
+export function productAddSubproductRoute(
+  parentProductId: string,
+  returnTo?: InventoryReturnTo | 'product-edit',
+): string {
+  const path = `/(app)/inventory/product/${parentProductId}/add-subproduct`;
 
   if (!returnTo) {
     return path;
@@ -79,22 +95,70 @@ export function productEditRoute(productId: string, returnTo?: InventoryReturnTo
   return `${path}?returnTo=${returnTo}`;
 }
 
-export function productAddStockRoute(productId: string): string {
-  return `/(app)/inventory/product/${productId}/add-stock`;
+export function productAddRoute(returnTo?: InventoryReturnTo): string {
+  const path = '/(app)/inventory/add-product';
+
+  if (!returnTo) {
+    return path;
+  }
+
+  return `${path}?returnTo=${returnTo}`;
 }
 
-export function productDeleteRoute(productId: string): string {
-  return `/(app)/inventory/product/${productId}/delete`;
+export function productEditRoute(
+  productId: string,
+  returnTo?: InventoryReturnTo,
+  options?: { mode?: 'archive' },
+): string {
+  const params = new URLSearchParams();
+
+  if (returnTo) {
+    params.set('returnTo', returnTo);
+  }
+
+  if (options?.mode) {
+    params.set('mode', options.mode);
+  }
+
+  const query = params.toString();
+  const path = `/(app)/inventory/product/${productId}/edit`;
+
+  return query.length > 0 ? `${path}?${query}` : path;
 }
 
-export type SubproductReturnTo = 'manage-stock' | 'product-detail' | 'product-edit';
+export function productAddStockRoute(productId: string, returnTo?: InventoryReturnTo): string {
+  const path = `/(app)/inventory/product/${productId}/add-stock`;
+
+  if (!returnTo) {
+    return path;
+  }
+
+  return `${path}?returnTo=${returnTo}`;
+}
+
+export function productDeleteRoute(productId: string, returnTo?: InventoryReturnTo): string {
+  const path = `/(app)/inventory/product/${productId}/delete`;
+
+  if (!returnTo) {
+    return path;
+  }
+
+  return `${path}?returnTo=${returnTo}`;
+}
+
+export type SubproductReturnTo = 'manage-stock' | 'product-detail' | 'product-edit' | 'sell';
 
 export function parseSubproductReturnTo(
   value: string | string[] | undefined,
 ): SubproductReturnTo | undefined {
   const raw = Array.isArray(value) ? value[0] : value;
 
-  if (raw === 'manage-stock' || raw === 'product-detail' || raw === 'product-edit') {
+  if (
+    raw === 'manage-stock' ||
+    raw === 'product-detail' ||
+    raw === 'product-edit' ||
+    raw === 'sell'
+  ) {
     return raw;
   }
 
@@ -110,6 +174,8 @@ export function resolveSubproductReturnRoute(
       return productEditRoute(parentProductId, 'product-detail');
     case 'manage-stock':
       return routes.inventoryManageStock;
+    case 'sell':
+      return routes.inventorySell;
     case 'product-detail':
     default:
       return productDetailRoute(parentProductId);

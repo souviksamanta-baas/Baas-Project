@@ -1,9 +1,11 @@
-import { useState, type ReactElement } from 'react';
+import { useMemo, useState, type ReactElement } from 'react';
 import { Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { MobileContainedModal } from './MobileContainedModal';
 import { TextField } from '../design-system';
 import { colors, radius } from '../theme';
+import { formatDateInput, parseDateInput } from '../lib/addStockForm';
+import { filterSupplierSuggestions } from '../lib/productCatalog';
 import type { CatalogOption } from '../lib/productCatalog';
 import { Icon } from './icons';
 
@@ -106,6 +108,154 @@ export function InventorySelectField<T extends string>(props: {
   );
 }
 
+export function InventorySupplierField(props: {
+  full?: boolean;
+  label: string;
+  onChangeText: (value: string) => void;
+  suggestions: string[];
+  value: string;
+}): ReactElement {
+  const [focused, setFocused] = useState(false);
+  const matches = useMemo(
+    () => (focused ? filterSupplierSuggestions(props.suggestions, props.value) : []),
+    [focused, props.suggestions, props.value],
+  );
+
+  return (
+    <View style={[styles.field, props.full && styles.fieldFull]}>
+      <Text style={styles.label}>{props.label}</Text>
+      <TextInput
+        onBlur={() => {
+          setTimeout(() => setFocused(false), 120);
+        }}
+        onChangeText={props.onChangeText}
+        onFocus={() => setFocused(true)}
+        placeholder="Proveedor o marca"
+        placeholderTextColor={colors.placeholder}
+        style={[styles.supplierInput, Platform.OS === 'web' && styles.inputWeb]}
+        value={props.value}
+      />
+      {matches.length > 0 ? (
+        <View style={styles.suggestionList}>
+          {matches.map((supplier) => (
+            <Pressable
+              key={supplier}
+              onPress={() => {
+                props.onChangeText(supplier);
+                setFocused(false);
+              }}
+              style={styles.suggestionItem}
+            >
+              <Text style={styles.suggestionText}>{supplier}</Text>
+            </Pressable>
+          ))}
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+export function InventoryIntegerField(props: {
+  label: string;
+  onChangeText: (value: string) => void;
+  value: string;
+}): ReactElement {
+  return (
+    <View style={styles.field}>
+      <Text style={styles.label}>{props.label}</Text>
+      <View style={styles.prefixInputBox}>
+        <TextInput
+          keyboardType="number-pad"
+          onChangeText={(value) => props.onChangeText(value.replace(/[^\d]/g, ''))}
+          placeholder="0"
+          placeholderTextColor={colors.placeholder}
+          style={[styles.prefixInput, Platform.OS === 'web' && styles.inputWeb]}
+          value={props.value}
+        />
+      </View>
+    </View>
+  );
+}
+
+export function InventoryDecimalField(props: {
+  label: string;
+  onChangeText: (value: string) => void;
+  placeholder?: string;
+  value: string;
+}): ReactElement {
+  return (
+    <View style={styles.field}>
+      <Text style={styles.label}>{props.label}</Text>
+      <View style={styles.prefixInputBox}>
+        <TextInput
+          keyboardType="decimal-pad"
+          onChangeText={props.onChangeText}
+          placeholder={props.placeholder ?? '0'}
+          placeholderTextColor={colors.placeholder}
+          style={[styles.prefixInput, Platform.OS === 'web' && styles.inputWeb]}
+          value={props.value}
+        />
+      </View>
+    </View>
+  );
+}
+
+export function InventoryDateField(props: {
+  label: string;
+  onChange: (value: string) => void;
+  value: string;
+}): ReactElement {
+  const [focused, setFocused] = useState(false);
+
+  function applyIsoDate(isoValue: string): void {
+    const date = new Date(`${isoValue}T12:00:00`);
+    if (Number.isNaN(date.getTime())) {
+      return;
+    }
+
+    props.onChange(formatDateInput(date));
+  }
+
+  return (
+    <View style={styles.field}>
+      <Text style={styles.label}>{props.label}</Text>
+      <View style={styles.dateInputBox}>
+        <TextInput
+          keyboardType="numbers-and-punctuation"
+          onBlur={() => setFocused(false)}
+          onChangeText={props.onChange}
+          onFocus={() => setFocused(true)}
+          placeholder="dia/mes/año"
+          placeholderTextColor={colors.placeholder}
+          style={[
+            styles.dateInput,
+            Platform.OS === 'web' && styles.inputWeb,
+            !props.value && !focused && styles.dateInputPlaceholder,
+          ]}
+          value={props.value}
+        />
+        {Platform.OS === 'web' ? (
+          <label style={styles.webDateLabel}>
+            <Icon color={colors.slate} kind="calendar" size={14} strokeWidth={1.8} />
+            <input
+              onChange={(event) => applyIsoDate(event.currentTarget.value)}
+              style={styles.webDateInput}
+              type="date"
+              value={
+                parseDateInput(props.value)
+                  ? `${parseDateInput(props.value)!.getFullYear()}-${String(parseDateInput(props.value)!.getMonth() + 1).padStart(2, '0')}-${String(parseDateInput(props.value)!.getDate()).padStart(2, '0')}`
+                  : ''
+              }
+            />
+          </label>
+        ) : (
+          <Icon color={colors.slate} kind="calendar" size={14} strokeWidth={1.8} />
+        )}
+      </View>
+    </View>
+  );
+}
+
 export function InventoryMoneyField(props: {
   label: string;
   onChangeText: (value: string) => void;
@@ -153,6 +303,29 @@ export function InventoryPercentField(props: {
 }
 
 const styles = StyleSheet.create({
+  dateInput: {
+    color: colors.navy,
+    flex: 1,
+    fontSize: 12,
+    fontWeight: '500',
+    minWidth: 0,
+    paddingVertical: 0,
+  },
+  dateInputBox: {
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderColor: colors.borderInput,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 8,
+    minHeight: 40,
+    paddingHorizontal: 10,
+    paddingVertical: 11,
+  },
+  dateInputPlaceholder: {
+    fontWeight: '300',
+  },
   field: {
     flex: 1,
     minWidth: 0,
@@ -284,5 +457,48 @@ const styles = StyleSheet.create({
     color: colors.slate,
     fontSize: 12,
     fontWeight: '600',
+  },
+  suggestionItem: {
+    borderBottomColor: colors.border,
+    borderBottomWidth: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+  },
+  suggestionList: {
+    backgroundColor: colors.surface,
+    borderColor: colors.borderInput,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    marginTop: 6,
+    overflow: 'hidden',
+  },
+  suggestionText: {
+    color: colors.navy,
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  supplierInput: {
+    backgroundColor: colors.surface,
+    borderColor: colors.borderInput,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    color: colors.navy,
+    fontSize: 12,
+    fontWeight: '500',
+    minHeight: 40,
+    paddingHorizontal: 10,
+    paddingVertical: 11,
+  },
+  webDateInput: {
+    cursor: 'pointer',
+    height: 18,
+    opacity: 0,
+    position: 'absolute',
+    right: 0,
+    top: 0,
+    width: 18,
+  },
+  webDateLabel: {
+    position: 'relative',
   },
 });

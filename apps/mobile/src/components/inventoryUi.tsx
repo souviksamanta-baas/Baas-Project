@@ -1,5 +1,5 @@
 import { useState, type ReactElement, type ReactNode } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import type { StockTone } from '../api/inventoryMockData';
 import {
@@ -83,12 +83,13 @@ export function ProductSummaryCard(props: {
   linkedTo?: string;
   meta?: {
     branch?: string;
-    code?: string;
+    codeLabel?: string;
+    codeUnavailable?: boolean;
+    codeValue?: string;
     cost?: string;
     margin?: string;
     price?: string;
     sku?: string;
-    unit?: string;
   };
   showBarcode?: boolean;
   showMeta?: boolean;
@@ -99,13 +100,18 @@ export function ProductSummaryCard(props: {
 }): ReactElement {
   const meta = props.meta ?? {
     branch: 'Sucursal Centro',
-    code: '7791234567890',
-    cost: '$1.250 / kg',
+    codeLabel: 'Codigo de barras',
+    codeUnavailable: true,
+    codeValue: 'No Disponible',
+    cost: '$1.250',
     margin: '34%',
-    price: '$1.900 / kg',
+    price: '$1.900',
     sku: 'HAR-GRAN-100KG',
-    unit: 'kg',
   };
+  const codeLabel = meta.codeLabel ?? 'Codigo de barras';
+  const codeValue = meta.codeValue ?? '—';
+  const codeUnavailable = meta.codeUnavailable ?? false;
+  const barcodeColor = codeUnavailable ? colors.danger : colors.navy;
 
   return (
     <View style={styles.summaryCard}>
@@ -134,7 +140,7 @@ export function ProductSummaryCard(props: {
             <Text style={styles.stockValue}>{props.stock}</Text>
             {props.showBarcode ? (
               <View style={styles.barcodeWrap}>
-                <Icon color={colors.navy} kind="barcode" size={18} strokeWidth={1} />
+                <Icon color={barcodeColor} kind="barcode" size={18} strokeWidth={1} />
               </View>
             ) : null}
           </View>
@@ -142,13 +148,11 @@ export function ProductSummaryCard(props: {
       </View>
       {props.showMeta ? (
         <View style={styles.metaGrid}>
-          <MetaItem label="Codigo" value={meta.code ?? '—'} />
+          <MetaItem danger={codeUnavailable} label={codeLabel} value={codeValue} />
           <MetaItem label="Precio de venta" value={meta.price ?? '—'} />
-          <MetaItem label="Tipo de codigo" value="Codigo de barras" />
           <MetaItem label="Costo" value={meta.cost ?? '—'} />
           <MetaItem label="SKU" value={meta.sku ?? '—'} />
           <MetaItem label="Margen" value={meta.margin ?? '—'} />
-          <MetaItem label="Unidad" value={meta.unit ?? '—'} />
           <MetaItem label="Sucursal" value={meta.branch ?? '—'} />
         </View>
       ) : null}
@@ -156,11 +160,11 @@ export function ProductSummaryCard(props: {
   );
 }
 
-function MetaItem(props: { label: string; value: string }): ReactElement {
+function MetaItem(props: { danger?: boolean; label: string; value: string }): ReactElement {
   return (
     <View style={styles.metaItem}>
       <Text style={styles.metaLabel}>{props.label}</Text>
-      <Text style={styles.metaValue}>{props.value}</Text>
+      <Text style={[styles.metaValue, props.danger && styles.metaValueDanger]}>{props.value}</Text>
     </View>
   );
 }
@@ -211,6 +215,7 @@ export function PrimaryButton(props: {
 
 export function OutlineButton(props: {
   compact?: boolean;
+  disabled?: boolean;
   fullWidth?: boolean;
   icon?: IconKind;
   label: string;
@@ -218,6 +223,7 @@ export function OutlineButton(props: {
 }): ReactElement {
   return (
     <DsOutlineButton
+      disabled={props.disabled}
       flex={!props.fullWidth}
       fullWidth={props.fullWidth}
       icon={props.icon}
@@ -242,7 +248,7 @@ export function SecondaryButton(props: {
       icon={props.icon}
       label={props.label}
       onPress={props.onPress}
-      size="compact"
+      size="md"
       style={props.fullWidth ? styles.formSecondaryButton : undefined}
     />
   );
@@ -261,9 +267,17 @@ export function DangerButton(props: { label: string; onPress?: () => void }): Re
   );
 }
 
-export function SolidDangerButton(props: { label: string; onPress?: () => void }): ReactElement {
+export function SolidDangerButton(props: {
+  disabled?: boolean;
+  label: string;
+  onPress?: () => void;
+}): ReactElement {
   return (
-    <Pressable onPress={props.onPress} style={styles.solidDangerButton}>
+    <Pressable
+      disabled={props.disabled}
+      onPress={props.onPress}
+      style={[styles.solidDangerButton, props.disabled && styles.solidDangerButtonDisabled]}
+    >
       <Text style={styles.solidDangerButtonText}>{props.label}</Text>
     </Pressable>
   );
@@ -295,30 +309,115 @@ export function RowActions(props: {
 }): ReactElement {
   return (
     <View style={styles.rowActions}>
-      <Pressable
-        accessibilityLabel="Editar producto"
-        hitSlop={8}
-        onPress={props.onEdit}
-        style={styles.rowActionButton}
+      {props.onEdit ? (
+        <Pressable
+          accessibilityLabel="Editar producto"
+          hitSlop={8}
+          onPress={props.onEdit}
+          style={styles.rowActionButton}
+        >
+          <Icon color={colors.info} kind="edit" size={15} strokeWidth={2} />
+        </Pressable>
+      ) : null}
+      {props.onDelete ? (
+        <Pressable
+          accessibilityLabel="Eliminar producto"
+          hitSlop={8}
+          onPress={props.onDelete}
+          style={styles.rowActionButton}
+        >
+          <Icon color={colors.danger} kind="trash" size={15} strokeWidth={1.8} />
+        </Pressable>
+      ) : null}
+      {props.onAddStock ? (
+        <Pressable
+          accessibilityLabel="Agregar stock"
+          hitSlop={8}
+          onPress={props.onAddStock}
+          style={styles.rowActionButton}
+        >
+          <Icon color={colors.primary} kind="plus" size={17} strokeWidth={2} />
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}
+
+function PaginationControlButton(props: {
+  active?: boolean;
+  disabled?: boolean;
+  label: string;
+  onPress?: () => void;
+}): ReactElement {
+  return (
+    <Pressable
+      disabled={props.disabled}
+      onPress={props.onPress}
+      style={[
+        styles.paginationButton,
+        props.active && styles.paginationButtonActive,
+        props.disabled && styles.paginationButtonDisabled,
+      ]}
+    >
+      <Text
+        style={[
+          styles.paginationButtonText,
+          props.active && styles.paginationButtonTextActive,
+          props.disabled && styles.paginationButtonTextDisabled,
+        ]}
       >
-        <Icon color={colors.info} kind="edit" size={15} strokeWidth={2} />
-      </Pressable>
-      <Pressable
-        accessibilityLabel="Eliminar producto"
-        hitSlop={8}
-        onPress={props.onDelete}
-        style={styles.rowActionButton}
-      >
-        <Icon color={colors.danger} kind="trash" size={15} strokeWidth={1.8} />
-      </Pressable>
-      <Pressable
-        accessibilityLabel="Agregar stock"
-        hitSlop={8}
-        onPress={props.onAddStock}
-        style={styles.rowActionButton}
-      >
-        <Icon color={colors.primary} kind="plus" size={17} strokeWidth={2} />
-      </Pressable>
+        {props.label}
+      </Text>
+    </Pressable>
+  );
+}
+
+export function InventoryPagination(props: {
+  onPageChange: (page: number) => void;
+  page: number;
+  pageCount: number;
+  rangeEnd: number;
+  rangeStart: number;
+  total: number;
+  visiblePages: number[];
+}): ReactElement {
+  const rangeLabel =
+    props.total === 0
+      ? '0 productos'
+      : `${props.rangeStart}-${props.rangeEnd} de ${props.total} producto${props.total === 1 ? '' : 's'}`;
+
+  return (
+    <View style={styles.paginationRow}>
+      <Text style={styles.paginationMeta}>{rangeLabel}</Text>
+      {props.pageCount > 1 ? (
+        <View style={styles.paginationControls}>
+          <PaginationControlButton
+            disabled={props.page <= 1}
+            label="<"
+            onPress={() => props.onPageChange(props.page - 1)}
+          />
+          {props.visiblePages.map((pageNumber, index) => {
+            const previousPage = props.visiblePages[index - 1];
+            const showGap = previousPage != null && pageNumber - previousPage > 1;
+
+            return (
+              <View key={pageNumber} style={styles.paginationPageGroup}>
+                {showGap ? <Text style={styles.paginationGap}>...</Text> : null}
+                <PaginationControlButton
+                  active={pageNumber === props.page}
+                  label={String(pageNumber)}
+                  onPress={() => props.onPageChange(pageNumber)}
+                />
+              </View>
+            );
+          })}
+          <PaginationControlButton
+            disabled={props.page >= props.pageCount}
+            label=">"
+            onPress={() => props.onPageChange(props.page + 1)}
+          />
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -349,25 +448,46 @@ export function DiscountToggle(props: {
   );
 }
 
-function DiscountInputField(props: { mode: 'amount' | 'percent' }): ReactElement {
+function DiscountInputField(props: {
+  mode: 'amount' | 'percent';
+  onChangeText: (value: string) => void;
+  value: string;
+}): ReactElement {
   return (
-    <View style={styles.discountInput}>
+    <View style={[styles.discountInput, props.mode === 'percent' && styles.discountInputPercent]}>
       {props.mode === 'amount' ? <Text style={styles.discountInputPrefix}>$</Text> : null}
-      <TextInput defaultValue="10" keyboardType="numeric" style={styles.discountInputText} />
+      <TextInput
+        keyboardType="decimal-pad"
+        onChangeText={props.onChangeText}
+        placeholder="0"
+        placeholderTextColor={colors.placeholder}
+        style={[
+          styles.discountInputText,
+          props.mode === 'percent' && styles.discountInputTextPercent,
+          Platform.OS === 'web' && styles.inputWebNoOutline,
+        ]}
+        value={props.value}
+      />
       {props.mode === 'percent' ? <Text style={styles.discountInputSuffix}>%</Text> : null}
     </View>
   );
 }
 
 export function SaleTotalsBlock(props: {
+  discountInput?: string;
   discountLabel?: string;
+  discountMode?: 'amount' | 'percent';
   discountValue: string;
+  onDiscountInputChange?: (value: string) => void;
+  onDiscountModeChange?: (mode: 'amount' | 'percent') => void;
   subtotal: string;
   total: string;
   totalLabel?: string;
   withDiscountControls?: boolean;
 }): ReactElement {
-  const [discountMode, setDiscountMode] = useState<'amount' | 'percent'>('percent');
+  const [internalDiscountMode, setInternalDiscountMode] = useState<'amount' | 'percent'>('percent');
+  const discountMode = props.discountMode ?? internalDiscountMode;
+  const setDiscountMode = props.onDiscountModeChange ?? setInternalDiscountMode;
 
   return (
     <View style={styles.totalsBlock}>
@@ -380,7 +500,11 @@ export function SaleTotalsBlock(props: {
         {props.withDiscountControls ? (
           <View style={styles.discountControls}>
             <DiscountToggle mode={discountMode} onChange={setDiscountMode} />
-            <DiscountInputField mode={discountMode} />
+            <DiscountInputField
+              mode={discountMode}
+              onChangeText={props.onDiscountInputChange ?? (() => undefined)}
+              value={props.discountInput ?? ''}
+            />
             <Text style={styles.discountValue}>{props.discountValue}</Text>
           </View>
         ) : (
@@ -405,12 +529,16 @@ export function CodeTypeIcon(props: { code: string; tone?: 'red'; small?: boolea
 }
 
 export function LinkedSubproductRow(props: {
+  isLast?: boolean;
   name: string;
   onEditPress?: () => void;
   onPress?: () => void;
 }): ReactElement {
   return (
-    <Pressable onPress={props.onPress} style={styles.linkedSubproductRow}>
+    <Pressable
+      onPress={props.onPress}
+      style={[styles.linkedSubproductRow, props.isLast && styles.linkedSubproductRowLast]}
+    >
       <ProductThumb />
       <View style={styles.flex}>
         <Text style={styles.linkedSubproductName}>{props.name}</Text>
@@ -423,16 +551,25 @@ export function LinkedSubproductRow(props: {
         }}
         style={styles.linkedSubproductAction}
       >
-        <Icon color={colors.info} kind="edit" size={12} strokeWidth={2} />
+        <Icon color={colors.primary} kind="edit" size={12} strokeWidth={2} />
         <Text style={[styles.linkedSubproductActionText, styles.linkedSubproductEditText]}>Editar</Text>
+        <Icon color={colors.primary} kind="chevron-right" size={12} strokeWidth={2.2} />
       </Pressable>
     </Pressable>
   );
 }
 
-export function RadioProductOption(props: { active?: boolean; meta: string; name: string }): ReactElement {
+export function RadioProductOption(props: {
+  active?: boolean;
+  meta: string;
+  name: string;
+  onPress?: () => void;
+}): ReactElement {
   return (
-    <View style={[styles.radioOption, props.active && styles.radioOptionActive]}>
+    <Pressable
+      onPress={props.onPress}
+      style={[styles.radioOption, props.active && styles.radioOptionActive]}
+    >
       <View style={[styles.radioCircle, props.active && styles.radioCircleActive]}>
         {props.active ? <View style={styles.radioDot} /> : null}
       </View>
@@ -441,7 +578,7 @@ export function RadioProductOption(props: { active?: boolean; meta: string; name
         <Text style={styles.radioOptionName}>{props.name}</Text>
         <Text style={styles.radioOptionMeta}>{props.meta}</Text>
       </View>
-    </View>
+    </Pressable>
   );
 }
 
@@ -475,7 +612,18 @@ export interface CartLineItemMock {
   weight?: boolean;
 }
 
-export function CartLineRow(props: { inListCard?: boolean; isFirst?: boolean; item: CartLineItemMock }): ReactElement {
+export function CartLineRow(props: {
+  gramsShowPlaceholder?: boolean;
+  gramsValue?: string;
+  inListCard?: boolean;
+  isFirst?: boolean;
+  item: CartLineItemMock;
+  onDecrease?: () => void;
+  onGramsChange?: (value: string) => void;
+  onGramsFocus?: () => void;
+  onIncrease?: () => void;
+  onRemove?: () => void;
+}): ReactElement {
   return (
     <View
       style={[
@@ -495,28 +643,47 @@ export function CartLineRow(props: { inListCard?: boolean; isFirst?: boolean; it
           ) : null}
         </View>
         {props.item.weight ? (
-          <TextInput defaultValue={props.item.qty} style={styles.qtyInput} />
+          <View style={styles.cartWeightInputBox}>
+            <TextInput
+              keyboardType="number-pad"
+              onChangeText={props.onGramsChange}
+              onFocus={props.onGramsFocus}
+              placeholder="1000"
+              placeholderTextColor={colors.placeholder}
+              style={[styles.cartWeightInput, Platform.OS === 'web' && styles.inputWebNoOutline]}
+              value={props.gramsShowPlaceholder ? '' : (props.gramsValue ?? '')}
+            />
+            <Text style={styles.cartWeightSuffix}>g</Text>
+          </View>
         ) : (
           <View style={styles.qtyControls}>
-            <Pressable style={styles.qtyButton}>
+            <Pressable onPress={props.onDecrease} style={styles.qtyButton}>
               <Text style={styles.qtyButtonText}>-</Text>
             </Pressable>
             <Text style={styles.qtyValue}>{props.item.qty}</Text>
-            <Pressable style={styles.qtyButton}>
+            <Pressable onPress={props.onIncrease} style={styles.qtyButton}>
               <Text style={styles.qtyButtonText}>+</Text>
             </Pressable>
           </View>
         )}
       </View>
       <Text style={styles.cartPrice}>{props.item.price}</Text>
-      <Icon color={colors.danger} kind="trash" size={14} strokeWidth={1.8} />
+      <Pressable accessibilityLabel="Quitar del carrito" hitSlop={8} onPress={props.onRemove}>
+        <Icon color={colors.danger} kind="trash" size={14} strokeWidth={1.8} />
+      </Pressable>
     </View>
   );
 }
 
-export function ConfirmEditButton(props: { icon?: 'bill' | 'edit'; label: string; onPress?: () => void }): ReactElement {
+export function ConfirmEditButton(props: {
+  disabled?: boolean;
+  icon?: 'bill' | 'edit';
+  label: string;
+  onPress?: () => void;
+}): ReactElement {
   return (
     <DsOutlineButton
+      disabled={props.disabled}
       fullWidth
       icon={props.icon ?? 'edit'}
       label={props.label}
@@ -527,9 +694,14 @@ export function ConfirmEditButton(props: { icon?: 'bill' | 'edit'; label: string
   );
 }
 
-export function ConfirmPrimaryButton(props: { label: string; onPress?: () => void }): ReactElement {
+export function ConfirmPrimaryButton(props: {
+  disabled?: boolean;
+  label: string;
+  onPress?: () => void;
+}): ReactElement {
   return (
     <DsPrimaryButton
+      disabled={props.disabled}
       fullWidth
       icon="check"
       label={props.label}
@@ -589,8 +761,15 @@ const styles = StyleSheet.create({
   },
   formSecondaryButton: {
     alignSelf: 'stretch',
+    backgroundColor: colors.primarySoft,
+    borderColor: colors.primary,
+    borderRadius: radius.md,
+    borderWidth: 1,
     flex: 0,
-    height: 38,
+    height: 44,
+    marginTop: 12,
+    minHeight: 44,
+    paddingHorizontal: 16,
     width: '100%',
   },
   barcodeWrap: {
@@ -718,6 +897,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 2,
   },
+  discountInputPercent: {
+    maxWidth: 72,
+    minWidth: 56,
+    overflow: 'hidden',
+    paddingHorizontal: 4,
+  },
   discountInputPrefix: {
     color: colors.navy,
     fontSize: 10,
@@ -725,6 +910,7 @@ const styles = StyleSheet.create({
   },
   discountInputSuffix: {
     color: colors.navy,
+    flexShrink: 0,
     fontSize: 10,
     fontWeight: '600',
   },
@@ -736,6 +922,41 @@ const styles = StyleSheet.create({
     minWidth: 52,
     padding: 0,
     textAlign: 'center',
+  },
+  discountInputTextPercent: {
+    flexShrink: 1,
+    minWidth: 16,
+  },
+  cartWeightInput: {
+    color: colors.navy,
+    flex: 1,
+    fontSize: 10,
+    fontWeight: '600',
+    minWidth: 0,
+    padding: 0,
+  },
+  cartWeightInputBox: {
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderColor: colors.borderInput,
+    borderRadius: 6,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 6,
+    marginTop: 6,
+    minHeight: 28,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    width: 92,
+  },
+  cartWeightSuffix: {
+    color: colors.slate,
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  inputWebNoOutline: {
+    outlineStyle: 'solid',
+    outlineWidth: 0,
   },
   discountPercentValue: {
     color: colors.info,
@@ -882,6 +1103,7 @@ const styles = StyleSheet.create({
   linkedSubproductAction: {
     alignItems: 'center',
     flexDirection: 'row',
+    flexShrink: 0,
     gap: 4,
   },
   linkedSubproductActionText: {
@@ -889,12 +1111,13 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   linkedSubproductEditText: {
-    color: colors.info,
+    color: colors.primary,
   },
   linkedSubproductMeta: {
     color: colors.slate,
     fontSize: 10,
     fontWeight: '300',
+    marginTop: 2,
   },
   linkedSubproductName: {
     color: colors.navy,
@@ -903,12 +1126,15 @@ const styles = StyleSheet.create({
   },
   linkedSubproductRow: {
     alignItems: 'center',
-    borderTopColor: '#edf2f4',
-    borderTopWidth: 1,
+    borderBottomColor: colors.divider,
+    borderBottomWidth: 1,
     flexDirection: 'row',
     gap: 10,
-    marginTop: 10,
-    paddingTop: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  linkedSubproductRowLast: {
+    borderBottomWidth: 0,
   },
   linkedText: {
     color: colors.info,
@@ -938,6 +1164,72 @@ const styles = StyleSheet.create({
     fontSize: 9,
     fontWeight: '600',
     marginTop: 2,
+  },
+  metaValueDanger: {
+    color: colors.danger,
+  },
+  paginationButton: {
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderColor: colors.borderInput,
+    borderRadius: 6,
+    borderWidth: 1,
+    height: 22,
+    justifyContent: 'center',
+    minWidth: 22,
+    paddingHorizontal: 6,
+  },
+  paginationButtonActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  paginationButtonDisabled: {
+    opacity: 0.45,
+  },
+  paginationButtonText: {
+    color: colors.slate,
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  paginationButtonTextActive: {
+    color: colors.surface,
+  },
+  paginationButtonTextDisabled: {
+    color: colors.slate,
+  },
+  paginationControls: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    flexShrink: 0,
+    gap: 4,
+  },
+  paginationGap: {
+    color: colors.slate,
+    fontSize: 10,
+    fontWeight: '600',
+    paddingHorizontal: 2,
+  },
+  paginationMeta: {
+    color: colors.slate,
+    flex: 1,
+    fontSize: 10,
+    fontWeight: '300',
+    minWidth: 0,
+  },
+  paginationPageGroup: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 4,
+  },
+  paginationRow: {
+    alignItems: 'center',
+    borderTopColor: colors.divider,
+    borderTopWidth: 1,
+    flexDirection: 'row',
+    gap: 8,
+    justifyContent: 'space-between',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
   },
   outlineButton: {
     alignItems: 'center',
@@ -1157,6 +1449,9 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 44,
     justifyContent: 'center',
+  },
+  solidDangerButtonDisabled: {
+    opacity: 0.45,
   },
   solidDangerButtonText: {
     color: colors.surface,

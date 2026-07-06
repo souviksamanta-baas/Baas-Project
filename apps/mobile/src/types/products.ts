@@ -13,6 +13,8 @@ export interface Product {
   name: string;
   organizationId: string;
   parentProductId: string | null;
+  /** Subproduct units consumed from parent stock per 1 subproduct unit (from metadata). */
+  baseUnitEquivalent: number | null;
   productType: string | null;
   reorderThreshold: number;
   sku: string | null;
@@ -30,6 +32,28 @@ export interface ProductEditFormValues {
   marginPercent: string;
   name: string;
   status: ProductStatusSlug;
+  unitPrice: string;
+}
+
+export type ProductTypeSlug = 'producto' | 'subproducto';
+
+export interface AddProductFormValues {
+  baseUnitCode: string;
+  baseUnitEquivalent: string;
+  businessCenterId: string;
+  category: string;
+  cost: string;
+  description: string;
+  expiresDate: string;
+  marginPercent: string;
+  name: string;
+  parentProductId: string;
+  productType: ProductTypeSlug;
+  receivedDate: string;
+  reorderThreshold: string;
+  status: ProductStatusSlug;
+  stockQuantity: string;
+  supplier: string;
   unitPrice: string;
 }
 

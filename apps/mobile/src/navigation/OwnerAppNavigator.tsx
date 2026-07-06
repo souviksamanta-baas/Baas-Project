@@ -25,6 +25,7 @@ import { useOwnerCopilot } from '../hooks/useOwnerCopilot';
 import type { InboxConversationSummary } from '../types/messages';
 import type { OwnerDashboard } from '../types/dashboard';
 import type { Product } from '../types/products';
+import { SellCartProvider } from '../context/SellCartProvider';
 import { DEFAULT_BASE_PRODUCT_ID } from './routes';
 import { colors } from '../theme';
 
@@ -80,6 +81,7 @@ const legacyEditProduct: Product = {
   description: baseProduct.notes,
   id: DEFAULT_BASE_PRODUCT_ID,
   inventoryItemId: null,
+  baseUnitEquivalent: null,
   isActive: true,
   isLowStock: false,
   metadata: {
@@ -115,7 +117,10 @@ export function OwnerAppNavigator(props: { onSignOut: () => void }): ReactElemen
   );
   const hideBottomNav = route === 'conversation' || route === 'copi-chat';
   const inventoryNav = {
-    onOpenAddStock: () => setRoute('add-stock'),
+    onAddStock: () => setRoute('add-stock'),
+    onAddStockForProduct: (productId: string) => openProductFlow(productId, 'add-stock'),
+    onDeleteProductById: (productId: string) => openProductFlow(productId, 'delete-product'),
+    onOpenAddSubproduct: () => setRoute('edit-subproduct'),
     onOpenConfirmPayment: () => setRoute('confirm-payment'),
     onOpenDeleteProduct: () => setRoute('delete-product'),
     onOpenEditProduct: () => setRoute('edit-product'),
@@ -177,6 +182,7 @@ export function OwnerAppNavigator(props: { onSignOut: () => void }): ReactElemen
             businessCenters={[{ id: 'legacy', name: ownerProfile.activeBranch }]}
             categories={[baseProduct.category]}
             onBack={() => setRoute('manage-stock')}
+            onOpenAddSubproduct={() => setRoute('edit-subproduct')}
             onOpenDeleteProduct={() => setRoute('delete-product')}
             onOpenEditSubproduct={() => setRoute('edit-subproduct')}
             onOpenSubproductDetail={() => setRoute('product-detail')}
@@ -207,13 +213,47 @@ export function OwnerAppNavigator(props: { onSignOut: () => void }): ReactElemen
           />
         );
       case 'add-stock':
-        return <AddStockScreen onBack={() => setRoute('manage-stock')} />;
+        return (
+          <AddStockScreen
+            catalogProducts={[{ ...legacyEditProduct, id: selectedProductId }]}
+            defaultSelectedProductId={selectedProductId}
+            onBack={() => setRoute('manage-stock')}
+            onSave={async () => {
+              setRoute('manage-stock');
+            }}
+            onSaveAndGoToManageStock={async () => {
+              setRoute('manage-stock');
+            }}
+            selectableProducts={[{ ...legacyEditProduct, id: selectedProductId }]}
+            showProductSelection={false}
+          />
+        );
       case 'delete-product':
-        return <DeleteProductScreen onBack={() => setRoute('manage-stock')} />;
+        return (
+          <DeleteProductScreen
+            onBack={() => setRoute('manage-stock')}
+            onDeactivate={() => setRoute('edit-product')}
+            onDelete={() => setRoute('manage-stock')}
+            product={{ ...legacyEditProduct, id: selectedProductId }}
+          />
+        );
       case 'sell-products':
-        return <SellProductsScreen onOpenConfirmPayment={() => setRoute('confirm-payment')} />;
+        return (
+          <SellCartProvider>
+            <SellProductsScreen
+              onAddToCart={() => undefined}
+              onEditProduct={() => undefined}
+              onOpenConfirmPayment={() => setRoute('confirm-payment')}
+              onOpenProductDetail={() => undefined}
+            />
+          </SellCartProvider>
+        );
       case 'confirm-payment':
-        return <ConfirmPaymentScreen onBack={() => setRoute('sell-products')} />;
+        return (
+          <SellCartProvider>
+            <ConfirmPaymentScreen onBack={() => setRoute('sell-products')} />
+          </SellCartProvider>
+        );
       default:
         return null;
     }

@@ -55,6 +55,22 @@ function parsePositiveNumber(value, fieldName, fallback = null) {
   return amount;
 }
 
+function parseBaseUnitEquivalent(value, fieldName) {
+  const trimmed = normalizeText(value);
+  if (!trimmed) {
+    return null;
+  }
+
+  const amount = Number.parseFloat(trimmed.replace(',', '.'));
+  if (Number.isNaN(amount) || amount <= 0) {
+    throw new Error(
+      `${fieldName} inv?lido "${value}". Us? un n?mero decimal mayor a 0 (ej. 0.25, .5 o 1).`,
+    );
+  }
+
+  return amount;
+}
+
 function slugifySku(name) {
   const base =
     name
@@ -198,6 +214,23 @@ async function findProductByName(productName) {
   return data;
 }
 
+async function findExistingLot(productId, businessCenterId, lotCode) {
+  const { data, error } = await supabase
+    .from('inventory_lots')
+    .select('id')
+    .eq('organization_id', organizationId)
+    .eq('business_center_id', businessCenterId)
+    .eq('product_id', productId)
+    .eq('lot_code', lotCode)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`No se pudo verificar lote "${lotCode}": ${error.message}`);
+  }
+
+  return data?.id ?? null;
+}
+
 async function findLatestParentLot(parentProductId, businessCenterId) {
   const { data, error } = await supabase
     .from('inventory_lots')
@@ -283,6 +316,23 @@ async function importRow(row, context) {
     throw new Error(`"${productName}" es subproducto pero falta producto_base.`);
   }
 
+  const baseUnitEquivalent =
+    tipoProducto === 'subproducto'
+      ? parseBaseUnitEquivalent(row.equivalente_unidad_base, 'equivalente_unidad_base')
+      : null;
+
+  if (tipoProducto === 'subproducto' && baseUnitEquivalent === null) {
+    throw new Error(
+      `"${productName}" es subproducto pero falta equivalente_unidad_base (cu?ntas unidades del producto base consume cada unidad de este subproducto).`,
+    );
+  }
+
+  const salePriceCents =
+    parsePesos(row.precio_venta, 'precio_venta') ??
+    parsePesos(row.precio_ars, 'precio_ars') ??
+    0;
+  let costPriceCents = parsePesos(row.precio_costo, 'precio_costo');
+
   let parentProductId = null;
   if (tipoProducto === 'subproducto') {
     const parent =
@@ -293,13 +343,20 @@ async function importRow(row, context) {
       );
     }
     parentProductId = parent.id;
+
+    if (costPriceCents == null && parent.metadata?.precio_costo_cents != null && baseUnitEquivalent != null) {
+      costPriceCents = Math.round(Number(parent.metadata.precio_costo_cents) * baseUnitEquivalent);
+    }
   }
 
-  const salePriceCents =
-    parsePesos(row.precio_venta, 'precio_venta') ??
-    parsePesos(row.precio_ars, 'precio_ars') ??
-    0;
-  const costPriceCents = parsePesos(row.precio_costo, 'precio_costo');
+  if (costPriceCents == null && parentName) {
+    const parentRow = context.rowsByName.get(parentName.toLowerCase());
+    const parentCostFromCsv = parentRow ? parsePesos(parentRow.precio_costo, 'precio_costo') : null;
+    if (parentCostFromCsv != null && baseUnitEquivalent != null) {
+      costPriceCents = Math.round(parentCostFromCsv * baseUnitEquivalent);
+    }
+  }
+
   const quantityOnHand = parsePositiveNumber(row.cantidad_stock, 'cantidad_stock', 0);
   const reorderThreshold = parsePositiveNumber(row.umbral_reorden, 'umbral_reorden', 0);
   const unitCode = normalizeText(row.unidad) || 'unit';
@@ -317,6 +374,7 @@ async function importRow(row, context) {
     ...(vendor ? { proveedor: vendor } : {}),
     ...(barcode ? { codigo_barras: barcode } : {}),
     ...(costPriceCents != null ? { precio_costo_cents: costPriceCents } : {}),
+    ...(baseUnitEquivalent != null ? { equivalente_unidad_base: baseUnitEquivalent } : {}),
     tipo_producto: tipoProducto,
     import_source: 'stock_csv',
   };
@@ -402,23 +460,26 @@ async function importRow(row, context) {
 
   if (loteFecha) {
     const lotCode = buildLotCode(loteFecha.lotCodeBase, product.sku, context.lotCounters);
+    const existingLotId = await findExistingLot(product.id, businessCenterId, lotCode);
 
-    const { error: lotError } = await supabase.from('inventory_lots').insert({
-      organization_id: organizationId,
-      business_center_id: businessCenterId,
-      product_id: product.id,
-      lot_code: lotCode,
-      received_quantity: quantityOnHand,
-      remaining_quantity: quantityOnHand,
-      unit_code: unitCode,
-      unit_cost_cents: lotCostCents,
-      received_at: `${loteFecha.isoDate}T12:00:00.000Z`,
-      expires_at: expiresAt,
-      supplier_reference: lotVendor,
-    });
+    if (!existingLotId) {
+      const { error: lotError } = await supabase.from('inventory_lots').insert({
+        organization_id: organizationId,
+        business_center_id: businessCenterId,
+        product_id: product.id,
+        lot_code: lotCode,
+        received_quantity: quantityOnHand,
+        remaining_quantity: quantityOnHand,
+        unit_code: unitCode,
+        unit_cost_cents: lotCostCents,
+        received_at: `${loteFecha.isoDate}T12:00:00.000Z`,
+        expires_at: expiresAt,
+        supplier_reference: lotVendor,
+      });
 
-    if (lotError) {
-      throw new Error(`No se pudo crear lote de "${productName}": ${lotError.message}`);
+      if (lotError) {
+        throw new Error(`No se pudo crear lote de "${productName}": ${lotError.message}`);
+      }
     }
 
     if (tipoProducto === 'producto') {
@@ -437,13 +498,13 @@ async function importRow(row, context) {
 const branchContext = await loadBusinessCenters();
 const rows = parseCsv(readFileSync(filePath, 'utf8'));
 const sortedRows = [...rows].sort((left, right) => {
-  const leftType = parseTipoProducto(left.tipo_producto);
-  const rightType = parseTipoProducto(right.tipo_producto);
-  if (leftType === rightType) {
-    return 0;
-  }
-  return leftType === 'producto' ? -1 : 1;
-});
+    const leftType = parseTipoProducto(left.tipo_producto);
+    const rightType = parseTipoProducto(right.tipo_producto);
+    if (leftType === rightType) {
+      return 0;
+    }
+    return leftType === 'producto' ? -1 : 1;
+  });
 
 const context = {
   ...branchContext,
@@ -452,6 +513,9 @@ const context = {
   lotCounters: new Map(),
   stockTotals: new Map(),
   latestLotByProductName: new Map(),
+  rowsByName: new Map(
+    sortedRows.map((row) => [normalizeText(row.nombre_producto).toLowerCase(), row]),
+  ),
 };
 
 for (const row of sortedRows) {
