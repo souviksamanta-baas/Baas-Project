@@ -60,4 +60,7 @@ export const envValidationSchema = Joi.object({
   NEXOLIA_AUTH_WABA_PHONE_NUMBER_ID: Joi.string().trim().optional().allow(''),
   NEXOLIA_AUTH_OTP_TEMPLATE_LANGUAGE: Joi.string().trim().optional().allow(''),
   NEXOLIA_AUTH_OTP_TEMPLATE_NAME: Joi.string().trim().optional().allow(''),
+  OPENAI_API_KEY: Joi.string().trim().optional().allow(''),
+  OPENAI_MODEL: Joi.string().trim().optional().allow(''),
+  OPENAI_VISION_MODEL: Joi.string().trim().optional().allow(''),
 });

@@ -81,3 +81,11 @@ Before enabling a WhatsApp number:
 - Complete Meta webhook verification.
 - Send a test message and confirm it appears in the Universal Inbox.
 - Confirm duplicate deliveries do not duplicate messages.
+
+## Related: Copi owner API
+
+Owner Copi is not delivered via webhooks. Mobile clients call authenticated
+NestJS routes (`POST /ai/copilot/query`, etc.) with a Supabase bearer token.
+Inbound WhatsApp webhooks may still create customer-facing `ai_drafts`; Copi
+answers owner business questions separately. See `docs/copi-architecture.md` in
+the repo.

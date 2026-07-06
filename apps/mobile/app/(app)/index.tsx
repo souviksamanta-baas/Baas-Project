@@ -31,6 +31,7 @@ export default function HomeRoute(): ReactElement {
       onOpenConversation={(conversationId) => router.push(conversationRoute(conversationId))}
       onOpenManageStock={() => router.push(routes.inventoryManageStock)}
       onOpenNotifications={() => router.push(routes.notifications)}
+      onOpenTasks={() => router.push(routes.tasks)}
       onOpenWhatsAppSetup={() => router.push(routes.whatsappConnect)}
       onSelectTab={(tab: AppTab) => router.replace(tabRoute(tab))}
       ownerGreeting={ownerName}

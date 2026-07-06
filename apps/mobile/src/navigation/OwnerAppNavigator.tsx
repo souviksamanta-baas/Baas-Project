@@ -109,7 +109,7 @@ export function OwnerAppNavigator(props: { onSignOut: () => void }): ReactElemen
   const [copiDraft, setCopiDraft] = useState('');
   const [selectedProductId, setSelectedProductId] = useState(DEFAULT_BASE_PRODUCT_ID);
   const [selectedSubproductId, setSelectedSubproductId] = useState('s1');
-  const legacyCopilot = useOwnerCopilot(null);
+  const legacyCopilot = useOwnerCopilot({ businessCenterId: null, organizationId: null });
 
   const selectedConversation = useMemo(
     () => conversations.find((conversation) => conversation.id === selectedConversationId) ?? conversations[0],
@@ -299,6 +299,7 @@ export function OwnerAppNavigator(props: { onSignOut: () => void }): ReactElemen
                 onOpenConversation={openConversation}
                 onOpenManageStock={openManageStock}
                 onOpenNotifications={() => setRoute('notifications')}
+                onOpenTasks={() => undefined}
                 onOpenWhatsAppSetup={() => setRoute('account')}
                 onSelectTab={selectTab}
                 ownerGreeting="Hola!"

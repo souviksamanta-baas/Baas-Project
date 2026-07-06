@@ -16,7 +16,7 @@ Tracks the incremental migration from `apps/mobile/src/services/` to `apps/mobil
 | Transport | Used for | Client module |
 | --- | --- | --- |
 | **Supabase** (RLS + Realtime) | Inbox, tasks, catalog, settings, dashboard RPC | `conversations`, `tasks`, `inventory`, `customers`, `dashboard`, `auth` (OTP) |
-| **NestJS API** | WhatsApp connect, staff invites, AI drafts, copilot | `whatsapp`, `staffInvites`, `ai` |
+| **NestJS API** | WhatsApp connect, staff invites, AI drafts, Copi (copilot) | `whatsapp`, `staffInvites`, `ai` |
 
 `api/client.ts` handles **NestJS only**. Supabase stays on `lib/supabase.ts`; domain modules wrap `supabase.from` / `supabase.rpc` / channels.
 
@@ -33,7 +33,7 @@ apps/mobile/src/api/
   customers.ts          # contacts / CRM reads
   whatsapp.ts           # POST /whatsapp/connection/register
   staffInvites.ts
-  ai.ts                 # copilot + draft actions
+  ai.ts                 # Copi + AI draft actions (NestJS)
   index.ts              # optional barrel — prefer direct imports per module
 ```
 
@@ -75,6 +75,22 @@ Work in order. Each layer is a separate Jira story under KAN-278.
 | `whatsapp.ts` | `whatsapp.ts` |
 | `staffInvites.ts` | `staffInvites.ts` |
 | `copilot.ts`, `aiDrafts.ts` | `ai.ts` |
+
+## `api/ai.ts` (NestJS)
+
+| Function | Endpoint | Notes |
+| --- | --- | --- |
+| `askOwnerCopilot` | `POST /ai/copilot/query` | Basic+; returns `sessionId`, `tools`, optional `proposedAction` |
+| `getCopiSessionMessages` | `GET /ai/copilot/sessions/:id/messages` | Reload chat history |
+| `confirmCopiAction` | `POST /ai/copilot/actions/:id/confirm` | Pro; executes pending task action |
+| `transcribeCopiVoice` | `POST /ai/copilot/voice` | Pro; needs `OPENAI_API_KEY` on API |
+| `analyzeCopiVision` | `POST /ai/copilot/vision` | Pro; needs `OPENAI_API_KEY` on API |
+| `runCopiReport` | `POST /ai/copilot/reports/run` | Pro |
+| `approveAiDraft` / `rejectAiDraft` | `POST /ai/drafts/:id/approve\|reject` | Customer reply drafts |
+| `getPendingAiDrafts` | Supabase `ai_drafts` | RLS read + Realtime subscription |
+
+Feature visibility comes from dashboard `features` (`useFeatureVisibility`). See
+`docs/copi-architecture.md`.
 
 ## `api/client.ts` sketch
 

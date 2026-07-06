@@ -182,9 +182,14 @@ Deployment platforms should define:
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY` for the NestJS API only
 - `BAAS_TASKS_JOB_SECRET` for the task maintenance endpoint
+- `OPENAI_API_KEY` (optional) for Copi LLM phrasing, voice STT, and vision. Without it, Copi falls back to deterministic templates.
+- `OPENAI_MODEL` (optional, default `gpt-4o-mini`)
+- `OPENAI_VISION_MODEL` (optional, default `gpt-4o-mini`)
 - `EXPO_PUBLIC_API_BASE_URL` for mobile builds that need server-side owner
   actions such as AI draft approve/send and Owner Copilot questions
 - Mobile public variables through Expo or app build environment configuration
+
+Set `OPENAI_API_KEY` on Railway for the NestJS API service (Variables tab). Redeploy after adding the secret.
 
 ## Verification
 

@@ -1,7 +1,10 @@
 import type { ReactElement } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { suggestedQuestions } from '../api/mockData';
+import {
+  copiProSuggestedQuestions,
+  copiSuggestedQuestions,
+} from '../lib/copiSuggestedQuestions';
 import {
   ActionRow,
   Card,
@@ -11,7 +14,7 @@ import {
   ScreenContent,
   ScreenTitle,
 } from '../components/ui';
-import { FeatureGate } from '../hooks/useFeatureVisibility';
+import { FeatureGate, useFeatureGate, useFeatureVisibility } from '../hooks/useFeatureVisibility';
 import type { OwnerCopilotState } from '../hooks/useOwnerCopilot';
 import type { OwnerDashboard } from '../types/dashboard';
 import { colors, shadows } from '../theme';
@@ -23,6 +26,7 @@ export function CopiScreen(props: {
   questionDraft: string;
   setQuestionDraft: (value: string) => void;
 }): ReactElement {
+  const visibility = useFeatureVisibility();
   const openConversations = props.metrics?.openConversations ?? 0;
   const lowStockItems = props.metrics?.lowStockItems ?? 0;
   const pendingFollowUps = props.metrics?.pendingFollowUps ?? 0;
@@ -31,7 +35,7 @@ export function CopiScreen(props: {
     <ScreenContent>
       <ScreenTitle subtitle="Tu asistente IA para el negocio" title="Copi" />
 
-      <FeatureGate feature="copiQuickSummary">
+      <FeatureGate feature="copiQuickSummary" visibility={visibility}>
         <View style={styles.welcomeCard}>
           <RobotAvatar />
           <View style={styles.flex}>
@@ -41,7 +45,16 @@ export function CopiScreen(props: {
         </View>
       </FeatureGate>
 
-      <FeatureGate feature="copiQuestionComposer">
+      <FeatureGate feature="copiProUpsell" visibility={visibility}>
+        <Card style={styles.upsellCard}>
+          <Text style={styles.upsellTitle}>Copi Pro</Text>
+          <Text style={styles.cardDescription}>
+            Activá acciones, voz, visión e informes personalizados para que Copi haga tareas por vos.
+          </Text>
+        </Card>
+      </FeatureGate>
+
+      <FeatureGate feature="copiQuestionComposer" visibility={visibility}>
         <Card flush style={styles.composerCard}>
           <ReplyComposer
             embedded
@@ -63,12 +76,12 @@ export function CopiScreen(props: {
         </Card>
       </FeatureGate>
 
-      <FeatureGate feature="copiSuggestedQuestions">
+      <FeatureGate feature="copiSuggestedQuestions" visibility={visibility}>
         <Card flush>
           <View style={styles.listHeader}>
             <Text style={styles.sectionTitle}>Preguntas sugeridas</Text>
           </View>
-          {suggestedQuestions.map((question) => (
+          {copiSuggestedQuestions.map((question) => (
             <ActionRow
               icon="message"
               key={question}
@@ -81,7 +94,18 @@ export function CopiScreen(props: {
         </Card>
       </FeatureGate>
 
-      <FeatureGate feature="copiQuickSummary">
+      {!visibility.copiProUpsell ? (
+        <Card flush>
+          <View style={styles.listHeader}>
+            <Text style={styles.sectionTitle}>Copi Pro</Text>
+          </View>
+          {copiProSuggestedQuestions.map((question) => (
+            <ActionRow icon="message" key={question} onPress={() => void props.onAskQuestion(question)} title={question} />
+          ))}
+        </Card>
+      ) : null}
+
+      <FeatureGate feature="copiQuickSummary" visibility={visibility}>
         <Card style={styles.summaryCard}>
           <Text style={styles.summaryText}>
             Hoy tenes <Text style={styles.greenText}>{openConversations} conversaciones</Text> abiertas,{' '}
@@ -98,11 +122,15 @@ export function CopiChatScreen(props: {
   copilot: OwnerCopilotState;
   onBack: () => void;
 }): ReactElement {
+  const visibility = useFeatureVisibility();
+  const canUseVoice = useFeatureGate('copiVoiceInput');
+  const canUseVision = useFeatureGate('copiVisionInput');
+
   return (
     <View style={styles.chatRoot}>
       <View style={styles.chatBody}>
         <Card flush>
-          <FeatureGate feature="chatProfileHeader">
+          <FeatureGate feature="chatProfileHeader" visibility={visibility}>
             <View style={styles.threadHeader}>
               <Text onPress={props.onBack} style={styles.backText}>‹</Text>
               <RobotAvatar small />
@@ -112,26 +140,47 @@ export function CopiChatScreen(props: {
               </View>
             </View>
           </FeatureGate>
-          <FeatureGate feature="chatMessages">
+
+          {props.copilot.policyMessage ? (
+            <View style={styles.policyBanner}>
+              <Text style={styles.policyText}>{props.copilot.policyMessage}</Text>
+            </View>
+          ) : null}
+
+          <FeatureGate feature="chatMessages" visibility={visibility}>
             <View style={styles.chatArea}>
               {props.copilot.messages.map((message) => (
-                <MessageBubble
-                  direction={message.role === 'owner' ? 'outbound' : 'inbound'}
-                  key={message.id}
-                  source={message.role === 'owner' ? 'owner' : 'copi'}
-                  text={message.body}
-                  time={new Date(message.createdAt).toLocaleTimeString('es-AR', {
-                    hour: 'numeric',
-                    hour12: true,
-                    minute: '2-digit',
-                  })}
-                />
+                <View key={message.id}>
+                  <MessageBubble
+                    direction={message.role === 'owner' ? 'outbound' : 'inbound'}
+                    source={message.role === 'owner' ? 'owner' : 'copi'}
+                    text={message.body}
+                    time={new Date(message.createdAt).toLocaleTimeString('es-AR', {
+                      hour: 'numeric',
+                      hour12: true,
+                      minute: '2-digit',
+                    })}
+                  />
+                  {message.proposedActionId ? (
+                    <Pressable
+                      onPress={() => void props.copilot.confirmProposedAction(message.proposedActionId!)}
+                      style={styles.confirmButton}
+                    >
+                      <Text style={styles.confirmButtonText}>Confirmar acción</Text>
+                    </Pressable>
+                  ) : null}
+                </View>
               ))}
             </View>
           </FeatureGate>
         </Card>
       </View>
-      <FeatureGate feature="copiComposer">
+
+      {!canUseVoice && !canUseVision ? (
+        <Text style={styles.proHint}>Voz e imagen disponibles con Copi Pro.</Text>
+      ) : null}
+
+      <FeatureGate feature="copiComposer" visibility={visibility}>
         <ReplyComposer
           isSending={props.copilot.isAsking}
           onChangeText={props.copilot.setInputValue}
@@ -181,6 +230,20 @@ const styles = StyleSheet.create({
   composerCard: {
     ...shadows.card,
   },
+  confirmButton: {
+    alignSelf: 'flex-start',
+    backgroundColor: colors.primary,
+    borderRadius: 8,
+    marginBottom: 8,
+    marginLeft: 18,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  confirmButtonText: {
+    color: colors.surface,
+    fontSize: 12,
+    fontWeight: '600',
+  },
   flex: {
     flex: 1,
   },
@@ -197,6 +260,25 @@ const styles = StyleSheet.create({
   orangeText: {
     color: colors.warning,
     fontWeight: '600',
+  },
+  policyBanner: {
+    backgroundColor: '#fff7ed',
+    borderBottomColor: colors.borderSoft,
+    borderBottomWidth: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  policyText: {
+    color: colors.navy,
+    fontSize: 11,
+    lineHeight: 16,
+  },
+  proHint: {
+    color: colors.slate,
+    fontSize: 11,
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    textAlign: 'center',
   },
   profileTitle: {
     color: colors.navy,
@@ -230,6 +312,16 @@ const styles = StyleSheet.create({
     gap: 14,
     height: 74,
     paddingHorizontal: 16,
+  },
+  upsellCard: {
+    backgroundColor: '#f8faf8',
+    padding: 14,
+  },
+  upsellTitle: {
+    color: colors.navy,
+    fontSize: 13,
+    fontWeight: '600',
+    marginBottom: 4,
   },
   welcomeCard: {
     ...shadows.card,

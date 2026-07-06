@@ -21,6 +21,7 @@ export const routes = {
   staffInvite: '/(app)/staff-invite',
   staffInviteAccept: '/(auth)/invite-accept',
   editProfile: '/(app)/edit-profile',
+  tasks: '/(app)/tasks',
 } as const;
 
 export function tabRoute(tab: AppTab): string {

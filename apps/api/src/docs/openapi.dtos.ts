@@ -41,6 +41,16 @@ export class CopilotQuestionRequestDto {
   })
   organizationId!: string;
 
+  @ApiPropertyOptional({
+    description: 'Business center UUID. Defaults to the organization default center.',
+  })
+  businessCenterId?: string;
+
+  @ApiPropertyOptional({
+    description: 'Existing Copi session UUID to continue a conversation.',
+  })
+  sessionId?: string;
+
   @ApiProperty({
     description: 'Owner question for Copi.',
     example: '¿Qué clientes necesitan seguimiento hoy?',
@@ -58,13 +68,74 @@ export class OwnerCopilotResponseDto {
   @ApiProperty({ description: 'Server-side response time in milliseconds.', example: 42 })
   responseTimeMs!: number;
 
+  @ApiProperty({ description: 'Copi session UUID.', example: '4e6f8a6f-9b6e-4f7f-8c1e-0f9f7c8d9a12' })
+  sessionId!: string;
+
+  @ApiProperty({ enum: ['basic', 'pro'], example: 'basic' })
+  tier!: 'basic' | 'pro';
+
+  @ApiProperty({ enum: ['allowed', 'policy_denied', 'tier_required'], example: 'allowed' })
+  policyDecision!: 'allowed' | 'policy_denied' | 'tier_required';
+
   @ApiProperty({
     description: 'Internal tools used to answer the question.',
-    enum: ['messages_today', 'low_stock', 'pending_follow_ups'],
-    example: ['pending_follow_ups'],
+    example: ['attention_summary'],
     isArray: true,
   })
-  tools!: Array<'messages_today' | 'low_stock' | 'pending_follow_ups'>;
+  tools!: string[];
+
+  @ApiPropertyOptional({ description: 'Proposed write action awaiting confirmation.' })
+  proposedAction?: Record<string, unknown> | null;
+
+  @ApiPropertyOptional({ description: 'Token usage for LLM phrasing.' })
+  tokenUsage?: { inputTokens: number; outputTokens: number };
+}
+
+export class CopiActionConfirmRequestDto {
+  @ApiProperty()
+  organizationId!: string;
+
+  @ApiProperty()
+  businessCenterId!: string;
+}
+
+export class CopiVoiceRequestDto {
+  @ApiProperty()
+  organizationId!: string;
+
+  @ApiProperty()
+  audioBase64!: string;
+
+  @ApiProperty({ example: 'audio/webm' })
+  mimeType!: string;
+}
+
+export class CopiVisionRequestDto {
+  @ApiProperty()
+  organizationId!: string;
+
+  @ApiProperty()
+  imageBase64!: string;
+
+  @ApiProperty({ example: 'image/jpeg' })
+  mimeType!: string;
+
+  @ApiPropertyOptional()
+  prompt?: string;
+}
+
+export class CopiReportRunRequestDto {
+  @ApiProperty()
+  organizationId!: string;
+
+  @ApiProperty()
+  businessCenterId!: string;
+
+  @ApiProperty({ example: 'sales_last_7_days' })
+  reportKey!: string;
+
+  @ApiPropertyOptional()
+  parameters?: Record<string, unknown>;
 }
 
 export class TaskMaintenanceResultDto {

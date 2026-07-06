@@ -276,14 +276,24 @@ KAN-70 adds an owner review surface for Sales AI drafts:
 owner actions. The app still uses Supabase RLS for draft reads and never receives
 Meta WhatsApp credentials.
 
-## Owner Copilot and Settings
+## Owner Copilot (Copi) and Settings
 
-KAN-71 adds two owner dashboard surfaces:
+KAN-71 introduced the MVP copilot; KAN-319 expands Copi into a full Basic/Pro
+assistant with sessions, task actions, and OpenAI-backed multimodal features.
 
-- The Owner Copilot chat sends authenticated questions to
-  `POST /ai/copilot/query` with the active organization ID and Supabase access
-  token. The API validates membership and answers the MVP query set: messages
-  today, low-stock products, and pending follow-ups.
+- The Copi chat (`CopiScreen`, `useOwnerCopilot`) sends authenticated requests to
+  the NestJS API with the active organization ID and Supabase access token.
+- **Basic:** `POST /ai/copilot/query` uses the tool registry (messages today,
+  low stock, follow-ups, sales summary, attention summary, task reads, and more).
+  Answers may be phrased by OpenAI when `copi_freeform_questions` is enabled.
+- **Sessions:** `sessionId` is returned and persisted; history reloads via
+  `GET /ai/copilot/sessions/:sessionId/messages`.
+- **Pro:** action confirm cards (`POST /ai/copilot/actions/:id/confirm`), voice
+  (`/ai/copilot/voice`), vision (`/ai/copilot/vision`), and reports
+  (`/ai/copilot/reports/run`) are gated by org `feature_flags` from
+  `get_owner_dashboard().features` (`useFeatureVisibility`).
+- **Tasks screen:** `/(app)/tasks` lists seguimientos; Copi can propose task
+  writes when `copi_pro_agent` is on.
 - The AI and follow-up settings card edits active business center settings
   through authenticated Supabase RLS: `ai_auto_send`,
   `ai_follow_up_delay_hours`, and `business_hours`.
@@ -377,7 +387,7 @@ Jira epic [KAN-304](https://souviksamanta.atlassian.net/browse/KAN-304). Conflue
 | Editar perfil | KAN-308 | `app/(app)/edit-profile.tsx` |
 | Conversation previews + channels | KAN-309 | Latest message preview; `instagram`/`facebook`/`email` in DB |
 | Inbox search/filters | KAN-310 | `SearchActionRow` wired; filter sheet |
-| Copi API | KAN-311 | `OwnerCopilotProvider`, `POST /ai/copilot/query` |
+| Copi API | KAN-311 / KAN-319 | `OwnerCopilotProvider`, full Copi API surface in `api/ai.ts` |
 | iPhone install | KAN-312 | `docs/mobile-iphone-install.md`, `apps/mobile/eas.json` |
 
 **Ops before production QA:** apply migration

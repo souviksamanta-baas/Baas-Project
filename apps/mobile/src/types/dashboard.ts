@@ -1,7 +1,9 @@
 import type { BusinessHoursSettings } from './settings';
+import type { CopiFeatureFlags } from './features';
 
 export interface OwnerDashboard {
   shouldOnboard: boolean;
+  features?: CopiFeatureFlags;
   organization: {
     aiAutoSend: boolean;
     businessHours: BusinessHoursSettings | null;

@@ -148,8 +148,29 @@ Health check path:
 | `WHATSAPP_APP_SECRET` | Required in production webhook handling | Meta app secret for webhook signature validation. |
 | `WHATSAPP_WEBHOOK_PATH` | Optional | Documented path, default `/webhooks/whatsapp`. |
 | `BAAS_TASKS_JOB_SECRET` | Required for task automation trigger | Shared secret expected in `x-baas-job-secret` for `POST /tasks/run-maintenance`. |
+| `OPENAI_API_KEY` | Optional | Enables Copi LLM phrasing, voice STT, and vision. Falls back to deterministic templates when unset. |
+| `OPENAI_MODEL` | Optional | Copi phrasing model. Default `gpt-4o-mini`. |
+| `OPENAI_VISION_MODEL` | Optional | Copi vision model. Default `gpt-4o-mini`. |
+| `BAAS_CORS_ALLOWED_ORIGINS` | Required for Expo Web | Comma-separated origin allowlist for browser clients. |
 
 Do not put real secret values in source files, Jira, Confluence, or local docs.
+
+## Copi (Owner AI) Endpoints
+
+All Copi routes require `Authorization: Bearer <supabase-access-token>` and org
+membership. Feature flags on `organizations.feature_flags` gate Basic vs Pro.
+
+| Method | Path | Tier | Purpose |
+| --- | --- | --- | --- |
+| `POST` | `/ai/copilot/query` | Basic+ | Ask Copi a business question |
+| `GET` | `/ai/copilot/sessions/:sessionId/messages` | Basic+ | Load session history |
+| `POST` | `/ai/copilot/actions/:actionId/confirm` | Pro | Confirm a proposed write action |
+| `POST` | `/ai/copilot/voice` | Pro | Transcribe voice note (OpenAI) |
+| `POST` | `/ai/copilot/vision` | Pro | Analyze image (OpenAI) |
+| `POST` | `/ai/copilot/reports/run` | Pro | Run a built-in or saved report |
+
+Pilot orgs **Baas Admin** and **NEX Biz** have Pro flags enabled in production.
+See `docs/copi-architecture.md` and Confluence → Nexolia → Copi.
 
 ## Task Maintenance Trigger
 

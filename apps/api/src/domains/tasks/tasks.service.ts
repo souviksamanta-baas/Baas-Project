@@ -10,6 +10,24 @@ export interface TaskMaintenanceResult {
   pushNotificationsFailed: number;
 }
 
+export type OwnerTaskStatus = 'pending' | 'completed' | 'snoozed' | 'cancelled';
+
+export type OwnerTaskType = 'follow_up' | 'manual' | 'copi' | 'inventory' | 'callback';
+
+export interface OwnerTaskRecord {
+  assignedToUserId: string | null;
+  contactId: string | null;
+  conversationId: string | null;
+  createdByUserId: string | null;
+  description: string | null;
+  dueAt: string | null;
+  id: string;
+  priority: 'low' | 'normal' | 'high';
+  status: OwnerTaskStatus;
+  taskType: OwnerTaskType;
+  title: string;
+}
+
 interface BusinessCenterRow {
   ai_follow_up_delay_hours: number;
   id: string;
@@ -113,6 +131,180 @@ export class TasksService {
     );
 
     return results.reduce(sumTaskMaintenanceResults, emptyTaskMaintenanceResult());
+  }
+
+  async listTasks(params: {
+    assignedToUserId?: string;
+    businessCenterId: string;
+    contactHint?: string;
+    dueBefore?: string;
+    dueFrom?: string;
+    limit?: number;
+    organizationId: string;
+    statuses?: OwnerTaskStatus[];
+  }): Promise<OwnerTaskRecord[]> {
+    const client = this.supabaseService.getServiceRoleClient();
+    let query = client
+      .from('owner_tasks')
+      .select(
+        'id, title, description, status, due_at, task_type, priority, contact_id, conversation_id, assigned_to_user_id, created_by_user_id, contacts(display_name, phone_number)',
+      )
+      .eq('organization_id', params.organizationId)
+      .eq('business_center_id', params.businessCenterId)
+      .order('due_at', { ascending: true, nullsFirst: false })
+      .limit(params.limit ?? 20);
+
+    if (params.statuses?.length) {
+      query = query.in('status', params.statuses);
+    }
+
+    if (params.assignedToUserId) {
+      query = query.eq('assigned_to_user_id', params.assignedToUserId);
+    }
+
+    if (params.dueFrom) {
+      query = query.gte('due_at', params.dueFrom);
+    }
+
+    if (params.dueBefore) {
+      query = query.lte('due_at', params.dueBefore);
+    }
+
+    const { data, error } = await query;
+    if (error) {
+      throw new Error(`Failed to list owner tasks: ${error.message}`);
+    }
+
+    let rows = (data ?? []) as Array<Record<string, unknown>>;
+    if (params.contactHint?.trim()) {
+      const hint = params.contactHint.toLocaleLowerCase();
+      rows = rows.filter((row) => {
+        const contacts = row.contacts as
+          | { display_name: string | null; phone_number: string | null }
+          | Array<{ display_name: string | null; phone_number: string | null }>
+          | null;
+        const contact = Array.isArray(contacts) ? contacts[0] : contacts;
+        const haystack = `${contact?.display_name ?? ''} ${contact?.phone_number ?? ''} ${row.title ?? ''}`
+          .toLocaleLowerCase();
+        return haystack.includes(hint);
+      });
+    }
+
+    return rows.map(toOwnerTaskRecord);
+  }
+
+  async createTask(params: {
+    assignedToUserId?: string | null;
+    businessCenterId: string;
+    contactId?: string | null;
+    conversationId?: string | null;
+    createdByUserId: string;
+    description?: string | null;
+    dueAt?: string | null;
+    metadata?: Record<string, unknown>;
+    organizationId: string;
+    priority?: 'low' | 'normal' | 'high';
+    sourceKey: string;
+    taskType?: OwnerTaskType;
+    title: string;
+  }): Promise<OwnerTaskRecord> {
+    const client = this.supabaseService.getServiceRoleClient();
+    const { data, error } = await client
+      .from('owner_tasks')
+      .insert({
+        assigned_to_user_id: params.assignedToUserId ?? null,
+        business_center_id: params.businessCenterId,
+        contact_id: params.contactId ?? null,
+        conversation_id: params.conversationId ?? null,
+        created_by_user_id: params.createdByUserId,
+        description: params.description ?? null,
+        due_at: params.dueAt ?? null,
+        metadata: params.metadata ?? {},
+        organization_id: params.organizationId,
+        priority: params.priority ?? 'normal',
+        source_key: params.sourceKey,
+        status: 'pending',
+        task_type: params.taskType ?? 'manual',
+        title: params.title,
+      })
+      .select(
+        'id, title, description, status, due_at, task_type, priority, contact_id, conversation_id, assigned_to_user_id, created_by_user_id',
+      )
+      .single();
+
+    if (error) {
+      throw new Error(`Failed to create owner task: ${error.message}`);
+    }
+
+    return toOwnerTaskRecord(data as Record<string, unknown>);
+  }
+
+  async updateTaskStatus(params: {
+    businessCenterId: string;
+    completedByUserId?: string;
+    organizationId: string;
+    snoozedUntil?: string;
+    status: OwnerTaskStatus;
+    taskId: string;
+  }): Promise<OwnerTaskRecord> {
+    const client = this.supabaseService.getServiceRoleClient();
+    const updates: Record<string, string | null> = {
+      status: params.status,
+    };
+
+    if (params.status === 'completed') {
+      updates.completed_at = new Date().toISOString();
+      if (params.completedByUserId) {
+        updates.completed_by_user_id = params.completedByUserId;
+      }
+    }
+
+    if (params.status === 'snoozed' && params.snoozedUntil) {
+      updates.snoozed_until = params.snoozedUntil;
+      updates.due_at = params.snoozedUntil;
+    }
+
+    const { data, error } = await client
+      .from('owner_tasks')
+      .update(updates)
+      .eq('id', params.taskId)
+      .eq('organization_id', params.organizationId)
+      .eq('business_center_id', params.businessCenterId)
+      .select(
+        'id, title, description, status, due_at, task_type, priority, contact_id, conversation_id, assigned_to_user_id, created_by_user_id',
+      )
+      .single();
+
+    if (error) {
+      throw new Error(`Failed to update owner task: ${error.message}`);
+    }
+
+    return toOwnerTaskRecord(data as Record<string, unknown>);
+  }
+
+  async assignTask(params: {
+    assignedToUserId: string;
+    businessCenterId: string;
+    organizationId: string;
+    taskId: string;
+  }): Promise<OwnerTaskRecord> {
+    const client = this.supabaseService.getServiceRoleClient();
+    const { data, error } = await client
+      .from('owner_tasks')
+      .update({ assigned_to_user_id: params.assignedToUserId })
+      .eq('id', params.taskId)
+      .eq('organization_id', params.organizationId)
+      .eq('business_center_id', params.businessCenterId)
+      .select(
+        'id, title, description, status, due_at, task_type, priority, contact_id, conversation_id, assigned_to_user_id, created_by_user_id',
+      )
+      .single();
+
+    if (error) {
+      throw new Error(`Failed to assign owner task: ${error.message}`);
+    }
+
+    return toOwnerTaskRecord(data as Record<string, unknown>);
   }
 
   private async runBusinessCenterMaintenance(
@@ -487,4 +679,20 @@ function getContact(conversation: ConversationRow): ContactRow | null {
   }
 
   return conversation.contacts;
+}
+
+function toOwnerTaskRecord(row: Record<string, unknown>): OwnerTaskRecord {
+  return {
+    assignedToUserId: (row.assigned_to_user_id as string | null) ?? null,
+    contactId: (row.contact_id as string | null) ?? null,
+    conversationId: (row.conversation_id as string | null) ?? null,
+    createdByUserId: (row.created_by_user_id as string | null) ?? null,
+    description: (row.description as string | null) ?? null,
+    dueAt: (row.due_at as string | null) ?? null,
+    id: row.id as string,
+    priority: (row.priority as OwnerTaskRecord['priority']) ?? 'normal',
+    status: row.status as OwnerTaskStatus,
+    taskType: (row.task_type as OwnerTaskType) ?? 'manual',
+    title: row.title as string,
+  };
 }

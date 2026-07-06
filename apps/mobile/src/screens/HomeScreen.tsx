@@ -27,6 +27,7 @@ export function HomeScreen(props: {
   onOpenConversation: (conversationId: string) => void;
   onOpenManageStock: () => void;
   onOpenNotifications: () => void;
+  onOpenTasks: () => void;
   onOpenWhatsAppSetup: () => void;
   onSelectTab: (tab: AppTab) => void;
   ownerGreeting: string;
@@ -97,6 +98,11 @@ export function HomeScreen(props: {
           <Text style={styles.sectionTitle}>Resumen del día</Text>
           <Text style={styles.cardDescription}>¡Así va tu negocio hasta ahora. Sigue así! 💚</Text>
           <MetricGrid metrics={dashboardMetrics} />
+          {(props.metrics?.pendingFollowUps ?? 0) > 0 ? (
+            <Pressable onPress={props.onOpenTasks} style={styles.tasksLink}>
+              <Text style={styles.tasksLinkText}>Ver seguimientos pendientes</Text>
+            </Pressable>
+          ) : null}
         </Card>
       </FeatureGate>
 
@@ -248,5 +254,13 @@ const styles = StyleSheet.create({
   summaryCard: {
     gap: 8,
     paddingBottom: 12,
+  },
+  tasksLink: {
+    paddingHorizontal: 14,
+  },
+  tasksLinkText: {
+    color: colors.primary,
+    fontSize: 11,
+    fontWeight: '600',
   },
 });

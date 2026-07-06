@@ -14,6 +14,11 @@ The NestJS API exposes:
   logging.
 - `GET /health` for deployment health checks.
 
+Copi (owner AI assistant) is **not** a webhook. Owner Copi traffic uses
+authenticated REST endpoints under `/ai/copilot/*`. Inbound WhatsApp webhooks may
+still trigger `SalesAiService` draft generation for **customer** replies; that is
+separate from Copi. See `docs/copi-architecture.md` and `docs/api-deployment.md`.
+
 ## Server Environment Variables
 
 | Variable | Purpose |
@@ -27,6 +32,10 @@ The NestJS API exposes:
 | `SUPABASE_SERVICE_ROLE_KEY` | Server-only key used by the API to persist webhook events. |
 | `BAAS_WEBHOOK_RATE_LIMIT_MAX` | Request limit for the public WhatsApp webhook throttle window. |
 | `BAAS_WEBHOOK_RATE_LIMIT_TTL_MS` | WhatsApp webhook throttle window in milliseconds. |
+
+Copi owner endpoints (`/ai/copilot/*`) use the global API throttle and Supabase
+JWT auth, not the webhook path or `WHATSAPP_*` signature validation. Copi may use
+`OPENAI_API_KEY` on the API service for LLM/voice/vision (see `docs/environment.md`).
 
 Do not expose these values to the Expo/mobile client. Store real values only in
 ignored local env files or deployment secret stores.

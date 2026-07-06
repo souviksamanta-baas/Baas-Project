@@ -48,13 +48,94 @@ interface AiDraftRow {
 }
 
 export async function askOwnerCopilot(params: {
+  businessCenterId?: string | null;
   organizationId: string;
   question: string;
+  sessionId?: string | null;
 }): Promise<CopilotResponse> {
   return apiFetchAuthJson<CopilotResponse>('/ai/copilot/query', {
+    body: JSON.stringify({
+      businessCenterId: params.businessCenterId ?? undefined,
+      organizationId: params.organizationId,
+      question: params.question,
+      sessionId: params.sessionId ?? undefined,
+    }),
+    method: 'POST',
+  });
+}
+
+export async function confirmCopiAction(params: {
+  actionId: string;
+  businessCenterId: string;
+  organizationId: string;
+}): Promise<{ result: Record<string, unknown>; status: 'executed' }> {
+  return apiFetchAuthJson(`/ai/copilot/actions/${params.actionId}/confirm`, {
+    body: JSON.stringify({
+      businessCenterId: params.businessCenterId,
+      organizationId: params.organizationId,
+    }),
+    method: 'POST',
+  });
+}
+
+export async function transcribeCopiVoice(params: {
+  audioBase64: string;
+  mimeType: string;
+  organizationId: string;
+}): Promise<{ text: string }> {
+  return apiFetchAuthJson('/ai/copilot/voice', {
     body: JSON.stringify(params),
     method: 'POST',
   });
+}
+
+export async function analyzeCopiVision(params: {
+  imageBase64: string;
+  mimeType: string;
+  organizationId: string;
+  prompt?: string;
+}): Promise<{ extraction: Record<string, unknown>; summary: string }> {
+  return apiFetchAuthJson('/ai/copilot/vision', {
+    body: JSON.stringify(params),
+    method: 'POST',
+  });
+}
+
+export async function runCopiReport(params: {
+  businessCenterId: string;
+  organizationId: string;
+  parameters?: Record<string, unknown>;
+  reportKey: string;
+}): Promise<Record<string, unknown>> {
+  return apiFetchAuthJson('/ai/copilot/reports/run', {
+    body: JSON.stringify(params),
+    method: 'POST',
+  });
+}
+
+export async function getCopiSessionMessages(params: {
+  organizationId: string;
+  sessionId: string;
+}): Promise<
+  Array<{
+    body: string;
+    createdAt: string;
+    id: string;
+    role: 'assistant' | 'owner' | 'system';
+  }>
+> {
+  const query = new URLSearchParams({
+    organizationId: params.organizationId,
+  });
+  const response = await apiFetchAuthJson<{
+    messages: Array<{
+      body: string;
+      createdAt: string;
+      id: string;
+      role: 'assistant' | 'owner' | 'system';
+    }>;
+  }>(`/ai/copilot/sessions/${params.sessionId}/messages?${query.toString()}`);
+  return response.messages;
 }
 
 export async function getPendingAiDrafts(

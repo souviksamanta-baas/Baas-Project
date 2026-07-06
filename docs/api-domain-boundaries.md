@@ -44,16 +44,23 @@ needed by app, AI, copilot, and low-stock workflows.
 - `SalesAiService` for deterministic catalog-aware reply/quote draft generation,
   AI draft persistence, auto-send policy enforcement, and owner approval send
   orchestration.
-- `OwnerCopilotService` for authenticated owner questions over the MVP tool set:
-  messages today, low-stock products, and pending follow-up tasks.
-- `AiController` for authenticated owner actions on AI drafts:
-  `POST /ai/drafts/:draftId/approve`, `POST /ai/drafts/:draftId/reject`, and
-  `POST /ai/copilot/query`.
+- `OwnerCopilotService` (facade over `CopiOrchestratorService`) for authenticated
+  owner questions: tool registry reads, optional LLM phrasing, session persistence,
+  and Pro action proposals.
+- Copi support services: `CopiPolicyService`, `CopiToolRegistry`, `CopiSessionService`,
+  `CopiLlmPhraserService`, `CopiActionService`, `CopiVoiceService`, `CopiVisionService`,
+  `CopiReportsService`.
+- `AiController` for authenticated owner actions:
+  - AI drafts: `POST /ai/drafts/:draftId/approve`, `POST /ai/drafts/:draftId/reject`
+  - Copi: `POST /ai/copilot/query`, `GET /ai/copilot/sessions/:sessionId/messages`,
+    `POST /ai/copilot/actions/:actionId/confirm`, `POST /ai/copilot/voice`,
+    `POST /ai/copilot/vision`, `POST /ai/copilot/reports/run`
 
 `TasksModule` exposes:
 
-- `TasksService` for follow-up task automation, low-stock alert generation, and
-  Expo push notification dispatch through registered owner devices.
+- `TasksService` for follow-up task automation, low-stock alert generation, Expo
+  push notification dispatch, and Copi Pro task CRUD (create, assign, complete,
+  snooze, cancel, reassign).
 - `TasksController` for the secured `POST /tasks/run-maintenance` trigger used
   by a scheduler or manual backend job runner.
 
@@ -93,12 +100,14 @@ catalog-backed and marked safe. When `business_centers.business_hours` is
 enabled, auto-send is also limited to the configured center timezone, days, start
 time, and end time.
 
-`OwnerCopilotService` owns the KAN-71 query workflow. It validates the Supabase
-bearer token against `organization_members`, then uses service-role reads scoped
-to the requested organization and default business center, plus
-`InventoryService` for low-stock lookup. It does not expose a general SQL or LLM
-interface; the MVP endpoint returns deterministic answers for the supported
-owner questions.
+`OwnerCopilotService` delegates to `CopiOrchestratorService` (KAN-319). It
+validates the Supabase bearer token against `organization_members`, loads org
+`feature_flags`, routes questions through the tool registry, optionally phrases
+answers with OpenAI when `copi_freeform_questions` is enabled, and may propose
+Pro actions behind `copi_pro_agent`. It does not expose raw SQL or arbitrary LLM
+tool calls; reports use predefined `report_key` values only.
+
+See `docs/copi-architecture.md` for the full Copi flow and licensing flags.
 
 Existing Phase 0 behavior is unchanged.
 

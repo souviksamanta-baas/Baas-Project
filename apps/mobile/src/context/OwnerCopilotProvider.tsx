@@ -8,7 +8,10 @@ const OwnerCopilotContext = createContext<OwnerCopilotState | null>(null);
 
 export function OwnerCopilotProvider(props: { children: ReactNode }): ReactElement {
   const { dashboard } = useOwnerSessionContext();
-  const copilot = useOwnerCopilot(dashboard?.organization?.id ?? null);
+  const copilot = useOwnerCopilot({
+    businessCenterId: dashboard?.businessCenter?.id ?? null,
+    organizationId: dashboard?.organization?.id ?? null,
+  });
 
   return <OwnerCopilotContext.Provider value={copilot}>{props.children}</OwnerCopilotContext.Provider>;
 }
