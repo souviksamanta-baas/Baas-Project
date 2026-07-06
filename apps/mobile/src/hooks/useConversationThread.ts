@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import {
-  getInboxConversations,
   getConversationMessages,
+  getInboxConversationById,
   subscribeToConversationMessages,
 } from '../api/conversations';
 import { sendConversationReply } from '../api/whatsapp';
@@ -28,10 +28,14 @@ export function useInboxConversation(params: {
     let mounted = true;
     setIsLoading(true);
 
-    getInboxConversations(params.organizationId, params.businessCenterId)
-      .then((conversations) => {
+    getInboxConversationById(
+      params.organizationId,
+      params.businessCenterId,
+      params.conversationId,
+    )
+      .then((nextConversation) => {
         if (mounted) {
-          setConversation(conversations.find((item) => item.id === params.conversationId) ?? null);
+          setConversation(nextConversation);
         }
       })
       .finally(() => {

@@ -31,11 +31,16 @@ interface ConversationRow {
   contacts: ContactRow | ContactRow[] | null;
 }
 
+export interface GetInboxConversationsOptions {
+  limit?: number;
+}
+
 export async function getInboxConversations(
   organizationId: string,
   businessCenterId: string,
+  options?: GetInboxConversationsOptions,
 ): Promise<InboxConversationSummary[]> {
-  const { data, error } = await supabase
+  let query = supabase
     .from('conversations')
     .select(
       'id, channel, external_contact_id, customer_display_name, status, last_message_at, contacts(id, display_name, phone_number, lead_status)',
@@ -44,25 +49,95 @@ export async function getInboxConversations(
     .eq('business_center_id', businessCenterId)
     .order('last_message_at', { ascending: false, nullsFirst: false });
 
+  if (options?.limit) {
+    query = query.limit(options.limit);
+  }
+
+  const { data, error } = await query;
+
   if (error) {
     throw new Error(error.message);
   }
 
   const conversations = (data as ConversationRow[]).map(toInboxConversationSummary);
-  const messages = await getRecentConversationMessages(organizationId, businessCenterId);
-
-  // Messages arrive newest-first; keep the first (latest) message seen per conversation.
-  const latestMessagesByConversation = new Map<string, WhatsAppMessagePreview>();
-  for (const message of messages) {
-    if (!latestMessagesByConversation.has(message.conversationId)) {
-      latestMessagesByConversation.set(message.conversationId, message);
-    }
-  }
+  const latestMessagesByConversation = await getLatestMessagesForConversations(
+    organizationId,
+    businessCenterId,
+    conversations.map((conversation) => conversation.id),
+  );
 
   return conversations.map((conversation) => ({
     ...conversation,
     latestMessage: latestMessagesByConversation.get(conversation.id) ?? null,
   }));
+}
+
+export async function getInboxConversationById(
+  organizationId: string,
+  businessCenterId: string,
+  conversationId: string,
+): Promise<InboxConversationSummary | null> {
+  const { data, error } = await supabase
+    .from('conversations')
+    .select(
+      'id, channel, external_contact_id, customer_display_name, status, last_message_at, contacts(id, display_name, phone_number, lead_status)',
+    )
+    .eq('id', conversationId)
+    .eq('organization_id', organizationId)
+    .eq('business_center_id', businessCenterId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  if (!data) {
+    return null;
+  }
+
+  const conversation = toInboxConversationSummary(data as ConversationRow);
+  const latestMessagesByConversation = await getLatestMessagesForConversations(
+    organizationId,
+    businessCenterId,
+    [conversationId],
+  );
+
+  return {
+    ...conversation,
+    latestMessage: latestMessagesByConversation.get(conversationId) ?? null,
+  };
+}
+
+async function getLatestMessagesForConversations(
+  organizationId: string,
+  businessCenterId: string,
+  conversationIds: string[],
+): Promise<Map<string, WhatsAppMessagePreview>> {
+  if (conversationIds.length === 0) {
+    return new Map();
+  }
+
+  const { data, error } = await supabase
+    .from('conversation_messages')
+    .select('id, conversation_id, direction, body, message_status, sender_phone, recipient_phone, created_at')
+    .eq('organization_id', organizationId)
+    .eq('business_center_id', businessCenterId)
+    .in('conversation_id', conversationIds)
+    .order('created_at', { ascending: false })
+    .limit(Math.min(conversationIds.length * 5, 100));
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  const latestMessagesByConversation = new Map<string, WhatsAppMessagePreview>();
+  for (const message of (data as ConversationMessageRow[]).map(toWhatsAppMessagePreview)) {
+    if (!latestMessagesByConversation.has(message.conversationId)) {
+      latestMessagesByConversation.set(message.conversationId, message);
+    }
+  }
+
+  return latestMessagesByConversation;
 }
 
 export async function getRecentConversationMessages(

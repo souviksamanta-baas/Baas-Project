@@ -6,6 +6,7 @@ import { branches, ownerProfile } from '../../src/api/mockData';
 import { MobileOverlayProvider } from '../../src/components/MobileContainedModal';
 import { AppHeader, BottomNavigation } from '../../src/components/ui';
 import type { AppTab } from '../../src/components/ui';
+import { InboxProvider } from '../../src/context/InboxProvider';
 import { useOwnerSessionContext } from '../../src/context/OwnerSessionProvider';
 import { hasSupabaseConfig } from '../../src/lib/supabase';
 import {
@@ -74,11 +75,13 @@ export default function AppLayout(): ReactElement {
         onToggleBranches={() => setShowBranches((current) => !current)}
         showBranches={showBranches}
       />
-      <MobileOverlayProvider>
-        <View style={styles.content}>
-          <Slot />
-        </View>
-      </MobileOverlayProvider>
+      <InboxProvider>
+        <MobileOverlayProvider>
+          <View style={styles.content}>
+            <Slot />
+          </View>
+        </MobileOverlayProvider>
+      </InboxProvider>
       {hideBottomNav ? null : (
         <BottomNavigation activeTab={activeTab} onOpenSell={openSellProducts} onSelectTab={selectTab} />
       )}
