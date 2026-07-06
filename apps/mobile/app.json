@@ -13,6 +13,12 @@
       "expo-router",
       "expo-notifications",
       [
+        "expo-av",
+        {
+          "microphonePermission": "Nexolia usa el micrófono para que Copi transcriba tus preguntas de voz."
+        }
+      ],
+      [
         "expo-image-picker",
         {
           "cameraPermission": "Nexolia usa la cámara para que Copi analice fotos de productos y stock.",

@@ -24,8 +24,8 @@ async function bootstrap(): Promise<void> {
   app.use(helmet());
   app.enableCors(createCorsOptions(configService));
 
-  app.use(json({ verify: saveRawBody }));
-  app.use(urlencoded({ extended: true, verify: saveRawBody }));
+  app.use(json({ limit: '12mb', verify: saveRawBody }));
+  app.use(urlencoded({ extended: true, limit: '12mb', verify: saveRawBody }));
   setupOpenApiDocs(app);
 
   const port = getApiPort(configService);

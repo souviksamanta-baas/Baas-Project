@@ -4,6 +4,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { Audio } from 'expo-av';
 
 import { analyzeCopiVision, transcribeCopiVoice } from '../api/ai';
+import { guessAudioMimeType, readAudioAsBase64, readAudioBlobAsBase64 } from '../lib/copiAudio';
 
 type RecordingRef = Audio.Recording | null;
 
@@ -36,41 +37,8 @@ const COPI_RECORDING_OPTIONS: Audio.RecordingOptions = {
 };
 
 async function blobToBase64(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const result = reader.result;
-      if (typeof result !== 'string') {
-        reject(new Error('No se pudo leer el archivo'));
-        return;
-      }
-      resolve(result.split(',')[1] ?? '');
-    };
-    reader.onerror = () => reject(reader.error ?? new Error('No se pudo leer el archivo'));
-    reader.readAsDataURL(blob);
-  });
-}
-
-function guessAudioMimeType(uri: string, blobType?: string): string {
-  const normalizedBlobType = blobType?.trim();
-  if (normalizedBlobType) {
-    return normalizedBlobType;
-  }
-
-  const lower = uri.toLowerCase();
-  if (lower.endsWith('.caf')) {
-    return 'audio/x-caf';
-  }
-  if (lower.endsWith('.m4a')) {
-    return 'audio/m4a';
-  }
-  if (lower.endsWith('.webm')) {
-    return 'audio/webm';
-  }
-  if (lower.endsWith('.wav')) {
-    return 'audio/wav';
-  }
-  return 'audio/m4a';
+  const result = await readAudioBlobAsBase64(blob, blob.type);
+  return result.base64;
 }
 
 function pickWebRecorderMimeType(): string {
@@ -87,33 +55,6 @@ function pickWebRecorderMimeType(): string {
     return 'audio/mp4';
   }
   return 'audio/webm';
-}
-
-async function readAudioBlob(uri: string): Promise<Blob> {
-  const response = await fetch(uri);
-  if (!response.ok) {
-    throw new Error('No se pudo leer la grabación de voz.');
-  }
-
-  const blob = await response.blob();
-  if (blob.size > 0) {
-    return blob;
-  }
-
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    xhr.onload = () => {
-      if (xhr.response instanceof Blob && xhr.response.size > 0) {
-        resolve(xhr.response);
-        return;
-      }
-      reject(new Error('La grabación de voz quedó vacía.'));
-    };
-    xhr.onerror = () => reject(new Error('No se pudo leer la grabación de voz.'));
-    xhr.responseType = 'blob';
-    xhr.open('GET', uri);
-    xhr.send();
-  });
 }
 
 export function useCopiMediaActions(params: {
@@ -153,23 +94,22 @@ export function useCopiMediaActions(params: {
   }, []);
 
   const deliverVoiceTranscription = useCallback(
-    async (blob: Blob, mimeType: string): Promise<void> => {
+    async (audio: { base64: string; mimeType: string; size: number }): Promise<void> => {
       if (!params.organizationId) {
         Alert.alert('Copi voz', 'No encontramos tu organización. Volvé a iniciar sesión.');
         return;
       }
 
-      if (blob.size < MIN_AUDIO_BYTES) {
+      if (audio.size < MIN_AUDIO_BYTES) {
         Alert.alert('Copi voz', 'La grabación fue muy corta. Mantené el micrófono un poco más.');
         return;
       }
 
       setIsTranscribingVoice(true);
       try {
-        const base64 = await blobToBase64(blob);
         const result = await transcribeCopiVoice({
-          audioBase64: base64,
-          mimeType,
+          audioBase64: audio.base64,
+          mimeType: audio.mimeType,
           organizationId: params.organizationId,
         });
 
@@ -285,6 +225,7 @@ export function useCopiMediaActions(params: {
     }
 
     try {
+      const status = await recording.getStatusAsync();
       await recording.stopAndUnloadAsync();
       const uri = recording.getURI();
       if (!uri) {
@@ -293,9 +234,14 @@ export function useCopiMediaActions(params: {
         return;
       }
 
-      const blob = await readAudioBlob(uri);
-      const mimeType = guessAudioMimeType(uri, blob.type);
-      await deliverVoiceTranscription(blob, mimeType);
+      if ((status.durationMillis ?? 0) < 500) {
+        Alert.alert('Copi voz', 'La grabación fue muy corta. Mantené el micrófono un poco más.');
+        setIsRecordingVoice(false);
+        return;
+      }
+
+      const audio = await readAudioAsBase64(uri);
+      await deliverVoiceTranscription(audio);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'No se pudo transcribir el audio';
       Alert.alert('Copi voz', message);
@@ -312,21 +258,33 @@ export function useCopiMediaActions(params: {
     }
 
     const mimeType = webMimeTypeRef.current;
-    await new Promise<void>((resolve) => {
-      recorder.onstop = () => {
-        stopWebStream();
-        resolve();
-      };
-      if (recorder.state === 'recording') {
-        recorder.requestData();
-      }
-      recorder.stop();
-    });
+    try {
+      await new Promise<void>((resolve) => {
+        recorder.onstop = () => {
+          stopWebStream();
+          resolve();
+        };
+        if (recorder.state === 'recording') {
+          recorder.requestData();
+        }
+        recorder.stop();
+      });
 
-    webRecorderRef.current = null;
-    const blob = new Blob(webChunksRef.current, { type: mimeType.split(';')[0] ?? 'audio/webm' });
-    webChunksRef.current = [];
-    await deliverVoiceTranscription(blob, mimeType);
+      webRecorderRef.current = null;
+      const blob = new Blob(webChunksRef.current, { type: mimeType.split(';')[0] ?? 'audio/webm' });
+      webChunksRef.current = [];
+
+      const encoded = await readAudioBlobAsBase64(blob, mimeType);
+      await deliverVoiceTranscription({
+        base64: encoded.base64,
+        mimeType: guessAudioMimeType('voice.webm', mimeType),
+        size: encoded.size,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'No se pudo transcribir el audio';
+      Alert.alert('Copi voz', message);
+      setIsRecordingVoice(false);
+    }
   }, [deliverVoiceTranscription, stopWebStream]);
 
   const onPressVoice = useCallback(() => {
@@ -368,22 +326,26 @@ export function useCopiMediaActions(params: {
         return;
       }
 
-      const permission = await Audio.requestPermissionsAsync();
-      if (!permission.granted) {
-        Alert.alert('Micrófono', 'Necesitamos permiso de micrófono para grabar.');
-        return;
+      try {
+        const permission = await Audio.requestPermissionsAsync();
+        if (!permission.granted) {
+          Alert.alert('Micrófono', 'Necesitamos permiso de micrófono para grabar.');
+          return;
+        }
+
+        await Audio.setAudioModeAsync({
+          allowsRecordingIOS: true,
+          playsInSilentModeIOS: true,
+        });
+
+        const recording = new Audio.Recording();
+        await recording.prepareToRecordAsync(COPI_RECORDING_OPTIONS);
+        await recording.startAsync();
+        recordingRef.current = recording;
+        setIsRecordingVoice(true);
+      } catch {
+        Alert.alert('Copi voz', 'No se pudo iniciar la grabación. Probá de nuevo.');
       }
-
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: true,
-        playsInSilentModeIOS: true,
-      });
-
-      const recording = new Audio.Recording();
-      await recording.prepareToRecordAsync(COPI_RECORDING_OPTIONS);
-      await recording.startAsync();
-      recordingRef.current = recording;
-      setIsRecordingVoice(true);
     })();
   }, [
     isRecordingVoice,

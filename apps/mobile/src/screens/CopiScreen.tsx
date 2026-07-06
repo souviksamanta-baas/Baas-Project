@@ -1,5 +1,15 @@
 import type { ReactElement } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useRef } from 'react';
+import {
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 
 import {
   copiProSuggestedQuestions,
@@ -174,11 +184,24 @@ export function CopiChatScreen(props: {
   onBack: () => void;
 }): ReactElement {
   const visibility = useFeatureVisibility();
+  const scrollRef = useRef<ScrollView>(null);
+
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      scrollRef.current?.scrollToEnd({ animated: true });
+    });
+
+    return () => cancelAnimationFrame(frame);
+  }, [props.copilot.isAsking, props.copilot.messages]);
 
   return (
-    <View style={styles.chatRoot}>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0}
+      style={styles.chatRoot}
+    >
       <View style={styles.chatBody}>
-        <Card flush>
+        <Card flush style={styles.chatCard}>
           <FeatureGate feature="chatProfileHeader" visibility={visibility}>
             <View style={styles.threadHeader}>
               <Text onPress={props.onBack} style={styles.backText}>‹</Text>
@@ -197,7 +220,14 @@ export function CopiChatScreen(props: {
           ) : null}
 
           <FeatureGate feature="chatMessages" visibility={visibility}>
-            <View style={styles.chatArea}>
+            <ScrollView
+              ref={scrollRef}
+              contentContainerStyle={styles.chatArea}
+              keyboardShouldPersistTaps="handled"
+              onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}
+              showsVerticalScrollIndicator
+              style={styles.chatScroll}
+            >
               {props.copilot.messages.map((message) => (
                 <View key={message.id}>
                   <MessageBubble
@@ -226,7 +256,7 @@ export function CopiChatScreen(props: {
                   <Text style={styles.typingText}>Copi está pensando…</Text>
                 </View>
               ) : null}
-            </View>
+            </ScrollView>
           </FeatureGate>
         </Card>
       </View>
@@ -250,7 +280,7 @@ export function CopiChatScreen(props: {
           value={props.copilot.inputValue}
         />
       </FeatureGate>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -275,18 +305,25 @@ const styles = StyleSheet.create({
   },
   chatArea: {
     backgroundColor: '#fcfdfc',
+    flexGrow: 1,
     gap: 12,
-    minHeight: 448,
     paddingHorizontal: 18,
     paddingVertical: 20,
   },
   chatBody: {
     flex: 1,
+    minHeight: 0,
     paddingHorizontal: 8,
+  },
+  chatCard: {
+    flex: 1,
   },
   chatRoot: {
     flex: 1,
     justifyContent: 'space-between',
+  },
+  chatScroll: {
+    flex: 1,
   },
   composerCard: {
     ...shadows.card,
