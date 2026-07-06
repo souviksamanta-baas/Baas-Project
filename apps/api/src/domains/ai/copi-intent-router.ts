@@ -1,20 +1,33 @@
 import type { CopiToolName } from './copi.types';
 
+const SALES_PATTERN = /\b(sale|sales|venta|ventas|factur|ingreso|cobr|vend[ií])\b/;
+const MESSAGE_PATTERN = /\b(message|messages|chat|chats|inbox|mensaje|mensajes)\b/;
+
 export function selectCopiTools(question: string): CopiToolName[] {
   const normalized = question.toLocaleLowerCase();
   const tools = new Set<CopiToolName>();
+  const asksSales = SALES_PATTERN.test(normalized);
+  const asksMessages = MESSAGE_PATTERN.test(normalized);
 
-  if (/\b(message|messages|chat|chats|inbox|mensaje|mensajes|hoy)\b/.test(normalized)) {
-    tools.add('messages_today');
+  if (asksSales) {
+    if (/\b(ayer|yesterday)\b/.test(normalized)) {
+      tools.add('sales_yesterday');
+    } else if (/\b(hoy|today)\b/.test(normalized)) {
+      tools.add('sales_today');
+    } else {
+      tools.add('sales_summary');
+    }
+  }
+
+  if (asksMessages || (/\b(hoy|today)\b/.test(normalized) && !asksSales)) {
+    if (/\b(hoy|today)\b/.test(normalized) || asksMessages) {
+      tools.add('messages_today');
+    }
   }
 
   if (/\b(low stock|stock|inventory|reorder|bajo stock|inventario)\b/.test(normalized)) {
     tools.add('low_stock');
     tools.add('products_overview');
-  }
-
-  if (/\b(sale|sales|venta|ventas|factur|ingreso)\b/.test(normalized)) {
-    tools.add('sales_summary');
   }
 
   if (/\b(conversation|conversacion|conversaciones|abiert)\b/.test(normalized)) {

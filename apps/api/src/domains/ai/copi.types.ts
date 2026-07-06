@@ -12,6 +12,8 @@ export type CopiToolName =
   | 'low_stock'
   | 'pending_follow_ups'
   | 'sales_summary'
+  | 'sales_today'
+  | 'sales_yesterday'
   | 'open_conversations'
   | 'pending_ai_drafts'
   | 'products_overview'

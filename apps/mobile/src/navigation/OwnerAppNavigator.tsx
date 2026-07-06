@@ -6,7 +6,7 @@ import { baseProduct } from '../api/inventoryMockData';
 import { AppHeader, BottomNavigation } from '../components/ui';
 import type { AppTab } from '../components/ui';
 import { AccountScreen } from '../screens/AccountScreen';
-import { CopiChatScreen, CopiScreen } from '../screens/CopiScreen';
+import { CopiChatScreen, CopiScreen, type CopiComposerActions } from '../screens/CopiScreen';
 import { ConversationDetailScreen, InboxScreen } from '../screens/InboxScreen';
 import { HomeScreen } from '../screens/HomeScreen';
 import {
@@ -28,6 +28,19 @@ import type { Product } from '../types/products';
 import { SellCartProvider } from '../context/SellCartProvider';
 import { DEFAULT_BASE_PRODUCT_ID } from './routes';
 import { colors } from '../theme';
+
+const legacyCopiComposer: CopiComposerActions = {
+  attachmentMenuOpen: false,
+  canUseVision: false,
+  canUseVoice: false,
+  isAnalyzingImage: false,
+  isRecordingVoice: false,
+  isTranscribingVoice: false,
+  onPressAttachCamera: () => undefined,
+  onPressAttachLibrary: () => undefined,
+  onPressPlus: () => undefined,
+  onPressVoice: () => undefined,
+};
 
 const legacyWhatsAppConnection: OwnerDashboard['whatsappConnection'] = {
   status: 'connected',
@@ -288,7 +301,7 @@ export function OwnerAppNavigator(props: { onSignOut: () => void }): ReactElemen
           threadAvatar={selectedConversation.avatar}
         />
       ) : route === 'copi-chat' ? (
-        <CopiChatScreen copilot={legacyCopilot} onBack={() => selectTab('copi')} />
+        <CopiChatScreen composer={legacyCopiComposer} copilot={legacyCopilot} onBack={() => selectTab('copi')} />
       ) : (
         <ScrollView contentContainerStyle={styles.scrollContent} style={styles.scroll}>
           {renderInventoryScreen() ??
@@ -316,6 +329,7 @@ export function OwnerAppNavigator(props: { onSignOut: () => void }): ReactElemen
               />
             ) : route === 'copi' ? (
               <CopiScreen
+                composer={legacyCopiComposer}
                 metrics={null}
                 onAskQuestion={async () => undefined}
                 onOpenChat={() => setRoute('copi-chat')}

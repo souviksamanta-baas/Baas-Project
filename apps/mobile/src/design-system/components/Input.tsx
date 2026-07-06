@@ -17,6 +17,7 @@ import { Icon } from '../../components/icons';
 import { colors, radius, spacing, textStyles } from '../tokens';
 
 const SEARCH_FIELD_STYLE_ID = 'baas-search-field-focus';
+const COMPOSER_FIELD_STYLE_ID = 'baas-composer-field-focus';
 
 function ensureSearchFieldWebStyles(): void {
   if (Platform.OS !== 'web' || typeof document === 'undefined') return;
@@ -52,7 +53,42 @@ function ensureSearchFieldWebStyles(): void {
   document.head.appendChild(style);
 }
 
+function ensureComposerFieldWebStyles(): void {
+  if (Platform.OS !== 'web' || typeof document === 'undefined') return;
+  if (document.getElementById(COMPOSER_FIELD_STYLE_ID)) return;
+
+  const style = document.createElement('style');
+  style.id = COMPOSER_FIELD_STYLE_ID;
+  style.textContent = `
+    [data-composer-field-shell] {
+      border: 1px solid ${colors.borderInput} !important;
+      box-sizing: border-box;
+      transition: border-color 0.15s ease;
+    }
+    [data-composer-field-shell]:focus-within {
+      border-color: ${colors.primary} !important;
+    }
+    [data-composer-field-shell] input,
+    [data-composer-field-shell] textarea {
+      border: none !important;
+      outline: none !important;
+      box-shadow: none !important;
+      background: transparent !important;
+    }
+    [data-composer-field-shell] input:focus,
+    [data-composer-field-shell] input:focus-visible {
+      border: none !important;
+      outline: none !important;
+      outline-width: 0 !important;
+      outline-color: transparent !important;
+      box-shadow: none !important;
+    }
+  `;
+  document.head.appendChild(style);
+}
+
 ensureSearchFieldWebStyles();
+ensureComposerFieldWebStyles();
 
 type FieldProps = {
   label: string;
@@ -130,6 +166,7 @@ type ComposerInputProps = {
   leadingIconColor?: string;
   leadingIconSize?: number;
   onChangeText?: (text: string) => void;
+  onLeadingPress?: () => void;
   onSubmitEditing?: () => void;
   placeholder: string;
   returnKeyType?: 'default' | 'send';
@@ -138,32 +175,48 @@ type ComposerInputProps = {
   value?: string;
 };
 
-/** Copi composer — icon outside; border and focus ring on the TextInput itself. */
+/** Copi composer — shell border matches SearchField green focus ring. */
 export function ComposerInput(props: ComposerInputProps): ReactElement {
   const [focused, setFocused] = useState(false);
+  const inputRef = useRef<TextInput>(null);
+
+  function assignShellRef(node: View | null): void {
+    if (Platform.OS === 'web' && node) {
+      (node as unknown as HTMLElement).setAttribute('data-composer-field-shell', 'true');
+    }
+  }
 
   return (
     <View style={[styles.composerRow, props.style]}>
       {props.leadingIcon ? (
-        <Icon
-          color={props.leadingIconColor ?? colors.primary}
-          kind={props.leadingIcon}
-          size={props.leadingIconSize ?? 18}
-          strokeWidth={props.leadingIcon === 'search' ? 1.8 : 2.2}
-        />
+        <Pressable hitSlop={8} onPress={props.onLeadingPress} style={styles.composerLeadingPressable}>
+          <Icon
+            color={props.leadingIconColor ?? colors.primary}
+            kind={props.leadingIcon}
+            size={props.leadingIconSize ?? 18}
+            strokeWidth={props.leadingIcon === 'search' ? 1.8 : 2.2}
+          />
+        </Pressable>
       ) : null}
-      <TextInput
-        editable={props.editable ?? true}
-        onBlur={() => setFocused(false)}
-        onChangeText={props.onChangeText}
-        onFocus={() => setFocused(true)}
-        onSubmitEditing={props.onSubmitEditing}
-        placeholder={props.placeholder}
-        placeholderTextColor={colors.placeholder}
-        returnKeyType={props.returnKeyType}
-        style={[styles.composerInput, focused && styles.composerInputFocused, composerInputWeb]}
-        value={props.value}
-      />
+      <View
+        ref={assignShellRef}
+        collapsable={false}
+        style={[styles.composerShell, Platform.OS !== 'web' && focused && styles.composerShellFocused]}
+      >
+        <TextInput
+          ref={inputRef}
+          editable={props.editable ?? true}
+          onBlur={() => setFocused(false)}
+          onChangeText={props.onChangeText}
+          onFocus={() => setFocused(true)}
+          onSubmitEditing={props.onSubmitEditing}
+          placeholder={props.placeholder}
+          placeholderTextColor={colors.placeholder}
+          returnKeyType={props.returnKeyType}
+          style={[styles.composerInnerInput, composerInputWeb]}
+          value={props.value}
+        />
+      </View>
       {props.trailing}
     </View>
   );
@@ -262,7 +315,17 @@ export function SearchActionRow(props: SearchActionRowProps): ReactElement {
   );
 }
 
-const composerInputWeb: TextStyle = Platform.OS === 'web' ? ({ outlineWidth: 0 } as TextStyle) : {};
+const composerInputWeb: TextStyle =
+  Platform.OS === 'web'
+    ? ({
+        borderWidth: 0,
+        borderColor: 'transparent',
+        boxShadow: 'none',
+        outlineStyle: 'none',
+        outlineWidth: 0,
+        outlineColor: 'transparent',
+      } as unknown as TextStyle)
+    : { borderWidth: 0 };
 const searchInputWeb: TextStyle =
   Platform.OS === 'web'
     ? ({
@@ -276,19 +339,33 @@ const searchInputWeb: TextStyle =
     : { borderWidth: 0 };
 
 const styles = StyleSheet.create({
-  composerInput: {
-    backgroundColor: colors.surface,
-    borderColor: colors.borderInput,
-    borderRadius: 10,
-    borderWidth: 1,
+  composerInnerInput: {
+    backgroundColor: 'transparent',
+    borderWidth: 0,
     color: colors.textPrimary,
     flex: 1,
     fontSize: 12,
     fontWeight: '300',
     height: 36,
+    margin: 0,
+    padding: 0,
+  },
+  composerLeadingPressable: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  composerShell: {
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderColor: colors.borderInput,
+    borderRadius: 10,
+    borderWidth: 1,
+    flex: 1,
+    flexDirection: 'row',
+    height: 36,
     paddingHorizontal: spacing.md,
   },
-  composerInputFocused: {
+  composerShellFocused: {
     borderColor: colors.primary,
   },
   composerRow: {

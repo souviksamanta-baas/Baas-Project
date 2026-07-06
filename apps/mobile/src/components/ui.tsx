@@ -228,45 +228,81 @@ function MessageSourceBadge(props: { source: MessageSource }): ReactElement {
 }
 
 export function ReplyComposer(props: {
+  attachmentMenuOpen?: boolean;
+  canUseVision?: boolean;
+  canUseVoice?: boolean;
   embedded?: boolean;
   editable?: boolean;
+  isAnalyzingImage?: boolean;
+  isRecordingVoice?: boolean;
   isSending?: boolean;
+  isTranscribingVoice?: boolean;
   onChangeText?: (text: string) => void;
+  onPressAttachCamera?: () => void;
+  onPressAttachLibrary?: () => void;
+  onPressPlus?: () => void;
+  onPressVoice?: () => void;
   onSend?: () => void;
   placeholder: string;
   value?: string;
 }): ReactElement {
-  const canSend = Boolean(props.onSend && props.value?.trim() && !props.isSending);
+  const hasText = Boolean(props.value?.trim());
+  const busy = props.isSending || props.isTranscribingVoice || props.isAnalyzingImage;
+  const canSend = Boolean(props.onSend && hasText && !busy);
+  const showVoice = Boolean(props.canUseVoice && !hasText && props.onPressVoice);
 
   return (
-    <View style={[styles.replyBar, props.embedded && styles.replyBarEmbedded]}>
-      <ComposerInput
-        editable={props.editable ?? true}
-        leadingIcon="plus"
-        onChangeText={props.onChangeText}
-        onSubmitEditing={canSend ? props.onSend : undefined}
-        placeholder={props.placeholder}
-        returnKeyType="send"
-        value={props.value}
-        trailing={
-          <Pressable
-            disabled={!canSend}
-            onPress={props.onSend}
-            style={styles.micButton}
-          >
-            {props.isSending ? (
-              <ActivityIndicator color={colors.surface} size="small" />
-            ) : (
-              <Icon
-                color={colors.surface}
-                kind={canSend ? 'message' : 'mic'}
-                size={19}
-                strokeWidth={2.2}
-              />
-            )}
+    <View style={[styles.replyBarWrap, props.embedded && styles.replyBarWrapEmbedded]}>
+      {props.attachmentMenuOpen ? (
+        <View style={styles.attachmentMenu}>
+          <Pressable onPress={props.onPressAttachCamera} style={styles.attachmentOption}>
+            <Icon color={colors.primary} kind="camera" size={20} strokeWidth={1.9} />
+            <Text style={styles.attachmentLabel}>Cámara</Text>
           </Pressable>
-        }
-      />
+          <Pressable onPress={props.onPressAttachLibrary} style={styles.attachmentOption}>
+            <Icon color={colors.primary} kind="image" size={20} strokeWidth={1.9} />
+            <Text style={styles.attachmentLabel}>Imagen</Text>
+          </Pressable>
+        </View>
+      ) : null}
+
+      <View style={[styles.replyBar, props.embedded && styles.replyBarEmbedded]}>
+        <ComposerInput
+          editable={props.editable ?? true}
+          leadingIcon="plus"
+          onChangeText={props.onChangeText}
+          onLeadingPress={props.onPressPlus}
+          onSubmitEditing={canSend ? props.onSend : undefined}
+          placeholder={props.placeholder}
+          returnKeyType="send"
+          value={props.value}
+          trailing={
+            <Pressable
+              disabled={busy && !showVoice}
+              onPress={showVoice ? props.onPressVoice : props.onSend}
+              style={[
+                styles.micButton,
+                props.isRecordingVoice && styles.micButtonRecording,
+                showVoice && !props.isRecordingVoice && styles.micButtonIdle,
+              ]}
+            >
+              {busy ? (
+                <ActivityIndicator color={colors.surface} size="small" />
+              ) : props.isRecordingVoice ? (
+                <Icon color={colors.surface} kind="mic" size={19} strokeWidth={2.2} />
+              ) : (
+                <Icon
+                  color={colors.surface}
+                  kind={canSend ? 'message' : 'mic'}
+                  size={19}
+                  strokeWidth={2.2}
+                />
+              )}
+            </Pressable>
+          }
+        />
+      </View>
+      {props.isRecordingVoice ? <Text style={styles.recordingHint}>Grabando… tocá el micrófono para terminar.</Text> : null}
     </View>
   );
 }
@@ -717,6 +753,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     width: 40,
   },
+  micButtonIdle: {
+    backgroundColor: colors.primary,
+  },
+  micButtonRecording: {
+    backgroundColor: colors.danger,
+  },
   micButtonText: {
     color: colors.surface,
     fontSize: 12,
@@ -825,6 +867,41 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
     paddingHorizontal: 14,
     paddingVertical: 12,
+  },
+  replyBarWrap: {
+    backgroundColor: colors.background,
+  },
+  replyBarWrapEmbedded: {
+    backgroundColor: 'transparent',
+  },
+  attachmentLabel: {
+    color: colors.navy,
+    fontSize: 10,
+    fontWeight: '500',
+    marginTop: 4,
+  },
+  attachmentMenu: {
+    flexDirection: 'row',
+    gap: spacing.lg,
+    paddingBottom: spacing.sm,
+    paddingHorizontal: spacing.xl,
+  },
+  attachmentOption: {
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderColor: colors.borderInput,
+    borderRadius: 12,
+    borderWidth: 1,
+    minWidth: 72,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  recordingHint: {
+    color: colors.slate,
+    fontSize: 10,
+    paddingBottom: spacing.xs,
+    paddingHorizontal: spacing.xl,
+    textAlign: 'center',
   },
   robot: {
     alignItems: 'center',

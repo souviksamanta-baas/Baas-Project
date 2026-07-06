@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import {
   copiProSuggestedQuestions,
@@ -19,7 +19,30 @@ import type { OwnerCopilotState } from '../hooks/useOwnerCopilot';
 import type { OwnerDashboard } from '../types/dashboard';
 import { colors, shadows } from '../theme';
 
+export type CopiComposerActions = {
+  attachmentMenuOpen: boolean;
+  canUseVision: boolean;
+  canUseVoice: boolean;
+  isAnalyzingImage: boolean;
+  isRecordingVoice: boolean;
+  isTranscribingVoice: boolean;
+  onPressAttachCamera: () => void;
+  onPressAttachLibrary: () => void;
+  onPressPlus: () => void;
+  onPressVoice: () => void;
+};
+
+function askAndOpenChat(params: {
+  onAskQuestion: (question: string) => Promise<void>;
+  onOpenChat: () => void;
+  question: string;
+}): void {
+  params.onOpenChat();
+  void params.onAskQuestion(params.question);
+}
+
 export function CopiScreen(props: {
+  composer: CopiComposerActions;
   metrics: OwnerDashboard['metrics'] | null;
   onAskQuestion: (question: string) => Promise<void>;
   onOpenChat: () => void;
@@ -57,17 +80,29 @@ export function CopiScreen(props: {
       <FeatureGate feature="copiQuestionComposer" visibility={visibility}>
         <Card flush style={styles.composerCard}>
           <ReplyComposer
+            attachmentMenuOpen={props.composer.attachmentMenuOpen}
+            canUseVision={props.composer.canUseVision}
+            canUseVoice={props.composer.canUseVoice}
             embedded
+            isAnalyzingImage={props.composer.isAnalyzingImage}
+            isRecordingVoice={props.composer.isRecordingVoice}
+            isTranscribingVoice={props.composer.isTranscribingVoice}
             onChangeText={props.setQuestionDraft}
+            onPressAttachCamera={props.composer.onPressAttachCamera}
+            onPressAttachLibrary={props.composer.onPressAttachLibrary}
+            onPressPlus={props.composer.onPressPlus}
+            onPressVoice={props.composer.onPressVoice}
             onSend={() => {
               const question = props.questionDraft.trim();
               if (!question) {
                 return;
               }
 
-              void props.onAskQuestion(question).then(() => {
-                props.setQuestionDraft('');
-                props.onOpenChat();
+              props.setQuestionDraft('');
+              askAndOpenChat({
+                onAskQuestion: props.onAskQuestion,
+                onOpenChat: props.onOpenChat,
+                question,
               });
             }}
             placeholder="Escribí tu pregunta..."
@@ -85,9 +120,13 @@ export function CopiScreen(props: {
             <ActionRow
               icon="message"
               key={question}
-              onPress={() => {
-                void props.onAskQuestion(question).then(() => props.onOpenChat());
-              }}
+              onPress={() =>
+                askAndOpenChat({
+                  onAskQuestion: props.onAskQuestion,
+                  onOpenChat: props.onOpenChat,
+                  question,
+                })
+              }
               title={question}
             />
           ))}
@@ -100,7 +139,18 @@ export function CopiScreen(props: {
             <Text style={styles.sectionTitle}>Copi Pro</Text>
           </View>
           {copiProSuggestedQuestions.map((question) => (
-            <ActionRow icon="message" key={question} onPress={() => void props.onAskQuestion(question)} title={question} />
+            <ActionRow
+              icon="message"
+              key={question}
+              onPress={() =>
+                askAndOpenChat({
+                  onAskQuestion: props.onAskQuestion,
+                  onOpenChat: props.onOpenChat,
+                  question,
+                })
+              }
+              title={question}
+            />
           ))}
         </Card>
       ) : null}
@@ -119,12 +169,11 @@ export function CopiScreen(props: {
 }
 
 export function CopiChatScreen(props: {
+  composer: CopiComposerActions;
   copilot: OwnerCopilotState;
   onBack: () => void;
 }): ReactElement {
   const visibility = useFeatureVisibility();
-  const canUseVoice = useFeatureGate('copiVoiceInput');
-  const canUseVision = useFeatureGate('copiVisionInput');
 
   return (
     <View style={styles.chatRoot}>
@@ -171,19 +220,31 @@ export function CopiChatScreen(props: {
                   ) : null}
                 </View>
               ))}
+              {props.copilot.isAsking ? (
+                <View style={styles.typingRow}>
+                  <ActivityIndicator color={colors.primary} size="small" />
+                  <Text style={styles.typingText}>Copi está pensando…</Text>
+                </View>
+              ) : null}
             </View>
           </FeatureGate>
         </Card>
       </View>
 
-      {!canUseVoice && !canUseVision ? (
-        <Text style={styles.proHint}>Voz e imagen disponibles con Copi Pro.</Text>
-      ) : null}
-
       <FeatureGate feature="copiComposer" visibility={visibility}>
         <ReplyComposer
+          attachmentMenuOpen={props.composer.attachmentMenuOpen}
+          canUseVision={props.composer.canUseVision}
+          canUseVoice={props.composer.canUseVoice}
+          isAnalyzingImage={props.composer.isAnalyzingImage}
+          isRecordingVoice={props.composer.isRecordingVoice}
           isSending={props.copilot.isAsking}
+          isTranscribingVoice={props.composer.isTranscribingVoice}
           onChangeText={props.copilot.setInputValue}
+          onPressAttachCamera={props.composer.onPressAttachCamera}
+          onPressAttachLibrary={props.composer.onPressAttachLibrary}
+          onPressPlus={props.composer.onPressPlus}
+          onPressVoice={props.composer.onPressVoice}
           onSend={() => void props.copilot.askQuestion()}
           placeholder="Escribí tu pregunta..."
           value={props.copilot.inputValue}
@@ -273,13 +334,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     lineHeight: 16,
   },
-  proHint: {
-    color: colors.slate,
-    fontSize: 11,
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-    textAlign: 'center',
-  },
   profileTitle: {
     color: colors.navy,
     fontSize: 16,
@@ -312,6 +366,16 @@ const styles = StyleSheet.create({
     gap: 14,
     height: 74,
     paddingHorizontal: 16,
+  },
+  typingRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 8,
+    paddingVertical: 4,
+  },
+  typingText: {
+    color: colors.slate,
+    fontSize: 11,
   },
   upsellCard: {
     backgroundColor: '#f8faf8',

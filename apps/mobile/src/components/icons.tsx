@@ -27,6 +27,7 @@ export type IconKind =
   | 'globe'
   | 'help'
   | 'home'
+  | 'image'
   | 'inbox'
   | 'instagram'
   | 'logout'
@@ -227,6 +228,7 @@ function iconPath(kind: IconKind, color: string, filled?: boolean): ReactElement
   if (kind === 'lightbulb') return <><Path d="M9 18h6" /><Path d="M10 22h4" /><Path d="M12 3a6 6 0 0 0-3 11v2h6v-2a6 6 0 0 0-3-11Z" /></>;
   if (kind === 'document') return <><Path d="M8 4h8l4 4v12H8V4Z" /><Path d="M16 4v4h4" /><Path d="M11 13h6" /><Path d="M11 17h6" /></>;
   if (kind === 'mic') return <><Rect height="10" rx="3" width="6" x="9" y="3" /><Path d="M5.5 11.5a6.5 6.5 0 0 0 13 0" /><Path d="M12 18v3" /></>;
+  if (kind === 'image') return <><Rect height="10" rx="1.5" width="13" x="5.5" y="5" /><Circle cx="9" cy="9" r="1.2" /><Path d="M5.5 15 9.5 11.5 12 13.5 15 10.5 18.5 15" /></>;
   if (kind === 'home') {
     return (
       <>

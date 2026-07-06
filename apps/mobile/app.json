@@ -13,6 +13,13 @@
       "expo-router",
       "expo-notifications",
       [
+        "expo-image-picker",
+        {
+          "cameraPermission": "Nexolia usa la cámara para que Copi analice fotos de productos y stock.",
+          "photosPermission": "Nexolia accede a tus fotos para que Copi analice imágenes del negocio."
+        }
+      ],
+      [
         "expo-contacts",
         {
           "contactsPermission": "Nexolia usa contactos para invitar miembros del equipo y agregar clientes."
