@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
+import { buildGreetingReply } from './copi-intent-router';
 import type { CopiTokenUsage, CopiToolResult } from './copi.types';
 import { CopiPolicyService } from './copi-policy.service';
 
@@ -15,7 +16,7 @@ export class CopiLlmPhraserService {
   }): Promise<{ answer: string; tokenUsage: CopiTokenUsage }> {
     if (!params.enabled) {
       return {
-        answer: buildTemplateAnswer(params.toolResults),
+        answer: buildTemplateAnswer(params.question, params.toolResults),
         tokenUsage: this.policyService.emptyUsage(),
       };
     }
@@ -23,7 +24,7 @@ export class CopiLlmPhraserService {
     const apiKey = process.env.OPENAI_API_KEY?.trim();
     if (!apiKey) {
       return {
-        answer: buildTemplateAnswer(params.toolResults),
+        answer: buildTemplateAnswer(params.question, params.toolResults),
         tokenUsage: this.policyService.emptyUsage(),
       };
     }
@@ -58,8 +59,22 @@ export class CopiLlmPhraserService {
           max_tokens: 500,
           messages: [
             {
-              content:
-                'Sos Copi, asistente de negocio de Nexolia. Respondé en español rioplatense de forma natural, como un chat útil, usando SOLO los datos de toolResults. No inventes cifras, nombres ni hechos. Interpretá la intención: "hasta hoy" / "todos los productos que vendí" es un historial acumulado, no solo el día de hoy. Si payload.items tiene productos, respondé con lista numerada (producto, cantidad, precio, subtotal) y el total. Si no hay movimientos, decilo claro y ofrecé mirar ayer o un periodo más amplio.',
+              content: [
+                'Sos Copi, asistente de negocio de Nexolia para dueños argentino/rioplatenses.',
+                'Hablá natural, cálido y claro (vos, dale, mirá), sin sonar robótico ni técnico.',
+                'Usá SOLO los datos de toolResults. No inventes cifras, nombres ni hechos.',
+                '',
+                'Toque humano:',
+                '- Si el dueño saluda (Hola, Buenas tardes, Buenas noches, Buen día), devolvé el saludo antes de la data.',
+                '- Respondé al sentido de la pregunta, no vuelques data de más.',
+                '',
+                'Ventas (importante):',
+                '- En este producto las "ventas" son movimientos de venta del inventario. Si dicen "presupuestos de ventas" en sentido de "cuántas ventas hice", respondé con el conteo de ventas registradas.',
+                '- Si payload.responseMode es "count" o preguntan "cuántos/cuántas/número", respondé con el número (saleCount) y el total aproximado. NO arames una lista de productos.',
+                '- Solo listá productos si responseMode es "detail" o pidieron explícitamente lista/detalle/precios.',
+                '- "hasta hoy" es historial acumulado, no solo el día de hoy.',
+                '- Si no hay movimientos, decilo claro y ofrecé mirar ayer o un periodo más amplio.',
+              ].join('\n'),
               role: 'system',
             },
             {
@@ -68,7 +83,7 @@ export class CopiLlmPhraserService {
             },
           ],
           model: process.env.OPENAI_MODEL?.trim() || 'gpt-4o-mini',
-          temperature: 0.2,
+          temperature: 0.35,
         }),
         headers: {
           Authorization: `Bearer ${apiKey}`,
@@ -79,7 +94,7 @@ export class CopiLlmPhraserService {
 
       if (!response.ok) {
         return {
-          answer: buildTemplateAnswer(params.toolResults),
+          answer: buildTemplateAnswer(params.question, params.toolResults),
           tokenUsage: this.policyService.emptyUsage(),
         };
       }
@@ -90,7 +105,9 @@ export class CopiLlmPhraserService {
       };
 
       return {
-        answer: body.choices?.[0]?.message?.content?.trim() || buildTemplateAnswer(params.toolResults),
+        answer:
+          body.choices?.[0]?.message?.content?.trim() ||
+          buildTemplateAnswer(params.question, params.toolResults),
         tokenUsage: {
           inputTokens: body.usage?.prompt_tokens ?? estimatedInput,
           outputTokens: body.usage?.completion_tokens ?? 0,
@@ -98,13 +115,15 @@ export class CopiLlmPhraserService {
       };
     } catch {
       return {
-        answer: buildTemplateAnswer(params.toolResults),
+        answer: buildTemplateAnswer(params.question, params.toolResults),
         tokenUsage: this.policyService.emptyUsage(),
       };
     }
   }
 }
 
-function buildTemplateAnswer(toolResults: CopiToolResult[]): string {
-  return toolResults.map((result) => result.summary).join('\n\n');
+function buildTemplateAnswer(question: string, toolResults: CopiToolResult[]): string {
+  const greeting = buildGreetingReply(question);
+  const body = toolResults.map((result) => result.summary).join('\n\n');
+  return greeting ? `${greeting}\n\n${body}` : body;
 }

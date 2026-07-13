@@ -4,7 +4,7 @@ import { InventoryService } from '../inventory/inventory.service';
 import { TasksService } from '../tasks/tasks.service';
 import { SupabaseService } from '../../supabase/supabase.service';
 import { getZonedDayBounds, normalizeTimeZone } from './copi-timezone.util';
-import { isCumulativeSalesQuestion, wantsDetailedSalesList } from './copi-intent-router';
+import { isCumulativeSalesQuestion, wantsDetailedSalesList, wantsSalesCountOnly } from './copi-intent-router';
 import type { CopiQueryContext, CopiToolName, CopiToolResult } from './copi.types';
 
 interface MessageRow {
@@ -156,6 +156,7 @@ export class CopiToolRegistry {
 
   private async salesSummary(context: CopiQueryContext): Promise<Omit<CopiToolResult, 'key'>> {
     const wantsDetail = wantsDetailedSalesList(context.question);
+    const wantsCount = wantsSalesCountOnly(context.question);
     const cumulative = isCumulativeSalesQuestion(context.question);
     const lookbackDays = cumulative ? 90 : 7;
     const rangeStart = new Date(context.now.getTime() - lookbackDays * 24 * 60 * 60 * 1000);
@@ -163,14 +164,15 @@ export class CopiToolRegistry {
       context,
       rangeStart,
       context.now,
-      wantsDetail || cumulative ? 100 : 50,
+      wantsDetail ? 100 : 50,
     );
     const periodLabel = cumulative ? `últimos ${lookbackDays} días (hasta hoy)` : `${lookbackDays} días`;
 
     return {
       payload: {
-        items,
+        items: wantsDetail ? items : [],
         period: cumulative ? 'to_date' : '7d',
+        responseMode: wantsDetail ? 'detail' : wantsCount ? 'count' : 'summary',
         saleCount: rows.length,
         salesCents: totalCents,
       },
@@ -179,7 +181,8 @@ export class CopiToolRegistry {
         periodLabel,
         saleCount: rows.length,
         totalCents,
-        wantsDetail: wantsDetail || cumulative,
+        wantsCount,
+        wantsDetail,
       }),
     };
   }
@@ -193,32 +196,26 @@ export class CopiToolRegistry {
     const { end, start } = getZonedDayBounds(context.now, timeZone, dayOffset);
     const { items, rows, totalCents } = await this.loadSaleMovements(context, start, end);
     const wantsDetail = wantsDetailedSalesList(context.question);
+    const wantsCount = wantsSalesCountOnly(context.question);
 
     return {
-      payload: { dayOffset, items, period: label, saleCount: rows.length, salesCents: totalCents },
-      summary: this.buildSalesDaySummary({ items, label, saleCount: rows.length, totalCents, wantsDetail }),
+      payload: {
+        dayOffset,
+        items: wantsDetail ? items : [],
+        period: label,
+        responseMode: wantsDetail ? 'detail' : wantsCount ? 'count' : 'summary',
+        saleCount: rows.length,
+        salesCents: totalCents,
+      },
+      summary: this.buildSalesPeriodSummary({
+        items,
+        periodLabel: label,
+        saleCount: rows.length,
+        totalCents,
+        wantsCount,
+        wantsDetail,
+      }),
     };
-  }
-
-  private buildSalesDaySummary(params: {
-    items: Array<{
-      lineTotalCents: number;
-      name: string;
-      quantity: number;
-      unitPriceCents: number;
-    }>;
-    label: 'hoy' | 'ayer';
-    saleCount: number;
-    totalCents: number;
-    wantsDetail: boolean;
-  }): string {
-    return this.buildSalesPeriodSummary({
-      items: params.items,
-      periodLabel: params.label,
-      saleCount: params.saleCount,
-      totalCents: params.totalCents,
-      wantsDetail: params.wantsDetail,
-    });
   }
 
   private buildSalesPeriodSummary(params: {
@@ -231,24 +228,29 @@ export class CopiToolRegistry {
     periodLabel: string;
     saleCount: number;
     totalCents: number;
+    wantsCount: boolean;
     wantsDetail: boolean;
   }): string {
     if (params.saleCount === 0) {
       return `Ventas (${params.periodLabel}): no hay movimientos registrados.`;
     }
 
-    if (!params.wantsDetail) {
-      return `Ventas (${params.periodLabel}): ${params.saleCount} movimiento(s), aprox. $${this.formatCents(params.totalCents)} en valor.`;
+    if (params.wantsDetail) {
+      const lines = params.items.map(
+        (item, index) =>
+          `${index + 1}. ${item.name} — ${item.quantity} u. × $${this.formatCents(item.unitPriceCents)} = $${this.formatCents(item.lineTotalCents)}`,
+      );
+
+      return [`Ventas (${params.periodLabel}):`, ...lines, '', `Total: $${this.formatCents(params.totalCents)}`].join(
+        '\n',
+      );
     }
 
-    const lines = params.items.map(
-      (item, index) =>
-        `${index + 1}. ${item.name} — ${item.quantity} u. × $${this.formatCents(item.unitPriceCents)} = $${this.formatCents(item.lineTotalCents)}`,
-    );
+    if (params.wantsCount) {
+      return `Hasta ahora hay ${params.saleCount} venta(s) registrada(s) (${params.periodLabel}), por un total aproximado de $${this.formatCents(params.totalCents)}.`;
+    }
 
-    return [`Ventas (${params.periodLabel}):`, ...lines, '', `Total: $${this.formatCents(params.totalCents)}`].join(
-      '\n',
-    );
+    return `Ventas (${params.periodLabel}): ${params.saleCount} venta(s), aprox. $${this.formatCents(params.totalCents)} en valor.`;
   }
 
   private formatCents(cents: number): string {

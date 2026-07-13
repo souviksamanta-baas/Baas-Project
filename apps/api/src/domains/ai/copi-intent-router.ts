@@ -6,6 +6,11 @@ const MESSAGE_PATTERN = /\b(message|messages|chat|chats|inbox|mensaje|mensajes)\
 const ATTENTION_PATTERN = /\b(atencion|attention|prioridad|resumen del dia|resumen del dia)\b/;
 const CUMULATIVE_SALES_PATTERN =
   /\b(hasta hoy|hasta ahora|todo lo que|todos? los?|todas? las?|historico|historial|acumulad|desde siempre|en total|en general)\b/;
+const SALES_DETAIL_PATTERN =
+  /\b(lista|listado|detalle|detallado|desglose|precios?|con precios|item por item|producto por producto)\b/;
+const SALES_COUNT_PATTERN = /\b(cuant[oa]s?|numero|cantidad)\b/;
+const GREETING_PATTERN =
+  /\b(hola|buenas|buen dia|buenos dias|buenas tardes|buenas noches|que tal|como va|como andas)\b/;
 
 export const COPI_TOOL_CATALOG: Array<{ description: string; name: CopiToolName }> = [
   { description: 'Mensajes entrantes de hoy', name: 'messages_today' },
@@ -13,7 +18,7 @@ export const COPI_TOOL_CATALOG: Array<{ description: string; name: CopiToolName 
   { description: 'Seguimientos/tareas pendientes', name: 'pending_follow_ups' },
   {
     description:
-      'Ventas acumuladas o de un periodo amplio (semana, hasta hoy, todos los productos vendidos, historial)',
+      'Ventas acumuladas o de un periodo amplio (semana, hasta hoy, cuántas ventas, historial). Sirve para contar o resumir.',
     name: 'sales_summary',
   },
   { description: 'Ventas solo de hoy (el día de hoy)', name: 'sales_today' },
@@ -42,6 +47,7 @@ export function selectCopiTools(question: string): CopiToolName[] {
   const tools = new Set<CopiToolName>();
   const asksSales =
     SALES_PATTERN.test(normalized) ||
+    /\bpresupuest/.test(normalized) ||
     (/\b(lista|detalle|detallado|productos?|items?|precios?|total)\b/.test(normalized) &&
       /\b(ayer|hoy|semana|hasta)\b/.test(normalized) &&
       /\bvend/.test(normalized));
@@ -123,9 +129,53 @@ export function detectProActionIntent(question: string): boolean {
 
 export function wantsDetailedSalesList(question: string): boolean {
   const normalized = normalizeCopiQuestion(question);
-  return /\b(lista|detalle|detallado|productos?|items?|precios?|total|todo lo que|todos? los?)\b/.test(
-    normalized,
-  );
+  if (wantsSalesCountOnly(question)) {
+    return false;
+  }
+
+  return SALES_DETAIL_PATTERN.test(normalized) || /\b(lista de (todo|todos|productos)|haceme la lista|mandame la lista)\b/.test(normalized);
+}
+
+export function wantsSalesCountOnly(question: string): boolean {
+  const normalized = normalizeCopiQuestion(question);
+  if (SALES_DETAIL_PATTERN.test(normalized) || /\bhaceme la lista|mandame la lista|lista de productos\b/.test(normalized)) {
+    return false;
+  }
+
+  return SALES_COUNT_PATTERN.test(normalized);
+}
+
+export function hasGreeting(question: string): boolean {
+  return GREETING_PATTERN.test(normalizeCopiQuestion(question));
+}
+
+export function buildGreetingReply(question: string, now = new Date()): string | null {
+  if (!hasGreeting(question)) {
+    return null;
+  }
+
+  const normalized = normalizeCopiQuestion(question);
+  if (/\bbuenas noches\b/.test(normalized)) {
+    return '¡Buenas noches!';
+  }
+  if (/\bbuenas tardes\b/.test(normalized)) {
+    return '¡Buenas tardes!';
+  }
+  if (/\b(buen dia|buenos dias)\b/.test(normalized)) {
+    return '¡Buen día!';
+  }
+  if (/\bhola\b/.test(normalized)) {
+    const hour = now.getHours();
+    if (hour >= 20 || hour < 5) {
+      return '¡Hola! Buenas noches.';
+    }
+    if (hour >= 13) {
+      return '¡Hola! Buenas tardes.';
+    }
+    return '¡Hola! Buen día.';
+  }
+
+  return '¡Hola!';
 }
 
 export function isCumulativeSalesQuestion(question: string): boolean {

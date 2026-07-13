@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { selectCopiTools, wantsDetailedSalesList } from '../src/domains/ai/copi-intent-router';
+import {
+  buildGreetingReply,
+  selectCopiTools,
+  wantsDetailedSalesList,
+  wantsSalesCountOnly,
+} from '../src/domains/ai/copi-intent-router';
 
 describe('selectCopiTools', () => {
   it('routes today sales without pulling messages_today', () => {
@@ -31,6 +36,12 @@ describe('selectCopiTools', () => {
     ]);
   });
 
+  it('routes Argentine count question about sales as sales_summary', () => {
+    expect(
+      selectCopiTools('Hola Copi, Buenas tardes! cuantos presupuestos de ventas fue creado hasta hoy?'),
+    ).toEqual(['sales_summary']);
+  });
+
   it('does not treat lista as attention summary', () => {
     expect(selectCopiTools('Mandame una lista de todo lo que vendí ayer con sus precios y el total')).not.toContain(
       'attention_summary',
@@ -38,14 +49,30 @@ describe('selectCopiTools', () => {
   });
 });
 
-describe('wantsDetailedSalesList', () => {
+describe('wantsDetailedSalesList / wantsSalesCountOnly', () => {
   it('detects list requests with prices and total', () => {
     expect(wantsDetailedSalesList('Mandame una lista de todo lo que vendí ayer con sus precios y el total')).toBe(
       true,
     );
+    expect(wantsSalesCountOnly('Mandame una lista de todo lo que vendí ayer con sus precios y el total')).toBe(false);
   });
 
-  it('detects all products sold until today', () => {
+  it('detects all products sold until today as detail', () => {
     expect(wantsDetailedSalesList('haceme la lista de todos los productos que vendí hasta hoy')).toBe(true);
+  });
+
+  it('treats cuantos presupuestos/ventas as count-only', () => {
+    expect(
+      wantsSalesCountOnly('Hola Copi, Buenas tardes! cuantos presupuestos de ventas fue creado hasta hoy?'),
+    ).toBe(true);
+    expect(
+      wantsDetailedSalesList('Hola Copi, Buenas tardes! cuantos presupuestos de ventas fue creado hasta hoy?'),
+    ).toBe(false);
+  });
+});
+
+describe('buildGreetingReply', () => {
+  it('returns afternoon greeting', () => {
+    expect(buildGreetingReply('Hola Copi, Buenas tardes! cuantos ventas hice?')).toBe('¡Buenas tardes!');
   });
 });
