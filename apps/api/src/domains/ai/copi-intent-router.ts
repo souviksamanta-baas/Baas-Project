@@ -38,8 +38,6 @@ export const COPI_TOOL_CATALOG: Array<{ description: string; name: CopiToolName 
   { description: 'Integrantes del equipo', name: 'staff_roster' },
 ];
 
-/** @deprecated Prefer COPI_TOOLS_PROMPT; kept for rule-based fallback descriptions. */
-
 export type CopiConversationTurn = {
   body: string;
   role: 'owner' | 'assistant' | 'system';
