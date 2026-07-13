@@ -4,7 +4,7 @@ import { InventoryService } from '../inventory/inventory.service';
 import { TasksService } from '../tasks/tasks.service';
 import { SupabaseService } from '../../supabase/supabase.service';
 import { getZonedDayBounds, normalizeTimeZone } from './copi-timezone.util';
-import { wantsDetailedSalesList } from './copi-intent-router';
+import { isCumulativeSalesQuestion, wantsDetailedSalesList } from './copi-intent-router';
 import type { CopiQueryContext, CopiToolName, CopiToolResult } from './copi.types';
 
 interface MessageRow {
@@ -155,12 +155,32 @@ export class CopiToolRegistry {
   }
 
   private async salesSummary(context: CopiQueryContext): Promise<Omit<CopiToolResult, 'key'>> {
-    const weekAgo = new Date(context.now.getTime() - 7 * 24 * 60 * 60 * 1000);
-    const { rows, totalCents } = await this.loadSaleMovements(context, weekAgo, context.now);
+    const wantsDetail = wantsDetailedSalesList(context.question);
+    const cumulative = isCumulativeSalesQuestion(context.question);
+    const lookbackDays = cumulative ? 90 : 7;
+    const rangeStart = new Date(context.now.getTime() - lookbackDays * 24 * 60 * 60 * 1000);
+    const { items, rows, totalCents } = await this.loadSaleMovements(
+      context,
+      rangeStart,
+      context.now,
+      wantsDetail || cumulative ? 100 : 50,
+    );
+    const periodLabel = cumulative ? `últimos ${lookbackDays} días (hasta hoy)` : `${lookbackDays} días`;
 
     return {
-      payload: { period: '7d', saleCount: rows.length, salesCents: totalCents },
-      summary: `Ventas (7 días): ${rows.length} movimiento(s), aprox. $${this.formatCents(totalCents)} en valor.`,
+      payload: {
+        items,
+        period: cumulative ? 'to_date' : '7d',
+        saleCount: rows.length,
+        salesCents: totalCents,
+      },
+      summary: this.buildSalesPeriodSummary({
+        items,
+        periodLabel,
+        saleCount: rows.length,
+        totalCents,
+        wantsDetail: wantsDetail || cumulative,
+      }),
     };
   }
 
@@ -192,12 +212,33 @@ export class CopiToolRegistry {
     totalCents: number;
     wantsDetail: boolean;
   }): string {
+    return this.buildSalesPeriodSummary({
+      items: params.items,
+      periodLabel: params.label,
+      saleCount: params.saleCount,
+      totalCents: params.totalCents,
+      wantsDetail: params.wantsDetail,
+    });
+  }
+
+  private buildSalesPeriodSummary(params: {
+    items: Array<{
+      lineTotalCents: number;
+      name: string;
+      quantity: number;
+      unitPriceCents: number;
+    }>;
+    periodLabel: string;
+    saleCount: number;
+    totalCents: number;
+    wantsDetail: boolean;
+  }): string {
     if (params.saleCount === 0) {
-      return `Ventas de ${params.label}: no hay movimientos registrados.`;
+      return `Ventas (${params.periodLabel}): no hay movimientos registrados.`;
     }
 
     if (!params.wantsDetail) {
-      return `Ventas de ${params.label}: ${params.saleCount} movimiento(s), aprox. $${this.formatCents(params.totalCents)} en valor.`;
+      return `Ventas (${params.periodLabel}): ${params.saleCount} movimiento(s), aprox. $${this.formatCents(params.totalCents)} en valor.`;
     }
 
     const lines = params.items.map(
@@ -205,7 +246,9 @@ export class CopiToolRegistry {
         `${index + 1}. ${item.name} — ${item.quantity} u. × $${this.formatCents(item.unitPriceCents)} = $${this.formatCents(item.lineTotalCents)}`,
     );
 
-    return [`Ventas de ${params.label}:`, ...lines, '', `Total: $${this.formatCents(params.totalCents)}`].join('\n');
+    return [`Ventas (${params.periodLabel}):`, ...lines, '', `Total: $${this.formatCents(params.totalCents)}`].join(
+      '\n',
+    );
   }
 
   private formatCents(cents: number): string {
@@ -216,6 +259,7 @@ export class CopiToolRegistry {
     context: CopiQueryContext,
     rangeStart: Date,
     rangeEnd: Date,
+    limit = 50,
   ): Promise<{
     items: Array<{
       createdAt: string;
@@ -241,7 +285,7 @@ export class CopiToolRegistry {
       .gte('created_at', rangeStart.toISOString())
       .lt('created_at', rangeEnd.toISOString())
       .order('created_at', { ascending: false })
-      .limit(50);
+      .limit(limit);
 
     if (error) {
       throw new Error(`Failed to load sales summary: ${error.message}`);

@@ -7,6 +7,7 @@ import { WhatsAppModule } from '../whatsapp/whatsapp.module';
 import { AiController } from './ai.controller';
 import { CopiActionService } from './copi-action.service';
 import { CopiLlmPhraserService } from './copi-llm-phraser.service';
+import { CopiLlmToolSelectorService } from './copi-llm-tool-selector.service';
 import { CopiOrchestratorService } from './copi-orchestrator.service';
 import { CopiPolicyService } from './copi-policy.service';
 import { CopiReportsService } from './copi-reports.service';
@@ -24,6 +25,7 @@ import { SalesAiService } from './sales-ai.service';
     SupabaseService,
     CopiPolicyService,
     CopiToolRegistry,
+    CopiLlmToolSelectorService,
     CopiLlmPhraserService,
     CopiSessionService,
     CopiActionService,

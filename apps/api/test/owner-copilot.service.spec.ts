@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { CopiOrchestratorService } from '../src/domains/ai/copi-orchestrator.service';
 import { CopiPolicyService } from '../src/domains/ai/copi-policy.service';
 import { CopiLlmPhraserService } from '../src/domains/ai/copi-llm-phraser.service';
+import { CopiLlmToolSelectorService } from '../src/domains/ai/copi-llm-tool-selector.service';
 import { CopiToolRegistry } from '../src/domains/ai/copi-tool-registry';
 import { CopiSessionService } from '../src/domains/ai/copi-session.service';
 import { CopiActionService } from '../src/domains/ai/copi-action.service';
@@ -88,6 +89,7 @@ function createOrchestrator(): {
   } as unknown as CopiActionService;
 
   const toolRegistry = new CopiToolRegistry(supabaseService, inventoryService, tasksService);
+  const toolSelectorService = new CopiLlmToolSelectorService();
   const phraserService = new CopiLlmPhraserService(policyService);
 
   return {
@@ -95,6 +97,7 @@ function createOrchestrator(): {
       supabaseService,
       policyService,
       toolRegistry,
+      toolSelectorService,
       phraserService,
       sessionService,
       actionService,
@@ -119,7 +122,7 @@ function createQuery(table: string): Record<string, unknown> {
       }
 
       if (table === 'business_centers') {
-        return { data: { id: 'business-center-1' }, error: null };
+        return { data: { id: 'business-center-1', timezone: 'America/Argentina/Buenos_Aires' }, error: null };
       }
 
       if (table === 'organizations') {

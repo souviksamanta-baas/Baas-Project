@@ -25,6 +25,12 @@ describe('selectCopiTools', () => {
     ).toEqual(['sales_yesterday']);
   });
 
+  it('routes cumulative sales until today as sales_summary', () => {
+    expect(selectCopiTools('haceme la lista de todos los productos que vendí hasta hoy')).toEqual([
+      'sales_summary',
+    ]);
+  });
+
   it('does not treat lista as attention summary', () => {
     expect(selectCopiTools('Mandame una lista de todo lo que vendí ayer con sus precios y el total')).not.toContain(
       'attention_summary',
@@ -37,5 +43,9 @@ describe('wantsDetailedSalesList', () => {
     expect(wantsDetailedSalesList('Mandame una lista de todo lo que vendí ayer con sus precios y el total')).toBe(
       true,
     );
+  });
+
+  it('detects all products sold until today', () => {
+    expect(wantsDetailedSalesList('haceme la lista de todos los productos que vendí hasta hoy')).toBe(true);
   });
 });

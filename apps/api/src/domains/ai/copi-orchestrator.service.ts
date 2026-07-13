@@ -3,8 +3,9 @@ import { Injectable } from '@nestjs/common';
 import { SupabaseService } from '../../supabase/supabase.service';
 import type { OwnerCopilotResponse } from './copi.types';
 import { CopiActionService } from './copi-action.service';
-import { detectProActionIntent, selectCopiTools } from './copi-intent-router';
+import { detectProActionIntent } from './copi-intent-router';
 import { CopiLlmPhraserService } from './copi-llm-phraser.service';
+import { CopiLlmToolSelectorService } from './copi-llm-tool-selector.service';
 import { CopiPolicyService } from './copi-policy.service';
 import { CopiSessionService } from './copi-session.service';
 import { CopiToolRegistry } from './copi-tool-registry';
@@ -19,6 +20,7 @@ export class CopiOrchestratorService {
     private readonly supabaseService: SupabaseService,
     private readonly policyService: CopiPolicyService,
     private readonly toolRegistry: CopiToolRegistry,
+    private readonly toolSelectorService: CopiLlmToolSelectorService,
     private readonly phraserService: CopiLlmPhraserService,
     private readonly sessionService: CopiSessionService,
     private readonly actionService: CopiActionService,
@@ -88,9 +90,13 @@ export class CopiOrchestratorService {
       };
     }
 
-    const tools = selectCopiTools(params.question);
-    const toolResults = await this.toolRegistry.executeTools(context, tools);
     const useLlm = this.policyService.canUseFreeformQuestions(flags);
+    const selected = await this.toolSelectorService.selectTools({
+      enabled: useLlm,
+      question: params.question,
+    });
+    const tools = selected.tools;
+    const toolResults = await this.toolRegistry.executeTools(context, tools);
     const phrased = await this.phraserService.phraseAnswer({
       enabled: useLlm,
       locale: 'es-AR',
