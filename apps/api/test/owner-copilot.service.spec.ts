@@ -82,6 +82,7 @@ function createOrchestrator(): {
   const sessionService = {
     appendMessage: vi.fn(async () => undefined),
     ensureSession: vi.fn(async () => 'session-1'),
+    listMessages: vi.fn(async () => []),
   } as unknown as CopiSessionService;
 
   const actionService = {

@@ -1,15 +1,23 @@
 import { Injectable } from '@nestjs/common';
 
-import { COPI_TOOL_CATALOG, sanitizeSelectedTools, selectCopiTools } from './copi-intent-router';
+import {
+  buildIntentQuestion,
+  COPI_TOOL_CATALOG,
+  sanitizeSelectedTools,
+  selectCopiTools,
+  type CopiConversationTurn,
+} from './copi-intent-router';
 import type { CopiToolName } from './copi.types';
 
 @Injectable()
 export class CopiLlmToolSelectorService {
   async selectTools(params: {
     enabled: boolean;
+    history?: CopiConversationTurn[];
     question: string;
   }): Promise<{ source: 'llm' | 'rules'; tools: CopiToolName[] }> {
-    const fallback = selectCopiTools(params.question);
+    const history = params.history ?? [];
+    const fallback = selectCopiTools(params.question, history);
     if (!params.enabled) {
       return { source: 'rules', tools: fallback };
     }
@@ -20,6 +28,7 @@ export class CopiLlmToolSelectorService {
     }
 
     const catalog = COPI_TOOL_CATALOG.map((tool) => `${tool.name}: ${tool.description}`).join('\n');
+    const questionWithContext = buildIntentQuestion(params.question, history);
 
     try {
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -31,9 +40,10 @@ export class CopiLlmToolSelectorService {
                 'Sos el router de Copi, asistente de negocio de Nexolia en español rioplatense.',
                 'Elegí 1 a 3 herramientas del catálogo para responder la pregunta del dueño.',
                 'Reglas importantes (español rioplatense):',
-                '- "cuántas ventas", "cuántos presupuestos de ventas", "número de ventas", "hasta hoy" para contar => sales_summary (NO armes lista; otra capa usa saleCount).',
-                '- "haceme la lista de productos vendidos", "detalle con precios" => sales_summary/sales_today/sales_yesterday según el día y con detalle.',
-                '- "hasta hoy", "historial", "en total" sin lista => sales_summary.',
+                '- Usá el contexto previo si el mensaje es un follow-up ("más detalles", "cuáles son", "necesito más info").',
+                '- Si el mensaje anterior era de ventas y ahora pide detalles/productos/cantidades/ganancias => misma herramienta de ventas (sales_summary / today / yesterday).',
+                '- "cuántas ventas", "cuántos presupuestos de ventas", "número de ventas", "hasta hoy" para contar => sales_summary.',
+                '- "haceme la lista...", "detalle con precios", "más detalles" => herramienta de ventas con detalle (otra capa formatea).',
                 '- "ventas de hoy" / "qué vendí hoy" (solo el día de hoy) => sales_today.',
                 '- "ayer" => sales_yesterday.',
                 '- Un saludo + pregunta de ventas sigue siendo herramienta de ventas (no attention_summary).',
@@ -45,7 +55,7 @@ export class CopiLlmToolSelectorService {
               role: 'system',
             },
             {
-              content: params.question,
+              content: questionWithContext,
               role: 'user',
             },
           ],

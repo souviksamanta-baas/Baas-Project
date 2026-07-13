@@ -1,14 +1,16 @@
 import type { CopiToolName } from './copi.types';
 
 const SALES_PATTERN =
-  /\b(sale|sales|venta|ventas|factur|ingreso|cobr|vend(?:i|í|e|é|o|ó|a|á|imos|iste|ieron|iendo|ido|ida|idas|idos)?)\b/;
+  /\b(sale|sales|venta|ventas|factur|ingreso|cobr|ganancia|ganancias|vend(?:i|í|e|é|o|ó|a|á|io|ió|imos|iste|ieron|iendo|ido|ida|idas|idos)?)\b/;
 const MESSAGE_PATTERN = /\b(message|messages|chat|chats|inbox|mensaje|mensajes)\b/;
 const ATTENTION_PATTERN = /\b(atencion|attention|prioridad|resumen del dia|resumen del dia)\b/;
 const CUMULATIVE_SALES_PATTERN =
   /\b(hasta hoy|hasta ahora|todo lo que|todos? los?|todas? las?|historico|historial|acumulad|desde siempre|en total|en general)\b/;
 const SALES_DETAIL_PATTERN =
-  /\b(lista|listado|detalle|detallado|desglose|precios?|con precios|item por item|producto por producto)\b/;
-const SALES_COUNT_PATTERN = /\b(cuant[oa]s?|numero|cantidad)\b/;
+  /\b(lista|listado|detalles?|detallado|desglose|precios?|con precios|item por item|producto por producto|cuales son|que productos|cantidad de cada|mas detalles|mas info|necesitaria|necesito mas|ampliame|mostrame|ganancias por)\b/;
+const SALES_COUNT_PATTERN = /\b(cuant[oa]s?|numero)\b/;
+const FOLLOW_UP_DETAIL_PATTERN =
+  /\b(mas detalles|detalles|mas info|cuales son|que productos|cantidad de cada|necesitaria|necesito mas|amplia|mostrame|de esas|de esos|de eso)\b/;
 const GREETING_PATTERN =
   /\b(hola|buenas|buen dia|buenos dias|buenas tardes|buenas noches|que tal|como va|como andas)\b/;
 
@@ -18,7 +20,7 @@ export const COPI_TOOL_CATALOG: Array<{ description: string; name: CopiToolName 
   { description: 'Seguimientos/tareas pendientes', name: 'pending_follow_ups' },
   {
     description:
-      'Ventas acumuladas o de un periodo amplio (semana, hasta hoy, cuántas ventas, historial). Sirve para contar o resumir.',
+      'Ventas acumuladas o de un periodo amplio (semana, hasta hoy, cuántas ventas, historial, follow-ups pidiendo detalle de ventas).',
     name: 'sales_summary',
   },
   { description: 'Ventas solo de hoy (el día de hoy)', name: 'sales_today' },
@@ -35,6 +37,11 @@ export const COPI_TOOL_CATALOG: Array<{ description: string; name: CopiToolName 
   { description: 'Integrantes del equipo', name: 'staff_roster' },
 ];
 
+export type CopiConversationTurn = {
+  body: string;
+  role: 'owner' | 'assistant' | 'system';
+};
+
 export function normalizeCopiQuestion(question: string): string {
   return question
     .toLocaleLowerCase()
@@ -42,24 +49,53 @@ export function normalizeCopiQuestion(question: string): string {
     .replace(/\p{M}/gu, '');
 }
 
-export function selectCopiTools(question: string): CopiToolName[] {
+export function getPriorOwnerQuestion(history: CopiConversationTurn[] = []): string | undefined {
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    if (history[index]?.role === 'owner') {
+      return history[index]?.body;
+    }
+  }
+
+  return undefined;
+}
+
+export function buildIntentQuestion(question: string, history: CopiConversationTurn[] = []): string {
+  const prior = getPriorOwnerQuestion(history);
+  if (!prior) {
+    return question;
+  }
+
+  return `${question}\n\n(Contexto previo del dueño: ${prior})`;
+}
+
+export function selectCopiTools(
+  question: string,
+  history: CopiConversationTurn[] = [],
+): CopiToolName[] {
   const normalized = normalizeCopiQuestion(question);
+  const prior = getPriorOwnerQuestion(history);
+  const priorNormalized = prior ? normalizeCopiQuestion(prior) : '';
   const tools = new Set<CopiToolName>();
+  const priorWasSales = Boolean(prior && isSalesRelatedQuestion(prior));
+  const followUpDetail = isSalesFollowUpDetail(question) && priorWasSales;
   const asksSales =
-    SALES_PATTERN.test(normalized) ||
-    /\bpresupuest/.test(normalized) ||
-    (/\b(lista|detalle|detallado|productos?|items?|precios?|total)\b/.test(normalized) &&
+    isSalesRelatedQuestion(question) ||
+    followUpDetail ||
+    (/\b(lista|detalle|detalles|detallado|productos?|items?|precios?|total)\b/.test(normalized) &&
       /\b(ayer|hoy|semana|hasta)\b/.test(normalized) &&
       /\bvend/.test(normalized));
   const asksMessages = MESSAGE_PATTERN.test(normalized);
-  const wantsCumulativeSales = CUMULATIVE_SALES_PATTERN.test(normalized);
+  const wantsCumulativeSales =
+    CUMULATIVE_SALES_PATTERN.test(normalized) ||
+    (followUpDetail && CUMULATIVE_SALES_PATTERN.test(priorNormalized));
 
   if (asksSales) {
-    if (/\b(ayer|yesterday)\b/.test(normalized)) {
+    const periodSource = followUpDetail ? `${priorNormalized} ${normalized}` : normalized;
+    if (/\b(ayer|yesterday)\b/.test(periodSource)) {
       tools.add('sales_yesterday');
-    } else if (wantsCumulativeSales || /\bhasta\b/.test(normalized)) {
+    } else if (wantsCumulativeSales || /\bhasta\b/.test(periodSource)) {
       tools.add('sales_summary');
-    } else if (/\b(hoy|today)\b/.test(normalized)) {
+    } else if (/\b(hoy|today)\b/.test(periodSource) && !followUpDetail) {
       tools.add('sales_today');
     } else {
       tools.add('sales_summary');
@@ -120,6 +156,15 @@ export function selectCopiTools(question: string): CopiToolName[] {
   return Array.from(tools);
 }
 
+export function isSalesRelatedQuestion(question: string): boolean {
+  const normalized = normalizeCopiQuestion(question);
+  return SALES_PATTERN.test(normalized) || /\bpresupuest/.test(normalized);
+}
+
+export function isSalesFollowUpDetail(question: string): boolean {
+  return FOLLOW_UP_DETAIL_PATTERN.test(normalizeCopiQuestion(question));
+}
+
 export function detectProActionIntent(question: string): boolean {
   const normalized = normalizeCopiQuestion(question);
   return /\b(crea|crear|crea|asign|assign|marca|marcar|complet|cancel|pospon|snooze|recorda|recordar)\b/.test(
@@ -127,22 +172,63 @@ export function detectProActionIntent(question: string): boolean {
   );
 }
 
-export function wantsDetailedSalesList(question: string): boolean {
-  const normalized = normalizeCopiQuestion(question);
-  if (wantsSalesCountOnly(question)) {
+export function wantsDetailedSalesList(
+  question: string,
+  history: CopiConversationTurn[] = [],
+): boolean {
+  const prior = getPriorOwnerQuestion(history);
+  if (wantsSalesCountOnly(question, history)) {
     return false;
   }
 
-  return SALES_DETAIL_PATTERN.test(normalized) || /\b(lista de (todo|todos|productos)|haceme la lista|mandame la lista)\b/.test(normalized);
+  const normalized = normalizeCopiQuestion(question);
+  if (SALES_DETAIL_PATTERN.test(normalized) || isSalesFollowUpDetail(question)) {
+    return true;
+  }
+
+  return /\b(lista de (todo|todos|productos)|haceme la lista|mandame la lista)\b/.test(normalized);
 }
 
-export function wantsSalesCountOnly(question: string): boolean {
+export function wantsSalesCountOnly(
+  question: string,
+  history: CopiConversationTurn[] = [],
+): boolean {
   const normalized = normalizeCopiQuestion(question);
-  if (SALES_DETAIL_PATTERN.test(normalized) || /\bhaceme la lista|mandame la lista|lista de productos\b/.test(normalized)) {
+  if (wantsDetailedSalesListWithoutCountGuard(question) || isSalesFollowUpDetail(question)) {
+    return false;
+  }
+
+  if (/\bcantidad de cada\b/.test(normalized)) {
+    return false;
+  }
+
+  // "cuánta cantidad" in a follow-up about products is detail, not "how many sales"
+  if (/\bcuant[oa]s?\s+cantidad\b/.test(normalized)) {
     return false;
   }
 
   return SALES_COUNT_PATTERN.test(normalized);
+}
+
+function wantsDetailedSalesListWithoutCountGuard(question: string): boolean {
+  const normalized = normalizeCopiQuestion(question);
+  return (
+    SALES_DETAIL_PATTERN.test(normalized) ||
+    /\b(lista de (todo|todos|productos)|haceme la lista|mandame la lista)\b/.test(normalized)
+  );
+}
+
+export function extractSalesProductFilter(
+  question: string,
+  history: CopiConversationTurn[] = [],
+): string | null {
+  const prior = getPriorOwnerQuestion(history);
+  const combined = normalizeCopiQuestion(`${prior ?? ''} ${question}`);
+  if (/\bgranel\b/.test(combined)) {
+    return 'granel';
+  }
+
+  return null;
 }
 
 export function hasGreeting(question: string): boolean {
@@ -178,9 +264,13 @@ export function buildGreetingReply(question: string, now = new Date()): string |
   return '¡Hola!';
 }
 
-export function isCumulativeSalesQuestion(question: string): boolean {
-  const normalized = normalizeCopiQuestion(question);
-  return CUMULATIVE_SALES_PATTERN.test(normalized);
+export function isCumulativeSalesQuestion(
+  question: string,
+  history: CopiConversationTurn[] = [],
+): boolean {
+  const prior = getPriorOwnerQuestion(history);
+  const combined = normalizeCopiQuestion(`${prior ?? ''} ${question}`);
+  return CUMULATIVE_SALES_PATTERN.test(combined);
 }
 
 export function sanitizeSelectedTools(tools: unknown): CopiToolName[] {

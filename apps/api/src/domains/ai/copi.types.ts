@@ -81,6 +81,7 @@ export const DEFAULT_COPI_FEATURE_FLAGS: CopiFeatureFlags = {
 export interface CopiQueryContext {
   authorizationHeader: string | undefined;
   businessCenterId: string;
+  conversationHistory: Array<{ body: string; role: 'owner' | 'assistant' | 'system' }>;
   now: Date;
   organizationId: string;
   question: string;

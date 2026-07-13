@@ -42,6 +42,15 @@ describe('selectCopiTools', () => {
     ).toEqual(['sales_summary']);
   });
 
+  it('routes sales follow-up details using prior sales context', () => {
+    expect(
+      selectCopiTools(
+        'Necesitaria mas detalles. Me gustaria saber cuales son los productos, cuanta cantidad de cada producto se vendió y las ganancias por las ventas',
+        [{ body: 'Buenas Tardes! Cuantas ventas hice con productos en granel?', role: 'owner' }],
+      ),
+    ).toEqual(['sales_summary']);
+  });
+
   it('does not treat lista as attention summary', () => {
     expect(selectCopiTools('Mandame una lista de todo lo que vendí ayer con sus precios y el total')).not.toContain(
       'attention_summary',
@@ -68,6 +77,17 @@ describe('wantsDetailedSalesList / wantsSalesCountOnly', () => {
     expect(
       wantsDetailedSalesList('Hola Copi, Buenas tardes! cuantos presupuestos de ventas fue creado hasta hoy?'),
     ).toBe(false);
+  });
+
+  it('treats follow-up detail request as detail, not count', () => {
+    const history = [
+      { body: 'Buenas Tardes! Cuantas ventas hice con productos en granel?', role: 'owner' as const },
+    ];
+    const followUp =
+      'Necesitaria mas detalles. Me gustaria saber cuales son los productos, cuanta cantidad de cada producto se vendió y las ganancias por las ventas';
+
+    expect(wantsDetailedSalesList(followUp, history)).toBe(true);
+    expect(wantsSalesCountOnly(followUp, history)).toBe(false);
   });
 });
 

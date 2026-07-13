@@ -55,9 +55,15 @@ export class CopiOrchestratorService {
       userId,
     });
 
+    const conversationHistory = (await this.sessionService.listMessages(sessionId, params.organizationId))
+      .filter((message) => message.role !== 'system')
+      .slice(-8)
+      .map((message) => ({ body: message.body, role: message.role }));
+
     const context = {
       authorizationHeader: params.authorizationHeader,
       businessCenterId,
+      conversationHistory,
       now,
       organizationId: params.organizationId,
       question: params.question,
@@ -93,12 +99,14 @@ export class CopiOrchestratorService {
     const useLlm = this.policyService.canUseFreeformQuestions(flags);
     const selected = await this.toolSelectorService.selectTools({
       enabled: useLlm,
+      history: conversationHistory,
       question: params.question,
     });
     const tools = selected.tools;
     const toolResults = await this.toolRegistry.executeTools(context, tools);
     const phrased = await this.phraserService.phraseAnswer({
       enabled: useLlm,
+      history: conversationHistory,
       locale: 'es-AR',
       question: params.question,
       toolResults,

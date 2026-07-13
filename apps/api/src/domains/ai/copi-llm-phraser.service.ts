@@ -10,6 +10,7 @@ export class CopiLlmPhraserService {
 
   async phraseAnswer(params: {
     enabled: boolean;
+    history?: Array<{ body: string; role: 'owner' | 'assistant' | 'system' }>;
     locale: string;
     question: string;
     toolResults: CopiToolResult[];
@@ -29,7 +30,9 @@ export class CopiLlmPhraserService {
       };
     }
 
+    const recentHistory = (params.history ?? []).slice(-6);
     const inputText = JSON.stringify({
+      history: recentHistory,
       locale: params.locale,
       question: params.question,
       toolResults: params.toolResults.map((result) => ({
@@ -67,11 +70,13 @@ export class CopiLlmPhraserService {
                 'Toque humano:',
                 '- Si el dueño saluda (Hola, Buenas tardes, Buenas noches, Buen día), devolvé el saludo antes de la data.',
                 '- Respondé al sentido de la pregunta, no vuelques data de más.',
+                '- Si es un follow-up ("más detalles", "cuáles son los productos"), respondé sobre el mismo tema del mensaje anterior.',
                 '',
                 'Ventas (importante):',
                 '- En este producto las "ventas" son movimientos de venta del inventario. Si dicen "presupuestos de ventas" en sentido de "cuántas ventas hice", respondé con el conteo de ventas registradas.',
-                '- Si payload.responseMode es "count" o preguntan "cuántos/cuántas/número", respondé con el número (saleCount) y el total aproximado. NO arames una lista de productos.',
-                '- Solo listá productos si responseMode es "detail" o pidieron explícitamente lista/detalle/precios.',
+                '- Si payload.responseMode es "count" o preguntan "cuántos/cuántas/número" (sin pedir detalle), respondé con el número (saleCount) y el total aproximado. NO arames una lista de productos.',
+                '- Si responseMode es "detail" o pidieron lista/detalle/productos/cantidades/ganancias, listá productos con cantidad y subtotal, y el total (ganancia aproximada por valor de venta).',
+                '- Si payload.filter existe (ej. "granel"), dejá claro que el resultado está filtrado.',
                 '- "hasta hoy" es historial acumulado, no solo el día de hoy.',
                 '- Si no hay movimientos, decilo claro y ofrecé mirar ayer o un periodo más amplio.',
               ].join('\n'),

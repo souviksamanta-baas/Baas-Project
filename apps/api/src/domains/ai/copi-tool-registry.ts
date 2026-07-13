@@ -4,7 +4,12 @@ import { InventoryService } from '../inventory/inventory.service';
 import { TasksService } from '../tasks/tasks.service';
 import { SupabaseService } from '../../supabase/supabase.service';
 import { getZonedDayBounds, normalizeTimeZone } from './copi-timezone.util';
-import { isCumulativeSalesQuestion, wantsDetailedSalesList, wantsSalesCountOnly } from './copi-intent-router';
+import {
+  extractSalesProductFilter,
+  isCumulativeSalesQuestion,
+  wantsDetailedSalesList,
+  wantsSalesCountOnly,
+} from './copi-intent-router';
 import type { CopiQueryContext, CopiToolName, CopiToolResult } from './copi.types';
 
 interface MessageRow {
@@ -155,32 +160,32 @@ export class CopiToolRegistry {
   }
 
   private async salesSummary(context: CopiQueryContext): Promise<Omit<CopiToolResult, 'key'>> {
-    const wantsDetail = wantsDetailedSalesList(context.question);
-    const wantsCount = wantsSalesCountOnly(context.question);
-    const cumulative = isCumulativeSalesQuestion(context.question);
+    const history = context.conversationHistory ?? [];
+    const wantsDetail = wantsDetailedSalesList(context.question, history);
+    const wantsCount = wantsSalesCountOnly(context.question, history);
+    const cumulative = isCumulativeSalesQuestion(context.question, history);
+    const productFilter = extractSalesProductFilter(context.question, history);
     const lookbackDays = cumulative ? 90 : 7;
     const rangeStart = new Date(context.now.getTime() - lookbackDays * 24 * 60 * 60 * 1000);
-    const { items, rows, totalCents } = await this.loadSaleMovements(
-      context,
-      rangeStart,
-      context.now,
-      wantsDetail ? 100 : 50,
-    );
+    const loaded = await this.loadSaleMovements(context, rangeStart, context.now, wantsDetail ? 100 : 50);
+    const filtered = this.filterSaleItems(loaded, productFilter);
     const periodLabel = cumulative ? `últimos ${lookbackDays} días (hasta hoy)` : `${lookbackDays} días`;
+    const filterLabel = productFilter ? ` filtradas por "${productFilter}"` : '';
 
     return {
       payload: {
-        items: wantsDetail ? items : [],
+        filter: productFilter,
+        items: wantsDetail ? filtered.items : [],
         period: cumulative ? 'to_date' : '7d',
         responseMode: wantsDetail ? 'detail' : wantsCount ? 'count' : 'summary',
-        saleCount: rows.length,
-        salesCents: totalCents,
+        saleCount: filtered.items.length,
+        salesCents: filtered.totalCents,
       },
       summary: this.buildSalesPeriodSummary({
-        items,
-        periodLabel,
-        saleCount: rows.length,
-        totalCents,
+        items: filtered.items,
+        periodLabel: `${periodLabel}${filterLabel}`,
+        saleCount: filtered.items.length,
+        totalCents: filtered.totalCents,
         wantsCount,
         wantsDetail,
       }),
@@ -192,30 +197,68 @@ export class CopiToolRegistry {
     dayOffset: number,
     label: 'hoy' | 'ayer',
   ): Promise<Omit<CopiToolResult, 'key'>> {
+    const history = context.conversationHistory ?? [];
     const timeZone = normalizeTimeZone(context.timezone);
     const { end, start } = getZonedDayBounds(context.now, timeZone, dayOffset);
-    const { items, rows, totalCents } = await this.loadSaleMovements(context, start, end);
-    const wantsDetail = wantsDetailedSalesList(context.question);
-    const wantsCount = wantsSalesCountOnly(context.question);
+    const loaded = await this.loadSaleMovements(context, start, end);
+    const productFilter = extractSalesProductFilter(context.question, history);
+    const filtered = this.filterSaleItems(loaded, productFilter);
+    const wantsDetail = wantsDetailedSalesList(context.question, history);
+    const wantsCount = wantsSalesCountOnly(context.question, history);
+    const filterLabel = productFilter ? ` filtradas por "${productFilter}"` : '';
 
     return {
       payload: {
         dayOffset,
-        items: wantsDetail ? items : [],
+        filter: productFilter,
+        items: wantsDetail ? filtered.items : [],
         period: label,
         responseMode: wantsDetail ? 'detail' : wantsCount ? 'count' : 'summary',
-        saleCount: rows.length,
-        salesCents: totalCents,
+        saleCount: filtered.items.length,
+        salesCents: filtered.totalCents,
       },
       summary: this.buildSalesPeriodSummary({
-        items,
-        periodLabel: label,
-        saleCount: rows.length,
-        totalCents,
+        items: filtered.items,
+        periodLabel: `${label}${filterLabel}`,
+        saleCount: filtered.items.length,
+        totalCents: filtered.totalCents,
         wantsCount,
         wantsDetail,
       }),
     };
+  }
+
+  private filterSaleItems(
+    loaded: {
+      items: Array<{
+        createdAt: string;
+        lineTotalCents: number;
+        name: string;
+        quantity: number;
+        unitPriceCents: number;
+      }>;
+      rows: unknown[];
+      totalCents: number;
+    },
+    productFilter: string | null,
+  ): {
+    items: Array<{
+      createdAt: string;
+      lineTotalCents: number;
+      name: string;
+      quantity: number;
+      unitPriceCents: number;
+    }>;
+    totalCents: number;
+  } {
+    if (!productFilter) {
+      return { items: loaded.items, totalCents: loaded.totalCents };
+    }
+
+    const needle = productFilter.toLocaleLowerCase();
+    const items = loaded.items.filter((item) => item.name.toLocaleLowerCase().includes(needle));
+    const totalCents = items.reduce((sum, item) => sum + item.lineTotalCents, 0);
+    return { items, totalCents };
   }
 
   private buildSalesPeriodSummary(params: {
