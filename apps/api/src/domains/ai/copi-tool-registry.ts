@@ -529,13 +529,10 @@ export class CopiToolRegistry {
 
     const nearest = filtered[0];
     const nearestLabel = formatDateEsAr(nearest.expiresAt, timeZone);
-    const listPreview = filtered
-      .slice(0, 5)
-      .map(
-        (lot) =>
-          `${lot.productName} (${formatDateEsAr(lot.expiresAt, timeZone)}, ${lot.remainingQuantity} ${lot.unitCode})`,
-      )
-      .join('; ');
+    const formatLotLine = (lot: (typeof filtered)[number]): string =>
+      `${lot.productName} (${formatDateEsAr(lot.expiresAt, timeZone)}, ${lot.remainingQuantity} ${lot.unitCode})`;
+    const todayPreview = filtered.slice(0, 5).map(formatLotLine).join('; ');
+    const upcomingPreview = filtered.slice(1, 6).map(formatLotLine).join('; ');
 
     return {
       payload: {
@@ -545,11 +542,11 @@ export class CopiToolRegistry {
         nearest: nearest,
       },
       summary: wantsTodayOnly
-        ? `Vencimientos de hoy: ${filtered.length}. ${listPreview}.`
+        ? `Vencimientos de hoy: ${filtered.length}. ${todayPreview}.`
         : `Fecha de vencimiento más cercana: ${nearestLabel} — ${nearest.productName}` +
           (nearest.lotCode ? ` (lote ${nearest.lotCode})` : '') +
           `, ${nearest.remainingQuantity} ${nearest.unitCode}.` +
-          (filtered.length > 1 ? ` Próximos: ${listPreview}.` : ''),
+          (upcomingPreview ? ` Próximos: ${upcomingPreview}.` : ''),
     };
   }
 
