@@ -310,7 +310,6 @@ export function OwnerAppNavigator(props: { onSignOut: () => void }): ReactElemen
                 conversations={legacyInboxConversations}
                 metrics={null}
                 onOpenConversation={openConversation}
-                onOpenCopiChat={() => setRoute('copi-chat')}
                 onOpenManageStock={openManageStock}
                 onOpenNotifications={() => setRoute('notifications')}
                 onOpenTasks={() => undefined}

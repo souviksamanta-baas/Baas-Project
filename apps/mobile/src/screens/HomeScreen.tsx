@@ -25,7 +25,6 @@ export function HomeScreen(props: {
   conversations: InboxConversationSummary[];
   metrics: OwnerDashboard['metrics'] | null;
   onOpenConversation: (conversationId: string) => void;
-  onOpenCopiChat: () => void;
   onOpenManageStock: () => void;
   onOpenNotifications: () => void;
   onOpenTasks: () => void;
@@ -80,7 +79,7 @@ export function HomeScreen(props: {
       ) : null}
 
       <FeatureGate feature="homeAssistant">
-        <Pressable onPress={props.onOpenCopiChat} style={styles.copiCard}>
+        <Pressable onPress={() => props.onSelectTab('copi')} style={styles.copiCard}>
           <RobotAvatar />
           <View style={[styles.flex, styles.flexShrink]}>
             <Text style={styles.cardTitle}>Copi - Tu asistente IA</Text>
@@ -91,7 +90,7 @@ export function HomeScreen(props: {
           <Pressable
             accessibilityRole="button"
             hitSlop={8}
-            onPress={props.onOpenCopiChat}
+            onPress={() => props.onSelectTab('copi')}
             style={styles.chatButton}
           >
             <Icon color={colors.primary} kind="message" size={18} strokeWidth={1.8} />
