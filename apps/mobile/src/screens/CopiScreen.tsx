@@ -15,6 +15,7 @@ import {
   copiProSuggestedQuestions,
   copiSuggestedQuestions,
 } from '../lib/copiSuggestedQuestions';
+import { formatConversationTime } from '../lib/inboxPresentation';
 import {
   ActionRow,
   Card,
@@ -24,7 +25,7 @@ import {
   ScreenContent,
   ScreenTitle,
 } from '../components/ui';
-import { FeatureGate, useFeatureGate, useFeatureVisibility } from '../hooks/useFeatureVisibility';
+import { FeatureGate, useFeatureVisibility } from '../hooks/useFeatureVisibility';
 import type { OwnerCopilotState } from '../hooks/useOwnerCopilot';
 import type { OwnerDashboard } from '../types/dashboard';
 import { colors, shadows } from '../theme';
@@ -53,6 +54,8 @@ function askAndOpenChat(params: {
 
 export function CopiScreen(props: {
   composer: CopiComposerActions;
+  hasConversationHistory: boolean;
+  isLoadingHistory?: boolean;
   metrics: OwnerDashboard['metrics'] | null;
   onAskQuestion: (question: string) => Promise<void>;
   onOpenChat: () => void;
@@ -77,6 +80,21 @@ export function CopiScreen(props: {
           </View>
         </View>
       </FeatureGate>
+
+      <Card flush>
+        <ActionRow
+          icon="message"
+          onPress={props.onOpenChat}
+          subtitle={
+            props.isLoadingHistory
+              ? 'Cargando conversación…'
+              : props.hasConversationHistory
+                ? 'Últimos 14 días de chat'
+                : 'Abrí el hilo para chatear con Copi'
+          }
+          title={props.hasConversationHistory ? 'Ver chat con Copi' : 'Abrir chat con Copi'}
+        />
+      </Card>
 
       <FeatureGate feature="copiProUpsell" visibility={visibility}>
         <Card style={styles.upsellCard}>
@@ -204,11 +222,13 @@ export function CopiChatScreen(props: {
         <Card flush style={styles.chatCard}>
           <FeatureGate feature="chatProfileHeader" visibility={visibility}>
             <View style={styles.threadHeader}>
-              <Text onPress={props.onBack} style={styles.backText}>‹</Text>
+              <Pressable hitSlop={8} onPress={props.onBack}>
+                <Text style={styles.backText}>‹</Text>
+              </Pressable>
               <RobotAvatar small />
-              <View>
+              <View style={styles.flex}>
                 <Text style={styles.profileTitle}>Copi</Text>
-                <Text style={styles.cardDescription}>Asistente IA</Text>
+                <Text style={styles.cardDescription}>Asistente IA · últimos 14 días</Text>
               </View>
             </View>
           </FeatureGate>
@@ -228,17 +248,16 @@ export function CopiChatScreen(props: {
               showsVerticalScrollIndicator
               style={styles.chatScroll}
             >
+              {props.copilot.isLoadingHistory ? (
+                <ActivityIndicator color={colors.primary} style={styles.historyLoader} />
+              ) : null}
               {props.copilot.messages.map((message) => (
                 <View key={message.id}>
                   <MessageBubble
                     direction={message.role === 'owner' ? 'outbound' : 'inbound'}
                     source={message.role === 'owner' ? 'owner' : 'copi'}
                     text={message.body}
-                    time={new Date(message.createdAt).toLocaleTimeString('es-AR', {
-                      hour: 'numeric',
-                      hour12: true,
-                      minute: '2-digit',
-                    })}
+                    time={message.id === 'starter' ? '' : formatConversationTime(message.createdAt)}
                   />
                   {message.proposedActionId ? (
                     <Pressable
@@ -276,7 +295,7 @@ export function CopiChatScreen(props: {
           onPressPlus={props.composer.onPressPlus}
           onPressVoice={props.composer.onPressVoice}
           onSend={() => void props.copilot.askQuestion()}
-          placeholder="Escribí tu pregunta..."
+          placeholder="Escribí un mensaje..."
           value={props.copilot.inputValue}
         />
       </FeatureGate>
@@ -289,6 +308,7 @@ const styles = StyleSheet.create({
     color: colors.navy,
     fontSize: 42,
     lineHeight: 42,
+    paddingHorizontal: 4,
   },
   cardDescription: {
     color: colors.slate,
@@ -307,6 +327,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fcfdfc',
     flexGrow: 1,
     gap: 12,
+    minHeight: 448,
     paddingHorizontal: 18,
     paddingVertical: 20,
   },
@@ -348,6 +369,9 @@ const styles = StyleSheet.create({
   greenText: {
     color: colors.primary,
     fontWeight: '600',
+  },
+  historyLoader: {
+    marginVertical: 12,
   },
   listHeader: {
     borderBottomColor: colors.borderSoft,

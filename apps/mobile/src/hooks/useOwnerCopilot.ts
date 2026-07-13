@@ -1,17 +1,24 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Alert } from 'react-native';
 
-import { askOwnerCopilot, confirmCopiAction, getCopiSessionMessages } from '../api/ai';
+import {
+  askOwnerCopilot,
+  confirmCopiAction,
+  getActiveCopiSession,
+} from '../api/ai';
 import type { CopilotMessage } from '../types/copilot';
 
 export interface OwnerCopilotState {
   confirmProposedAction: (actionId: string) => Promise<void>;
   errorMessage: string | null;
+  hasConversationHistory: boolean;
   inputValue: string;
   isAsking: boolean;
+  isLoadingHistory: boolean;
   messages: CopilotMessage[];
   policyMessage: string | null;
   askQuestion: (question?: string) => Promise<void>;
+  refreshHistory: () => Promise<void>;
   sessionId: string | null;
   setInputValue: (value: string) => void;
 }
@@ -23,6 +30,26 @@ const starterMessage: CopilotMessage = {
   role: 'assistant',
 };
 
+function mapHistoryMessages(
+  history: Array<{
+    body: string;
+    createdAt: string;
+    id: string;
+    role: 'assistant' | 'owner' | 'system';
+  }>,
+): CopilotMessage[] {
+  return history
+    .filter((message) => message.role !== 'system')
+    .map(
+      (message): CopilotMessage => ({
+        body: message.body,
+        createdAt: message.createdAt,
+        id: message.id,
+        role: message.role === 'owner' ? 'owner' : 'assistant',
+      }),
+    );
+}
+
 export function useOwnerCopilot(params: {
   businessCenterId: string | null;
   organizationId: string | null;
@@ -30,37 +57,47 @@ export function useOwnerCopilot(params: {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [inputValue, setInputValue] = useState('');
   const [isAsking, setIsAsking] = useState(false);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [messages, setMessages] = useState<CopilotMessage[]>([starterMessage]);
   const [policyMessage, setPolicyMessage] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!params.organizationId || !sessionId) {
+  const applyHistory = useCallback(
+    (nextSessionId: string | null, history: ReturnType<typeof mapHistoryMessages>) => {
+      setSessionId(nextSessionId);
+      if (history.length === 0) {
+        setMessages([starterMessage]);
+        return;
+      }
+
+      setMessages([starterMessage, ...history]);
+    },
+    [],
+  );
+
+  const refreshHistory = useCallback(async (): Promise<void> => {
+    if (!params.organizationId) {
+      applyHistory(null, []);
       return;
     }
 
-    getCopiSessionMessages({ organizationId: params.organizationId, sessionId })
-      .then((history) => {
-        if (history.length === 0) {
-          return;
-        }
+    setIsLoadingHistory(true);
+    try {
+      const active = await getActiveCopiSession({
+        businessCenterId: params.businessCenterId,
+        organizationId: params.organizationId,
+      });
+      applyHistory(active.sessionId, mapHistoryMessages(active.messages));
+    } catch {
+      // Keep local state if resume fails (offline / transient).
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  }, [applyHistory, params.businessCenterId, params.organizationId]);
 
-        setMessages([
-          starterMessage,
-          ...history
-            .filter((message) => message.role !== 'system')
-            .map(
-              (message): CopilotMessage => ({
-                body: message.body,
-                createdAt: message.createdAt,
-                id: message.id,
-                role: message.role === 'owner' ? 'owner' : 'assistant',
-              }),
-            ),
-        ]);
-      })
-      .catch(() => undefined);
-  }, [params.organizationId, sessionId]);
+  useEffect(() => {
+    void refreshHistory();
+  }, [refreshHistory]);
 
   const askQuestion = useCallback(
     async (questionOverride?: string): Promise<void> => {
@@ -154,14 +191,19 @@ export function useOwnerCopilot(params: {
     [params.businessCenterId, params.organizationId],
   );
 
+  const hasConversationHistory = messages.some((message) => message.id !== 'starter');
+
   return {
     confirmProposedAction,
     errorMessage,
+    hasConversationHistory,
     inputValue,
     isAsking,
+    isLoadingHistory,
     messages,
     policyMessage,
     askQuestion,
+    refreshHistory,
     sessionId,
     setInputValue,
   };

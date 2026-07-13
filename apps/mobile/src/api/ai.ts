@@ -142,6 +142,28 @@ export async function runCopiReport(params: {
   });
 }
 
+export async function getActiveCopiSession(params: {
+  businessCenterId?: string | null;
+  organizationId: string;
+}): Promise<{
+  messages: Array<{
+    body: string;
+    createdAt: string;
+    id: string;
+    role: 'assistant' | 'owner' | 'system';
+  }>;
+  sessionId: string | null;
+}> {
+  const query = new URLSearchParams({
+    organizationId: params.organizationId,
+  });
+  if (params.businessCenterId) {
+    query.set('businessCenterId', params.businessCenterId);
+  }
+
+  return apiFetchAuthJson(`/ai/copilot/session/active?${query.toString()}`);
+}
+
 export async function getCopiSessionMessages(params: {
   organizationId: string;
   sessionId: string;

@@ -165,6 +165,30 @@ export class AiController {
     }
   }
 
+  @Get('copilot/session/active')
+  @ApiOperation({
+    summary: 'Get the owner’s active Copi chat thread (last 14 days)',
+  })
+  async getActiveCopiSession(
+    @Headers('authorization') authorizationHeader: string | undefined,
+    @Query('organizationId') organizationId: string,
+    @Query('businessCenterId') businessCenterId?: string,
+  ): Promise<{
+    messages: Awaited<ReturnType<CopiSessionService['listMessages']>>;
+    sessionId: string | null;
+  }> {
+    if (!organizationId?.trim()) {
+      throw new Error('organizationId is required');
+    }
+
+    const userId = await this.resolveUserId(authorizationHeader);
+    return this.sessionService.getActiveThread({
+      businessCenterId: businessCenterId?.trim() || undefined,
+      organizationId,
+      userId,
+    });
+  }
+
   @Get('copilot/sessions/:sessionId/messages')
   @ApiOperation({ summary: 'List Copi session messages' })
   async listCopiSessionMessages(

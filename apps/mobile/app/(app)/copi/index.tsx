@@ -65,6 +65,8 @@ export default function CopiRoute(): ReactElement {
   return (
     <CopiScreen
       composer={composer}
+      hasConversationHistory={copilot.hasConversationHistory}
+      isLoadingHistory={copilot.isLoadingHistory}
       metrics={dashboard?.metrics ?? null}
       onAskQuestion={handleAsk}
       onOpenChat={() => router.push(routes.appCopiChat)}

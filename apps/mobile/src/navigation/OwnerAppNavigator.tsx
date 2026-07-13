@@ -330,6 +330,7 @@ export function OwnerAppNavigator(props: { onSignOut: () => void }): ReactElemen
             ) : route === 'copi' ? (
               <CopiScreen
                 composer={legacyCopiComposer}
+                hasConversationHistory={false}
                 metrics={null}
                 onAskQuestion={async () => undefined}
                 onOpenChat={() => setRoute('copi-chat')}

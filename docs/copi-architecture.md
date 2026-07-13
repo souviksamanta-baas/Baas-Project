@@ -16,7 +16,9 @@ Copi LLM calls use three maintainable prompt layers under \`apps/api/src/domains
 
 ## Flow
 
-Mobile \`POST /ai/copilot/query\` → \`CopiOrchestratorService\` → policy check → session history → tool selector (LLM + rules fallback) → tool registry → LLM phraser → optional Pro action proposal → session persistence.
+Mobile \`POST /ai/copilot/query\` → \`CopiOrchestratorService\` → policy check → **resume active session within 14 days** (or create) → session history → tool selector (LLM + rules safety net) → tool registry → LLM phraser → optional Pro action proposal → session persistence.
+
+\`GET /ai/copilot/session/active\` resumes the same WhatsApp-style thread (messages from the last 14 days) without requiring a new question.
 
 ## Licensing
 
