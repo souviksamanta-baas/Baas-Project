@@ -5,6 +5,10 @@ import { Audio } from 'expo-av';
 
 import { analyzeCopiVision, transcribeCopiVoiceBlob, transcribeCopiVoiceFile } from '../api/ai';
 import { guessAudioMimeType } from '../lib/copiAudio';
+import {
+  resolvePreferredAudioConstraints,
+  shouldPreferMediaRecorderOverSpeech,
+} from '../lib/copiWebMic';
 import { getWebSpeechRecognition, isWebSpeechRecognitionSupported, type WebSpeechRecognition } from '../lib/copiWebSpeech';
 
 type RecordingRef = Audio.Recording | null;
@@ -266,7 +270,14 @@ export function useCopiMediaActions(params: {
   }, [deliverTranscript]);
 
   const startWebMediaRecording = useCallback(async (): Promise<void> => {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const preferred = await resolvePreferredAudioConstraints();
+    let stream: MediaStream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia(preferred.constraints);
+    } catch {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    }
+
     const mimeType = pickWebRecorderMimeType();
     const recorder = new MediaRecorder(stream, { mimeType });
     webChunksRef.current = [];
@@ -402,6 +413,13 @@ export function useCopiMediaActions(params: {
     void (async () => {
       if (Platform.OS === 'web') {
         try {
+          // Desktop Chrome often defaults to Continuity (iPhone) mic via Web Speech.
+          // Prefer MediaRecorder with an explicit local/laptop device instead.
+          if (shouldPreferMediaRecorderOverSpeech()) {
+            await startWebMediaRecording();
+            return;
+          }
+
           if (isWebSpeechRecognitionSupported() && startWebSpeech()) {
             return;
           }
@@ -409,7 +427,7 @@ export function useCopiMediaActions(params: {
           await startWebMediaRecording();
         } catch {
           stopWebStream();
-          Alert.alert('Micrófono', 'No pudimos acceder al micrófono.');
+          Alert.alert('Micrófono', 'No pudimos acceder al micrófono del equipo.');
         }
         return;
       }
