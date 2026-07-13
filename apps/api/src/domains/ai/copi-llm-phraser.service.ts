@@ -13,13 +13,19 @@ export class CopiLlmPhraserService {
     enabled: boolean;
     history?: Array<{ body: string; role: 'owner' | 'assistant' | 'system' }>;
     locale: string;
+    ownerDisplayName?: string | null;
     question: string;
     toolResults: CopiToolResult[];
   }): Promise<{ answer: string; tokenUsage: CopiTokenUsage }> {
     const alreadyGreeted = sessionAlreadyGreeted(params.history ?? []);
     if (!params.enabled) {
       return {
-        answer: buildTemplateAnswer(params.question, params.toolResults, alreadyGreeted),
+        answer: buildTemplateAnswer(
+          params.question,
+          params.toolResults,
+          alreadyGreeted,
+          params.ownerDisplayName,
+        ),
         tokenUsage: this.policyService.emptyUsage(),
       };
     }
@@ -27,7 +33,12 @@ export class CopiLlmPhraserService {
     const apiKey = process.env.OPENAI_API_KEY?.trim();
     if (!apiKey) {
       return {
-        answer: buildTemplateAnswer(params.question, params.toolResults, alreadyGreeted),
+        answer: buildTemplateAnswer(
+          params.question,
+          params.toolResults,
+          alreadyGreeted,
+          params.ownerDisplayName,
+        ),
         tokenUsage: this.policyService.emptyUsage(),
       };
     }
@@ -37,6 +48,7 @@ export class CopiLlmPhraserService {
       alreadyGreetedInSession: alreadyGreeted,
       history: recentHistory,
       locale: params.locale,
+      ownerDisplayName: params.ownerDisplayName ?? null,
       question: params.question,
       toolResults: params.toolResults.map((result) => ({
         key: result.key,
@@ -85,7 +97,12 @@ export class CopiLlmPhraserService {
 
       if (!response.ok) {
         return {
-          answer: buildTemplateAnswer(params.question, params.toolResults, alreadyGreeted),
+          answer: buildTemplateAnswer(
+            params.question,
+            params.toolResults,
+            alreadyGreeted,
+            params.ownerDisplayName,
+          ),
           tokenUsage: this.policyService.emptyUsage(),
         };
       }
@@ -98,7 +115,12 @@ export class CopiLlmPhraserService {
       return {
         answer:
           body.choices?.[0]?.message?.content?.trim() ||
-          buildTemplateAnswer(params.question, params.toolResults, alreadyGreeted),
+          buildTemplateAnswer(
+            params.question,
+            params.toolResults,
+            alreadyGreeted,
+            params.ownerDisplayName,
+          ),
         tokenUsage: {
           inputTokens: body.usage?.prompt_tokens ?? estimatedInput,
           outputTokens: body.usage?.completion_tokens ?? 0,
@@ -106,7 +128,12 @@ export class CopiLlmPhraserService {
       };
     } catch {
       return {
-        answer: buildTemplateAnswer(params.question, params.toolResults, alreadyGreeted),
+        answer: buildTemplateAnswer(
+          params.question,
+          params.toolResults,
+          alreadyGreeted,
+          params.ownerDisplayName,
+        ),
         tokenUsage: this.policyService.emptyUsage(),
       };
     }
@@ -129,12 +156,19 @@ function buildTemplateAnswer(
   question: string,
   toolResults: CopiToolResult[],
   alreadyGreeted: boolean,
+  ownerDisplayName?: string | null,
 ): string {
   const body = toolResults.map((result) => result.summary).join('\n\n');
+  if (!body) {
+    if (alreadyGreeted || !hasGreeting(question)) {
+      return 'No encontré datos para esa consulta. Podés preguntarme por atención del día, ventas, stock, vencimientos de lote, conversaciones o seguimientos.';
+    }
+  }
+
   if (alreadyGreeted || !hasGreeting(question)) {
     return body;
   }
 
-  const greeting = buildGreetingReply(question);
-  return greeting ? `${greeting}\n\n${body}` : body;
+  const greeting = buildGreetingReply(question, new Date(), ownerDisplayName);
+  return [greeting, body].filter(Boolean).join('\n\n');
 }

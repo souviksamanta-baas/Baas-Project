@@ -3,7 +3,8 @@ import type { CopiToolName } from './copi.types';
 const SALES_PATTERN =
   /\b(sale|sales|venta|ventas|factur|ingreso|cobr|ganancia|ganancias|vend(?:i|í|e|é|o|ó|a|á|io|ió|imos|iste|ieron|iendo|ido|ida|idas|idos)?)\b/;
 const MESSAGE_PATTERN = /\b(message|messages|chat|chats|inbox|mensaje|mensajes)\b/;
-const ATTENTION_PATTERN = /\b(atencion|attention|prioridad|resumen del dia|resumen del dia)\b/;
+const ATTENTION_PATTERN =
+  /\b(atencion|attention|prioridad|resumen del dia|que necesita mi atencion|needs? my attention)\b/;
 const CUMULATIVE_SALES_PATTERN =
   /\b(hasta hoy|hasta ahora|todo lo que|todos? los?|todas? las?|historico|historial|acumulad|desde siempre|en total|en general)\b/;
 const SALES_DETAIL_PATTERN =
@@ -11,6 +12,8 @@ const SALES_DETAIL_PATTERN =
 const SALES_COUNT_PATTERN = /\b(cuant[oa]s?|numero)\b/;
 const FOLLOW_UP_DETAIL_PATTERN =
   /\b(mas detalles|detalles|mas info|cuales son|que productos|cantidad de cada|necesitaria|necesito mas|amplia|mostrame|de esas|de esos|de eso)\b/;
+const PRODUCT_EXPIRY_PATTERN =
+  /\b(vencimiento|vencimientos|fecha de venc|caduc|caduca|caducidad|proxim[oa]s? a vencer)\b/;
 const GREETING_PATTERN =
   /\b(hola|buenas|buen dia|buenos dias|buenas tardes|buenas noches|que tal|como va|como andas)\b/;
 
@@ -30,6 +33,11 @@ export const COPI_TOOL_CATALOG: Array<{ description: string; name: CopiToolName 
   { description: 'Borradores de IA pendientes', name: 'pending_ai_drafts' },
   { description: 'Resumen del catálogo de productos', name: 'products_overview' },
   { description: 'Resumen general de atención del día', name: 'attention_summary' },
+  {
+    description:
+      'Lotes de inventario con fecha de vencimiento (hoy, próximos, o el más cercano).',
+    name: 'expiring_lots',
+  },
   { description: 'Listado de tareas/seguimientos', name: 'tasks_overview' },
   { description: 'Tareas que vencen hoy', name: 'tasks_due_today' },
   { description: 'Tareas atrasadas', name: 'tasks_overdue' },
@@ -103,10 +111,8 @@ export function selectCopiTools(
     }
   }
 
-  if (asksMessages || (/\b(hoy|today)\b/.test(normalized) && !asksSales)) {
-    if (/\b(hoy|today)\b/.test(normalized) || asksMessages) {
-      tools.add('messages_today');
-    }
+  if (asksMessages) {
+    tools.add('messages_today');
   }
 
   if (/\b(low stock|stock|inventory|reorder|bajo stock|inventario)\b/.test(normalized)) {
@@ -126,15 +132,28 @@ export function selectCopiTools(
     tools.add('attention_summary');
   }
 
-  if (/\b(task|tasks|follow|follow-up|followup|seguimiento|seguimientos|tarea|tareas|pendiente)\b/.test(normalized)) {
+  const mentionsTask =
+    /\b(task|tasks|follow|follow-up|followup|seguimiento|seguimientos|tarea|tareas)\b/.test(normalized);
+  const asksProductExpiry =
+    PRODUCT_EXPIRY_PATTERN.test(normalized) ||
+    (/\b(vence|vencen|vencer)\b/.test(normalized) && !mentionsTask);
+
+  if (asksProductExpiry) {
+    tools.add('expiring_lots');
+  }
+
+  if (mentionsTask) {
     tools.add('tasks_overview');
   }
 
-  if (/\b(vence hoy|due today|hoy vence)\b/.test(normalized)) {
+  if (
+    /\b((tarea|tareas|seguimiento).*(vence|vencen|due)|due today)\b/.test(normalized) ||
+    (/\b(vence hoy|hoy vence)\b/.test(normalized) && mentionsTask)
+  ) {
     tools.add('tasks_due_today');
   }
 
-  if (/\b(atrasad|overdue|vencid)\b/.test(normalized)) {
+  if (/\b(atrasad|overdue|vencid)\b/.test(normalized) && mentionsTask) {
     tools.add('tasks_overdue');
   }
 
@@ -146,12 +165,8 @@ export function selectCopiTools(
     tools.add('staff_roster');
   }
 
-  if (/\b(contact|cliente|clienta|contacto)\b/.test(normalized)) {
+  if (/\b(contact|cliente|clienta|contacto)\b/.test(normalized) && mentionsTask) {
     tools.add('tasks_by_contact');
-  }
-
-  if (tools.size === 0) {
-    return ['attention_summary'];
   }
 
   return Array.from(tools);
@@ -236,22 +251,41 @@ export function hasGreeting(question: string): boolean {
   return GREETING_PATTERN.test(normalizeCopiQuestion(question));
 }
 
-export function buildGreetingReply(question: string, now = new Date()): string | null {
+export function ownerFirstName(fullName: string | null | undefined): string | null {
+  const trimmed = fullName?.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const first = trimmed.split(/\s+/)[0]?.trim();
+  return first || null;
+}
+
+export function buildGreetingReply(
+  question: string,
+  now = new Date(),
+  ownerName?: string | null,
+): string | null {
   if (!hasGreeting(question)) {
     return null;
   }
 
+  const name = ownerFirstName(ownerName);
+  const named = name ? `, ${name}` : '';
   const normalized = normalizeCopiQuestion(question);
   if (/\bbuenas noches\b/.test(normalized)) {
-    return '¡Buenas noches!';
+    return `¡Buenas noches${named}!`;
   }
   if (/\bbuenas tardes\b/.test(normalized)) {
-    return '¡Buenas tardes!';
+    return `¡Buenas tardes${named}!`;
   }
   if (/\b(buen dia|buenos dias)\b/.test(normalized)) {
-    return '¡Buen día!';
+    return `¡Buen día${named}!`;
   }
   if (/\bhola\b/.test(normalized)) {
+    if (name) {
+      return `¡Hola, ${name}!`;
+    }
     const hour = now.getHours();
     if (hour >= 20 || hour < 5) {
       return '¡Hola! Buenas noches.';
@@ -262,7 +296,7 @@ export function buildGreetingReply(question: string, now = new Date()): string |
     return '¡Hola! Buen día.';
   }
 
-  return '¡Hola!';
+  return name ? `¡Hola, ${name}!` : '¡Hola!';
 }
 
 export function isCumulativeSalesQuestion(

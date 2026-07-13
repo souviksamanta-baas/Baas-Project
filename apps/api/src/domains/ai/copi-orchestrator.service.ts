@@ -35,7 +35,7 @@ export class CopiOrchestratorService {
     sessionId?: string;
   }): Promise<OwnerCopilotResponse> {
     const startedAt = Date.now();
-    const userId = await this.assertMember({
+    const member = await this.assertMember({
       authorizationHeader: params.authorizationHeader,
       organizationId: params.organizationId,
     });
@@ -52,7 +52,7 @@ export class CopiOrchestratorService {
       businessCenterId,
       organizationId: params.organizationId,
       sessionId: params.sessionId,
-      userId,
+      userId: member.userId,
     });
 
     const conversationHistory = (await this.sessionService.listMessages(sessionId, params.organizationId))
@@ -66,10 +66,11 @@ export class CopiOrchestratorService {
       conversationHistory,
       now,
       organizationId: params.organizationId,
+      ownerDisplayName: member.displayName,
       question: params.question,
       sessionId,
       timezone: businessCenter.timezone,
-      userId,
+      userId: member.userId,
     };
 
     await this.sessionService.appendMessage({
@@ -108,6 +109,7 @@ export class CopiOrchestratorService {
       enabled: useLlm,
       history: conversationHistory,
       locale: 'es-AR',
+      ownerDisplayName: member.displayName,
       question: params.question,
       toolResults,
     });
@@ -197,7 +199,7 @@ export class CopiOrchestratorService {
   private async assertMember(params: {
     authorizationHeader: string | undefined;
     organizationId: string;
-  }): Promise<string> {
+  }): Promise<{ displayName: string | null; userId: string }> {
     const token = params.authorizationHeader?.replace(/^Bearer\s+/i, '').trim();
     if (!token) {
       throw new Error('Missing bearer token');
@@ -220,6 +222,12 @@ export class CopiOrchestratorService {
       throw new Error('User is not a member of this organization');
     }
 
-    return userData.user.id;
+    const metadata = userData.user.user_metadata as { full_name?: unknown } | null | undefined;
+    const fullName = typeof metadata?.full_name === 'string' ? metadata.full_name : null;
+
+    return {
+      displayName: fullName?.trim() || null,
+      userId: userData.user.id,
+    };
   }
 }

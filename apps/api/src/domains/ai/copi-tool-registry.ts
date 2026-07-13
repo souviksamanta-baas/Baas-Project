@@ -84,6 +84,8 @@ export class CopiToolRegistry {
         return this.productsOverview(context);
       case 'attention_summary':
         return this.attentionSummary(context);
+      case 'expiring_lots':
+        return this.expiringLots(context);
       case 'tasks_due_today':
         return this.tasksDueToday(context);
       case 'tasks_overdue':
@@ -460,6 +462,97 @@ export class CopiToolRegistry {
     };
   }
 
+  private async expiringLots(context: CopiQueryContext): Promise<Omit<CopiToolResult, 'key'>> {
+    const timeZone = normalizeTimeZone(context.timezone);
+    const { end: todayEnd, start: todayStart } = getZonedDayBounds(context.now, timeZone, 0);
+    const client = this.supabaseService.getServiceRoleClient();
+    const { data, error } = await client
+      .from('inventory_lots')
+      .select(
+        'id, lot_code, remaining_quantity, unit_code, expires_at, products(name)',
+      )
+      .eq('organization_id', context.organizationId)
+      .eq('business_center_id', context.businessCenterId)
+      .gt('remaining_quantity', 0)
+      .not('expires_at', 'is', null)
+      .order('expires_at', { ascending: true })
+      .limit(20);
+
+    if (error) {
+      throw new Error(`Failed to load expiring lots for copilot: ${error.message}`);
+    }
+
+    type LotRow = {
+      expires_at: string;
+      id: string;
+      lot_code: string | null;
+      products: { name: string } | { name: string }[] | null;
+      remaining_quantity: number;
+      unit_code: string;
+    };
+
+    const lots = ((data ?? []) as LotRow[]).map((row) => {
+      const product = Array.isArray(row.products) ? row.products[0] : row.products;
+      return {
+        expiresAt: row.expires_at,
+        id: row.id,
+        lotCode: row.lot_code,
+        productName: product?.name ?? 'Producto',
+        remainingQuantity: Number(row.remaining_quantity),
+        unitCode: row.unit_code,
+      };
+    });
+
+    const normalized = context.question
+      .toLocaleLowerCase()
+      .normalize('NFD')
+      .replace(/\p{M}/gu, '');
+    const wantsTodayOnly =
+      /\b(vence hoy|vencen hoy|hoy vence|hoy vencen)\b/.test(normalized) &&
+      !/\b(mas cercan|proxima|proximo|proximos|proximas)\b/.test(normalized);
+
+    const filtered = wantsTodayOnly
+      ? lots.filter((lot) => {
+          const expiresAt = new Date(lot.expiresAt).getTime();
+          return expiresAt >= todayStart.getTime() && expiresAt < todayEnd.getTime();
+        })
+      : lots;
+
+    if (filtered.length === 0) {
+      return {
+        payload: { count: 0, lots: [], mode: wantsTodayOnly ? 'today' : 'nearest' },
+        summary: wantsTodayOnly
+          ? 'Vencimientos de hoy: no hay lotes con stock que venzan hoy.'
+          : 'Vencimientos: no hay lotes con stock y fecha de vencimiento cargada.',
+      };
+    }
+
+    const nearest = filtered[0];
+    const nearestLabel = formatDateEsAr(nearest.expiresAt, timeZone);
+    const listPreview = filtered
+      .slice(0, 5)
+      .map(
+        (lot) =>
+          `${lot.productName} (${formatDateEsAr(lot.expiresAt, timeZone)}, ${lot.remainingQuantity} ${lot.unitCode})`,
+      )
+      .join('; ');
+
+    return {
+      payload: {
+        count: filtered.length,
+        lots: filtered.slice(0, 10),
+        mode: wantsTodayOnly ? 'today' : 'nearest',
+        nearest: nearest,
+      },
+      summary: wantsTodayOnly
+        ? `Vencimientos de hoy: ${filtered.length}. ${listPreview}.`
+        : `Fecha de vencimiento más cercana: ${nearestLabel} — ${nearest.productName}` +
+          (nearest.lotCode ? ` (lote ${nearest.lotCode})` : '') +
+          `, ${nearest.remainingQuantity} ${nearest.unitCode}.` +
+          (filtered.length > 1 ? ` Próximos: ${listPreview}.` : ''),
+    };
+  }
+
   private async tasksDueToday(context: CopiQueryContext): Promise<Omit<CopiToolResult, 'key'>> {
     const tasks = await this.tasksService.listTasks({
       businessCenterId: context.businessCenterId,
@@ -556,4 +649,13 @@ function endOfDay(date: Date): string {
 function extractContactHint(question: string): string {
   const match = question.match(/\b(?:con|de|para)\s+([a-záéíóúñ0-9+\s]{2,40})/i);
   return match?.[1]?.trim() ?? '';
+}
+
+function formatDateEsAr(iso: string, timeZone: string): string {
+  return new Intl.DateTimeFormat('es-AR', {
+    day: '2-digit',
+    month: '2-digit',
+    timeZone,
+    year: 'numeric',
+  }).format(new Date(iso));
 }

@@ -142,10 +142,11 @@ export const copiMessages: ConversationMessageMock[] = [
 
 export const suggestedQuestions = [
   'Que necesita mi atencion hoy?',
-  'Cuanto vendi este mes?',
-  'Quien me debe dinero?',
+  'Cuantas ventas hubo esta semana?',
   'Que productos tienen bajo stock?',
-  'Que producto tiene mayor margen?',
+  'Que seguimientos estan pendientes?',
+  'Cual es la fecha de vencimiento mas cercana?',
+  'Cuantas conversaciones abiertas tengo?',
 ];
 
 export const notifications: NotificationMock[] = [

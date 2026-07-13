@@ -55,6 +55,7 @@ Use tools and real data for:
 - Count operations vs list products / quantities / approx. revenue
 - Filter sold products by name hints (e.g. granel)
 - Find / summarize products and low stock
+- Check lot expiration dates (nearest / today)
 - Review open WhatsApp conversations and today's inbound messages
 - Review pending AI drafts awaiting approval
 - Review follow-ups / tasks (overview, due today, overdue, by contact, mine)
@@ -90,6 +91,7 @@ Example tone when unavailable:
 | hasta hoy | cumulative to now (not only "hoy") |
 | hoy / ayer | calendar day in business timezone |
 | stock / se terminó / bajo stock | products + low_stock |
+| vencimiento / caduca / qué vence hoy | expiring_lots (inventory lots) |
 | mensajes / chats / WhatsApp | inbox tools |
 | borradores | pending_ai_drafts |
 | seguimientos / tareas / recordame | tasks tools / Pro task actions |

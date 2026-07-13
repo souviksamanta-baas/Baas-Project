@@ -3,7 +3,7 @@ export const copiSuggestedQuestions = [
   '¿Cuántas ventas hubo esta semana?',
   '¿Qué productos tienen bajo stock?',
   '¿Qué seguimientos están pendientes?',
-  '¿Qué vence hoy?',
+  '¿Cuál es la fecha de vencimiento más cercana?',
   '¿Cuántas conversaciones abiertas tengo?',
 ] as const;
 

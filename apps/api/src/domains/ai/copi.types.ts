@@ -18,6 +18,7 @@ export type CopiToolName =
   | 'pending_ai_drafts'
   | 'products_overview'
   | 'attention_summary'
+  | 'expiring_lots'
   | 'tasks_overview'
   | 'tasks_due_today'
   | 'tasks_overdue'
@@ -84,6 +85,8 @@ export interface CopiQueryContext {
   conversationHistory: Array<{ body: string; role: 'owner' | 'assistant' | 'system' }>;
   now: Date;
   organizationId: string;
+  /** First name from auth user_metadata.full_name when available. */
+  ownerDisplayName: string | null;
   question: string;
   sessionId?: string;
   timezone: string;

@@ -42,7 +42,7 @@ Server env: `OPENAI_API_KEY`, optional `OPENAI_MODEL` / `OPENAI_VISION_MODEL`.
 
 ## Read tools (Basic)
 
-`messages_today`, `low_stock`, `pending_follow_ups`, `sales_summary`, `open_conversations`, `pending_ai_drafts`, `products_overview`, `attention_summary`, `tasks_overview`, `tasks_due_today`, `tasks_overdue`, `tasks_by_contact`, `my_tasks`, `staff_roster`.
+`messages_today`, `low_stock`, `expiring_lots`, `pending_follow_ups`, `sales_summary`, `open_conversations`, `pending_ai_drafts`, `products_overview`, `attention_summary`, `tasks_overview`, `tasks_due_today`, `tasks_overdue`, `tasks_by_contact`, `my_tasks`, `staff_roster`.
 
 ## Pro actions
 

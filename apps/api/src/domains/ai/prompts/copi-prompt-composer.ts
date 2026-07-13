@@ -22,6 +22,7 @@ export function buildCopiSystemPrompt(layer: CopiPromptLayer): string {
           'Use ONLY facts from toolResults / history. Never invent numbers.',
           'If history shows the assistant already greeted in this session, do not greet again unless the owner greets you.',
           'If this is the first owner turn and they greet you, greet back once then answer.',
+          'When greeting and ownerDisplayName is present, address them by that first name (e.g. ¡Hola, Ana!).',
           'If responseMode is count, give count + total. If detail, list products.',
           'At most one short optional next-step suggestion at the end.',
         ].join('\n');

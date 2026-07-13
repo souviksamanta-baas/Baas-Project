@@ -18,6 +18,13 @@ export class CopiLlmToolSelectorService {
   }): Promise<{ source: 'llm' | 'rules'; tools: CopiToolName[] }> {
     const history = params.history ?? [];
     const fallback = selectCopiTools(params.question, history);
+
+    // Deterministic intents (suggested questions, sales/expiry/stock, etc.) win over the LLM.
+    // The model often falls back to attention_summary for known Spanish retail phrasing.
+    if (fallback.length > 0) {
+      return { source: 'rules', tools: fallback };
+    }
+
     if (!params.enabled) {
       return { source: 'rules', tools: fallback };
     }

@@ -56,6 +56,23 @@ describe('selectCopiTools', () => {
       'attention_summary',
     );
   });
+
+  it('routes all suggested Copi questions to the matching tools', () => {
+    expect(selectCopiTools('¿Qué necesita mi atención hoy?')).toEqual(['attention_summary']);
+    expect(selectCopiTools('¿Cuántas ventas hubo esta semana?')).toEqual(['sales_summary']);
+    expect(selectCopiTools('¿Qué productos tienen bajo stock?')).toEqual(['low_stock', 'products_overview']);
+    expect(selectCopiTools('¿Qué seguimientos están pendientes?')).toEqual(['tasks_overview']);
+    expect(selectCopiTools('¿Cuál es la fecha de vencimiento más cercana?')).toEqual(['expiring_lots']);
+    expect(selectCopiTools('¿Cuántas conversaciones abiertas tengo?')).toEqual(['open_conversations']);
+  });
+
+  it('routes product expiry questions to expiring_lots, not attention', () => {
+    expect(selectCopiTools('Cual es la fecha de vencimiento mas cercano que tengo?')).toEqual(['expiring_lots']);
+    expect(selectCopiTools('¿Qué vence hoy?')).toEqual(['expiring_lots']);
+    expect(selectCopiTools('¿Qué tareas vencen hoy?')).toEqual(
+      expect.arrayContaining(['tasks_overview', 'tasks_due_today']),
+    );
+  });
 });
 
 describe('wantsDetailedSalesList / wantsSalesCountOnly', () => {
@@ -94,5 +111,15 @@ describe('wantsDetailedSalesList / wantsSalesCountOnly', () => {
 describe('buildGreetingReply', () => {
   it('returns afternoon greeting', () => {
     expect(buildGreetingReply('Hola Copi, Buenas tardes! cuantos ventas hice?')).toBe('¡Buenas tardes!');
+  });
+
+  it('greets using the owner first name', () => {
+    expect(buildGreetingReply('hola copi', new Date('2026-07-13T15:00:00Z'), 'Souvik Samanta')).toBe(
+      '¡Hola, Souvik!',
+    );
+  });
+
+  it('includes the owner name in time-of-day greetings', () => {
+    expect(buildGreetingReply('buenas tardes', new Date(), 'Ana')).toBe('¡Buenas tardes, Ana!');
   });
 });

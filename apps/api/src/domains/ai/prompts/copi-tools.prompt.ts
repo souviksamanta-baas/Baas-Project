@@ -32,6 +32,7 @@ If a Pro action is requested without Pro, the orchestrator already handles the d
 | getSales() semana / hasta hoy / historial | \`sales_summary\` |
 | getProducts() / catálogo | \`products_overview\` |
 | getInventory() / stock bajo | \`low_stock\` (+ optionally \`products_overview\`) |
+| vencimientos / fecha de vencimiento / qué vence hoy | \`expiring_lots\` |
 | WhatsApp inbox / mensajes hoy | \`messages_today\` |
 | conversaciones abiertas | \`open_conversations\` |
 | borradores IA | \`pending_ai_drafts\` |
@@ -68,6 +69,9 @@ Drafts awaiting owner approval.
 
 ### low_stock
 Products at/below reorder threshold.
+
+### expiring_lots
+Inventory lots with \`expires_at\` and remaining stock. Use for "vencimiento", "caduca", "qué vence hoy", "fecha de vencimiento más cercana". Prefer this over \`tasks_due_today\` unless the owner clearly asks about tareas/seguimientos.
 
 ### products_overview
 Active product count + low-stock count.
@@ -122,6 +126,7 @@ If \`filter\` is present, say results are filtered.
 - \`open_conversations\`: \`{ count, conversations[] }\`
 - \`pending_ai_drafts\`: \`{ count }\`
 - \`low_stock\`: \`{ count, products[] }\`
+- \`expiring_lots\`: \`{ count, lots[], mode: today|nearest, nearest? }\`
 - \`products_overview\`: \`{ activeProducts, lowStockCount }\`
 - \`tasks_*\`: \`{ count, tasks[] }\` (+ \`contactHint\` for by_contact)
 - \`staff_roster\`: \`{ count, members[] }\`
