@@ -6,9 +6,9 @@ Copi is the owner-facing AI assistant. It is separate from `SalesAiService`, whi
 
 Copi LLM calls use three maintainable prompt layers under \`apps/api/src/domains/ai/prompts/\`:
 
-1. **System** (\`copi-system.prompt.ts\`) — personality, Argentine Spanish, greetings, safety.
-2. **Business context** (\`copi-business-context.prompt.ts\`) — live Nexolia entities, sales interpretation, roadmap limits.
-3. **Tools** (\`copi-tools.prompt.ts\`) — selectable tools, JSON contracts, router/phraser rules.
+1. **System** (\`copi-system.prompt.ts\`) — full personality/language/behavior brief from product (ROLE, greetings, Argentine Spanish, safety, proactive help, GOAL).
+2. **Business context** (\`copi-business-context.prompt.ts\`) — Nexolia modules, live vs roadmap help areas, sale/WhatsApp relationships, KPI limits, owner-language mapping.
+3. **Tools** (\`copi-tools.prompt.ts\`) — brief→live tool aliases, Basic/Pro permissions, JSON contracts, router schema.
 
 \`buildCopiSystemPrompt(layer)\` composes them for the tool router or answer phraser. Regex intent routing remains a deterministic fallback when the LLM is off or fails.
 
