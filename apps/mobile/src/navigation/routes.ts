@@ -54,14 +54,19 @@ export function productDetailRoute(
   return `${path}?returnTo=${returnTo}`;
 }
 
-export type InventoryReturnTo = 'manage-stock' | 'product-detail' | 'sell';
+export type InventoryReturnTo = 'manage-stock' | 'product-detail' | 'sell' | 'copi-chat';
 
 export function parseInventoryReturnTo(
   value: string | string[] | undefined,
 ): InventoryReturnTo | undefined {
   const raw = Array.isArray(value) ? value[0] : value;
 
-  if (raw === 'manage-stock' || raw === 'product-detail' || raw === 'sell') {
+  if (
+    raw === 'manage-stock' ||
+    raw === 'product-detail' ||
+    raw === 'sell' ||
+    raw === 'copi-chat'
+  ) {
     return raw;
   }
 
@@ -78,6 +83,10 @@ export function resolveInventoryReturnRoute(
 
   if (returnTo === 'sell') {
     return routes.inventorySell;
+  }
+
+  if (returnTo === 'copi-chat') {
+    return routes.appCopiChat;
   }
 
   return routes.inventoryManageStock;

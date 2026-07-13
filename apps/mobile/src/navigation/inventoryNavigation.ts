@@ -60,6 +60,11 @@ export function navigateInventoryReturn(
     return;
   }
 
+  if (options.returnTo === 'copi-chat') {
+    router.replace(routes.appCopiChat);
+    return;
+  }
+
   router.replace(resolveInventoryReturnRoute(options.returnTo, options.productId));
 }
 

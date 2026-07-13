@@ -54,7 +54,7 @@ export default function CopiChatRoute(): ReactElement {
       composer={composer}
       copilot={copilot}
       onBack={() => router.replace(routes.appCopi)}
-      onOpenProduct={(productId) => router.push(productDetailRoute(productId, 'manage-stock'))}
+      onOpenProduct={(productId) => router.push(productDetailRoute(productId, 'copi-chat'))}
     />
   );
 }
