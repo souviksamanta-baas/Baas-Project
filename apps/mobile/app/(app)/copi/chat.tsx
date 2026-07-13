@@ -6,7 +6,7 @@ import { useOwnerSessionContext } from '../../../src/context/OwnerSessionProvide
 import { useOwnerCopilotContext } from '../../../src/context/OwnerCopilotProvider';
 import { useCopiMediaActions } from '../../../src/hooks/useCopiMediaActions';
 import { useFeatureGate } from '../../../src/hooks/useFeatureVisibility';
-import { routes } from '../../../src/navigation/routes';
+import { routes, productDetailRoute } from '../../../src/navigation/routes';
 import { CopiChatScreen, type CopiComposerActions } from '../../../src/screens/CopiScreen';
 
 export default function CopiChatRoute(): ReactElement {
@@ -49,5 +49,12 @@ export default function CopiChatRoute(): ReactElement {
     [canUseVision, canUseVoice, media],
   );
 
-  return <CopiChatScreen composer={composer} copilot={copilot} onBack={() => router.replace(routes.appCopi)} />;
+  return (
+    <CopiChatScreen
+      composer={composer}
+      copilot={copilot}
+      onBack={() => router.replace(routes.appCopi)}
+      onOpenProduct={(productId) => router.push(productDetailRoute(productId, 'manage-stock'))}
+    />
+  );
 }

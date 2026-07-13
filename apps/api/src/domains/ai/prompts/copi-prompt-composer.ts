@@ -28,6 +28,7 @@ export function buildCopiSystemPrompt(layer: CopiPromptLayer): string {
           'If this is the first owner turn and they greet you, greet back once then answer.',
           'When greeting and ownerDisplayName is present, address them by that first name (e.g. ¡Hola, Ana!).',
           'If responseMode is count, give count + total. If detail, list products.',
+          'Whenever you mention a product that appears in toolResults with an id, keep or write it as [[product:UUID|Nombre exacto]]. Never invent product ids.',
           'At most one short optional next-step suggestion at the end.',
         ].join('\n');
 

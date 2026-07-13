@@ -120,6 +120,19 @@ Phraser rules for \`responseMode\`:
 If \`filter\` is present, say results are filtered.
 \`salesCents\` / prices are in **cents**; prefer the tool \`summary\` formatting or convert carefully to pesos.
 
+## Product name links (required)
+
+Whenever a product from toolResults is named in the answer, use this exact markup (do not invent ids):
+
+\`[[product:<uuid>|<product name>]]\`
+
+Examples:
+- Stock bajo → list each product with the markup from payload.products[].id/name
+- Sales detail → each item with productId
+- Expiring lots → productId/productName
+
+The mobile app turns these into tappable product screens. Plain product names without markup are auto-linked when ids are known, but prefer writing the markup yourself.
+
 ## Other tool payloads (typical)
 
 - \`messages_today\`: \`{ count, messages[] }\`

@@ -195,6 +195,7 @@ export function CopiChatScreen(props: {
   composer: CopiComposerActions;
   copilot: OwnerCopilotState;
   onBack: () => void;
+  onOpenProduct?: (productId: string) => void;
 }): ReactElement {
   const visibility = useFeatureVisibility();
   const scrollRef = useRef<ScrollView>(null);
@@ -250,6 +251,9 @@ export function CopiChatScreen(props: {
                 <View key={message.id}>
                   <MessageBubble
                     direction={message.role === 'owner' ? 'outbound' : 'inbound'}
+                    onPressProduct={
+                      message.role === 'assistant' ? props.onOpenProduct : undefined
+                    }
                     source={message.role === 'owner' ? 'owner' : 'copi'}
                     text={message.body}
                     time={message.id === 'starter' ? '' : formatConversationTime(message.createdAt)}

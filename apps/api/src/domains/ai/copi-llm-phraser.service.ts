@@ -1,6 +1,10 @@
 import { Injectable } from '@nestjs/common';
 
 import { buildGreetingReply, hasGreeting } from './copi-intent-router';
+import {
+  collectProductsFromToolResults,
+  ensureCopiProductLinks,
+} from './copi-product-link.util';
 import type { CopiTokenUsage, CopiToolResult } from './copi.types';
 import { CopiPolicyService } from './copi-policy.service';
 import { buildCopiSystemPrompt } from './prompts/copi-prompt-composer';
@@ -18,13 +22,18 @@ export class CopiLlmPhraserService {
     toolResults: CopiToolResult[];
   }): Promise<{ answer: string; tokenUsage: CopiTokenUsage }> {
     const alreadyGreeted = sessionAlreadyGreeted(params.history ?? []);
+    const withLinks = (answer: string): string =>
+      ensureCopiProductLinks(answer, collectProductsFromToolResults(params.toolResults));
+
     if (!params.enabled) {
       return {
-        answer: buildTemplateAnswer(
-          params.question,
-          params.toolResults,
-          alreadyGreeted,
-          params.ownerDisplayName,
+        answer: withLinks(
+          buildTemplateAnswer(
+            params.question,
+            params.toolResults,
+            alreadyGreeted,
+            params.ownerDisplayName,
+          ),
         ),
         tokenUsage: this.policyService.emptyUsage(),
       };
@@ -33,11 +42,13 @@ export class CopiLlmPhraserService {
     const apiKey = process.env.OPENAI_API_KEY?.trim();
     if (!apiKey) {
       return {
-        answer: buildTemplateAnswer(
-          params.question,
-          params.toolResults,
-          alreadyGreeted,
-          params.ownerDisplayName,
+        answer: withLinks(
+          buildTemplateAnswer(
+            params.question,
+            params.toolResults,
+            alreadyGreeted,
+            params.ownerDisplayName,
+          ),
         ),
         tokenUsage: this.policyService.emptyUsage(),
       };
@@ -97,11 +108,13 @@ export class CopiLlmPhraserService {
 
       if (!response.ok) {
         return {
-          answer: buildTemplateAnswer(
-            params.question,
-            params.toolResults,
-            alreadyGreeted,
-            params.ownerDisplayName,
+          answer: withLinks(
+            buildTemplateAnswer(
+              params.question,
+              params.toolResults,
+              alreadyGreeted,
+              params.ownerDisplayName,
+            ),
           ),
           tokenUsage: this.policyService.emptyUsage(),
         };
@@ -112,15 +125,17 @@ export class CopiLlmPhraserService {
         usage?: { prompt_tokens?: number; completion_tokens?: number };
       };
 
+      const rawAnswer =
+        body.choices?.[0]?.message?.content?.trim() ||
+        buildTemplateAnswer(
+          params.question,
+          params.toolResults,
+          alreadyGreeted,
+          params.ownerDisplayName,
+        );
+
       return {
-        answer:
-          body.choices?.[0]?.message?.content?.trim() ||
-          buildTemplateAnswer(
-            params.question,
-            params.toolResults,
-            alreadyGreeted,
-            params.ownerDisplayName,
-          ),
+        answer: withLinks(rawAnswer),
         tokenUsage: {
           inputTokens: body.usage?.prompt_tokens ?? estimatedInput,
           outputTokens: body.usage?.completion_tokens ?? 0,
@@ -128,11 +143,13 @@ export class CopiLlmPhraserService {
       };
     } catch {
       return {
-        answer: buildTemplateAnswer(
-          params.question,
-          params.toolResults,
-          alreadyGreeted,
-          params.ownerDisplayName,
+        answer: withLinks(
+          buildTemplateAnswer(
+            params.question,
+            params.toolResults,
+            alreadyGreeted,
+            params.ownerDisplayName,
+          ),
         ),
         tokenUsage: this.policyService.emptyUsage(),
       };

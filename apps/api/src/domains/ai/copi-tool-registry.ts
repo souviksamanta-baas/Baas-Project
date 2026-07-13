@@ -10,6 +10,7 @@ import {
   wantsDetailedSalesList,
   wantsSalesCountOnly,
 } from './copi-intent-router';
+import { formatCopiProductLink } from './copi-product-link.util';
 import type { CopiQueryContext, CopiToolName, CopiToolResult } from './copi.types';
 
 interface MessageRow {
@@ -135,12 +136,27 @@ export class CopiToolRegistry {
       organizationId: context.organizationId,
     });
 
+    const listed = products.map((product) => ({
+      id: product.id,
+      name: product.name,
+      quantityOnHand: product.stockQuantity,
+      reorderThreshold: product.reorderThreshold,
+      unitCode: product.unitCode,
+    }));
+
+    const productLines = listed
+      .map(
+        (product) =>
+          `${formatCopiProductLink(product.id, product.name)} (${product.quantityOnHand} ${product.unitCode}, mínimo ${product.reorderThreshold})`,
+      )
+      .join('; ');
+
     return {
-      payload: { count: products.length, products },
+      payload: { count: listed.length, products: listed },
       summary:
-        products.length === 0
+        listed.length === 0
           ? 'Stock bajo: no hay productos en umbral de reposición.'
-          : `Stock bajo: ${products.length} producto(s) necesitan atención.`,
+          : `Stock bajo: ${listed.length} producto(s) necesitan atención: ${productLines}.`,
     };
   }
 
@@ -236,6 +252,7 @@ export class CopiToolRegistry {
         createdAt: string;
         lineTotalCents: number;
         name: string;
+        productId: string | null;
         quantity: number;
         unitPriceCents: number;
       }>;
@@ -248,6 +265,7 @@ export class CopiToolRegistry {
       createdAt: string;
       lineTotalCents: number;
       name: string;
+      productId: string | null;
       quantity: number;
       unitPriceCents: number;
     }>;
@@ -267,6 +285,7 @@ export class CopiToolRegistry {
     items: Array<{
       lineTotalCents: number;
       name: string;
+      productId: string | null;
       quantity: number;
       unitPriceCents: number;
     }>;
@@ -281,10 +300,12 @@ export class CopiToolRegistry {
     }
 
     if (params.wantsDetail) {
-      const lines = params.items.map(
-        (item, index) =>
-          `${index + 1}. ${item.name} — ${item.quantity} u. × $${this.formatCents(item.unitPriceCents)} = $${this.formatCents(item.lineTotalCents)}`,
-      );
+      const lines = params.items.map((item, index) => {
+        const label = item.productId
+          ? formatCopiProductLink(item.productId, item.name)
+          : item.name;
+        return `${index + 1}. ${label} — ${item.quantity} u. × $${this.formatCents(item.unitPriceCents)} = $${this.formatCents(item.lineTotalCents)}`;
+      });
 
       return [`Ventas (${params.periodLabel}):`, ...lines, '', `Total: $${this.formatCents(params.totalCents)}`].join(
         '\n',
@@ -312,20 +333,24 @@ export class CopiToolRegistry {
       createdAt: string;
       lineTotalCents: number;
       name: string;
+      productId: string | null;
       quantity: number;
       unitPriceCents: number;
     }>;
     rows: Array<{
       created_at: string;
       quantity_delta: number;
-      products: { name: string; unit_price_cents: number } | { name: string; unit_price_cents: number }[] | null;
+      products:
+        | { id: string; name: string; unit_price_cents: number }
+        | { id: string; name: string; unit_price_cents: number }[]
+        | null;
     }>;
     totalCents: number;
   }> {
     const client = this.supabaseService.getServiceRoleClient();
     const { data, error } = await client
       .from('inventory_movements')
-      .select('quantity_delta, created_at, products(name, unit_price_cents)')
+      .select('quantity_delta, created_at, products(id, name, unit_price_cents)')
       .eq('organization_id', context.organizationId)
       .eq('business_center_id', context.businessCenterId)
       .eq('movement_type', 'sale')
@@ -341,7 +366,10 @@ export class CopiToolRegistry {
     const rows = (data ?? []) as Array<{
       created_at: string;
       quantity_delta: number;
-      products: { name: string; unit_price_cents: number } | { name: string; unit_price_cents: number }[] | null;
+      products:
+        | { id: string; name: string; unit_price_cents: number }
+        | { id: string; name: string; unit_price_cents: number }[]
+        | null;
     }>;
 
     let totalCents = 0;
@@ -349,6 +377,7 @@ export class CopiToolRegistry {
       createdAt: string;
       lineTotalCents: number;
       name: string;
+      productId: string | null;
       quantity: number;
       unitPriceCents: number;
     }> = [];
@@ -363,6 +392,7 @@ export class CopiToolRegistry {
         createdAt: row.created_at,
         lineTotalCents,
         name: product?.name ?? 'Producto sin nombre',
+        productId: product?.id ?? null,
         quantity,
         unitPriceCents,
       });
@@ -469,7 +499,7 @@ export class CopiToolRegistry {
     const { data, error } = await client
       .from('inventory_lots')
       .select(
-        'id, lot_code, remaining_quantity, unit_code, expires_at, products(name)',
+        'id, lot_code, remaining_quantity, unit_code, expires_at, products(id, name)',
       )
       .eq('organization_id', context.organizationId)
       .eq('business_center_id', context.businessCenterId)
@@ -486,7 +516,7 @@ export class CopiToolRegistry {
       expires_at: string;
       id: string;
       lot_code: string | null;
-      products: { name: string } | { name: string }[] | null;
+      products: { id: string; name: string } | { id: string; name: string }[] | null;
       remaining_quantity: number;
       unit_code: string;
     };
@@ -497,6 +527,7 @@ export class CopiToolRegistry {
         expiresAt: row.expires_at,
         id: row.id,
         lotCode: row.lot_code,
+        productId: product?.id ?? null,
         productName: product?.name ?? 'Producto',
         remainingQuantity: Number(row.remaining_quantity),
         unitCode: row.unit_code,
@@ -529,8 +560,10 @@ export class CopiToolRegistry {
 
     const nearest = filtered[0];
     const nearestLabel = formatDateEsAr(nearest.expiresAt, timeZone);
+    const linkedName = (lot: (typeof filtered)[number]): string =>
+      lot.productId ? formatCopiProductLink(lot.productId, lot.productName) : lot.productName;
     const formatLotLine = (lot: (typeof filtered)[number]): string =>
-      `${lot.productName} (${formatDateEsAr(lot.expiresAt, timeZone)}, ${lot.remainingQuantity} ${lot.unitCode})`;
+      `${linkedName(lot)} (${formatDateEsAr(lot.expiresAt, timeZone)}, ${lot.remainingQuantity} ${lot.unitCode})`;
     const todayPreview = filtered.slice(0, 5).map(formatLotLine).join('; ');
     const upcomingPreview = filtered.slice(1, 6).map(formatLotLine).join('; ');
 
@@ -543,7 +576,7 @@ export class CopiToolRegistry {
       },
       summary: wantsTodayOnly
         ? `Vencimientos de hoy: ${filtered.length}. ${todayPreview}.`
-        : `Fecha de vencimiento más cercana: ${nearestLabel} — ${nearest.productName}` +
+        : `Fecha de vencimiento más cercana: ${nearestLabel} — ${linkedName(nearest)}` +
           (nearest.lotCode ? ` (lote ${nearest.lotCode})` : '') +
           `, ${nearest.remainingQuantity} ${nearest.unitCode}.` +
           (upcomingPreview ? ` Próximos: ${upcomingPreview}.` : ''),

@@ -14,6 +14,7 @@ import {
   textStyles,
   typography,
 } from '../design-system';
+import { parseCopiRichText } from '../lib/copiRichText';
 import { ChannelIcon, CopiRobotIcon, Icon, IphoneStatusIcons } from './icons';
 import type { IconKind } from './icons';
 
@@ -193,18 +194,44 @@ function ActionIcon(props: { color: string; kind: IconKind }): ReactElement {
 
 export function MessageBubble(props: {
   direction: 'inbound' | 'outbound';
+  onPressProduct?: (productId: string) => void;
   source?: MessageSource;
   text: string;
   time: string;
 }): ReactElement {
   const outbound = props.direction === 'outbound';
   const showCopiTag = props.source === 'copi';
+  const parts = parseCopiRichText(props.text);
 
   return (
     <View style={[styles.messageWrap, outbound && styles.outboundMessageWrap]}>
       <View style={[styles.messageBubble, outbound && styles.outboundMessageBubble]}>
         {showCopiTag ? <MessageSourceBadge source="copi" /> : null}
-        <Text style={styles.messageText}>{props.text}</Text>
+        <Text style={styles.messageText}>
+          {parts.map((part, index) => {
+            if (part.type === 'text') {
+              return <Text key={`t-${index}`}>{part.value}</Text>;
+            }
+
+            if (!props.onPressProduct || !part.productId) {
+              return (
+                <Text key={`p-${index}`} style={styles.productLinkText}>
+                  {part.label}
+                </Text>
+              );
+            }
+
+            return (
+              <Text
+                key={`p-${index}`}
+                onPress={() => props.onPressProduct?.(part.productId)}
+                style={styles.productLinkText}
+              >
+                {part.label}
+              </Text>
+            );
+          })}
+        </Text>
         <Text style={styles.messageTime}>{props.time}</Text>
       </View>
     </View>
@@ -709,6 +736,13 @@ const styles = StyleSheet.create({
     fontSize: 10,
     marginTop: 2,
     textAlign: 'right',
+  },
+  productLinkText: {
+    color: colors.primary,
+    fontSize: 13,
+    fontWeight: '600',
+    lineHeight: 18,
+    textDecorationLine: 'underline',
   },
   messageWrap: {
     alignItems: 'flex-start',
