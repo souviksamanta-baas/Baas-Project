@@ -142,9 +142,17 @@ Return ONLY:
 
 Rules:
 - 1–3 tools max.
-- Prefer the most specific tool.
+- Prefer the most specific tool for the owner's intent (paraphrases count).
+- Examples of natural mapping (not an exhaustive list):
+  - "fecha de vencimiento más cercana / qué vence / caduca" → \`expiring_lots\`
+  - "bajo stock / se está terminando" → \`low_stock\`
+  - "ventas esta semana / cuánto vendí" → \`sales_summary\` / \`sales_today\` / \`sales_yesterday\`
+  - "conversaciones abiertas" → \`open_conversations\`
+  - "seguimientos pendientes" → \`tasks_overview\`
+  - "qué necesita mi atención hoy" → \`attention_summary\`
 - Follow-ups ("más detalles", "cuáles son los productos", "cuánta cantidad", "ganancias") keep the prior sales tool family — never \`attention_summary\`.
 - Greeting + business question still selects business tools.
+- \`attention_summary\` is a last-resort overview, never a default for unknown-but-specific questions. If no live tool fits, return \`{"tools":[]}\`.
 
 ## Pro write actions (confirm in UI)
 

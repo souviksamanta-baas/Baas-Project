@@ -10,7 +10,9 @@ Copi LLM calls use three maintainable prompt layers under \`apps/api/src/domains
 2. **Business context** (\`copi-business-context.prompt.ts\`) — Nexolia modules, live vs roadmap help areas, sale/WhatsApp relationships, KPI limits, owner-language mapping.
 3. **Tools** (\`copi-tools.prompt.ts\`) — brief→live tool aliases, Basic/Pro permissions, JSON contracts, router schema.
 
-\`buildCopiSystemPrompt(layer)\` composes them for the tool router or answer phraser. Regex intent routing remains a deterministic fallback when the LLM is off or fails.
+\`buildCopiSystemPrompt(layer)\` composes them for the tool router or answer phraser.
+
+**Routing philosophy:** the LLM understands freeform Argentine Spanish first. Regex \`selectCopiTools\` is only a safety net when the model returns nothing or wrongly picks generic \`attention_summary\` for a specific ask. Do not treat suggested UI questions as an exhaustive wired list — they are examples of coverage.
 
 ## Flow
 

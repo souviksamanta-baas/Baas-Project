@@ -9,8 +9,12 @@ export function buildCopiSystemPrompt(layer: CopiPromptLayer): string {
     layer === 'router'
       ? [
           '# CURRENT TASK',
-          'You are selecting tools only.',
-          'Use the TOOL USAGE section and conversation history.',
+          'You are selecting tools only for a natural-language owner question.',
+          'Understand intent in Argentine Spanish (including typos/informal phrasing).',
+          'Map the ask to the most SPECIFIC live tool(s) — do not hardcode example phrases only.',
+          'Use `attention_summary` ONLY when the owner asks for a general “qué atender / prioridales / resumen del día”.',
+          'Never use `attention_summary` for a specific fact (ventas, stock, vencimientos, conversaciones, tareas, mensajes).',
+          'If they only greet with no ask, return {"tools":[]}.',
           'Return ONLY JSON: {"tools":["tool_name"]}.',
           'Do not answer the user in natural language.',
         ].join('\n')
