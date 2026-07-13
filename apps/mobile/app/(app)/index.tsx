@@ -29,6 +29,7 @@ export default function HomeRoute(): ReactElement {
       conversations={inbox.conversations}
       metrics={dashboard?.metrics ?? null}
       onOpenConversation={(conversationId) => router.push(conversationRoute(conversationId))}
+      onOpenCopiChat={() => router.push(routes.appCopiChat)}
       onOpenManageStock={() => router.push(routes.inventoryManageStock)}
       onOpenNotifications={() => router.push(routes.notifications)}
       onOpenTasks={() => router.push(routes.tasks)}

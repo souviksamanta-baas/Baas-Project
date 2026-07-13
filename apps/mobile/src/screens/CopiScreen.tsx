@@ -25,6 +25,8 @@ import {
   ScreenContent,
   ScreenTitle,
 } from '../components/ui';
+import { Icon } from '../components/icons';
+import { colors as dsColors } from '../design-system';
 import { FeatureGate, useFeatureVisibility } from '../hooks/useFeatureVisibility';
 import type { OwnerCopilotState } from '../hooks/useOwnerCopilot';
 import type { OwnerDashboard } from '../types/dashboard';
@@ -54,8 +56,6 @@ function askAndOpenChat(params: {
 
 export function CopiScreen(props: {
   composer: CopiComposerActions;
-  hasConversationHistory: boolean;
-  isLoadingHistory?: boolean;
   metrics: OwnerDashboard['metrics'] | null;
   onAskQuestion: (question: string) => Promise<void>;
   onOpenChat: () => void;
@@ -72,29 +72,24 @@ export function CopiScreen(props: {
       <ScreenTitle subtitle="Tu asistente IA para el negocio" title="Copi" />
 
       <FeatureGate feature="copiQuickSummary" visibility={visibility}>
-        <View style={styles.welcomeCard}>
+        <Pressable onPress={props.onOpenChat} style={styles.copiCard}>
           <RobotAvatar />
-          <View style={styles.flex}>
-            <Text style={styles.cardTitle}>Hola! Soy Copi</Text>
-            <Text style={styles.cardDescription}>Preguntame por ventas, stock, clientes y tareas pendientes.</Text>
+          <View style={[styles.flex, styles.flexShrink]}>
+            <Text style={styles.homeCardTitle}>Copi - Tu asistente IA</Text>
+            <Text numberOfLines={2} style={styles.cardDescription}>
+              Preguntame sobre tus ventas, stock, clientes y mas.
+            </Text>
           </View>
-        </View>
+          <Pressable
+            accessibilityRole="button"
+            hitSlop={8}
+            onPress={props.onOpenChat}
+            style={styles.chatButton}
+          >
+            <Icon color={colors.primary} kind="message" size={18} strokeWidth={1.8} />
+          </Pressable>
+        </Pressable>
       </FeatureGate>
-
-      <Card flush>
-        <ActionRow
-          icon="message"
-          onPress={props.onOpenChat}
-          subtitle={
-            props.isLoadingHistory
-              ? 'Cargando conversación…'
-              : props.hasConversationHistory
-                ? 'Últimos 14 días de chat'
-                : 'Abrí el hilo para chatear con Copi'
-          }
-          title={props.hasConversationHistory ? 'Ver chat con Copi' : 'Abrir chat con Copi'}
-        />
-      </Card>
 
       <FeatureGate feature="copiProUpsell" visibility={visibility}>
         <Card style={styles.upsellCard}>
@@ -317,12 +312,6 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     marginTop: 3,
   },
-  cardTitle: {
-    color: colors.navy,
-    fontSize: 14,
-    fontWeight: '600',
-    lineHeight: 18,
-  },
   chatArea: {
     backgroundColor: '#fcfdfc',
     flexGrow: 1,
@@ -335,6 +324,14 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 0,
     paddingHorizontal: 8,
+  },
+  chatButton: {
+    alignItems: 'center',
+    backgroundColor: dsColors.primarySoft,
+    borderRadius: 999,
+    height: 34,
+    justifyContent: 'center',
+    width: 34,
   },
   chatCard: {
     flex: 1,
@@ -363,8 +360,24 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
+  copiCard: {
+    ...shadows.card,
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: 14,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 12,
+    minHeight: 88,
+    paddingHorizontal: 14,
+  },
   flex: {
     flex: 1,
+  },
+  flexShrink: {
+    flex: 1,
+    minWidth: 0,
   },
   greenText: {
     color: colors.primary,
@@ -372,6 +385,12 @@ const styles = StyleSheet.create({
   },
   historyLoader: {
     marginVertical: 12,
+  },
+  homeCardTitle: {
+    color: colors.navy,
+    fontSize: 12,
+    fontWeight: '600',
+    lineHeight: 16,
   },
   listHeader: {
     borderBottomColor: colors.borderSoft,
@@ -447,16 +466,5 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     marginBottom: 4,
-  },
-  welcomeCard: {
-    ...shadows.card,
-    alignItems: 'center',
-    backgroundColor: colors.surface,
-    borderColor: colors.border,
-    borderRadius: 14,
-    borderWidth: 1,
-    flexDirection: 'row',
-    height: 86,
-    paddingHorizontal: 14,
   },
 });

@@ -310,6 +310,7 @@ export function OwnerAppNavigator(props: { onSignOut: () => void }): ReactElemen
                 conversations={legacyInboxConversations}
                 metrics={null}
                 onOpenConversation={openConversation}
+                onOpenCopiChat={() => setRoute('copi-chat')}
                 onOpenManageStock={openManageStock}
                 onOpenNotifications={() => setRoute('notifications')}
                 onOpenTasks={() => undefined}
@@ -330,7 +331,6 @@ export function OwnerAppNavigator(props: { onSignOut: () => void }): ReactElemen
             ) : route === 'copi' ? (
               <CopiScreen
                 composer={legacyCopiComposer}
-                hasConversationHistory={false}
                 metrics={null}
                 onAskQuestion={async () => undefined}
                 onOpenChat={() => setRoute('copi-chat')}
