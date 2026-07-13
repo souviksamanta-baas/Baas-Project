@@ -2,12 +2,12 @@ import { Injectable } from '@nestjs/common';
 
 import {
   buildIntentQuestion,
-  COPI_TOOL_CATALOG,
   sanitizeSelectedTools,
   selectCopiTools,
   type CopiConversationTurn,
 } from './copi-intent-router';
 import type { CopiToolName } from './copi.types';
+import { buildCopiSystemPrompt } from './prompts/copi-prompt-composer';
 
 @Injectable()
 export class CopiLlmToolSelectorService {
@@ -27,8 +27,8 @@ export class CopiLlmToolSelectorService {
       return { source: 'rules', tools: fallback };
     }
 
-    const catalog = COPI_TOOL_CATALOG.map((tool) => `${tool.name}: ${tool.description}`).join('\n');
     const questionWithContext = buildIntentQuestion(params.question, history);
+    const recentHistory = history.slice(-6);
 
     try {
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -36,26 +36,15 @@ export class CopiLlmToolSelectorService {
           max_tokens: 180,
           messages: [
             {
-              content: [
-                'Sos el router de Copi, asistente de negocio de Nexolia en español rioplatense.',
-                'Elegí 1 a 3 herramientas del catálogo para responder la pregunta del dueño.',
-                'Reglas importantes (español rioplatense):',
-                '- Usá el contexto previo si el mensaje es un follow-up ("más detalles", "cuáles son", "necesito más info").',
-                '- Si el mensaje anterior era de ventas y ahora pide detalles/productos/cantidades/ganancias => misma herramienta de ventas (sales_summary / today / yesterday).',
-                '- "cuántas ventas", "cuántos presupuestos de ventas", "número de ventas", "hasta hoy" para contar => sales_summary.',
-                '- "haceme la lista...", "detalle con precios", "más detalles" => herramienta de ventas con detalle (otra capa formatea).',
-                '- "ventas de hoy" / "qué vendí hoy" (solo el día de hoy) => sales_today.',
-                '- "ayer" => sales_yesterday.',
-                '- Un saludo + pregunta de ventas sigue siendo herramienta de ventas (no attention_summary).',
-                '- No inventes herramientas. Devolvé SOLO JSON válido: {"tools":["tool_name"]}.',
-                '',
-                'Catálogo:',
-                catalog,
-              ].join('\n'),
+              content: buildCopiSystemPrompt('router'),
               role: 'system',
             },
             {
-              content: questionWithContext,
+              content: JSON.stringify({
+                history: recentHistory,
+                question: params.question,
+                questionWithContext,
+              }),
               role: 'user',
             },
           ],

@@ -14,6 +14,7 @@ const FOLLOW_UP_DETAIL_PATTERN =
 const GREETING_PATTERN =
   /\b(hola|buenas|buen dia|buenos dias|buenas tardes|buenas noches|que tal|como va|como andas)\b/;
 
+/** Kept for rule-based fallback tool names/descriptions; LLM uses COPI_TOOLS_PROMPT. */
 export const COPI_TOOL_CATALOG: Array<{ description: string; name: CopiToolName }> = [
   { description: 'Mensajes entrantes de hoy', name: 'messages_today' },
   { description: 'Productos con stock bajo', name: 'low_stock' },
@@ -36,6 +37,8 @@ export const COPI_TOOL_CATALOG: Array<{ description: string; name: CopiToolName 
   { description: 'Mis tareas asignadas', name: 'my_tasks' },
   { description: 'Integrantes del equipo', name: 'staff_roster' },
 ];
+
+/** @deprecated Prefer COPI_TOOLS_PROMPT; kept for rule-based fallback descriptions. */
 
 export type CopiConversationTurn = {
   body: string;

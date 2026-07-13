@@ -2,9 +2,19 @@
 
 Copi is the owner-facing AI assistant. It is separate from `SalesAiService`, which handles customer WhatsApp draft generation.
 
+## Prompt layers
+
+Copi LLM calls use three maintainable prompt layers under \`apps/api/src/domains/ai/prompts/\`:
+
+1. **System** (\`copi-system.prompt.ts\`) — personality, Argentine Spanish, greetings, safety.
+2. **Business context** (\`copi-business-context.prompt.ts\`) — live Nexolia entities, sales interpretation, roadmap limits.
+3. **Tools** (\`copi-tools.prompt.ts\`) — selectable tools, JSON contracts, router/phraser rules.
+
+\`buildCopiSystemPrompt(layer)\` composes them for the tool router or answer phraser. Regex intent routing remains a deterministic fallback when the LLM is off or fails.
+
 ## Flow
 
-Mobile `POST /ai/copilot/query` → `CopiOrchestratorService` → policy check → tool registry (deterministic data) → optional LLM phraser → optional Pro action proposal → session persistence.
+Mobile \`POST /ai/copilot/query\` → \`CopiOrchestratorService\` → policy check → session history → tool selector (LLM + rules fallback) → tool registry → LLM phraser → optional Pro action proposal → session persistence.
 
 ## Licensing
 
@@ -40,6 +50,10 @@ Server env: `OPENAI_API_KEY`, optional `OPENAI_MODEL` / `OPENAI_VISION_MODEL`.
 
 ## Key modules
 
+- `apps/api/src/domains/ai/prompts/copi-system.prompt.ts`
+- `apps/api/src/domains/ai/prompts/copi-business-context.prompt.ts`
+- `apps/api/src/domains/ai/prompts/copi-tools.prompt.ts`
+- `apps/api/src/domains/ai/prompts/copi-prompt-composer.ts`
 - `apps/api/src/domains/ai/copi-orchestrator.service.ts`
 - `apps/api/src/domains/ai/copi-tool-registry.ts`
 - `apps/api/src/domains/ai/copi-policy.service.ts`
