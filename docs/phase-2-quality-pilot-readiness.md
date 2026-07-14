@@ -77,9 +77,12 @@ Verification steps:
 - Confirm follow-up task generation uses persisted business center
   `ai_follow_up_delay_hours`.
 - Confirm owners can complete or snooze tasks and dismiss notifications.
-- Confirm the Task Portal at `/(app)/tasks` shows live tasks and low-stock alerts with filters.
-- Confirm Home and Notifications screens use live `owner_notifications` (not mock data).
-- Confirm low-stock alert rows open product detail with `returnTo=tasks-portal` back navigation.
+- Confirm “Todas las tareas” at `/(app)/tasks` shows live tasks and low-stock alerts with filters.
+- Confirm Home **Alertas recientes** and Notifications merge live `owner_tasks`
+  and `owner_notifications` (not mock data).
+- Confirm “Ver todas las tareas” on Home and Notifications opens `/(app)/tasks`.
+- Confirm low-stock alert rows return from product detail to Home,
+  Notifications, or the Task Portal according to their source.
 - Confirm task detail route `/(app)/tasks/[taskId]` shows description, status, and actions.
 - Confirm tenant A cannot read tenant B tasks, notifications, or device tokens.
 

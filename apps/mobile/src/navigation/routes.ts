@@ -114,7 +114,14 @@ export function productDetailRoute(
   return `${path}?returnTo=${returnTo}`;
 }
 
-export type InventoryReturnTo = 'manage-stock' | 'product-detail' | 'sell' | 'copi-chat' | 'tasks-portal';
+export type InventoryReturnTo =
+  | 'manage-stock'
+  | 'product-detail'
+  | 'sell'
+  | 'copi-chat'
+  | 'tasks-portal'
+  | 'notifications'
+  | 'home';
 
 export function parseInventoryReturnTo(
   value: string | string[] | undefined,
@@ -126,7 +133,9 @@ export function parseInventoryReturnTo(
     raw === 'product-detail' ||
     raw === 'sell' ||
     raw === 'copi-chat' ||
-    raw === 'tasks-portal'
+    raw === 'tasks-portal' ||
+    raw === 'notifications' ||
+    raw === 'home'
   ) {
     return raw;
   }
@@ -152,6 +161,14 @@ export function resolveInventoryReturnRoute(
 
   if (returnTo === 'tasks-portal') {
     return routes.tasks;
+  }
+
+  if (returnTo === 'notifications') {
+    return routes.notifications;
+  }
+
+  if (returnTo === 'home') {
+    return routes.appHome;
   }
 
   return routes.inventoryManageStock;

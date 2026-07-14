@@ -11,6 +11,7 @@ import {
   productDetailRoute,
   routes,
   tabRoute,
+  taskDetailRoute,
   tasksRoute,
 } from '../../src/navigation/routes';
 import { HomeScreen } from '../../src/screens/HomeScreen';
@@ -37,14 +38,16 @@ export default function HomeRoute(): ReactElement {
       conversations={inbox.conversations}
       metrics={dashboard?.metrics ?? null}
       notifications={tasksState.notifications}
-      onOpenAlertProduct={(productId) => router.push(productDetailRoute(productId, 'tasks-portal'))}
+      onOpenAlertProduct={(productId) => router.push(productDetailRoute(productId, 'home'))}
       onOpenConversation={(conversationId) => router.push(conversationRoute(conversationId))}
       onOpenManageStock={() => router.push(routes.inventoryManageStock)}
       onOpenNotifications={() => router.push(routes.notifications)}
-      onOpenTasks={() => router.push(tasksRoute('follow_up'))}
+      onOpenTaskDetail={(taskId) => router.push(taskDetailRoute(taskId, 'home'))}
+      onOpenTasks={() => router.push(tasksRoute())}
       onOpenWhatsAppSetup={() => router.push(routes.whatsappConnect)}
       onSelectTab={(tab: AppTab) => router.replace(tabRoute(tab))}
       ownerGreeting={ownerName}
+      tasks={tasksState.tasks}
       whatsappConnection={dashboard?.whatsappConnection ?? null}
     />
   );

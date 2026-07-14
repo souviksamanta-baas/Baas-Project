@@ -261,15 +261,22 @@ The mobile app exposes a unified work queue at `/(app)/tasks` that combines live
 
 Routes:
 
-- `/(app)/tasks` — filtered portal (`?filter=all|follow_up|stock|overdue|snoozed`)
+- `/(app)/tasks` — “Todas las tareas”, a filtered portal
+  (`?filter=all|follow_up|stock|overdue|snoozed`)
 - `/(app)/tasks/[taskId]` — task detail with `?returnTo=tasks-portal|notifications|home`
-- `/(app)/notifications` — live alerts (no mock data); dismiss all supported
+- `/(app)/notifications` — live tasks and alerts (no mock data), with a
+  “Ver todas las tareas” link; dismiss all notifications is supported
 
 Navigation:
 
-- Home recent alerts and Notifications use live `owner_notifications`.
-- Low-stock alert rows open product detail with `returnTo=tasks-portal`.
-- Follow-up task rows open conversation or task detail.
+- Home **Alertas recientes** and Notifications merge live `owner_tasks` and
+  `owner_notifications`.
+- “Ver todas las tareas” opens `/(app)/tasks` without a preselected filter.
+- Task rows on Home and Notifications open `/(app)/tasks/[taskId]` and return to
+  their source screen.
+- Low-stock alert rows open product detail and return to Home, Notifications, or
+  the Task Portal according to their source.
+- Follow-up rows in the Task Portal open conversation or task detail.
 - Copi portal entry: “Pedile a Copi que cree o asigne tareas” opens chat.
 
 Jira: KAN-268 (Tasks Navigation), KAN-269 (list routes), KAN-270 (detail + cross-links), epic KAN-326.

@@ -10,7 +10,7 @@ import {
   formatWorkQueueTime,
   type WorkQueueFilter,
 } from '../lib/workQueue';
-import type { OwnerNotification } from '../types/tasks';
+import type { OwnerNotification, OwnerTask } from '../types/tasks';
 import { colors } from '../theme';
 
 const FILTERS: Array<{ id: WorkQueueFilter | 'unread'; label: string }> = [
@@ -27,17 +27,19 @@ export function NotificationsScreen(props: {
   onDismissAll: () => Promise<void>;
   onDismissNotification: (notificationId: string) => Promise<void>;
   onOpenAlertProduct: (productId: string) => void;
+  onOpenTaskDetail: (taskId: string) => void;
   onOpenTasks: () => void;
+  tasks: OwnerTask[];
 }): ReactElement {
   const [activeFilter, setActiveFilter] = useState<WorkQueueFilter | 'unread'>('all');
   const items = useMemo(() => {
-    const queue = buildWorkQueue([], props.notifications);
+    const queue = buildWorkQueue(props.tasks, props.notifications);
     if (activeFilter === 'unread') {
       return queue.filter((item) => item.isUnread);
     }
 
     return filterWorkQueue(queue, activeFilter);
-  }, [activeFilter, props.notifications]);
+  }, [activeFilter, props.notifications, props.tasks]);
 
   return (
     <ScreenContent>
@@ -64,6 +66,10 @@ export function NotificationsScreen(props: {
         </View>
       </FeatureGate>
 
+      <Pressable onPress={props.onOpenTasks} style={styles.tasksLink}>
+        <Text style={styles.tasksLinkText}>Ver todas las tareas</Text>
+      </Pressable>
+
       <FeatureGate feature="notificationsList">
         {props.isLoading ? <Text style={styles.emptyText}>Cargando alertas...</Text> : null}
         {!props.isLoading && items.length === 0 ? (
@@ -84,6 +90,11 @@ export function NotificationsScreen(props: {
                   unread: item.isUnread,
                 }}
                 onPress={() => {
+                  if (item.kind === 'task' && item.taskId) {
+                    props.onOpenTaskDetail(item.taskId);
+                    return;
+                  }
+
                   if (item.productId) {
                     props.onOpenAlertProduct(item.productId);
                     return;
@@ -136,6 +147,19 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '300',
     paddingBottom: 2,
+  },
+  tasksLink: {
+    alignItems: 'center',
+    borderColor: colors.primary,
+    borderRadius: 10,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  tasksLinkText: {
+    color: colors.primary,
+    fontSize: 12,
+    fontWeight: '600',
   },
   titleRow: {
     alignItems: 'flex-end',

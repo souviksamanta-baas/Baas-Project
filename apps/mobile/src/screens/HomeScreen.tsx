@@ -1,8 +1,7 @@
 import type { ReactElement } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import type { IconKind } from '../components/icons';
-import { ActionRow, Card, ConversationRow, MetricGrid, NotificationRow, RobotAvatar, ScreenContent } from '../components/ui';
+import { Card, ConversationRow, MetricGrid, NotificationRow, RobotAvatar, ScreenContent } from '../components/ui';
 import type { AppTab } from '../components/ui';
 import { Icon } from '../components/icons';
 import { InfoBanner, ListBox, PrimaryButton, colors as dsColors } from '../design-system';
@@ -19,7 +18,7 @@ import type { InboxConversationSummary } from '../types/messages';
 import { formatWeeklySales } from '../lib/formatCurrency';
 import { buildWorkQueue, formatWorkQueueTime } from '../lib/workQueue';
 import { whatsappConnectionLabel } from '../lib/whatsappPresentation';
-import type { OwnerNotification } from '../types/tasks';
+import type { OwnerNotification, OwnerTask } from '../types/tasks';
 import { colors, shadows } from '../theme';
 
 export function HomeScreen(props: {
@@ -30,10 +29,12 @@ export function HomeScreen(props: {
   onOpenConversation: (conversationId: string) => void;
   onOpenManageStock: () => void;
   onOpenNotifications: () => void;
+  onOpenTaskDetail: (taskId: string) => void;
   onOpenTasks: () => void;
   onOpenWhatsAppSetup: () => void;
   onSelectTab: (tab: AppTab) => void;
   ownerGreeting: string;
+  tasks: OwnerTask[];
   whatsappConnection: OwnerDashboard['whatsappConnection'] | null;
 }): ReactElement {
   const connection = props.whatsappConnection ?? {
@@ -66,7 +67,7 @@ export function HomeScreen(props: {
     },
   ];
   const connectionCopy = whatsappConnectionLabel(connection);
-  const recentAlerts = buildWorkQueue([], props.notifications).slice(0, 3);
+  const recentAlerts = buildWorkQueue(props.tasks, props.notifications).slice(0, 3);
 
   return (
     <ScreenContent>
@@ -158,7 +159,7 @@ export function HomeScreen(props: {
 
       <FeatureGate feature="homeAlerts">
         <ListBox
-          headerAction={{ label: 'Ver todas', onPress: props.onOpenNotifications }}
+          headerAction={{ label: 'Ver todas las tareas', onPress: props.onOpenTasks }}
           title="Alertas recientes"
         >
           {recentAlerts.length === 0 ? (
@@ -176,6 +177,11 @@ export function HomeScreen(props: {
                 unread: alert.isUnread,
               }}
               onPress={() => {
+                if (alert.kind === 'task' && alert.taskId) {
+                  props.onOpenTaskDetail(alert.taskId);
+                  return;
+                }
+
                 if (alert.productId) {
                   props.onOpenAlertProduct(alert.productId);
                   return;

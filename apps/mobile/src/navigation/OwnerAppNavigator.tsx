@@ -314,10 +314,12 @@ export function OwnerAppNavigator(props: { onSignOut: () => void }): ReactElemen
                 onOpenConversation={openConversation}
                 onOpenManageStock={openManageStock}
                 onOpenNotifications={() => setRoute('notifications')}
+                onOpenTaskDetail={() => undefined}
                 onOpenTasks={() => undefined}
                 onOpenWhatsAppSetup={() => setRoute('account')}
                 onSelectTab={selectTab}
                 ownerGreeting="Hola!"
+                tasks={[]}
                 whatsappConnection={legacyWhatsAppConnection}
               />
             ) : route === 'inbox' ? (
@@ -344,7 +346,9 @@ export function OwnerAppNavigator(props: { onSignOut: () => void }): ReactElemen
                 onDismissAll={async () => undefined}
                 onDismissNotification={async () => undefined}
                 onOpenAlertProduct={() => undefined}
+                onOpenTaskDetail={() => undefined}
                 onOpenTasks={() => undefined}
+                tasks={[]}
               />
             ) : route === 'account' ? (
               <AccountScreen

@@ -9,7 +9,6 @@ import {
   productDetailRoute,
   routes,
   taskDetailRoute,
-  tasksRoute,
 } from '../../../src/navigation/routes';
 import { TasksScreen } from '../../../src/screens/TasksScreen';
 

@@ -3,7 +3,7 @@ import { useRouter } from 'expo-router';
 
 import { useOwnerSessionContext } from '../../src/context/OwnerSessionProvider';
 import { useOwnerTasks } from '../../src/hooks/useOwnerTasks';
-import { productDetailRoute, routes, tasksRoute } from '../../src/navigation/routes';
+import { productDetailRoute, taskDetailRoute, tasksRoute } from '../../src/navigation/routes';
 import { NotificationsScreen } from '../../src/screens/NotificationsScreen';
 
 export default function NotificationsRoute(): ReactElement {
@@ -20,8 +20,10 @@ export default function NotificationsRoute(): ReactElement {
       notifications={tasksState.notifications}
       onDismissAll={tasksState.dismissAllNotifications}
       onDismissNotification={tasksState.dismissNotification}
-      onOpenAlertProduct={(productId) => router.push(productDetailRoute(productId, 'tasks-portal'))}
-      onOpenTasks={() => router.push(tasksRoute('follow_up'))}
+      onOpenAlertProduct={(productId) => router.push(productDetailRoute(productId, 'notifications'))}
+      onOpenTaskDetail={(taskId) => router.push(taskDetailRoute(taskId, 'notifications'))}
+      onOpenTasks={() => router.push(tasksRoute())}
+      tasks={tasksState.tasks}
     />
   );
 }
