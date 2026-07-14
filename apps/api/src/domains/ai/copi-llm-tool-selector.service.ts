@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 
 import {
   buildIntentQuestion,
@@ -11,6 +11,8 @@ import { buildCopiSystemPrompt } from './prompts/copi-prompt-composer';
 
 @Injectable()
 export class CopiLlmToolSelectorService {
+  private readonly logger = new Logger(CopiLlmToolSelectorService.name);
+
   async selectTools(params: {
     enabled: boolean;
     history?: CopiConversationTurn[];
@@ -25,6 +27,9 @@ export class CopiLlmToolSelectorService {
 
     const apiKey = process.env.OPENAI_API_KEY?.trim();
     if (!apiKey) {
+      this.logger.warn(
+        'Copi tool selector is using rule-based routing because OPENAI_API_KEY is not set. Natural intent detection requires this env var.',
+      );
       return { source: 'rules', tools: rulesTools };
     }
 
@@ -60,6 +65,10 @@ export class CopiLlmToolSelectorService {
       });
 
       if (!response.ok) {
+        const errorBody = await response.text().catch(() => '');
+        this.logger.error(
+          `Copi tool selector OpenAI request failed (${response.status} ${response.statusText}); falling back to rules. ${errorBody.slice(0, 500)}`,
+        );
         return { source: 'rules', tools: rulesTools };
       }
 
@@ -70,7 +79,10 @@ export class CopiLlmToolSelectorService {
       const llmTools = sanitizeSelectedTools(parseToolsJson(content));
 
       return reconcileToolSelection(llmTools, rulesTools);
-    } catch {
+    } catch (error) {
+      this.logger.error(
+        `Copi tool selector OpenAI request threw; falling back to rules. ${error instanceof Error ? error.message : String(error)}`,
+      );
       return { source: 'rules', tools: rulesTools };
     }
   }

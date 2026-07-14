@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 
 import { buildGreetingReply, hasGreeting } from './copi-intent-router';
 import {
@@ -11,6 +11,8 @@ import { buildCopiSystemPrompt } from './prompts/copi-prompt-composer';
 
 @Injectable()
 export class CopiLlmPhraserService {
+  private readonly logger = new Logger(CopiLlmPhraserService.name);
+
   constructor(private readonly policyService: CopiPolicyService) {}
 
   async phraseAnswer(params: {
@@ -41,6 +43,9 @@ export class CopiLlmPhraserService {
 
     const apiKey = process.env.OPENAI_API_KEY?.trim();
     if (!apiKey) {
+      this.logger.warn(
+        'Copi phraser is using canned templates because OPENAI_API_KEY is not set. Natural replies require this env var.',
+      );
       return {
         answer: withLinks(
           buildTemplateAnswer(
@@ -107,6 +112,10 @@ export class CopiLlmPhraserService {
       });
 
       if (!response.ok) {
+        const errorBody = await response.text().catch(() => '');
+        this.logger.error(
+          `Copi phraser OpenAI request failed (${response.status} ${response.statusText}); falling back to templates. ${errorBody.slice(0, 500)}`,
+        );
         return {
           answer: withLinks(
             buildTemplateAnswer(
@@ -141,7 +150,10 @@ export class CopiLlmPhraserService {
           outputTokens: body.usage?.completion_tokens ?? 0,
         },
       };
-    } catch {
+    } catch (error) {
+      this.logger.error(
+        `Copi phraser OpenAI request threw; falling back to templates. ${error instanceof Error ? error.message : String(error)}`,
+      );
       return {
         answer: withLinks(
           buildTemplateAnswer(
