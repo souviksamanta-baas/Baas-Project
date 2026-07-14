@@ -17,13 +17,16 @@ import {
 import type { OwnerDashboard } from '../types/dashboard';
 import type { InboxConversationSummary } from '../types/messages';
 import { formatWeeklySales } from '../lib/formatCurrency';
+import { buildWorkQueue, formatWorkQueueTime } from '../lib/workQueue';
 import { whatsappConnectionLabel } from '../lib/whatsappPresentation';
-import { notifications } from '../api/mockData';
+import type { OwnerNotification } from '../types/tasks';
 import { colors, shadows } from '../theme';
 
 export function HomeScreen(props: {
   conversations: InboxConversationSummary[];
   metrics: OwnerDashboard['metrics'] | null;
+  notifications: OwnerNotification[];
+  onOpenAlertProduct: (productId: string) => void;
   onOpenConversation: (conversationId: string) => void;
   onOpenManageStock: () => void;
   onOpenNotifications: () => void;
@@ -41,7 +44,6 @@ export function HomeScreen(props: {
     lastStatusCheckAt: null,
     lastError: null,
   };
-  const connectionCopy = whatsappConnectionLabel(connection);
   const dashboardMetrics = [
     { id: 'messages', label: 'Mensajes hoy', tone: 'green' as const, value: String(props.metrics?.messagesToday ?? 0) },
     {
@@ -63,6 +65,8 @@ export function HomeScreen(props: {
       value: formatWeeklySales(props.metrics?.weeklySalesCents ?? 0),
     },
   ];
+  const connectionCopy = whatsappConnectionLabel(connection);
+  const recentAlerts = buildWorkQueue([], props.notifications).slice(0, 3);
 
   return (
     <ScreenContent>
@@ -106,6 +110,11 @@ export function HomeScreen(props: {
           {(props.metrics?.pendingFollowUps ?? 0) > 0 ? (
             <Pressable onPress={props.onOpenTasks} style={styles.tasksLink}>
               <Text style={styles.tasksLinkText}>Ver seguimientos pendientes</Text>
+            </Pressable>
+          ) : null}
+          {(props.metrics?.lowStockItems ?? 0) > 0 ? (
+            <Pressable onPress={props.onOpenNotifications} style={styles.tasksLink}>
+              <Text style={styles.tasksLinkText}>Ver alertas de stock</Text>
             </Pressable>
           ) : null}
         </Card>
@@ -152,8 +161,29 @@ export function HomeScreen(props: {
           headerAction={{ label: 'Ver todas', onPress: props.onOpenNotifications }}
           title="Alertas recientes"
         >
-          {notifications.slice(0, 3).map((notification) => (
-            <NotificationRow key={notification.id} notification={notification} />
+          {recentAlerts.length === 0 ? (
+            <Text style={styles.emptyBody}>No hay alertas activas.</Text>
+          ) : null}
+          {recentAlerts.map((alert) => (
+            <NotificationRow
+              key={alert.id}
+              notification={{
+                id: alert.id,
+                subtitle: alert.subtitle,
+                time: formatWorkQueueTime(alert.timestamp),
+                title: alert.title,
+                tone: alert.tone,
+                unread: alert.isUnread,
+              }}
+              onPress={() => {
+                if (alert.productId) {
+                  props.onOpenAlertProduct(alert.productId);
+                  return;
+                }
+
+                props.onOpenNotifications();
+              }}
+            />
           ))}
         </ListBox>
       </FeatureGate>

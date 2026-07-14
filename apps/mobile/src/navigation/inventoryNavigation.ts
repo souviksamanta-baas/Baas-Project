@@ -65,6 +65,11 @@ export function navigateInventoryReturn(
     return;
   }
 
+  if (options.returnTo === 'tasks-portal') {
+    router.replace(routes.tasks);
+    return;
+  }
+
   router.replace(resolveInventoryReturnRoute(options.returnTo, options.productId));
 }
 

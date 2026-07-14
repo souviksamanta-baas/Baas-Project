@@ -227,6 +227,18 @@ KAN-70 owner-approved AI drafts and allowed auto-send replies also route through
 adds optional `organizations.business_hours` enforcement, so enabled business
 hours restrict auto-send to configured days and local start/end times.
 
+## Follow-up tasks from idle conversations
+
+Inbound WhatsApp messages update `conversations.last_message_at`. The scheduled
+task maintenance job (`POST /tasks/run-maintenance`, see `docs/api-deployment.md`)
+creates duplicate-safe `owner_tasks` follow-up rows when open conversations are
+idle beyond each center's `ai_follow_up_delay_hours`. Low-stock
+`owner_notifications` are created in the same job. The mobile Task Portal surfaces
+both item types; no webhook change is required for portal reads.
+
+Idle conversation → follow-up task flow is server-side automation only. Outbound
+task reminder pushes are not part of the current webhook surface.
+
 ## Duplicate Deliveries
 
 Durable duplicate detection uses the database unique constraint on:

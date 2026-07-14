@@ -150,6 +150,12 @@ endpoint returns service unavailable instead of running automation.
 Do not expose this secret to Expo/mobile builds. It belongs only in the API
 runtime and whichever scheduler invokes the backend job.
 
+Operational checklist for Task Portal alerts:
+
+- Schedule `POST /tasks/run-maintenance` (cron or external scheduler).
+- Confirm `BAAS_TASKS_JOB_SECRET` matches the caller header `x-baas-job-secret`.
+- Owners enable Expo push on device for low-stock notifications (`owner_device_tokens`).
+
 ## Local Files
 
 Use `.env.local` for developer machines. The repository `.gitignore` ignores

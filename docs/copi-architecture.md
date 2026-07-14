@@ -65,6 +65,16 @@ Server env: `OPENAI_API_KEY`, optional `OPENAI_MODEL` / `OPENAI_VISION_MODEL`.
 - `apps/api/src/domains/ai/copi-action.service.ts`
 - `apps/mobile/src/hooks/useOwnerCopilot.ts`
 - `apps/mobile/src/api/ai.ts`
+- `apps/mobile/src/lib/workQueue.ts` — Task Portal presentation; product links in chat use `returnTo` navigation to inventory and back to Copi chat
+
+## Task Portal integration
+
+Copi task write tools (`create_task`, `assign_task`, etc.) execute through
+`copi-action.service.ts` after owner confirmation. Task and alert reads in the
+mobile Centro de tareas use the same `owner_tasks` / `owner_notifications` data.
+Product names in Copi answers link to inventory with `[[product:UUID|Name]]` markup;
+from Copi chat, product detail back navigation returns to chat (`returnTo=copi-chat`).
+From the task portal, low-stock alerts open product detail with `returnTo=tasks-portal`.
 
 ## Database
 

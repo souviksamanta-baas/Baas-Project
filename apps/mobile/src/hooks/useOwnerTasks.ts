@@ -4,6 +4,7 @@ import { Alert } from 'react-native';
 
 import {
   completeOwnerTask,
+  dismissAllOwnerNotifications,
   dismissOwnerNotification,
   getOwnerNotifications,
   getOwnerTasks,
@@ -15,6 +16,7 @@ import type { OwnerNotification, OwnerTask } from '../types/tasks';
 
 export interface OwnerTasksState {
   completeTask: (taskId: string) => Promise<void>;
+  dismissAllNotifications: () => Promise<void>;
   dismissNotification: (notificationId: string) => Promise<void>;
   enablePushNotifications: () => Promise<void>;
   errorMessage: string | null;
@@ -142,6 +144,20 @@ export function useOwnerTasks(
     [businessCenterId, loadTasks, organizationId],
   );
 
+  const dismissAllNotifications = useCallback(async (): Promise<void> => {
+    if (!organizationId || !businessCenterId) {
+      return;
+    }
+
+    await runTaskAction({
+      action: () => dismissAllOwnerNotifications(organizationId, businessCenterId),
+      failureTitle: 'Could not dismiss alerts',
+      refresh: loadTasks,
+      setErrorMessage,
+      setIsSaving,
+    });
+  }, [businessCenterId, loadTasks, organizationId]);
+
   const enablePushNotifications = useCallback(async (): Promise<void> => {
     if (!organizationId || !businessCenterId) {
       return;
@@ -176,6 +192,7 @@ export function useOwnerTasks(
 
   return {
     completeTask,
+    dismissAllNotifications,
     dismissNotification,
     enablePushNotifications,
     errorMessage,

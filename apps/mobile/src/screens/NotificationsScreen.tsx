@@ -1,35 +1,100 @@
 import type { ReactElement } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { useMemo, useState } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { notifications } from '../api/mockData';
 import { Card, NotificationRow, ScreenContent, ScreenTitle } from '../components/ui';
 import { FeatureGate } from '../hooks/useFeatureVisibility';
+import {
+  buildWorkQueue,
+  filterWorkQueue,
+  formatWorkQueueTime,
+  type WorkQueueFilter,
+} from '../lib/workQueue';
+import type { OwnerNotification } from '../types/tasks';
 import { colors } from '../theme';
 
-export function NotificationsScreen(): ReactElement {
+const FILTERS: Array<{ id: WorkQueueFilter | 'unread'; label: string }> = [
+  { id: 'all', label: 'Todas' },
+  { id: 'unread', label: 'No leidas' },
+  { id: 'stock', label: 'Stock' },
+  { id: 'follow_up', label: 'Seguimientos' },
+];
+
+export function NotificationsScreen(props: {
+  isLoading?: boolean;
+  isSaving?: boolean;
+  notifications: OwnerNotification[];
+  onDismissAll: () => Promise<void>;
+  onDismissNotification: (notificationId: string) => Promise<void>;
+  onOpenAlertProduct: (productId: string) => void;
+  onOpenTasks: () => void;
+}): ReactElement {
+  const [activeFilter, setActiveFilter] = useState<WorkQueueFilter | 'unread'>('all');
+  const items = useMemo(() => {
+    const queue = buildWorkQueue([], props.notifications);
+    if (activeFilter === 'unread') {
+      return queue.filter((item) => item.isUnread);
+    }
+
+    return filterWorkQueue(queue, activeFilter);
+  }, [activeFilter, props.notifications]);
+
   return (
     <ScreenContent>
       <View style={styles.titleRow}>
         <ScreenTitle subtitle="Todo lo que necesita tu atencion" title="Notificaciones" />
-        <Text style={styles.markRead}>Marcar todas como leidas</Text>
+        <Pressable disabled={props.isSaving} onPress={() => void props.onDismissAll()}>
+          <Text style={styles.markRead}>Marcar todas como leidas</Text>
+        </Pressable>
       </View>
 
       <FeatureGate feature="notificationsFilters">
         <View style={styles.filterRow}>
-          {['Todas', 'No leidas', 'Stock', 'Seguimientos', 'Ventas'].map((filter, index) => (
-            <View key={filter} style={[styles.filterPill, index === 0 && styles.activeFilterPill]}>
-              <Text style={[styles.filterText, index === 0 && styles.activeFilterText]}>{filter}</Text>
-            </View>
+          {FILTERS.map((filter) => (
+            <Pressable
+              key={filter.id}
+              onPress={() => setActiveFilter(filter.id)}
+              style={[styles.filterPill, activeFilter === filter.id && styles.activeFilterPill]}
+            >
+              <Text style={[styles.filterText, activeFilter === filter.id && styles.activeFilterText]}>
+                {filter.label}
+              </Text>
+            </Pressable>
           ))}
         </View>
       </FeatureGate>
 
       <FeatureGate feature="notificationsList">
-        <Card>
-          {notifications.map((notification) => (
-            <NotificationRow key={notification.id} notification={notification} />
-          ))}
-        </Card>
+        {props.isLoading ? <Text style={styles.emptyText}>Cargando alertas...</Text> : null}
+        {!props.isLoading && items.length === 0 ? (
+          <Card style={styles.emptyCard}>
+            <Text style={styles.emptyText}>No hay alertas activas.</Text>
+          </Card>
+        ) : (
+          <Card>
+            {items.map((item) => (
+              <NotificationRow
+                key={item.id}
+                notification={{
+                  id: item.id,
+                  subtitle: item.subtitle,
+                  time: formatWorkQueueTime(item.timestamp),
+                  title: item.title,
+                  tone: item.tone,
+                  unread: item.isUnread,
+                }}
+                onPress={() => {
+                  if (item.productId) {
+                    props.onOpenAlertProduct(item.productId);
+                    return;
+                  }
+
+                  props.onOpenTasks();
+                }}
+              />
+            ))}
+          </Card>
+        )}
       </FeatureGate>
     </ScreenContent>
   );
@@ -41,6 +106,13 @@ const styles = StyleSheet.create({
   },
   activeFilterText: {
     color: colors.primary,
+  },
+  emptyCard: {
+    padding: 16,
+  },
+  emptyText: {
+    color: colors.slate,
+    fontSize: 12,
   },
   filterPill: {
     borderColor: colors.border,

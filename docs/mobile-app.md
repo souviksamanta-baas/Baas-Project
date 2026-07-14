@@ -253,6 +253,36 @@ KAN-69 adds an owner task surface to the mobile dashboard:
 - Subscribes to center-scoped task and notification Realtime changes.
 - Shows foreground in-app alerts when a new notification arrives.
 
+### Task Portal (Centro de tareas)
+
+The mobile app exposes a unified work queue at `/(app)/tasks` that combines live
+`owner_tasks` and `owner_notifications` through `WorkQueueItem` in
+`apps/mobile/src/lib/workQueue.ts`.
+
+Routes:
+
+- `/(app)/tasks` — filtered portal (`?filter=all|follow_up|stock|overdue|snoozed`)
+- `/(app)/tasks/[taskId]` — task detail with `?returnTo=tasks-portal|notifications|home`
+- `/(app)/notifications` — live alerts (no mock data); dismiss all supported
+
+Navigation:
+
+- Home recent alerts and Notifications use live `owner_notifications`.
+- Low-stock alert rows open product detail with `returnTo=tasks-portal`.
+- Follow-up task rows open conversation or task detail.
+- Copi portal entry: “Pedile a Copi que cree o asigne tareas” opens chat.
+
+Jira: KAN-268 (Tasks Navigation), KAN-269 (list routes), KAN-270 (detail + cross-links), epic KAN-326.
+
+Known gaps (deferred):
+
+- No authenticated REST task CRUD on API; mobile uses Supabase RLS.
+- Notifications support only `low_stock`; no read/unread column.
+- Push deep links into portal routes not yet implemented.
+- External scheduler must call `POST /tasks/run-maintenance`.
+
+See also `docs/phase-3-scope.md` for Phase 3 candidates.
+
 Low-stock push alerts use Expo notifications. The owner taps **Enable low-stock
 push alerts**, grants permission, and the app registers the Expo push token in
 `owner_device_tokens` through authenticated Supabase RLS. The mobile app stores

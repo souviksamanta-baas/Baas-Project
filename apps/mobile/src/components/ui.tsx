@@ -145,9 +145,19 @@ export function ConversationRow(props: {
   );
 }
 
-export function NotificationRow(props: { notification: NotificationMock }): ReactElement {
-  return (
-    <View style={styles.listRow}>
+export function NotificationRow(props: {
+  notification: NotificationMock | {
+    id: string;
+    subtitle?: string | null;
+    time: string;
+    title: string;
+    tone: Tone;
+    unread?: boolean;
+  };
+  onPress?: () => void;
+}): ReactElement {
+  const content = (
+    <>
       <ToneIcon tone={props.notification.tone} />
       <View style={styles.flex}>
         <Text style={styles.listTitle}>{props.notification.title}</Text>
@@ -159,8 +169,18 @@ export function NotificationRow(props: { notification: NotificationMock }): Reac
         <Text style={styles.timestamp}>{props.notification.time}</Text>
         {props.notification.unread ? <StatusDot /> : null}
       </View>
-    </View>
+    </>
   );
+
+  if (props.onPress) {
+    return (
+      <Pressable onPress={props.onPress} style={styles.listRow}>
+        {content}
+      </Pressable>
+    );
+  }
+
+  return <View style={styles.listRow}>{content}</View>;
 }
 
 export function ActionRow(props: {

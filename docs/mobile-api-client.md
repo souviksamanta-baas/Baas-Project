@@ -89,6 +89,21 @@ Work in order. Each layer is a separate Jira story under KAN-278.
 | `approveAiDraft` / `rejectAiDraft` | `POST /ai/drafts/:id/approve\|reject` | Customer reply drafts |
 | `getPendingAiDrafts` | Supabase `ai_drafts` | RLS read + Realtime subscription |
 
+## `api/tasks.ts` (Supabase)
+
+| Function | Data source | Notes |
+| --- | --- | --- |
+| `getOwnerTasks` / `getOwnerTask` | `owner_tasks` | Pending/snoozed list; single task for detail route |
+| `getOwnerNotifications` | `owner_notifications` | Live low-stock alerts for portal and Home |
+| `completeOwnerTask` / `snoozeOwnerTask` | `owner_tasks` | Status updates via RLS |
+| `dismissOwnerNotification` / `dismissAllOwnerNotifications` | `owner_notifications` | Dismiss alerts |
+| `registerOwnerPushToken` | `owner_device_tokens` | Expo push registration |
+| `subscribeToOwnerTaskChanges` | Realtime | Tasks + notifications refresh |
+
+Presentation layer: `apps/mobile/src/lib/workQueue.ts` (`WorkQueueItem`) merges tasks
+and alerts for Centro de tareas. No NestJS task CRUD routes yet — see
+`docs/phase-3-scope.md`.
+
 Feature visibility comes from dashboard `features` (`useFeatureVisibility`). See
 `docs/copi-architecture.md`.
 

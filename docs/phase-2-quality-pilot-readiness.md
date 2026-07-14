@@ -77,6 +77,10 @@ Verification steps:
 - Confirm follow-up task generation uses persisted business center
   `ai_follow_up_delay_hours`.
 - Confirm owners can complete or snooze tasks and dismiss notifications.
+- Confirm the Task Portal at `/(app)/tasks` shows live tasks and low-stock alerts with filters.
+- Confirm Home and Notifications screens use live `owner_notifications` (not mock data).
+- Confirm low-stock alert rows open product detail with `returnTo=tasks-portal` back navigation.
+- Confirm task detail route `/(app)/tasks/[taskId]` shows description, status, and actions.
 - Confirm tenant A cannot read tenant B tasks, notifications, or device tokens.
 
 Evidence:
@@ -310,6 +314,8 @@ Measurement:
 - Push notifications depend on Expo push token registration on the owner device.
 - Scheduler behavior depends on `BAAS_TASKS_JOB_SECRET` being configured in the
   API runtime and scheduler caller.
+- Task Portal uses Supabase RLS for task/alert reads and updates; authenticated
+  NestJS task CRUD endpoints are not exposed yet (see `docs/phase-3-scope.md`).
 
 ## Support Escalation
 

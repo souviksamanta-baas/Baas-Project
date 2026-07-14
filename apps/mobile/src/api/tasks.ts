@@ -1,5 +1,5 @@
 import { supabase } from '../lib/supabase';
-import type { OwnerNotification, OwnerTask, OwnerTaskStatus } from '../types/tasks';
+import type { OwnerNotification, OwnerTask, OwnerTaskStatus, OwnerTaskType } from '../types/tasks';
 
 interface ContactRow {
   display_name: string | null;
@@ -17,12 +17,15 @@ interface OwnerTaskRow {
   description: string | null;
   due_at: string | null;
   id: string;
+  priority: 'low' | 'normal' | 'high' | null;
   snoozed_until: string | null;
   status: OwnerTaskStatus;
+  task_type: OwnerTaskType | null;
   title: string;
 }
 
 interface ProductRow {
+  id: string;
   name: string;
   reorder_threshold: number;
   stock_quantity: number;
@@ -33,11 +36,21 @@ interface OwnerNotificationRow {
   created_at: string;
   error_message: string | null;
   id: string;
+  notification_type: 'low_stock';
+  payload: {
+    productId?: string;
+    reorderThreshold?: number;
+    stockQuantity?: number;
+  } | null;
+  product_id: string | null;
   products: ProductRow | ProductRow[] | null;
   push_sent_at: string | null;
   status: 'pending' | 'sent' | 'failed' | 'dismissed';
   title: string;
 }
+
+const TASK_SELECT =
+  'id, conversation_id, title, description, status, due_at, snoozed_until, task_type, priority, contacts(display_name, phone_number), conversations(external_contact_id)';
 
 export async function getOwnerTasks(
   organizationId: string,
@@ -45,9 +58,7 @@ export async function getOwnerTasks(
 ): Promise<OwnerTask[]> {
   const { data, error } = await supabase
     .from('owner_tasks')
-    .select(
-      'id, conversation_id, title, description, status, due_at, snoozed_until, contacts(display_name, phone_number), conversations(external_contact_id)',
-    )
+    .select(TASK_SELECT)
     .eq('organization_id', organizationId)
     .eq('business_center_id', businessCenterId)
     .in('status', ['pending', 'snoozed'])
@@ -58,6 +69,26 @@ export async function getOwnerTasks(
   }
 
   return (data as OwnerTaskRow[]).map(toOwnerTask);
+}
+
+export async function getOwnerTask(
+  organizationId: string,
+  businessCenterId: string,
+  taskId: string,
+): Promise<OwnerTask | null> {
+  const { data, error } = await supabase
+    .from('owner_tasks')
+    .select(TASK_SELECT)
+    .eq('organization_id', organizationId)
+    .eq('business_center_id', businessCenterId)
+    .eq('id', taskId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data ? toOwnerTask(data as OwnerTaskRow) : null;
 }
 
 export async function completeOwnerTask(
@@ -88,17 +119,18 @@ export async function snoozeOwnerTask(
 export async function getOwnerNotifications(
   organizationId: string,
   businessCenterId: string,
+  limit = 50,
 ): Promise<OwnerNotification[]> {
   const { data, error } = await supabase
     .from('owner_notifications')
     .select(
-      'id, title, body, status, push_sent_at, error_message, created_at, products(name, stock_quantity, reorder_threshold)',
+      'id, title, body, status, notification_type, payload, product_id, push_sent_at, error_message, created_at, products(id, name, stock_quantity, reorder_threshold)',
     )
     .eq('organization_id', organizationId)
     .eq('business_center_id', businessCenterId)
     .neq('status', 'dismissed')
     .order('created_at', { ascending: false })
-    .limit(5);
+    .limit(limit);
 
   if (error) {
     throw new Error(error.message);
@@ -118,6 +150,22 @@ export async function dismissOwnerNotification(
     .eq('organization_id', organizationId)
     .eq('business_center_id', businessCenterId)
     .eq('id', notificationId);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
+export async function dismissAllOwnerNotifications(
+  organizationId: string,
+  businessCenterId: string,
+): Promise<void> {
+  const { error } = await supabase
+    .from('owner_notifications')
+    .update({ status: 'dismissed' })
+    .eq('organization_id', organizationId)
+    .eq('business_center_id', businessCenterId)
+    .neq('status', 'dismissed');
 
   if (error) {
     throw new Error(error.message);
@@ -235,20 +283,26 @@ function toOwnerTask(row: OwnerTaskRow): OwnerTask {
     description: row.description,
     dueAt: row.due_at,
     id: row.id,
+    priority: row.priority ?? 'normal',
     snoozedUntil: row.snoozed_until,
     status: row.status,
+    taskType: row.task_type ?? 'follow_up',
     title: row.title,
   };
 }
 
 function toOwnerNotification(row: OwnerNotificationRow): OwnerNotification {
   const product = Array.isArray(row.products) ? row.products[0] : row.products;
+  const productId = row.product_id ?? row.payload?.productId ?? product?.id ?? null;
 
   return {
     body: row.body,
     createdAt: row.created_at,
     errorMessage: row.error_message,
     id: row.id,
+    notificationType: row.notification_type,
+    payload: row.payload ?? {},
+    productId,
     productLabel: product
       ? `${product.name}: ${product.stock_quantity}/${product.reorder_threshold}`
       : null,

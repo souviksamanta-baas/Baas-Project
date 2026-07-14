@@ -309,6 +309,8 @@ export function OwnerAppNavigator(props: { onSignOut: () => void }): ReactElemen
               <HomeScreen
                 conversations={legacyInboxConversations}
                 metrics={null}
+                notifications={[]}
+                onOpenAlertProduct={() => undefined}
                 onOpenConversation={openConversation}
                 onOpenManageStock={openManageStock}
                 onOpenNotifications={() => setRoute('notifications')}
@@ -337,7 +339,13 @@ export function OwnerAppNavigator(props: { onSignOut: () => void }): ReactElemen
                 setQuestionDraft={setCopiDraft}
               />
             ) : route === 'notifications' ? (
-              <NotificationsScreen />
+              <NotificationsScreen
+                notifications={[]}
+                onDismissAll={async () => undefined}
+                onDismissNotification={async () => undefined}
+                onOpenAlertProduct={() => undefined}
+                onOpenTasks={() => undefined}
+              />
             ) : route === 'account' ? (
               <AccountScreen
                 businessCenterName={ownerProfile.activeBranch}

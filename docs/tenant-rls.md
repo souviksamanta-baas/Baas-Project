@@ -92,6 +92,10 @@ Phase 2 follow-up tasks and notifications are center-scoped under the
 organization. The API service role creates follow-up tasks and low-stock
 notification rows from trusted automation, while authenticated organization
 members can read and update task or notification status for their own center.
+`owner_tasks` also allows authenticated owners to insert manual tasks
+(`owner_tasks_insert_owners` policy from `20260705200000_copi_foundation.sql`).
+Mobile Task Portal uses select/update on tasks and notifications via RLS; NestJS
+authenticated task CRUD is deferred (`docs/phase-3-scope.md`).
 
 `owner_device_tokens` is scoped to both organization membership and the current
 `auth.uid()`. Owners and staff can register or update only their own device token

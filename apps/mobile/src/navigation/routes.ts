@@ -24,6 +24,66 @@ export const routes = {
   tasks: '/(app)/tasks',
 } as const;
 
+export type WorkQueueFilter = 'all' | 'follow_up' | 'stock' | 'overdue' | 'snoozed' | 'completed';
+
+export function tasksRoute(filter?: WorkQueueFilter): string {
+  if (!filter || filter === 'all') {
+    return routes.tasks;
+  }
+
+  return `${routes.tasks}?filter=${filter}`;
+}
+
+export function taskDetailRoute(taskId: string, returnTo?: TaskReturnTo): string {
+  const path = `/(app)/tasks/${taskId}`;
+
+  if (!returnTo) {
+    return path;
+  }
+
+  return `${path}?returnTo=${returnTo}`;
+}
+
+export type TaskReturnTo = 'tasks-portal' | 'notifications' | 'home';
+
+export function parseTaskReturnTo(value: string | string[] | undefined): TaskReturnTo | undefined {
+  const raw = Array.isArray(value) ? value[0] : value;
+
+  if (raw === 'tasks-portal' || raw === 'notifications' || raw === 'home') {
+    return raw;
+  }
+
+  return undefined;
+}
+
+export function resolveTaskReturnRoute(returnTo: TaskReturnTo | undefined): string {
+  if (returnTo === 'notifications') {
+    return routes.notifications;
+  }
+
+  if (returnTo === 'home') {
+    return routes.appHome;
+  }
+
+  return routes.tasks;
+}
+
+export function parseWorkQueueFilter(value: string | string[] | undefined): WorkQueueFilter {
+  const raw = Array.isArray(value) ? value[0] : value;
+
+  if (
+    raw === 'follow_up' ||
+    raw === 'stock' ||
+    raw === 'overdue' ||
+    raw === 'snoozed' ||
+    raw === 'completed'
+  ) {
+    return raw;
+  }
+
+  return 'all';
+}
+
 export function tabRoute(tab: AppTab): string {
   switch (tab) {
     case 'home':
@@ -54,7 +114,7 @@ export function productDetailRoute(
   return `${path}?returnTo=${returnTo}`;
 }
 
-export type InventoryReturnTo = 'manage-stock' | 'product-detail' | 'sell' | 'copi-chat';
+export type InventoryReturnTo = 'manage-stock' | 'product-detail' | 'sell' | 'copi-chat' | 'tasks-portal';
 
 export function parseInventoryReturnTo(
   value: string | string[] | undefined,
@@ -65,7 +125,8 @@ export function parseInventoryReturnTo(
     raw === 'manage-stock' ||
     raw === 'product-detail' ||
     raw === 'sell' ||
-    raw === 'copi-chat'
+    raw === 'copi-chat' ||
+    raw === 'tasks-portal'
   ) {
     return raw;
   }
@@ -87,6 +148,10 @@ export function resolveInventoryReturnRoute(
 
   if (returnTo === 'copi-chat') {
     return routes.appCopiChat;
+  }
+
+  if (returnTo === 'tasks-portal') {
+    return routes.tasks;
   }
 
   return routes.inventoryManageStock;
@@ -233,7 +298,8 @@ export function shouldHideBottomNav(pathname: string): boolean {
     pathname.endsWith('/copi/chat') ||
     pathname.endsWith('/whatsapp-connect') ||
     pathname.endsWith('/staff-invite') ||
-    pathname.endsWith('/edit-profile')
+    pathname.endsWith('/edit-profile') ||
+    /\/tasks\/[^/]+$/.test(pathname)
   );
 }
 

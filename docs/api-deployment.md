@@ -191,6 +191,15 @@ The trigger:
 If `BAAS_TASKS_JOB_SECRET` is missing or the header does not match, the endpoint
 does not run the job.
 
+### Task Portal API gap
+
+The mobile Task Portal (`docs/mobile-app.md`) reads and updates `owner_tasks` and
+`owner_notifications` through Supabase RLS via `apps/mobile/src/api/tasks.ts`.
+The NestJS `TasksController` currently exposes only `POST /tasks/run-maintenance`;
+authenticated task list/create/update endpoints are deferred to Phase 3
+(`docs/phase-3-scope.md`). `TasksService` already implements internal task
+operations used by Copi action confirmation.
+
 ## Deployment Verification
 
 After Railway is connected to the repository and variables are configured:
