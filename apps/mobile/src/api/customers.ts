@@ -1,4 +1,9 @@
-import * as Contacts from 'expo-contacts';
+import {
+  Contact,
+  ContactField,
+  ContactsSortOrder,
+  requestPermissionsAsync,
+} from 'expo-contacts';
 
 import { normalizePhoneNumber } from '../services/phone';
 
@@ -9,23 +14,22 @@ export interface DeviceContactOption {
 }
 
 export async function loadDeviceContacts(): Promise<DeviceContactOption[]> {
-  const permission = await Contacts.requestPermissionsAsync();
+  const permission = await requestPermissionsAsync();
 
   if (permission.status !== 'granted') {
     throw new Error('Necesitamos acceso a contactos para buscar un número.');
   }
 
-  const { data } = await Contacts.getContactsAsync({
-    fields: [Contacts.Fields.PhoneNumbers, Contacts.Fields.Name],
-    pageSize: 500,
-    sort: Contacts.SortTypes.FirstName,
+  const contacts = await Contact.getAllDetails([ContactField.FULL_NAME, ContactField.PHONES], {
+    limit: 500,
+    sortOrder: ContactsSortOrder.GivenName,
   });
 
   const options: DeviceContactOption[] = [];
 
-  for (const contact of data) {
-    const displayName = contact.name?.trim() || 'Sin nombre';
-    const numbers = contact.phoneNumbers ?? [];
+  for (const contact of contacts) {
+    const displayName = contact.fullName?.trim() || 'Sin nombre';
+    const numbers = contact.phones ?? [];
 
     for (const phone of numbers) {
       const rawPhone = phone.number?.trim();

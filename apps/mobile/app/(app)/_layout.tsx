@@ -1,11 +1,11 @@
 import { Slot, usePathname, useRouter } from 'expo-router';
-import { useEffect, useState, type ReactElement } from 'react';
+import { useEffect, type ReactElement } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 
-import { branches, ownerProfile } from '../../src/api/mockData';
 import { MobileOverlayProvider } from '../../src/components/MobileContainedModal';
 import { AppHeader, BottomNavigation } from '../../src/components/ui';
 import type { AppTab } from '../../src/components/ui';
+import { HeaderChromeProvider } from '../../src/context/HeaderChromeProvider';
 import { InboxProvider } from '../../src/context/InboxProvider';
 import { useOwnerSessionContext } from '../../src/context/OwnerSessionProvider';
 import { hasSupabaseConfig } from '../../src/lib/supabase';
@@ -22,7 +22,6 @@ export default function AppLayout(): ReactElement {
   const router = useRouter();
   const pathname = usePathname();
   const { authPhase } = useOwnerSessionContext();
-  const [showBranches, setShowBranches] = useState(false);
 
   useEffect(() => {
     if (!hasSupabaseConfig || authPhase === 'authenticated' || authPhase === 'loading') {
@@ -50,42 +49,36 @@ export default function AppLayout(): ReactElement {
   const hideBottomNav = shouldHideBottomNav(pathname);
 
   function selectTab(tab: AppTab): void {
-    setShowBranches(false);
     router.replace(tabRoute(tab));
   }
 
   function openSellProducts(): void {
-    setShowBranches(false);
     router.push(routes.inventorySell);
   }
 
   return (
-    <View style={[styles.root, Platform.OS === 'web' && styles.webRoot]}>
-      <AppHeader
-        activeBranch={ownerProfile.activeBranch}
-        branches={branches}
-        onOpenAccount={() => {
-          setShowBranches(false);
-          router.push(routes.account);
-        }}
-        onOpenNotifications={() => {
-          setShowBranches(false);
-          router.push(routes.notifications);
-        }}
-        onToggleBranches={() => setShowBranches((current) => !current)}
-        showBranches={showBranches}
-      />
-      <InboxProvider>
-        <MobileOverlayProvider>
-          <View style={styles.content}>
-            <Slot />
-          </View>
-        </MobileOverlayProvider>
-      </InboxProvider>
-      {hideBottomNav ? null : (
-        <BottomNavigation activeTab={activeTab} onOpenSell={openSellProducts} onSelectTab={selectTab} />
-      )}
-    </View>
+    <HeaderChromeProvider>
+      <View style={[styles.root, Platform.OS === 'web' && styles.webRoot]}>
+        <AppHeader
+          onOpenAccount={() => {
+            router.push(routes.account);
+          }}
+          onOpenNotifications={() => {
+            router.push(routes.notifications);
+          }}
+        />
+        <InboxProvider>
+          <MobileOverlayProvider>
+            <View style={styles.content}>
+              <Slot />
+            </View>
+          </MobileOverlayProvider>
+        </InboxProvider>
+        {hideBottomNav ? null : (
+          <BottomNavigation activeTab={activeTab} onOpenSell={openSellProducts} onSelectTab={selectTab} />
+        )}
+      </View>
+    </HeaderChromeProvider>
   );
 }
 
@@ -93,6 +86,7 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     minHeight: 0,
+    overflow: 'hidden',
   },
   root: {
     backgroundColor: colors.background,

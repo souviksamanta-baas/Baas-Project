@@ -15,6 +15,7 @@ import {
 } from '../components/ui';
 import { InfoBanner, PrimaryButton, SearchActionRow } from '../design-system';
 import { FeatureGate } from '../hooks/useFeatureVisibility';
+import { useHeaderScreenOptions } from '../hooks/useHeaderScreenOptions';
 import {
   defaultInboxFilters,
   filterInboxConversations,
@@ -78,7 +79,7 @@ export function InboxScreen(props: {
   const openCount = openConversationCount(props.conversations);
 
   return (
-    <ScreenContent>
+    <ScreenContent title="Inbox">
       <ScreenTitle subtitle="Todas tus conversaciones en un solo lugar" title="Inbox" />
 
       {connection.status === 'connected' && connection.displayPhoneNumber ? (
@@ -244,14 +245,10 @@ export function ConversationDetailScreen(props: {
   const [draft, setDraft] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
-  const channelLabel =
-    props.channel === 'instagram'
-      ? 'Instagram'
-      : props.channel === 'facebook'
-        ? 'Facebook'
-        : props.channel === 'email'
-          ? 'Email'
-          : 'WhatsApp';
+  useHeaderScreenOptions({
+    forceCollapsed: true,
+    title: props.customerName || props.displayPhoneNumber || 'Chat',
+  });
 
   async function handleSend(): Promise<void> {
     if (!props.onSendReply || !draft.trim() || isSending) {
@@ -273,47 +270,29 @@ export function ConversationDetailScreen(props: {
 
   return (
     <View style={styles.detailRoot}>
+      <View style={styles.chatToolbar}>
+        <Pressable hitSlop={8} onPress={props.onBack} style={styles.chatBackButton}>
+          <Text style={styles.backText}>‹</Text>
+        </Pressable>
+        {props.statusLabel ? <Text style={styles.leadBadge}>{props.statusLabel}</Text> : null}
+      </View>
       <View style={styles.detailBody}>
-        <Card flush>
-          <FeatureGate feature="chatProfileHeader">
-            <View style={styles.threadHeader}>
-              <Pressable onPress={props.onBack}>
-                <Text style={styles.backText}>‹</Text>
-              </Pressable>
-              <View style={styles.threadAvatar}>
-                <Text style={styles.threadAvatarText}>{props.threadAvatar ?? 'WA'}</Text>
-              </View>
-              <View style={styles.flex}>
-                <Text numberOfLines={1} style={styles.threadName}>{props.customerName}</Text>
-                <View style={styles.threadTags}>
-                  <View style={styles.channelBadgePill}>
-                    <Text style={styles.channelTagText}>{channelLabel}</Text>
-                  </View>
-                  {props.displayPhoneNumber ? (
-                    <Text style={styles.businessNumberText}>{props.displayPhoneNumber}</Text>
-                  ) : null}
-                  {props.statusLabel ? <Text style={styles.leadBadge}>{props.statusLabel}</Text> : null}
-                </View>
-              </View>
-            </View>
-          </FeatureGate>
-          <FeatureGate feature="chatMessages">
-            <View style={styles.chatArea}>
-              {props.isLoading ? <ActivityIndicator color={colors.primary} /> : null}
-              {!props.isLoading && props.messages.length === 0 ? (
-                <Text style={styles.emptyBody}>Todavía no hay mensajes en este hilo.</Text>
-              ) : null}
-              {props.messages.map((message) => (
-                <MessageBubble
-                  direction={message.direction === 'outbound' ? 'outbound' : 'inbound'}
-                  key={message.id}
-                  text={messageBubbleText(message)}
-                  time={messageBubbleTime(message)}
-                />
-              ))}
-            </View>
-          </FeatureGate>
-        </Card>
+        <FeatureGate feature="chatMessages">
+          <View style={styles.chatArea}>
+            {props.isLoading ? <ActivityIndicator color={colors.primary} /> : null}
+            {!props.isLoading && props.messages.length === 0 ? (
+              <Text style={styles.emptyBody}>Todavía no hay mensajes en este hilo.</Text>
+            ) : null}
+            {props.messages.map((message) => (
+              <MessageBubble
+                direction={message.direction === 'outbound' ? 'outbound' : 'inbound'}
+                key={message.id}
+                text={messageBubbleText(message)}
+                time={messageBubbleTime(message)}
+              />
+            ))}
+          </View>
+        </FeatureGate>
       </View>
       <FeatureGate feature="chatComposer">
         {sendError ? <Text style={styles.sendErrorText}>{sendError}</Text> : null}
@@ -367,11 +346,24 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   chatArea: {
-    backgroundColor: '#fcfdfc',
-    gap: 12,
+    backgroundColor: '#efeae2',
+    flexGrow: 1,
+    gap: 8,
     minHeight: 448,
-    paddingHorizontal: 18,
-    paddingVertical: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 16,
+  },
+  chatBackButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 28,
+  },
+  chatToolbar: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
   },
   chip: {
     backgroundColor: colors.surfaceMint,
@@ -400,9 +392,9 @@ const styles = StyleSheet.create({
   },
   detailBody: {
     flex: 1,
-    paddingHorizontal: 8,
   },
   detailRoot: {
+    backgroundColor: '#efeae2',
     flex: 1,
     justifyContent: 'space-between',
   },

@@ -275,12 +275,8 @@ export function OwnerAppNavigator(props: { onSignOut: () => void }): ReactElemen
   return (
     <View style={[styles.root, Platform.OS === 'web' && styles.webRoot]}>
       <AppHeader
-        activeBranch={ownerProfile.activeBranch}
-        branches={branches}
         onOpenAccount={() => setRoute('account')}
         onOpenNotifications={() => setRoute('notifications')}
-        onToggleBranches={() => setShowBranches((current) => !current)}
-        showBranches={showBranches}
       />
       {route === 'conversation' ? (
         <ConversationDetailScreen
@@ -312,6 +308,7 @@ export function OwnerAppNavigator(props: { onSignOut: () => void }): ReactElemen
                 notifications={[]}
                 onOpenAlertProduct={() => undefined}
                 onOpenConversation={openConversation}
+                onOpenLowStock={() => undefined}
                 onOpenManageStock={openManageStock}
                 onOpenNotifications={() => setRoute('notifications')}
                 onOpenTaskDetail={() => undefined}
@@ -352,13 +349,16 @@ export function OwnerAppNavigator(props: { onSignOut: () => void }): ReactElemen
               />
             ) : route === 'account' ? (
               <AccountScreen
-                businessCenterName={ownerProfile.activeBranch}
+                avatarUrl={null}
                 businessName={ownerProfile.businessName}
+                fullName={ownerProfile.businessName}
                 onOpenEditProfile={() => undefined}
                 onOpenStaffInvite={() => undefined}
                 onOpenWhatsAppSetup={() => setRoute('account')}
                 onSignOut={props.onSignOut}
+                onUploadAvatar={async () => undefined}
                 role="owner"
+                timezoneLabel="Argentina / Cordoba"
                 whatsappConnection={legacyWhatsAppConnection}
               />
             ) : (

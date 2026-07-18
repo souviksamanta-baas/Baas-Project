@@ -62,6 +62,7 @@ function OwnerRouteView(props: { ownerSession: OwnerSessionState }): ReactElemen
         destination={ownerSession.loginIdentifier}
         isSubmitting={ownerSession.isSubmitting}
         onChangeOtpCode={ownerSession.setOtpCode}
+        onResendOtp={ownerSession.requestOtp}
         onVerifyOtp={ownerSession.verifyOtp}
         otpCode={ownerSession.otpCode}
       />

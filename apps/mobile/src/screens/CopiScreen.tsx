@@ -28,6 +28,7 @@ import {
 import { Icon } from '../components/icons';
 import { colors as dsColors } from '../design-system';
 import { FeatureGate, useFeatureVisibility } from '../hooks/useFeatureVisibility';
+import { useHeaderScreenOptions } from '../hooks/useHeaderScreenOptions';
 import type { OwnerCopilotState } from '../hooks/useOwnerCopilot';
 import type { OwnerDashboard } from '../types/dashboard';
 import { colors, shadows } from '../theme';
@@ -199,6 +200,10 @@ export function CopiChatScreen(props: {
 }): ReactElement {
   const visibility = useFeatureVisibility();
   const scrollRef = useRef<ScrollView>(null);
+  useHeaderScreenOptions({
+    forceCollapsed: true,
+    title: 'Copi',
+  });
 
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
@@ -212,71 +217,63 @@ export function CopiChatScreen(props: {
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0}
-      style={styles.chatRoot}
+      style={styles.detailRoot}
     >
-      <View style={styles.chatBody}>
-        <Card flush style={styles.chatCard}>
-          <FeatureGate feature="chatProfileHeader" visibility={visibility}>
-            <View style={styles.threadHeader}>
-              <Pressable hitSlop={8} onPress={props.onBack}>
-                <Text style={styles.backText}>‹</Text>
-              </Pressable>
-              <RobotAvatar small />
-              <View style={styles.flex}>
-                <Text style={styles.profileTitle}>Copi</Text>
-                <Text style={styles.cardDescription}>Asistente IA · últimos 14 días</Text>
+      <View style={styles.chatToolbar}>
+        <Pressable hitSlop={8} onPress={props.onBack} style={styles.chatBackButton}>
+          <Text style={styles.backText}>‹</Text>
+        </Pressable>
+        <Text style={styles.leadBadge}>Asistente IA</Text>
+      </View>
+
+      {props.copilot.policyMessage ? (
+        <View style={styles.policyBanner}>
+          <Text style={styles.policyText}>{props.copilot.policyMessage}</Text>
+        </View>
+      ) : null}
+
+      <View style={styles.detailBody}>
+        <FeatureGate feature="chatMessages" visibility={visibility}>
+          <ScrollView
+            ref={scrollRef}
+            contentContainerStyle={styles.chatArea}
+            keyboardShouldPersistTaps="handled"
+            onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}
+            showsVerticalScrollIndicator={false}
+            style={styles.chatScroll}
+          >
+            {props.copilot.isLoadingHistory ? (
+              <ActivityIndicator color={colors.primary} style={styles.historyLoader} />
+            ) : null}
+            {props.copilot.messages.map((message) => (
+              <View key={message.id}>
+                <MessageBubble
+                  direction={message.role === 'owner' ? 'outbound' : 'inbound'}
+                  onPressProduct={
+                    message.role === 'assistant' ? props.onOpenProduct : undefined
+                  }
+                  source={message.role === 'owner' ? 'owner' : 'copi'}
+                  text={message.body}
+                  time={message.id === 'starter' ? '' : formatConversationTime(message.createdAt)}
+                />
+                {message.proposedActionId ? (
+                  <Pressable
+                    onPress={() => void props.copilot.confirmProposedAction(message.proposedActionId!)}
+                    style={styles.confirmButton}
+                  >
+                    <Text style={styles.confirmButtonText}>Confirmar acción</Text>
+                  </Pressable>
+                ) : null}
               </View>
-            </View>
-          </FeatureGate>
-
-          {props.copilot.policyMessage ? (
-            <View style={styles.policyBanner}>
-              <Text style={styles.policyText}>{props.copilot.policyMessage}</Text>
-            </View>
-          ) : null}
-
-          <FeatureGate feature="chatMessages" visibility={visibility}>
-            <ScrollView
-              ref={scrollRef}
-              contentContainerStyle={styles.chatArea}
-              keyboardShouldPersistTaps="handled"
-              onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}
-              showsVerticalScrollIndicator
-              style={styles.chatScroll}
-            >
-              {props.copilot.isLoadingHistory ? (
-                <ActivityIndicator color={colors.primary} style={styles.historyLoader} />
-              ) : null}
-              {props.copilot.messages.map((message) => (
-                <View key={message.id}>
-                  <MessageBubble
-                    direction={message.role === 'owner' ? 'outbound' : 'inbound'}
-                    onPressProduct={
-                      message.role === 'assistant' ? props.onOpenProduct : undefined
-                    }
-                    source={message.role === 'owner' ? 'owner' : 'copi'}
-                    text={message.body}
-                    time={message.id === 'starter' ? '' : formatConversationTime(message.createdAt)}
-                  />
-                  {message.proposedActionId ? (
-                    <Pressable
-                      onPress={() => void props.copilot.confirmProposedAction(message.proposedActionId!)}
-                      style={styles.confirmButton}
-                    >
-                      <Text style={styles.confirmButtonText}>Confirmar acción</Text>
-                    </Pressable>
-                  ) : null}
-                </View>
-              ))}
-              {props.copilot.isAsking ? (
-                <View style={styles.typingRow}>
-                  <ActivityIndicator color={colors.primary} size="small" />
-                  <Text style={styles.typingText}>Copi está pensando…</Text>
-                </View>
-              ) : null}
-            </ScrollView>
-          </FeatureGate>
-        </Card>
+            ))}
+            {props.copilot.isAsking ? (
+              <View style={styles.typingRow}>
+                <ActivityIndicator color={colors.primary} size="small" />
+                <Text style={styles.typingText}>Copi está pensando…</Text>
+              </View>
+            ) : null}
+          </ScrollView>
+        </FeatureGate>
       </View>
 
       <FeatureGate feature="copiComposer" visibility={visibility}>
@@ -294,7 +291,7 @@ export function CopiChatScreen(props: {
           onPressPlus={props.composer.onPressPlus}
           onPressVoice={props.composer.onPressVoice}
           onSend={() => void props.copilot.askQuestion()}
-          placeholder="Escribí un mensaje..."
+          placeholder="Escribi un mensaje..."
           value={props.copilot.inputValue}
         />
       </FeatureGate>
@@ -307,7 +304,7 @@ const styles = StyleSheet.create({
     color: colors.navy,
     fontSize: 42,
     lineHeight: 42,
-    paddingHorizontal: 4,
+    paddingHorizontal: 14,
   },
   cardDescription: {
     color: colors.slate,
@@ -317,17 +314,17 @@ const styles = StyleSheet.create({
     marginTop: 3,
   },
   chatArea: {
-    backgroundColor: '#fcfdfc',
+    backgroundColor: '#efeae2',
     flexGrow: 1,
-    gap: 12,
+    gap: 8,
     minHeight: 448,
-    paddingHorizontal: 18,
-    paddingVertical: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 16,
   },
-  chatBody: {
-    flex: 1,
-    minHeight: 0,
-    paddingHorizontal: 8,
+  chatBackButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 28,
   },
   chatButton: {
     alignItems: 'center',
@@ -337,15 +334,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     width: 34,
   },
-  chatCard: {
-    flex: 1,
-  },
-  chatRoot: {
-    flex: 1,
-    justifyContent: 'space-between',
-  },
   chatScroll: {
     flex: 1,
+  },
+  chatToolbar: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
   },
   composerCard: {
     ...shadows.card,
@@ -355,7 +352,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
     borderRadius: 8,
     marginBottom: 8,
-    marginLeft: 18,
+    marginLeft: 12,
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
@@ -375,6 +372,15 @@ const styles = StyleSheet.create({
     gap: 12,
     minHeight: 88,
     paddingHorizontal: 14,
+  },
+  detailBody: {
+    flex: 1,
+    minHeight: 0,
+  },
+  detailRoot: {
+    backgroundColor: '#efeae2',
+    flex: 1,
+    justifyContent: 'space-between',
   },
   flex: {
     flex: 1,
@@ -396,6 +402,16 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     lineHeight: 16,
   },
+  leadBadge: {
+    backgroundColor: colors.primarySoft,
+    borderRadius: 999,
+    color: colors.primary,
+    fontSize: 9,
+    fontWeight: '600',
+    overflow: 'hidden',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
   listHeader: {
     borderBottomColor: colors.borderSoft,
     borderBottomWidth: 1,
@@ -408,7 +424,7 @@ const styles = StyleSheet.create({
   },
   policyBanner: {
     backgroundColor: '#fff7ed',
-    borderBottomColor: colors.borderSoft,
+    borderBottomColor: 'rgba(15, 23, 42, 0.06)',
     borderBottomWidth: 1,
     paddingHorizontal: 16,
     paddingVertical: 10,
@@ -417,12 +433,6 @@ const styles = StyleSheet.create({
     color: colors.navy,
     fontSize: 11,
     lineHeight: 16,
-  },
-  profileTitle: {
-    color: colors.navy,
-    fontSize: 16,
-    fontWeight: '600',
-    lineHeight: 19,
   },
   purpleText: {
     color: '#8b5cf6',
@@ -441,15 +451,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '300',
     lineHeight: 16,
-  },
-  threadHeader: {
-    alignItems: 'center',
-    borderBottomColor: colors.borderSoft,
-    borderBottomWidth: 1,
-    flexDirection: 'row',
-    gap: 14,
-    height: 74,
-    paddingHorizontal: 16,
   },
   typingRow: {
     alignItems: 'center',

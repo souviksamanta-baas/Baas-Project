@@ -1,5 +1,7 @@
 import type { ReactElement, ReactNode } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useEffect } from 'react';
+import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { Channel, DashboardMetricMock, NotificationMock, Tone } from '../api/mockData';
 import {
@@ -14,74 +16,117 @@ import {
   textStyles,
   typography,
 } from '../design-system';
+import { useHeaderChromeOptional } from '../context/HeaderChromeProvider';
+import { useProfileChromeOptional } from '../context/ProfileChromeProvider';
 import { parseCopiRichText } from '../lib/copiRichText';
-import { ChannelIcon, CopiRobotIcon, Icon, IphoneStatusIcons } from './icons';
+import { ChannelIcon, CopiRobotIcon, Icon } from './icons';
 import type { IconKind } from './icons';
+import { NexoliaMark } from './NexoliaMark';
 
 export type AppTab = 'copi' | 'home' | 'inbox' | 'more';
 type MessageSource = Channel | 'copi' | 'owner';
 
+const HEADER_COLLAPSE_OFFSET = 28;
+
 export function AppHeader(props: {
-  activeBranch: string;
-  branches: string[];
   onOpenAccount: () => void;
   onOpenNotifications: () => void;
-  onToggleBranches: () => void;
-  showBranches: boolean;
 }): ReactElement {
+  const insets = useSafeAreaInsets();
+  const chrome = useHeaderChromeOptional();
+  const profile = useProfileChromeOptional();
+  const showCollapsed = chrome.collapseEnabled && chrome.collapsed;
+
   return (
-    <View style={styles.header}>
-      <View style={styles.statusBar}>
-        <Text style={styles.statusTime}>9:41</Text>
-        <IphoneStatusIcons />
-      </View>
+    <View style={[styles.header, { paddingTop: Math.max(insets.top, spacing.sm) }]}>
       <View style={styles.headerMain}>
-        <View>
-          <Text style={styles.logo}>nexolia</Text>
-          <Text style={styles.logoTagline}>Tu negocio, mas inteligente</Text>
-        </View>
+        {showCollapsed ? (
+          <>
+            <View style={styles.headerLeading}>
+              <NexoliaMark size={32} />
+            </View>
+            <Text numberOfLines={1} style={styles.headerTitle}>
+              {chrome.title ?? ''}
+            </Text>
+          </>
+        ) : (
+          <View style={styles.headerBrand}>
+            <Text style={styles.logo}>nexolia</Text>
+            <Text style={styles.logoTagline}>Tu negocio, mas inteligente</Text>
+          </View>
+        )}
         <View style={styles.headerActions}>
           <Pressable onPress={props.onOpenNotifications} style={styles.headerIcon}>
-            <Icon kind="bell" size={18} strokeWidth={1.3} />
+            <Icon kind="bell" size={18} strokeWidth={1.7} />
             <View style={styles.unreadDot} />
           </Pressable>
-          <Pressable onPress={props.onToggleBranches} style={styles.storeButton}>
-            <Icon kind="store" size={20} strokeWidth={1.3} />
-            <Icon kind={props.showBranches ? 'chevron-up' : 'chevron-down'} size={12} strokeWidth={2.1} />
-          </Pressable>
           <Pressable onPress={props.onOpenAccount} style={styles.ownerAvatar}>
-            <View style={styles.ownerHair} />
+            {profile.avatarUrl ? (
+              <Image source={{ uri: profile.avatarUrl }} style={styles.ownerAvatarImage} />
+            ) : (
+              <View style={styles.ownerHair} />
+            )}
           </Pressable>
         </View>
       </View>
-      {props.showBranches ? (
-        <View style={styles.branchMenu}>
-          {props.branches.map((branch) => (
-            <View
-              key={branch}
-              style={[styles.branchRow, branch === props.activeBranch && styles.activeBranchRow]}
-            >
-              <Text style={[styles.branchText, branch === props.activeBranch && styles.activeBranchText]}>
-                {branch}
-              </Text>
-              {branch === props.activeBranch ? <Text style={styles.activeBranchText}>✓</Text> : null}
-            </View>
-          ))}
-        </View>
-      ) : null}
     </View>
   );
 }
 
-export function ScreenContent(props: { children: ReactNode }): ReactElement {
+export function ScreenContent(props: {
+  children: ReactNode;
+  /** Defaults to true on every screen; pass false on Home to keep the text logo. */
+  collapseHeaderOnScroll?: boolean;
+  title?: string;
+}): ReactElement {
+  const chrome = useHeaderChromeOptional();
+  const collapseHeaderOnScroll = props.collapseHeaderOnScroll !== false;
+
+  useEffect(() => {
+    if (!collapseHeaderOnScroll) {
+      chrome.setChrome({ collapseEnabled: false, collapsed: false, title: null });
+      return () => {
+        chrome.resetChrome();
+      };
+    }
+
+    chrome.setChrome({
+      collapseEnabled: true,
+      ...(props.title != null ? { title: props.title } : {}),
+    });
+
+    return () => {
+      chrome.resetChrome();
+    };
+  }, [chrome.resetChrome, chrome.setChrome, collapseHeaderOnScroll, props.title]);
+
   return (
-    <ScrollView contentContainerStyle={styles.content} style={styles.screenScroll}>
+    <ScrollView
+      contentContainerStyle={styles.content}
+      keyboardShouldPersistTaps="handled"
+      onScroll={(event) => {
+        if (!collapseHeaderOnScroll) {
+          return;
+        }
+
+        chrome.setCollapsed(event.nativeEvent.contentOffset.y > HEADER_COLLAPSE_OFFSET);
+      }}
+      scrollEventThrottle={16}
+      showsVerticalScrollIndicator={false}
+      style={styles.screenScroll}
+    >
       {props.children}
     </ScrollView>
   );
 }
 
 export function ScreenTitle(props: { subtitle?: string; title: string }): ReactElement {
+  const chrome = useHeaderChromeOptional();
+
+  useEffect(() => {
+    chrome.setChrome({ collapseEnabled: true, title: props.title });
+  }, [chrome.setChrome, props.title]);
+
   return (
     <View>
       <Text style={styles.screenTitle}>{props.title}</Text>
@@ -102,19 +147,47 @@ export function SectionHeader(props: { actionLabel?: string; onAction?: () => vo
   return <DsSectionHeader {...props} style={styles.sectionHeaderPad} />;
 }
 
-export function MetricGrid(props: { metrics: DashboardMetricMock[] }): ReactElement {
+export function MetricGrid(props: {
+  metrics: DashboardMetricMock[];
+  onMetricPress?: (metricId: string) => void;
+}): ReactElement {
   return (
     <View style={styles.metricGrid}>
-      {props.metrics.map((metric, index) => (
-        <View
-          key={metric.id}
-          style={[styles.metricItem, index === props.metrics.length - 1 && styles.metricItemLast]}
-        >
-          <MetricIcon metricId={metric.id} tone={metric.tone} />
-          <Text numberOfLines={1} style={[styles.metricValue, toneText(metric.tone)]}>{metric.value}</Text>
-          <Text numberOfLines={2} style={styles.metricLabel}>{metric.label}</Text>
-        </View>
-      ))}
+      {props.metrics.map((metric, index) => {
+        const content = (
+          <>
+            <MetricIcon metricId={metric.id} tone={metric.tone} />
+            <Text numberOfLines={1} style={[styles.metricValue, toneText(metric.tone)]}>
+              {metric.value}
+            </Text>
+            <Text numberOfLines={2} style={styles.metricLabel}>
+              {metric.label}
+            </Text>
+          </>
+        );
+
+        if (props.onMetricPress) {
+          return (
+            <Pressable
+              accessibilityRole="button"
+              key={metric.id}
+              onPress={() => props.onMetricPress?.(metric.id)}
+              style={[styles.metricItem, index === props.metrics.length - 1 && styles.metricItemLast]}
+            >
+              {content}
+            </Pressable>
+          );
+        }
+
+        return (
+          <View
+            key={metric.id}
+            style={[styles.metricItem, index === props.metrics.length - 1 && styles.metricItemLast]}
+          >
+            {content}
+          </View>
+        );
+      })}
     </View>
   );
 }
@@ -547,7 +620,6 @@ const styles = StyleSheet.create({
     padding: 6,
     position: 'absolute',
     right: 20,
-    top: 72,
     width: 158,
     zIndex: 30,
   },
@@ -615,6 +687,7 @@ const styles = StyleSheet.create({
   },
   screenScroll: {
     flex: 1,
+    minHeight: 0,
   },
   customerAvatar: {
     alignItems: 'center',
@@ -652,7 +725,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
     paddingBottom: spacing.sm,
     paddingHorizontal: spacing.xl,
-    paddingTop: 7,
     position: 'relative',
     zIndex: 20,
   },
@@ -660,6 +732,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flexDirection: 'row',
     gap: 13,
+    marginLeft: 'auto',
+    zIndex: 2,
+  },
+  headerBrand: {
+    flex: 1,
+    minWidth: 0,
+    paddingRight: 12,
   },
   headerIcon: {
     alignItems: 'center',
@@ -668,11 +747,26 @@ const styles = StyleSheet.create({
     position: 'relative',
     width: 24,
   },
+  headerLeading: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 40,
+    zIndex: 2,
+  },
   headerMain: {
-    alignItems: 'flex-start',
+    alignItems: 'center',
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 10,
+    minHeight: 40,
+  },
+  headerTitle: {
+    ...StyleSheet.absoluteFill,
+    color: colors.navy,
+    fontSize: 15,
+    fontWeight: '600',
+    lineHeight: 40,
+    paddingHorizontal: 76,
+    textAlign: 'center',
+    zIndex: 1,
   },
   leadBadge: {
     alignSelf: 'flex-start',
@@ -844,6 +938,10 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     width: 30,
   },
+  ownerAvatarImage: {
+    height: 30,
+    width: 30,
+  },
   ownerHair: {
     backgroundColor: '#8d4c32',
     borderTopLeftRadius: 999,
@@ -976,17 +1074,6 @@ const styles = StyleSheet.create({
   screenTitle: typography.title,
   sectionHeaderPad: {
     paddingHorizontal: 4,
-  },
-  statusBar: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    height: 16,
-    justifyContent: 'space-between',
-  },
-  statusTime: {
-    color: colors.navy,
-    fontSize: 13,
-    fontWeight: '600',
   },
   storeButton: {
     alignItems: 'center',

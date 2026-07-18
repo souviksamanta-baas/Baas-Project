@@ -51,7 +51,7 @@ The owner app primary entry is **Expo Router** (`expo-router/entry` in
 | `(auth)/` | `login`, `verify`, `onboarding` | Supabase OTP and org bootstrap |
 | `(app)/` | `index`, `inbox`, `copi`, `more`, … | Authenticated shell with header + bottom nav |
 | `(app)/inventory/` | `manage-stock`, `product/[id]`, `sell`, … | Inventory and POS stack |
-| `(app)/` | `account`, `notifications` | Header / More destinations |
+| `(app)/` | `account`, `edit-profile`, `business-settings`, `staff-invite`, `whatsapp-connect`, `notifications` | Account and settings destinations |
 
 Route constants and helpers: `apps/mobile/src/navigation/routes.ts` (`tabRoute`,
 `conversationRoute`, inventory helpers, `getActiveTab`, `shouldHideBottomNav`).
@@ -351,23 +351,46 @@ sends can happen.
 [KAN-170](https://souviksamanta.atlassian.net/browse/KAN-170) introduces the design-to-code implementation for the mobile mockups:
 
 - The dashboard route now renders a mobile app shell with Nexolia header,
-  notification shortcut, business-center switcher, avatar entry point, bottom
-  navigation, and central sales/action button.
+  notification shortcut, avatar entry point, bottom navigation, and central
+  sales/action button.
+- On non-home screens, scrolling collapses the header to a circular Nexolia
+  icon (`assets/images/nexolia-icon.png`, swappable later via `setNexoliaIconUri`)
+  with the page title centered.
 - The shell supports the approved tabs: Inicio, Inbox, Copi, and Más, with a
   My Account profile surface reachable from the avatar and More menu.
-- The Home screen shows Copi entry, business summary metrics, recent
-  conversations, stock CTA, and recent alerts.
+- The Home greeting uses `preferred_name` when set, otherwise the first word of
+  `full_name` (`lib/ownerGreeting.ts`).
+- Low-stock Home metrics open Gestionar stock filtered to low-stock products.
+- Conversation detail and Copi chat use a WhatsApp-style full-bleed thread (no
+  card border); contact/Copi title appears in the collapsed app header.
 - The Inbox screen shows channel filters, status tabs, conversation rows, and a
-  selected thread state using the existing `useInbox` hook.
-- The Copi screen supports a suggested-question state and active chat state using
-  the existing `useOwnerCopilot` hook.
+  selected thread state using the existing inbox provider.
+- The Copi screen supports a hub state and continuous chat using
+  `useOwnerCopilot`.
 - The More screen groups operation, growth, and configuration actions while
   preserving the existing sign-out path.
-- The My Account screen summarizes owner profile, active organization, active
-  business center, role, AI settings, and timezone.
 
-The new screen styles live in `apps/mobile/src/mobileUiStyles.ts`, while the
-route implementation remains in `apps/mobile/src/screens/DashboardScreen.tsx`.
+### Mi cuenta and settings
+
+- Profile card shows **nombre completo**, **business name**, and role (no
+  sucursal line). Pencil on the avatar uploads to Supabase Storage `avatars`
+  and stores `user_metadata.avatar_url`; the header avatar reads the same URL.
+- **Editar perfil:** nombre completo, optional preferred name, phone; email
+  read-only.
+- **Invitar miembro:** edit-profile style layout, contact picker
+  (`expo-contacts` class API + `ContactPickerModal`), default business center
+  assigned silently (sucursales UI removed for now).
+- **Configuración del negocio** (owners only): `/(app)/business-settings`
+  edits organization name, contact email/phone, address fields, and timezone
+  via a UTC-offset dropdown (`lib/timezones.ts`). Migration
+  `20260718010000_org_profile_and_avatars.sql`.
+- WhatsApp connect and invite/profile screens use the shared back control.
+- Auth OTP verify clears stale codes on logout/resend and offers **Reenviar
+  código**. Profile/business saves use silent dashboard refresh so navigation
+  stays on Mi cuenta.
+
+Auth email QA requires custom SMTP — see [supabase-smtp-setup.md](./supabase-smtp-setup.md).
+
 The static React/Tailwind reference prototype is documented in
 `docs/ui-mockups.md`.
 

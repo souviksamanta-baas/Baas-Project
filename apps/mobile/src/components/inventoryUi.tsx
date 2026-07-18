@@ -1,4 +1,4 @@
-import { useState, type ReactElement, type ReactNode } from 'react';
+import { useEffect, useState, type ReactElement, type ReactNode } from 'react';
 import { Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import type { StockTone } from '../api/inventoryMockData';
@@ -19,6 +19,7 @@ import {
   shadows,
   type BadgeTone,
 } from '../design-system';
+import { useHeaderChromeOptional } from '../context/HeaderChromeProvider';
 import { Icon } from './icons';
 import type { IconKind } from './icons';
 
@@ -36,6 +37,12 @@ export function InventoryScreenTitle(props: {
   subtitle: string;
   title: string;
 }): ReactElement {
+  const chrome = useHeaderChromeOptional();
+
+  useEffect(() => {
+    chrome.setChrome({ collapseEnabled: true, title: props.title });
+  }, [chrome.setChrome, props.title]);
+
   return (
     <ScreenHeader
       onBack={props.onBack}

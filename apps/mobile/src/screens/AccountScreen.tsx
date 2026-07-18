@@ -1,25 +1,55 @@
 import type { ReactElement } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Alert, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { IconKind } from '../components/icons';
+import { Icon } from '../components/icons';
 import { ActionRow, Card, ScreenContent, ScreenTitle } from '../components/ui';
 import { FeatureGate } from '../hooks/useFeatureVisibility';
 import type { OwnerDashboard } from '../types/dashboard';
 import { whatsappConnectionLabel } from '../lib/whatsappPresentation';
 import { colors, shadows } from '../theme';
 
+function roleLabel(role: OwnerDashboard['organization'] extends infer T
+  ? T extends { role: infer R }
+    ? R
+    : null
+  : null): string {
+  if (role === 'owner') {
+    return 'Dueño';
+  }
+
+  return 'Equipo';
+}
+
+function initialsFromName(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) {
+    return 'NX';
+  }
+
+  if (parts.length === 1) {
+    return parts[0]!.slice(0, 2).toUpperCase();
+  }
+
+  return `${parts[0]![0] ?? ''}${parts[1]![0] ?? ''}`.toUpperCase();
+}
+
 export function AccountScreen(props: {
-  businessCenterName: string | null;
+  avatarUrl: string | null;
   businessName: string | null;
+  fullName: string;
+  onOpenBusinessSettings?: () => void;
   onOpenEditProfile: () => void;
   onOpenStaffInvite: () => void;
   onOpenWhatsAppSetup: () => void;
   onSignOut: () => void;
+  onUploadAvatar: () => Promise<void>;
   role: OwnerDashboard['organization'] extends infer T
     ? T extends { role: infer R }
       ? R
       : null
     : null;
+  timezoneLabel: string;
   whatsappConnection: OwnerDashboard['whatsappConnection'] | null;
 }): ReactElement {
   const connection = props.whatsappConnection ?? {
@@ -31,21 +61,47 @@ export function AccountScreen(props: {
     lastError: null,
   };
   const connectionCopy = whatsappConnectionLabel(connection);
-  const initials = (props.businessName ?? 'NX').slice(0, 2).toUpperCase();
+  const displayName = props.fullName.trim() || 'Tu nombre';
+  const initials = initialsFromName(displayName);
+  const canManageBusiness = props.role === 'owner';
+
+  async function handleUploadAvatar(): Promise<void> {
+    try {
+      await props.onUploadAvatar();
+    } catch (error) {
+      if (error instanceof Error && error.message === 'CANCELLED') {
+        return;
+      }
+
+      Alert.alert(
+        'No se pudo actualizar la foto',
+        error instanceof Error ? error.message : 'Error desconocido',
+      );
+    }
+  }
 
   return (
-    <ScreenContent>
+    <ScreenContent title="Mi cuenta">
       <ScreenTitle subtitle="Gestiona tu perfil y tu negocio" title="Mi cuenta" />
 
       <FeatureGate feature="accountProfile">
         <View style={styles.profileCard}>
-          <View style={styles.profileAvatar}>
-            <Text style={styles.profileInitials}>{initials}</Text>
-          </View>
+          <Pressable onPress={() => void handleUploadAvatar()} style={styles.avatarPressable}>
+            {props.avatarUrl ? (
+              <Image source={{ uri: props.avatarUrl }} style={styles.profileAvatarImage} />
+            ) : (
+              <View style={styles.profileAvatar}>
+                <Text style={styles.profileInitials}>{initials}</Text>
+              </View>
+            )}
+            <View style={styles.pencilBadge}>
+              <Icon kind="edit" size={12} strokeWidth={2} />
+            </View>
+          </Pressable>
           <View style={styles.flex}>
-            <Text style={styles.profileName}>{props.businessName ?? 'Tu negocio'}</Text>
-            <Text style={styles.profileLine}>{props.businessCenterName ?? 'Sucursal principal'}</Text>
-            <Text style={styles.profileLine}>{props.role === 'owner' ? 'Dueño' : 'Equipo'}</Text>
+            <Text style={styles.profileName}>{displayName}</Text>
+            <Text style={styles.profileLine}>{props.businessName ?? 'Tu negocio'}</Text>
+            <Text style={styles.profileLine}>{roleLabel(props.role)}</Text>
           </View>
         </View>
       </FeatureGate>
@@ -54,14 +110,14 @@ export function AccountScreen(props: {
         <Card>
           <ActionRow icon="users" onPress={props.onOpenStaffInvite} title="Invitar miembro (QR)" />
           <ActionRow icon="user" onPress={props.onOpenEditProfile} title="Editar perfil" />
-          {[
-            ['store', 'Cambiar sucursal'],
-            ['gear', 'Configuracion del negocio'],
-            ['bell', 'Notificaciones'],
-            ['help', 'Ayuda y soporte'],
-          ].map(([icon, title]) => (
-            <ActionRow icon={icon as IconKind} key={title} title={title} />
-          ))}
+          {canManageBusiness && props.onOpenBusinessSettings ? (
+            <ActionRow
+              icon="gear"
+              onPress={props.onOpenBusinessSettings}
+              title="Configuracion del negocio"
+            />
+          ) : null}
+          <ActionRow icon={'help' as IconKind} title="Ayuda y soporte" />
         </Card>
       </FeatureGate>
 
@@ -73,7 +129,12 @@ export function AccountScreen(props: {
             subtitle={connectionCopy.subtitle}
             title={connectionCopy.title}
           />
-          <ActionRow icon="globe" title="Zona horaria: Argentina / Cordoba" />
+          <ActionRow
+            icon="globe"
+            onPress={canManageBusiness ? props.onOpenBusinessSettings : undefined}
+            subtitle={canManageBusiness ? 'Tocá para editar' : undefined}
+            title={`Zona horaria: ${props.timezoneLabel}`}
+          />
         </Card>
       </FeatureGate>
 
@@ -83,8 +144,24 @@ export function AccountScreen(props: {
 }
 
 const styles = StyleSheet.create({
+  avatarPressable: {
+    position: 'relative',
+  },
   flex: {
     flex: 1,
+  },
+  pencilBadge: {
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: 999,
+    borderWidth: 1,
+    bottom: 0,
+    height: 26,
+    justifyContent: 'center',
+    position: 'absolute',
+    right: 0,
+    width: 26,
   },
   profileAvatar: {
     alignItems: 'center',
@@ -92,6 +169,11 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     height: 78,
     justifyContent: 'center',
+    width: 78,
+  },
+  profileAvatarImage: {
+    borderRadius: 999,
+    height: 78,
     width: 78,
   },
   profileCard: {

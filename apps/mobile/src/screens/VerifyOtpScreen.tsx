@@ -1,4 +1,5 @@
 import type { ReactElement } from 'react';
+import { Pressable, StyleSheet, Text } from 'react-native';
 
 import { AuthScreenShell } from '../components/AuthScreenShell';
 import type { AuthOtpChannel } from '../services/authChannel';
@@ -7,13 +8,14 @@ import {
   isOtpCodeComplete,
   normalizeOtpInput,
 } from '../services/authOtp';
-import { PrimaryButton, TextField } from '../design-system';
+import { PrimaryButton, TextField, colors, spacing } from '../design-system';
 
 export function VerifyOtpScreen(props: {
   channel: AuthOtpChannel;
   destination: string;
   isSubmitting: boolean;
   onChangeOtpCode: (otpCode: string) => void;
+  onResendOtp?: () => void | Promise<void | boolean>;
   onVerifyOtp: () => void;
   otpCode: string;
 }): ReactElement {
@@ -48,6 +50,32 @@ export function VerifyOtpScreen(props: {
         label={props.isSubmitting ? 'Verificando…' : 'Verificar'}
         onPress={props.onVerifyOtp}
       />
+      {props.onResendOtp ? (
+        <Pressable
+          disabled={props.isSubmitting}
+          onPress={() => void props.onResendOtp?.()}
+          style={styles.resendButton}
+        >
+          <Text style={[styles.resendText, props.isSubmitting && styles.resendTextDisabled]}>
+            Reenviar código
+          </Text>
+        </Pressable>
+      ) : null}
     </AuthScreenShell>
   );
 }
+
+const styles = StyleSheet.create({
+  resendButton: {
+    alignItems: 'center',
+    paddingVertical: spacing.xs,
+  },
+  resendText: {
+    color: colors.primary,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  resendTextDisabled: {
+    opacity: 0.5,
+  },
+});

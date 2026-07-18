@@ -15,7 +15,7 @@ Supabase’s **built-in email** allows only **2 auth emails per hour** per proje
 | Port | `465` |
 | Username | `resend` |
 | Password | Your Resend API key |
-| Sender email | Verified address, e.g. `noreply@yourdomain.com` |
+| Sender email | Verified address, e.g. `noreply@yourdomain.com`. For early tests use Resend’s onboarding sender `beth.t@example.com`. |
 | Sender name | `Nexolia` |
 
 5. Save.

@@ -42,7 +42,7 @@ export function NotificationsScreen(props: {
   }, [activeFilter, props.notifications, props.tasks]);
 
   return (
-    <ScreenContent>
+    <ScreenContent title="Notificaciones">
       <View style={styles.titleRow}>
         <ScreenTitle subtitle="Todo lo que necesita tu atencion" title="Notificaciones" />
         <Pressable disabled={props.isSaving} onPress={() => void props.onDismissAll()}>

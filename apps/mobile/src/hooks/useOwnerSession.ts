@@ -59,21 +59,29 @@ export function useOwnerSession(): OwnerSessionState {
     return normalizeEmail(loginIdentifier) !== null;
   }, [loginIdentifier, otpChannel]);
 
-  const bootstrapRoute = useCallback(async (nextSession: Session | null): Promise<void> => {
+  const bootstrapRoute = useCallback(async (
+    nextSession: Session | null,
+    options?: { silent?: boolean },
+  ): Promise<void> => {
     if (!nextSession) {
       setDashboard(null);
       setIsResolvingDashboard(false);
       return;
     }
 
-    setIsResolvingDashboard(true);
+    const silent = options?.silent === true;
+    if (!silent) {
+      setIsResolvingDashboard(true);
+    }
 
     try {
       const nextDashboard = await getOwnerDashboard();
       setDashboard(nextDashboard);
       setOtpSent(false);
     } finally {
-      setIsResolvingDashboard(false);
+      if (!silent) {
+        setIsResolvingDashboard(false);
+      }
     }
   }, []);
 
@@ -95,8 +103,15 @@ export function useOwnerSession(): OwnerSessionState {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+    } = supabase.auth.onAuthStateChange((event, nextSession) => {
       setSession(nextSession);
+
+      // USER_UPDATED (e.g. avatar/profile metadata) must not flip auth to loading
+      // or the navigation stack resets back to Home.
+      if (event === 'USER_UPDATED' || event === 'TOKEN_REFRESHED') {
+        return;
+      }
+
       void bootstrapRoute(nextSession);
     });
 
@@ -143,6 +158,7 @@ export function useOwnerSession(): OwnerSessionState {
 
       await requestLoginOtp({ channel: otpChannel, identifier: loginIdentifier });
       setLoginIdentifier(normalizedIdentifier);
+      setOtpCode('');
       setOtpSent(true);
       return true;
     } catch (error) {
@@ -197,11 +213,14 @@ export function useOwnerSession(): OwnerSessionState {
 
   const refreshDashboard = useCallback(async (): Promise<void> => {
     const { data } = await supabase.auth.getSession();
-    await bootstrapRoute(data.session);
+    await bootstrapRoute(data.session, { silent: true });
   }, [bootstrapRoute]);
 
   const signOut = useCallback(async (): Promise<void> => {
+    setAuthError(null);
+    setOtpCode('');
     setOtpSent(false);
+    setBusinessName('');
     await signOutOwner();
   }, []);
 

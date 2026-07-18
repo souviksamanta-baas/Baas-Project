@@ -1,7 +1,13 @@
 import { useCallback, useRef, useState } from 'react';
 import { Alert, Platform } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { Audio } from 'expo-av';
+import {
+  RecordingPresets,
+  requestRecordingPermissionsAsync,
+  setAudioModeAsync,
+  useAudioRecorder,
+  useAudioRecorderState,
+} from 'expo-audio';
 
 import { analyzeCopiVision, transcribeCopiVoiceBlob, transcribeCopiVoiceFile } from '../api/ai';
 import { guessAudioMimeType } from '../lib/copiAudio';
@@ -10,34 +16,6 @@ import {
   shouldPreferMediaRecorderOverSpeech,
 } from '../lib/copiWebMic';
 import { getWebSpeechRecognition, isWebSpeechRecognitionSupported, type WebSpeechRecognition } from '../lib/copiWebSpeech';
-
-type RecordingRef = Audio.Recording | null;
-
-const COPI_RECORDING_OPTIONS: Audio.RecordingOptions = {
-  android: {
-    audioEncoder: Audio.AndroidAudioEncoder.AAC,
-    bitRate: 128000,
-    extension: '.m4a',
-    numberOfChannels: 1,
-    outputFormat: Audio.AndroidOutputFormat.MPEG_4,
-    sampleRate: 44100,
-  },
-  ios: {
-    audioQuality: Audio.IOSAudioQuality.HIGH,
-    bitRate: 128000,
-    extension: '.m4a',
-    linearPCMBitDepth: 16,
-    linearPCMIsBigEndian: false,
-    linearPCMIsFloat: false,
-    numberOfChannels: 1,
-    outputFormat: Audio.IOSOutputFormat.MPEG4AAC,
-    sampleRate: 44100,
-  },
-  web: {
-    bitsPerSecond: 128000,
-    mimeType: 'audio/webm',
-  },
-};
 
 function pickWebRecorderMimeType(): string {
   if (typeof MediaRecorder === 'undefined') {
@@ -72,11 +50,12 @@ export function useCopiMediaActions(params: {
   onPressPlus: () => void;
   onPressVoice: () => void;
 } {
+  const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const recorderState = useAudioRecorderState(audioRecorder);
   const [attachmentMenuOpen, setAttachmentMenuOpen] = useState(false);
   const [isRecordingVoice, setIsRecordingVoice] = useState(false);
   const [isTranscribingVoice, setIsTranscribingVoice] = useState(false);
   const [isAnalyzingImage, setIsAnalyzingImage] = useState(false);
-  const recordingRef = useRef<RecordingRef>(null);
   const webRecorderRef = useRef<MediaRecorder | null>(null);
   const webStreamRef = useRef<MediaStream | null>(null);
   const webChunksRef = useRef<Blob[]>([]);
@@ -191,24 +170,17 @@ export function useCopiMediaActions(params: {
   }, [stopWebStream, transcribeUploadedAudio]);
 
   const stopNativeRecording = useCallback(async (): Promise<void> => {
-    const recording = recordingRef.current;
-    recordingRef.current = null;
-    if (!recording) {
-      setIsRecordingVoice(false);
-      return;
-    }
-
     try {
-      const status = await recording.getStatusAsync();
-      await recording.stopAndUnloadAsync();
-      const uri = recording.getURI();
+      const durationMillis = recorderState.durationMillis;
+      await audioRecorder.stop();
+      const uri = audioRecorder.uri;
       if (!uri) {
         Alert.alert('Copi voz', 'No se pudo guardar la grabación. Probá de nuevo.');
         setIsRecordingVoice(false);
         return;
       }
 
-      if ((status.durationMillis ?? 0) < 500) {
+      if ((durationMillis ?? 0) < 500) {
         Alert.alert('Copi voz', 'La grabación fue muy corta. Mantené el micrófono un poco más.');
         setIsRecordingVoice(false);
         return;
@@ -223,7 +195,7 @@ export function useCopiMediaActions(params: {
       Alert.alert('Copi voz', message);
       setIsRecordingVoice(false);
     }
-  }, [transcribeUploadedAudio]);
+  }, [audioRecorder, recorderState.durationMillis, transcribeUploadedAudio]);
 
   const startWebSpeech = useCallback(() => {
     const recognition = getWebSpeechRecognition();
@@ -433,27 +405,26 @@ export function useCopiMediaActions(params: {
       }
 
       try {
-        const permission = await Audio.requestPermissionsAsync();
+        const permission = await requestRecordingPermissionsAsync();
         if (!permission.granted) {
           Alert.alert('Micrófono', 'Necesitamos permiso de micrófono para grabar.');
           return;
         }
 
-        await Audio.setAudioModeAsync({
-          allowsRecordingIOS: true,
-          playsInSilentModeIOS: true,
+        await setAudioModeAsync({
+          allowsRecording: true,
+          playsInSilentMode: true,
         });
 
-        const recording = new Audio.Recording();
-        await recording.prepareToRecordAsync(COPI_RECORDING_OPTIONS);
-        await recording.startAsync();
-        recordingRef.current = recording;
+        await audioRecorder.prepareToRecordAsync();
+        audioRecorder.record();
         setIsRecordingVoice(true);
       } catch {
         Alert.alert('Copi voz', 'No se pudo iniciar la grabación. Probá de nuevo.');
       }
     })();
   }, [
+    audioRecorder,
     isRecordingVoice,
     isTranscribingVoice,
     params.canUseVoice,

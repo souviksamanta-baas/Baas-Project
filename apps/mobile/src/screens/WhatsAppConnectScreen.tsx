@@ -19,6 +19,7 @@ export function WhatsAppConnectScreen(props: {
   displayPhoneNumber: string;
   errorMessage: string | null;
   isSubmitting: boolean;
+  onBack: () => void;
   onChangeDisplayPhoneNumber: (value: string) => void;
   onChangePhoneNumberId: (value: string) => void;
   onChangeWabaId: (value: string) => void;
@@ -31,6 +32,8 @@ export function WhatsAppConnectScreen(props: {
   return (
     <ScreenContent>
       <ScreenHeader
+        onBack={props.onBack}
+        showBack
         subtitle="Conectá tu número de WhatsApp Business con Meta Cloud API"
         title="WhatsApp Business"
       />

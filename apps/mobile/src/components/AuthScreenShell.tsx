@@ -26,9 +26,12 @@ export function AuthScreenShell(props: {
 
 const styles = StyleSheet.create({
   card: {
+    alignSelf: 'stretch',
+    flexDirection: 'column',
     gap: spacing.md,
     marginTop: spacing.md,
     padding: spacing.lg,
+    width: '100%',
   },
   cardWrap: {
     alignSelf: 'center',
@@ -36,6 +39,8 @@ const styles = StyleSheet.create({
   },
   page: {
     alignItems: 'center',
+    backgroundColor: colors.background,
+    flex: 1,
     flexGrow: 1,
     justifyContent: 'center',
     paddingHorizontal: spacing.lg,

@@ -11,6 +11,10 @@
     "node": "22.x",
     "npm": ">=10"
   },
+  "overrides": {
+    "react": "19.2.3",
+    "react-dom": "19.2.3"
+  },
   "scripts": {
     "build": "npm run build -w @baas/api",
     "audit:archive": "node scripts/create-audit-archive.mjs",

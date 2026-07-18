@@ -1,4 +1,4 @@
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import type { ReactElement } from 'react';
 import { useMemo } from 'react';
 
@@ -16,6 +16,8 @@ import { ManageStockScreen } from '../../../src/screens/inventory/InventoryScree
 
 export default function ManageStockRoute(): ReactElement {
   const router = useRouter();
+  const { filter } = useLocalSearchParams<{ filter?: string | string[] }>();
+  const initialLowStockOnly = (Array.isArray(filter) ? filter[0] : filter) === 'low_stock';
   const { dashboard } = useOwnerSessionContext();
   const organizationId = dashboard?.organization?.id ?? null;
   const businessCenterId = dashboard?.businessCenter?.id ?? null;
@@ -28,6 +30,7 @@ export default function ManageStockRoute(): ReactElement {
   return (
     <ManageStockScreen
       errorMessage={catalog.errorMessage}
+      initialLowStockOnly={initialLowStockOnly}
       isLoading={catalog.isLoading}
       onAddProduct={() => router.push(productAddRoute('manage-stock'))}
       onAddStockProduct={(productId) => router.push(productAddStockRoute(productId, 'manage-stock'))}

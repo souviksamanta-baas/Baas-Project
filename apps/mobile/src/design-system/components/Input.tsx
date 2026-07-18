@@ -399,7 +399,9 @@ const styles = StyleSheet.create({
     lineHeight: 14,
   },
   field: {
-    flex: 1,
+    alignSelf: 'stretch',
+    gap: spacing.xs,
+    width: '100%',
   },
   input: {
     backgroundColor: colors.surface,

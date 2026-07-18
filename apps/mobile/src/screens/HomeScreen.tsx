@@ -27,6 +27,7 @@ export function HomeScreen(props: {
   notifications: OwnerNotification[];
   onOpenAlertProduct: (productId: string) => void;
   onOpenConversation: (conversationId: string) => void;
+  onOpenLowStock: () => void;
   onOpenManageStock: () => void;
   onOpenNotifications: () => void;
   onOpenTaskDetail: (taskId: string) => void;
@@ -70,7 +71,7 @@ export function HomeScreen(props: {
   const recentAlerts = buildWorkQueue(props.tasks, props.notifications).slice(0, 3);
 
   return (
-    <ScreenContent>
+    <ScreenContent collapseHeaderOnScroll={false}>
       <View>
         <Text style={styles.greeting}>{props.ownerGreeting}</Text>
         <Text style={styles.subtitle}>En que puedo ayudarte hoy?</Text>
@@ -106,18 +107,25 @@ export function HomeScreen(props: {
       <FeatureGate feature="homeMetrics">
         <Card flush style={styles.summaryCard}>
           <Text style={styles.sectionTitle}>Resumen del día</Text>
-          <Text style={styles.cardDescription}>¡Así va tu negocio hasta ahora. Sigue así! 💚</Text>
-          <MetricGrid metrics={dashboardMetrics} />
-          {(props.metrics?.pendingFollowUps ?? 0) > 0 ? (
-            <Pressable onPress={props.onOpenTasks} style={styles.tasksLink}>
-              <Text style={styles.tasksLinkText}>Ver seguimientos pendientes</Text>
-            </Pressable>
-          ) : null}
-          {(props.metrics?.lowStockItems ?? 0) > 0 ? (
-            <Pressable onPress={props.onOpenNotifications} style={styles.tasksLink}>
-              <Text style={styles.tasksLinkText}>Ver alertas de stock</Text>
-            </Pressable>
-          ) : null}
+          <Text style={styles.summaryDescription}>¡Así va tu negocio hasta ahora. Sigue así! 💚</Text>
+          <MetricGrid
+            metrics={dashboardMetrics}
+            onMetricPress={(metricId) => {
+              if (metricId === 'messages') {
+                props.onSelectTab('inbox');
+                return;
+              }
+
+              if (metricId === 'tasks') {
+                props.onOpenTasks();
+                return;
+              }
+
+              if (metricId === 'stock') {
+                props.onOpenLowStock();
+              }
+            }}
+          />
         </Card>
       </FeatureGate>
 
@@ -296,12 +304,12 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingBottom: 12,
   },
-  tasksLink: {
+  summaryDescription: {
+    color: colors.slate,
+    fontSize: 10,
+    fontWeight: '300',
+    lineHeight: 15,
+    marginTop: 4,
     paddingHorizontal: 14,
-  },
-  tasksLinkText: {
-    color: colors.primary,
-    fontSize: 11,
-    fontWeight: '600',
   },
 });

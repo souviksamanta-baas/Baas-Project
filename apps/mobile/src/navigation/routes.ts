@@ -21,8 +21,17 @@ export const routes = {
   staffInvite: '/(app)/staff-invite',
   staffInviteAccept: '/(auth)/invite-accept',
   editProfile: '/(app)/edit-profile',
+  businessSettings: '/(app)/business-settings',
   tasks: '/(app)/tasks',
 } as const;
+
+export function manageStockRoute(options?: { lowStock?: boolean }): string {
+  if (options?.lowStock) {
+    return `${routes.inventoryManageStock}?filter=low_stock`;
+  }
+
+  return routes.inventoryManageStock;
+}
 
 export type WorkQueueFilter = 'all' | 'follow_up' | 'stock' | 'overdue' | 'snoozed' | 'completed';
 
@@ -316,6 +325,7 @@ export function shouldHideBottomNav(pathname: string): boolean {
     pathname.endsWith('/whatsapp-connect') ||
     pathname.endsWith('/staff-invite') ||
     pathname.endsWith('/edit-profile') ||
+    pathname.endsWith('/business-settings') ||
     /\/tasks\/[^/]+$/.test(pathname)
   );
 }

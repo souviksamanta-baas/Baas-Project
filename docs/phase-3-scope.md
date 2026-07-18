@@ -16,7 +16,7 @@ This document captures candidate Phase 3 work identified after the Task Portal M
 
 - Lead status lifecycle (KAN-313 epic): `new` → `active`, manual picker, inbox filter alignment
 - Multi-channel production polish beyond WhatsApp (Instagram, Facebook, email send/receive)
-- Contact picker on staff invite (deferred from auth onboarding)
+- Staff invite multi-sucursal picker (UI deferred; invites still attach the default center)
 
 ### Task portal v2
 

@@ -88,14 +88,20 @@ export function mapProductsToInventoryRows(products: Product[]): InventoryProduc
 export function filterInventoryProducts(
   products: InventoryProductMock[],
   query: string,
+  options?: { lowStockOnly?: boolean },
 ): InventoryProductMock[] {
   const normalizedQuery = query.trim().toLocaleLowerCase('es');
-
-  if (normalizedQuery.length === 0) {
-    return products;
-  }
+  const lowStockOnly = options?.lowStockOnly === true;
 
   return products.filter((product) => {
+    if (lowStockOnly && product.statusTone !== 'orange' && product.statusTone !== 'red') {
+      return false;
+    }
+
+    if (normalizedQuery.length === 0) {
+      return true;
+    }
+
     const haystack = [product.name, product.category, product.code].join(' ').toLocaleLowerCase('es');
     return haystack.includes(normalizedQuery);
   });

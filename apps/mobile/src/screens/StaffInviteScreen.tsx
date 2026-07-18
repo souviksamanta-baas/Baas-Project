@@ -1,18 +1,17 @@
 import type { ReactElement } from 'react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 
-import { PrimaryButton } from '../components/Buttons';
+import { ContactPickerModal } from '../components/ContactPickerModal';
 import { Card, ScreenContent, ScreenTitle } from '../components/ui';
-import { TextField, colors as dsColors } from '../design-system';
-import { listBusinessCenters } from '../api/dashboard';
-import { normalizePhoneNumber } from '../services/phone';
+import { PrimaryButton, TextField, colors as dsColors } from '../design-system';
 import {
   buildStaffInviteDeepLink,
   createStaffInvite,
   type StaffInviteRole,
 } from '../api/staffInvites';
+import { normalizePhoneNumber } from '../services/phone';
 import { colors } from '../theme';
 import type { OwnerDashboard } from '../types/dashboard';
 
@@ -29,38 +28,15 @@ export function StaffInviteScreen(props: {
   const [role, setRole] = useState<StaffInviteRole>('employee');
   const [phoneInput, setPhoneInput] = useState('');
   const [displayName, setDisplayName] = useState('');
-  const [branchSelections, setBranchSelections] = useState<string[]>(['']);
-  const [branches, setBranches] = useState<Array<{ id: string; name: string }>>([]);
+  const [contactPickerOpen, setContactPickerOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [inviteLink, setInviteLink] = useState<string | null>(null);
 
-  useEffect(() => {
-    const organizationId = props.dashboard.organization?.id;
-    if (!organizationId) {
-      return;
-    }
-
-    void listBusinessCenters(organizationId).then((items) => {
-      setBranches(items);
-      if (items.length > 0) {
-        setBranchSelections([items[0]!.id]);
-      }
-    });
-  }, [props.dashboard.organization?.id]);
-
-  function updateBranchSelection(index: number, businessCenterId: string): void {
-    setBranchSelections((current) => current.map((value, itemIndex) => (itemIndex === index ? businessCenterId : value)));
-  }
-
-  function addBranchRow(): void {
-    setBranchSelections((current) => [...current, branches[0]?.id ?? '']);
-  }
-
   async function handleCreateInvite(): Promise<void> {
     const invitedPhoneE164 = normalizePhoneNumber(phoneInput);
     const trimmedName = displayName.trim();
-    const selectedBranches = [...new Set(branchSelections.filter(Boolean))];
+    const defaultCenterId = props.dashboard.businessCenter?.id;
 
     if (!trimmedName) {
       setErrorMessage('Ingresá el nombre del miembro.');
@@ -72,8 +48,8 @@ export function StaffInviteScreen(props: {
       return;
     }
 
-    if (selectedBranches.length === 0) {
-      setErrorMessage('Seleccioná al menos una sucursal.');
+    if (!defaultCenterId) {
+      setErrorMessage('No hay una sucursal activa para asignar la invitación.');
       return;
     }
 
@@ -82,7 +58,7 @@ export function StaffInviteScreen(props: {
 
     try {
       const invite = await createStaffInvite({
-        businessCenterIds: selectedBranches,
+        businessCenterId: defaultCenterId,
         invitedDisplayName: trimmedName,
         invitedPhoneE164,
         organizationId: props.dashboard.organization!.id,
@@ -98,11 +74,15 @@ export function StaffInviteScreen(props: {
   }
 
   return (
-    <ScreenContent>
-      <ScreenTitle subtitle="Compartí un QR para sumar a tu equipo" title="Invitar miembro" />
-      <Pressable onPress={props.onBack}>
-        <Text style={styles.backLink}>‹ Volver</Text>
-      </Pressable>
+    <ScreenContent title="Invitar miembro">
+      <View style={styles.headerRow}>
+        <Pressable hitSlop={8} onPress={props.onBack} style={styles.backPressable}>
+          <Text style={styles.backText}>‹</Text>
+        </Pressable>
+        <View style={styles.flex}>
+          <ScreenTitle subtitle="Compartí un QR para sumar a tu equipo" title="Invitar miembro" />
+        </View>
+      </View>
 
       <Card style={styles.formCard}>
         <Text style={styles.sectionLabel}>Rol</Text>
@@ -120,13 +100,9 @@ export function StaffInviteScreen(props: {
           ))}
         </View>
 
-        <TextField
-          keyboardType="phone-pad"
-          label="Teléfono del miembro *"
-          onChangeText={setPhoneInput}
-          placeholder="+5411… o 011…"
-          value={phoneInput}
-        />
+        <Pressable onPress={() => setContactPickerOpen(true)} style={styles.contactLink}>
+          <Text style={styles.contactLinkText}>+ Agregar desde contactos</Text>
+        </Pressable>
 
         <TextField
           label="Nombre *"
@@ -135,34 +111,19 @@ export function StaffInviteScreen(props: {
           value={displayName}
         />
 
-        <Text style={styles.sectionLabel}>Sucursales</Text>
-        {branchSelections.map((selection, index) => (
-          <View key={`branch-${index}`} style={styles.branchRow}>
-            <View style={styles.branchPicker}>
-              {branches.map((branch) => (
-                <Pressable
-                  key={branch.id}
-                  onPress={() => updateBranchSelection(index, branch.id)}
-                  style={[styles.branchChip, selection === branch.id && styles.branchChipActive]}
-                >
-                  <Text
-                    style={[styles.branchChipText, selection === branch.id && styles.branchChipTextActive]}
-                  >
-                    {branch.name}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-          </View>
-        ))}
-        <Pressable onPress={addBranchRow} style={styles.addBranchButton}>
-          <Text style={styles.addBranchText}>+ Agregar sucursal</Text>
-        </Pressable>
+        <TextField
+          keyboardType="phone-pad"
+          label="Teléfono del miembro *"
+          onChangeText={setPhoneInput}
+          placeholder="+5411… o 011…"
+          value={phoneInput}
+        />
 
         {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
 
         <PrimaryButton
           disabled={isSubmitting}
+          fullWidth
           label={isSubmitting ? 'Generando…' : 'Generar QR'}
           onPress={() => void handleCreateInvite()}
         />
@@ -182,60 +143,55 @@ export function StaffInviteScreen(props: {
           </Text>
         </Card>
       ) : null}
+
+      <ContactPickerModal
+        onClose={() => setContactPickerOpen(false)}
+        onSelect={(contact) => {
+          setDisplayName(contact.displayName);
+          setPhoneInput(contact.phoneE164 ?? contact.rawPhone);
+          setContactPickerOpen(false);
+          setErrorMessage(null);
+        }}
+        visible={contactPickerOpen}
+      />
     </ScreenContent>
   );
 }
 
 const styles = StyleSheet.create({
-  addBranchButton: {
+  backPressable: {
+    marginLeft: -6,
+    marginTop: -4,
+  },
+  backText: {
+    color: colors.navy,
+    fontSize: 42,
+    lineHeight: 42,
+    width: 28,
+  },
+  contactLink: {
     alignSelf: 'flex-start',
-    marginTop: 4,
+    paddingVertical: 2,
   },
-  addBranchText: {
-    color: colors.primary,
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  backLink: {
+  contactLinkText: {
     color: colors.primary,
     fontSize: 14,
-    marginBottom: 12,
-  },
-  branchChip: {
-    backgroundColor: colors.surfaceMint,
-    borderColor: colors.borderSoft,
-    borderRadius: 999,
-    borderWidth: 1,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-  },
-  branchChipActive: {
-    backgroundColor: dsColors.primarySoft,
-    borderColor: colors.primary,
-  },
-  branchChipText: {
-    color: colors.slate,
-    fontSize: 11,
-  },
-  branchChipTextActive: {
-    color: colors.primary,
     fontWeight: '600',
-  },
-  branchPicker: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  branchRow: {
-    gap: 8,
   },
   errorText: {
     color: colors.danger,
     fontSize: 12,
   },
+  flex: {
+    flex: 1,
+  },
   formCard: {
     gap: 14,
     padding: 16,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    gap: 4,
   },
   linkText: {
     color: colors.slate,

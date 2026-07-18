@@ -136,6 +136,7 @@ const SELL_PAGE_SIZE = 10;
 export function ManageStockScreen(
   props: {
     errorMessage?: string | null;
+    initialLowStockOnly?: boolean;
     isLoading?: boolean;
     onAddStockProduct: (productId: string) => void;
     onAddProduct?: () => void;
@@ -146,11 +147,12 @@ export function ManageStockScreen(
   },
 ): ReactElement {
   const [searchQuery, setSearchQuery] = useState('');
+  const [lowStockOnly, setLowStockOnly] = useState(props.initialLowStockOnly === true);
   const [currentPage, setCurrentPage] = useState(1);
   const products = props.products ?? inventoryProducts;
   const filteredProducts = useMemo(
-    () => filterInventoryProducts(products, searchQuery),
-    [products, searchQuery],
+    () => filterInventoryProducts(products, searchQuery, { lowStockOnly }),
+    [lowStockOnly, products, searchQuery],
   );
   const pagination = useMemo(
     () => paginateItems(filteredProducts, currentPage, MANAGE_STOCK_PAGE_SIZE),
@@ -164,7 +166,7 @@ export function ManageStockScreen(
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery]);
+  }, [lowStockOnly, searchQuery]);
 
   useEffect(() => {
     if (currentPage > pagination.pageCount) {
@@ -173,13 +175,21 @@ export function ManageStockScreen(
   }, [currentPage, pagination.pageCount]);
 
   return (
-    <ScreenContent>
+    <ScreenContent title="Gestionar stock">
       <InventoryScreenTitle
         showBack={false}
         subtitle="Busca, escanea y actualiza tu inventario"
         title="Gestionar stock"
       />
       <SearchFilterRow onChangeText={setSearchQuery} searchValue={searchQuery} />
+      <Pressable
+        onPress={() => setLowStockOnly((current) => !current)}
+        style={[styles.filterChip, lowStockOnly && styles.filterChipActive]}
+      >
+        <Text style={[styles.filterChipText, lowStockOnly && styles.filterChipTextActive]}>
+          Bajo stock
+        </Text>
+      </Pressable>
       {props.errorMessage ? <InfoBanner>{props.errorMessage}</InfoBanner> : null}
       <ListBox headerMeta={productCountLabel} title="Productos en inventario">
         {props.isLoading ? (
@@ -187,7 +197,11 @@ export function ManageStockScreen(
         ) : products.length === 0 ? (
           <Text style={styles.loadingText}>No hay productos cargados en esta sucursal.</Text>
         ) : filteredProducts.length === 0 ? (
-          <Text style={styles.loadingText}>No se encontraron productos para esta busqueda.</Text>
+          <Text style={styles.loadingText}>
+            {lowStockOnly
+              ? 'No hay productos con bajo stock.'
+              : 'No se encontraron productos para esta busqueda.'}
+          </Text>
         ) : (
           <>
             {pagination.items.map((product, index) => (
@@ -387,14 +401,13 @@ export function AddProductScreen(props: {
             value={formValues.reorderThreshold}
           />
         </View>
-        <InventorySelectField
+        <InventoryReadOnlyField
           full
           label="Sucursal"
-          onChange={(businessCenterId) =>
-            setFormValues((current) => ({ ...current, businessCenterId }))
+          value={
+            branchOptions.find((option) => option.value === formValues.businessCenterId)?.label ??
+            'Sucursal principal'
           }
-          options={branchOptions}
-          value={formValues.businessCenterId}
         />
         {showLotFields ? (
           <View style={styles.fieldRow}>
@@ -617,14 +630,13 @@ export function AddSubproductScreen(props: {
             value={formValues.reorderThreshold}
           />
         </View>
-        <InventorySelectField
+        <InventoryReadOnlyField
           full
           label="Sucursal"
-          onChange={(businessCenterId) =>
-            setFormValues((current) => ({ ...current, businessCenterId }))
+          value={
+            branchOptions.find((option) => option.value === formValues.businessCenterId)?.label ??
+            'Sucursal principal'
           }
-          options={branchOptions}
-          value={formValues.businessCenterId}
         />
         {showLotFields ? (
           <View style={styles.fieldRow}>
@@ -1194,13 +1206,13 @@ export function EditSubproductScreen(
             value={formValues.marginPercent}
           />
         </View>
-        <InventorySelectField
-          disabled
+        <InventoryReadOnlyField
           full
           label="Sucursal"
-          onChange={() => undefined}
-          options={branchOptions}
-          value={formValues.businessCenterId}
+          value={
+            branchOptions.find((option) => option.value === formValues.businessCenterId)?.label ??
+            'Sucursal principal'
+          }
         />
         <InventoryTextField
           full
@@ -2474,6 +2486,28 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 16,
     textAlign: 'center',
+  },
+  filterChip: {
+    alignSelf: 'flex-start',
+    borderColor: colors.border,
+    borderRadius: 999,
+    borderWidth: 1,
+    marginBottom: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  filterChipActive: {
+    backgroundColor: colors.primarySoft,
+    borderColor: colors.primary,
+  },
+  filterChipText: {
+    color: colors.slate,
+    fontSize: 11,
+    fontWeight: '500',
+  },
+  filterChipTextActive: {
+    color: colors.primary,
+    fontWeight: '600',
   },
   listBoxEmptyState: {
     paddingBottom: 14,

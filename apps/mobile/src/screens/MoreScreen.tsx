@@ -10,7 +10,7 @@ import { colors } from '../theme';
 
 export function MoreScreen(props: { onOpenAccount: () => void; onOpenInventory: () => void }): ReactElement {
   return (
-    <ScreenContent>
+    <ScreenContent title="Mas">
       <ScreenTitle subtitle="Herramientas y accesos de tu negocio" title="Mas" />
 
       <FeatureGate feature="moreQuickActions">

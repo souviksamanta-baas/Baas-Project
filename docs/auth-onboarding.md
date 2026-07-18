@@ -99,17 +99,21 @@ Do **not** enable Supabase WhatsApp OTP via Twilio — Nexolia WhatsApp login us
 
 ## Staff QR invite (KAN-273 / KAN-307)
 
-1. Owner opens **Invitar miembro** (profile → staff invite).
-2. Enters **nombre** (required), **teléfono**, **rol**, and one or more **sucursales** (`+ Agregar sucursal`).
-3. API `POST /organizations/invites` accepts `businessCenterIds[]` (stored on
-   `organization_invites.invited_business_center_ids`).
-4. App shows QR encoding `baas-owner://invite-accept?token=…`
-5. Staff verifies **the same phone** via email/WhatsApp/SMS login OTP.
-6. API accepts invite → `organization_members` + `business_center_members` per selected branch.
+1. Owner opens **Invitar miembro** (Mi cuenta → staff invite).
+2. Optionally picks a device contact (**+ Agregar desde contactos**) to fill
+   nombre + teléfono, or types them manually.
+3. Selects **rol** (empleado / administrador / co-dueño).
+4. API `POST /organizations/invites` receives the active/default
+   `businessCenterId` (sucursales multi-select UI is deferred; the invite still
+   attaches the default center server-side).
+5. App shows QR encoding `baas-owner://invite-accept?token=…`
+6. Staff verifies **the same phone** via email/WhatsApp/SMS login OTP.
+7. API accepts invite → `organization_members` + `business_center_members` for
+   the assigned center.
 
-Contact picker (`Elegir de contactos`) is removed until a future release.
-
-See [contacts-permissions.md](./contacts-permissions.md).
+Contact picker uses the Expo Contacts class API (`Contact.getAllDetails`) and a
+branded in-app list (`ContactPickerModal`). See
+[contacts-permissions.md](./contacts-permissions.md).
 
 ## Onboarding RPCs
 

@@ -31,6 +31,7 @@ export default function VerifyRoute(): ReactElement {
       destination={session.loginIdentifier}
       isSubmitting={session.isSubmitting}
       onChangeOtpCode={session.setOtpCode}
+      onResendOtp={session.requestOtp}
       onVerifyOtp={session.verifyOtp}
       otpCode={session.otpCode}
     />

@@ -37,6 +37,7 @@ export default function WhatsAppConnectRoute(): ReactElement {
       onChangeDisplayPhoneNumber={connect.setDisplayPhoneNumber}
       onChangePhoneNumberId={connect.setPhoneNumberId}
       onChangeWabaId={connect.setWabaId}
+      onBack={() => router.back()}
       onSubmit={connect.submit}
       phoneNumberId={connect.phoneNumberId}
       wabaId={connect.wabaId}

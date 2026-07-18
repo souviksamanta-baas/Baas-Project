@@ -2,14 +2,16 @@ import type { ReactElement } from 'react';
 import { useEffect, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { PrimaryButton } from '../components/Buttons';
 import { Card, ScreenContent, ScreenTitle } from '../components/ui';
-import { TextField } from '../design-system';
+import { useProfileChromeOptional } from '../context/ProfileChromeProvider';
+import { PrimaryButton, TextField } from '../design-system';
 import { supabase } from '../lib/supabase';
 import { colors } from '../theme';
 
 export function EditProfileScreen(props: { onBack: () => void }): ReactElement {
+  const profileChrome = useProfileChromeOptional();
   const [fullName, setFullName] = useState('');
+  const [preferredName, setPreferredName] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [isSaving, setIsSaving] = useState(false);
@@ -23,6 +25,7 @@ export function EditProfileScreen(props: { onBack: () => void }): ReactElement {
 
       setEmail(user.email ?? '');
       setFullName(String(user.user_metadata?.full_name ?? ''));
+      setPreferredName(String(user.user_metadata?.preferred_name ?? ''));
       setPhone(String(user.user_metadata?.phone ?? user.phone ?? ''));
     });
   }, []);
@@ -30,7 +33,7 @@ export function EditProfileScreen(props: { onBack: () => void }): ReactElement {
   async function handleSave(): Promise<void> {
     const trimmedName = fullName.trim();
     if (!trimmedName) {
-      Alert.alert('Nombre requerido', 'Ingresá tu nombre para continuar.');
+      Alert.alert('Nombre requerido', 'Ingresá tu nombre completo para continuar.');
       return;
     }
 
@@ -40,6 +43,7 @@ export function EditProfileScreen(props: { onBack: () => void }): ReactElement {
       const { error } = await supabase.auth.updateUser({
         data: {
           full_name: trimmedName,
+          preferred_name: preferredName.trim() || null,
           phone: phone.trim() || null,
         },
       });
@@ -48,6 +52,7 @@ export function EditProfileScreen(props: { onBack: () => void }): ReactElement {
         throw error;
       }
 
+      await profileChrome.refreshProfile();
       Alert.alert('Perfil actualizado', 'Tus datos se guardaron correctamente.');
       props.onBack();
     } catch (error) {
@@ -58,15 +63,30 @@ export function EditProfileScreen(props: { onBack: () => void }): ReactElement {
   }
 
   return (
-    <ScreenContent>
-      <ScreenTitle subtitle="Actualizá tu información personal" title="Editar perfil" />
-      <Pressable onPress={props.onBack}>
-        <Text style={styles.backLink}>‹ Volver</Text>
-      </Pressable>
+    <ScreenContent title="Editar perfil">
+      <View style={styles.headerRow}>
+        <Pressable hitSlop={8} onPress={props.onBack} style={styles.backPressable}>
+          <Text style={styles.backText}>‹</Text>
+        </Pressable>
+        <View style={styles.flex}>
+          <ScreenTitle subtitle="Actualizá tu información personal" title="Editar perfil" />
+        </View>
+      </View>
 
       <Card style={styles.formCard}>
         <TextField editable={false} label="Email" value={email} />
-        <TextField label="Nombre *" onChangeText={setFullName} placeholder="Tu nombre" value={fullName} />
+        <TextField
+          label="Nombre completo *"
+          onChangeText={setFullName}
+          placeholder="Tu nombre completo"
+          value={fullName}
+        />
+        <TextField
+          label="Nombre preferido"
+          onChangeText={setPreferredName}
+          placeholder="Cómo querés que te salude la app"
+          value={preferredName}
+        />
         <TextField
           keyboardType="phone-pad"
           label="Teléfono"
@@ -76,6 +96,7 @@ export function EditProfileScreen(props: { onBack: () => void }): ReactElement {
         />
         <PrimaryButton
           disabled={isSaving}
+          fullWidth
           label={isSaving ? 'Guardando…' : 'Guardar cambios'}
           onPress={() => void handleSave()}
         />
@@ -85,13 +106,25 @@ export function EditProfileScreen(props: { onBack: () => void }): ReactElement {
 }
 
 const styles = StyleSheet.create({
-  backLink: {
-    color: colors.primary,
-    fontSize: 14,
-    marginBottom: 12,
+  backPressable: {
+    marginLeft: -6,
+    marginTop: -4,
+  },
+  backText: {
+    color: colors.navy,
+    fontSize: 42,
+    lineHeight: 42,
+    width: 28,
+  },
+  flex: {
+    flex: 1,
   },
   formCard: {
     gap: 14,
     padding: 16,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    gap: 4,
   },
 });
