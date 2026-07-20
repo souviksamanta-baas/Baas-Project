@@ -306,6 +306,7 @@ export function mapProductsToSellRows(products: Product[]): SellProductMock[] {
 
   const mapSellRow = (product: Product, indent: boolean): SellProductMock => ({
     category: product.category ?? 'Sin categoria',
+    code: isProductCodeUnavailable(product) ? '' : readProductCodeValue(product),
     id: product.id,
     indent,
     linkedTo: product.parentProductId ? parentNames.get(product.parentProductId) : undefined,
@@ -335,7 +336,7 @@ export function filterSellProducts(products: SellProductMock[], query: string): 
   }
 
   return products.filter((product) => {
-    const haystack = [product.name, product.linkedTo ?? '', product.price, product.stock]
+    const haystack = [product.name, product.linkedTo ?? '', product.price, product.stock, product.code ?? '']
       .join(' ')
       .toLocaleLowerCase('es');
     return haystack.includes(normalizedQuery);

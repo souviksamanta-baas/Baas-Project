@@ -176,31 +176,36 @@ export const notifications: NotificationMock[] = [
 
 export const menuSections: MenuSectionMock[] = [
   {
-    id: 'operations',
+    id: 'inventory',
     rows: [
-      { icon: 'box', id: 'inventory', subtitle: 'Stock, productos y movimientos', title: 'Inventario' },
-      { icon: 'bill', id: 'billing', subtitle: 'Comprobantes y cobros', title: 'Facturacion' },
-      { icon: 'cart', id: 'purchases', subtitle: 'Ordenes y abastecimiento', title: 'Compras y proveedores' },
-      { icon: 'cash', id: 'cash', subtitle: 'Ingresos, egresos y cierre', title: 'Caja' },
+      { icon: 'box', id: 'manage-stock', subtitle: 'Stock actual, alertas y catálogo', title: 'Gestionar stock' },
+      { icon: 'plus', id: 'add-product', subtitle: 'Alta de productos y subproductos', title: 'Agregar producto' },
+      { icon: 'document', id: 'lots-movements', subtitle: 'Ingresos, egresos y trazabilidad', title: 'Lotes y Movimientos' },
+      { icon: 'bell', id: 'notifications-tasks', subtitle: 'Alertas, seguimientos y pendientes', title: 'Notificaciones y Tareas' },
     ],
-    title: 'Operacion',
+    title: 'Inventarios',
   },
   {
-    id: 'growth',
+    id: 'operations',
     rows: [
-      { icon: 'megaphone', id: 'marketing', subtitle: 'Promociones, campanas y posteos', title: 'Marketing' },
-      { icon: 'users', id: 'portal', subtitle: 'Catalogo, reservas y seguimiento', title: 'Portal del cliente' },
-      { icon: 'bot', id: 'automation', subtitle: 'Mensajes, reglas y acciones', title: 'Automatizaciones' },
+      { icon: 'bill', id: 'billing', subtitle: 'Presupuestos, estados y cobros', title: 'Facturación' },
+      { icon: 'cash', id: 'cash', subtitle: 'Próximamente', title: 'Caja' },
     ],
-    title: 'Crecimiento',
+    title: 'Operaciones',
+  },
+  {
+    id: 'reports',
+    rows: [],
+    title: 'Reportes',
   },
   {
     id: 'settings',
     rows: [
-      { icon: 'user', id: 'account', subtitle: 'Perfil, rol y sucursal', title: 'Mi cuenta' },
-      { icon: 'puzzle', id: 'integrations', subtitle: 'WhatsApp, Instagram y Email', title: 'Integraciones' },
-      { icon: 'help', id: 'help', subtitle: 'Guias y asistencia', title: 'Ayuda y soporte' },
+      { icon: 'user', id: 'account', subtitle: 'Perfil, negocio y equipo', title: 'Mi cuenta' },
+      { icon: 'puzzle', id: 'integrations', subtitle: 'WhatsApp, Instagram, email y SMS', title: 'Integraciones' },
+      { icon: 'users', id: 'suppliers', subtitle: 'Contactos de proveedores', title: 'Proveedores' },
+      { icon: 'help', id: 'help', subtitle: 'Ayuda personalizada por WhatsApp', title: 'Ayuda y soporte' },
     ],
-    title: 'Configuracion',
+    title: 'Configuraciones',
   },
 ];

@@ -52,6 +52,24 @@ Server env: `OPENAI_API_KEY`, optional `OPENAI_MODEL` / `OPENAI_VISION_MODEL`.
 
 `create_task`, `assign_task`, `complete_task`, `snooze_task`, `cancel_task`, `reassign_task` — proposed in query response, executed only after owner confirms.
 
+### Multi-task create + inline assignment
+
+`copi-task-parse.ts` splits numbered / “tarea para …” messages into one or more
+cleaned task items (titles, due dates, reminders). Confirm creates **all** items
+in one `create_task` proposal.
+
+- Phrases like “mañana” are scheduling hints, **not** snooze. Create-task intent
+  always wins over snooze when the owner asks to create tasks.
+- “asignarlo a Beto” / “asignar a …” strips the assignee from the title and
+  stores `assigneeName`. On confirm, `CopiActionService` resolves the name to an
+  org member via Auth `user_metadata` (`preferred_name` / `full_name`). If no
+  match, the task is still created and metadata notes the unresolved assignee.
+- Misclassified pending proposals (legacy snooze with `taskId: null`) are
+  recovered to `create_task` on confirm. Confirm domain errors surface as HTTP
+  400 with a Spanish message instead of an opaque 500.
+
+Tests: `apps/api/test/copi-task-parse.spec.ts`, `apps/api/test/copi-action-confirm.spec.ts`.
+
 ## Key modules
 
 - `apps/api/src/domains/ai/prompts/copi-system.prompt.ts`
@@ -63,6 +81,7 @@ Server env: `OPENAI_API_KEY`, optional `OPENAI_MODEL` / `OPENAI_VISION_MODEL`.
 - `apps/api/src/domains/ai/copi-policy.service.ts`
 - `apps/api/src/domains/ai/copi-llm-phraser.service.ts`
 - `apps/api/src/domains/ai/copi-action.service.ts`
+- `apps/api/src/domains/ai/copi-task-parse.ts`
 - `apps/mobile/src/hooks/useOwnerCopilot.ts`
 - `apps/mobile/src/api/ai.ts`
 - `apps/mobile/src/lib/workQueue.ts` — Task Portal presentation; product links in chat use `returnTo` navigation to inventory and back to Copi chat

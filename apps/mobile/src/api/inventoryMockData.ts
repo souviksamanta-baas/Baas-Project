@@ -45,6 +45,7 @@ export interface MovementMock {
 
 export interface SellProductMock {
   category?: string;
+  code?: string;
   id: string;
   indent?: boolean;
   linkedTo?: string;

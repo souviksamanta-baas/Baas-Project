@@ -1,6 +1,6 @@
 # Contacts Permission and Privacy
 
-Nexolia reads device contacts only when the owner explicitly opens the contact picker (staff invite or CRM contact creation).
+Nexolia reads device contacts only when the owner explicitly opens the contact picker (staff invite, proveedores, or CRM contact creation).
 
 ## Behavior
 
@@ -20,7 +20,8 @@ The invited staff member must verify the **same** number when accepting the QR i
 ## CRM / clients
 
 Reuse the same contact loader helpers in `apps/mobile/src/api/customers.ts` when
-creating or editing CRM contacts. Normalize Argentina formats (`011…`, `+5411…`,
+creating or editing CRM contacts, and in **Proveedores** (`SuppliersScreen`)
+when importing a vendor from the phone book. Normalize Argentina formats (`011…`, `+5411…`,
 `+54911…`) before save.
 
 ## Platforms

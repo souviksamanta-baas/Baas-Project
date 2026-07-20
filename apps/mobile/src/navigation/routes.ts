@@ -15,6 +15,8 @@ export const routes = {
   account: '/(app)/account',
   notifications: '/(app)/notifications',
   inventoryManageStock: '/(app)/inventory/manage-stock',
+  inventoryLotsMovements: '/(app)/inventory/lots-movements',
+  inventoryScanCode: '/(app)/inventory/scan-code',
   inventorySell: '/(app)/inventory/sell',
   inventoryConfirmPayment: '/(app)/inventory/confirm-payment',
   whatsappConnect: '/(app)/whatsapp-connect',
@@ -23,6 +25,10 @@ export const routes = {
   editProfile: '/(app)/edit-profile',
   businessSettings: '/(app)/business-settings',
   tasks: '/(app)/tasks',
+  billing: '/(app)/billing',
+  integrations: '/(app)/integrations',
+  suppliers: '/(app)/suppliers',
+  helpSupport: '/(app)/help-support',
 } as const;
 
 export function manageStockRoute(options?: { lowStock?: boolean }): string {
@@ -121,6 +127,26 @@ export function productDetailRoute(
   }
 
   return `${path}?returnTo=${returnTo}`;
+}
+
+export function productCodeRoute(productId: string, returnTo?: InventoryReturnTo): string {
+  const path = `/(app)/inventory/product/${productId}/code`;
+
+  if (!returnTo) {
+    return path;
+  }
+
+  return `${path}?returnTo=${returnTo}`;
+}
+
+export function inventoryScanRoute(options?: {
+  mode?: 'manage-stock' | 'sell';
+}): string {
+  if (!options?.mode) {
+    return routes.inventoryScanCode;
+  }
+
+  return `${routes.inventoryScanCode}?mode=${options.mode}`;
 }
 
 export type InventoryReturnTo =
@@ -326,7 +352,9 @@ export function shouldHideBottomNav(pathname: string): boolean {
     pathname.endsWith('/staff-invite') ||
     pathname.endsWith('/edit-profile') ||
     pathname.endsWith('/business-settings') ||
-    /\/tasks\/[^/]+$/.test(pathname)
+    pathname.endsWith('/scan-code') ||
+    /\/tasks\/[^/]+$/.test(pathname) ||
+    /\/product\/[^/]+\/code$/.test(pathname)
   );
 }
 

@@ -3,7 +3,14 @@ import { Injectable } from '@nestjs/common';
 import { TasksService } from '../tasks/tasks.service';
 import { SupabaseService } from '../../supabase/supabase.service';
 import type { CopiActionProposal, CopiActionType, CopiQueryContext } from './copi.types';
-import { detectProActionIntent } from './copi-intent-router';
+import { detectProActionIntent, normalizeCopiQuestion } from './copi-intent-router';
+import {
+  buildCreateTaskPayload,
+  readTaskItems,
+  summarizeCreateTaskPayload,
+} from './copi-task-parse';
+
+const DEFAULT_TIMEZONE = 'America/Argentina/Cordoba';
 
 @Injectable()
 export class CopiActionService {
@@ -17,8 +24,9 @@ export class CopiActionService {
       return null;
     }
 
-    const actionType = inferActionType(context.question);
-    const payload = buildActionPayload(context.question, actionType);
+    const actionType = inferCopiActionType(context.question);
+    const timezone = context.timezone || DEFAULT_TIMEZONE;
+    const payload = buildActionPayload(context.question, actionType, timezone);
     const client = this.supabaseService.getServiceRoleClient();
     const { data, error } = await client
       .from('copi_action_proposals')
@@ -80,22 +88,32 @@ export class CopiActionService {
       throw new Error('Copi action proposal expired');
     }
 
+    // Recover proposals misclassified as snooze/complete/etc. when the owner
+    // clearly asked to create tasks (e.g. "mañana" falsely matching snooze).
+    const { actionType, payload } = recoverCreateTaskProposal(data.action_type, data.payload);
+
     const result = await this.executeAction({
-      actionType: data.action_type,
+      actionType,
       businessCenterId: params.businessCenterId,
       organizationId: params.organizationId,
-      payload: data.payload,
+      payload,
       userId: params.userId,
     });
 
-    await client
+    const { error: updateError } = await client
       .from('copi_action_proposals')
       .update({
+        action_type: actionType,
         executed_at: new Date().toISOString(),
+        payload,
         result,
         status: 'executed',
       })
       .eq('id', data.id);
+
+    if (updateError) {
+      throw new Error(`Failed to mark Copi action as executed: ${updateError.message}`);
+    }
 
     return { result, status: 'executed' };
   }
@@ -109,59 +127,125 @@ export class CopiActionService {
   }): Promise<Record<string, unknown>> {
     switch (params.actionType) {
       case 'create_task': {
-        const task = await this.tasksService.createTask({
-          assignedToUserId: (params.payload.assignedToUserId as string | undefined) ?? null,
-          businessCenterId: params.businessCenterId,
-          contactId: (params.payload.contactId as string | undefined) ?? null,
-          conversationId: (params.payload.conversationId as string | undefined) ?? null,
-          createdByUserId: params.userId,
-          description: (params.payload.description as string | undefined) ?? null,
-          dueAt: (params.payload.dueAt as string | undefined) ?? null,
-          metadata: { copi: true },
-          organizationId: params.organizationId,
-          priority: (params.payload.priority as 'low' | 'normal' | 'high' | undefined) ?? 'normal',
-          sourceKey: `copi:${params.userId}:${Date.now()}`,
-          taskType: 'copi',
-          title: String(params.payload.title ?? 'Tarea de Copi'),
-        });
-        return { taskId: task.id, title: task.title };
+        const items = readTaskItems(params.payload);
+        if (items.length === 0) {
+          throw new Error('No se encontraron tareas para crear en la propuesta.');
+        }
+
+        const created: Array<{
+          assignedToUserId: string | null;
+          assigneeName: string | null;
+          remindAt: string | null;
+          taskId: string;
+          title: string;
+        }> = [];
+        const baseKey = Date.now();
+        const fallbackAssigneeId = readOptionalUuid(params.payload.assignedToUserId);
+
+        for (const [index, item] of items.entries()) {
+          const assignedToUserId =
+            readOptionalUuid(item.assignedToUserId) ??
+            (item.assigneeName
+              ? await this.resolveMemberUserId(params.organizationId, item.assigneeName)
+              : null) ??
+            fallbackAssigneeId;
+
+          const task = await this.tasksService.createTask({
+            assignedToUserId,
+            businessCenterId: params.businessCenterId,
+            contactId: readOptionalUuid(params.payload.contactId),
+            conversationId: readOptionalUuid(params.payload.conversationId),
+            createdByUserId: params.userId,
+            description: item.description,
+            dueAt: item.dueAt,
+            metadata: {
+              ...(item.assigneeName ? { assigneeName: item.assigneeName } : {}),
+              ...(item.assigneeName && !assignedToUserId
+                ? {
+                    assigneeUnresolved: true,
+                    clarificationQuestion: `No encontré a «${item.assigneeName}» en el equipo. ¿A quién querés asignarle «${item.title}»?`,
+                  }
+                : item.clarificationQuestion
+                  ? { clarificationQuestion: item.clarificationQuestion }
+                  : {}),
+              copi: true,
+              ...(item.remindAt ? { remindAt: item.remindAt } : {}),
+            },
+            organizationId: params.organizationId,
+            priority: (params.payload.priority as 'low' | 'normal' | 'high' | undefined) ?? 'normal',
+            sourceKey: `copi:${params.userId}:${baseKey}:${index}`,
+            taskType: 'copi',
+            title: item.title,
+          });
+          created.push({
+            assignedToUserId,
+            assigneeName: item.assigneeName,
+            remindAt: item.remindAt,
+            taskId: task.id,
+            title: task.title,
+          });
+        }
+
+        return {
+          assignedToUserIds: created.map((item) => item.assignedToUserId),
+          assigneeNames: created.map((item) => item.assigneeName),
+          taskId: created[0]?.taskId ?? null,
+          taskIds: created.map((item) => item.taskId),
+          titles: created.map((item) => item.title),
+        };
       }
       case 'assign_task':
       case 'reassign_task': {
+        const taskId = readRequiredTaskId(params.payload.taskId, 'asignar');
+        const assignedToUserId = readOptionalUuid(params.payload.assignedToUserId);
+        if (!assignedToUserId) {
+          throw new Error('Falta el usuario al que asignar la tarea.');
+        }
         const task = await this.tasksService.assignTask({
-          assignedToUserId: String(params.payload.assignedToUserId),
+          assignedToUserId,
           businessCenterId: params.businessCenterId,
           organizationId: params.organizationId,
-          taskId: String(params.payload.taskId),
+          taskId,
         });
         return { assignedToUserId: task.assignedToUserId, taskId: task.id };
       }
       case 'complete_task': {
+        const taskId = readRequiredTaskId(params.payload.taskId, 'completar');
         const task = await this.tasksService.updateTaskStatus({
           businessCenterId: params.businessCenterId,
           completedByUserId: params.userId,
           organizationId: params.organizationId,
           status: 'completed',
-          taskId: String(params.payload.taskId),
+          taskId,
         });
         return { status: task.status, taskId: task.id };
       }
       case 'snooze_task': {
+        const taskId = readRequiredTaskId(
+          params.payload.taskId,
+          'posponer',
+          'No hay una tarea concreta para posponer. Pedile a Copi que cree o identifique la tarea primero.',
+        );
+        const snoozedUntil =
+          typeof params.payload.snoozedUntil === 'string' && params.payload.snoozedUntil.trim()
+            ? params.payload.snoozedUntil
+            : new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
         const task = await this.tasksService.updateTaskStatus({
           businessCenterId: params.businessCenterId,
           organizationId: params.organizationId,
-          snoozedUntil: String(params.payload.snoozedUntil),
+          snoozedUntil,
           status: 'snoozed',
-          taskId: String(params.payload.taskId),
+          taskId,
         });
         return { status: task.status, taskId: task.id };
       }
       case 'cancel_task': {
+        const taskId = readRequiredTaskId(params.payload.taskId, 'cancelar');
         const task = await this.tasksService.updateTaskStatus({
           businessCenterId: params.businessCenterId,
           organizationId: params.organizationId,
           status: 'cancelled',
-          taskId: String(params.payload.taskId),
+          taskId,
         });
         return { status: task.status, taskId: task.id };
       }
@@ -169,60 +253,221 @@ export class CopiActionService {
         throw new Error(`Unsupported Copi action: ${params.actionType}`);
     }
   }
+
+  private async resolveMemberUserId(
+    organizationId: string,
+    assigneeName: string,
+  ): Promise<string | null> {
+    const needle = normalizePersonName(assigneeName);
+    if (!needle) {
+      return null;
+    }
+
+    const client = this.supabaseService.getServiceRoleClient();
+    const { data, error } = await client
+      .from('organization_members')
+      .select('user_id')
+      .eq('organization_id', organizationId);
+
+    if (error) {
+      throw new Error(`Failed to resolve assignee: ${error.message}`);
+    }
+
+    for (const row of data ?? []) {
+      const userId = typeof row.user_id === 'string' ? row.user_id : null;
+      if (!userId) {
+        continue;
+      }
+
+      const { data: userData, error: userError } = await client.auth.admin.getUserById(userId);
+      if (userError || !userData.user) {
+        continue;
+      }
+
+      const metadata = (userData.user.user_metadata ?? {}) as {
+        full_name?: unknown;
+        preferred_name?: unknown;
+      };
+      const candidates = [
+        String(metadata.preferred_name ?? ''),
+        String(metadata.full_name ?? ''),
+        String(metadata.preferred_name ?? '').split(/\s+/)[0] ?? '',
+        String(metadata.full_name ?? '').split(/\s+/)[0] ?? '',
+      ]
+        .map(normalizePersonName)
+        .filter((value) => value.length > 0);
+
+      if (candidates.some((candidate) => candidate === needle || candidate.startsWith(needle))) {
+        return userId;
+      }
+    }
+
+    return null;
+  }
 }
 
-function inferActionType(question: string): CopiActionType {
-  const normalized = question.toLocaleLowerCase();
-  if (/\b(asign|assign|reassign|pásale|pasale)\b/.test(normalized)) {
-    return /\b(reassign|pásale|pasale)\b/.test(normalized) ? 'reassign_task' : 'assign_task';
+function normalizePersonName(value: string): string {
+  return value
+    .trim()
+    .toLocaleLowerCase('es-AR')
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '');
+}
+
+export function inferCopiActionType(question: string): CopiActionType {
+  const normalized = normalizeCopiQuestion(question);
+  const mentionsTask = /\btareas?\b/.test(normalized);
+  const isCreate =
+    mentionsTask &&
+    /\b(crea|crear|creas|creame|necesito\s+que\s+creas?|recorda|recordar|anota|anotar)\b/.test(
+      normalized,
+    );
+
+  // Creating tasks always wins — phrases like "mañana" must not become snooze.
+  if (isCreate) {
+    return 'create_task';
   }
-  if (/\b(complet|hecha|done|marcá|marca)\b/.test(normalized)) {
+
+  if (/\b(asign|assign|reassign|pasale)\b/.test(normalized)) {
+    return /\b(reassign|pasale)\b/.test(normalized) ? 'reassign_task' : 'assign_task';
+  }
+  if (/\b(complet|hecha|done|marca)\b/.test(normalized) && mentionsTask) {
     return 'complete_task';
   }
-  if (/\b(pospon|snooze|mañana|later)\b/.test(normalized)) {
+  if (/\b(pospon|snooze|later|pospone|aplaza)\b/.test(normalized) && mentionsTask) {
     return 'snooze_task';
   }
-  if (/\b(cancel)\b/.test(normalized)) {
+  if (/\b(cancel)\b/.test(normalized) && mentionsTask) {
     return 'cancel_task';
   }
   return 'create_task';
 }
 
-function buildActionPayload(question: string, actionType: CopiActionType): Record<string, unknown> {
+function buildActionPayload(
+  question: string,
+  actionType: CopiActionType,
+  timezone: string,
+): Record<string, unknown> {
   if (actionType === 'create_task') {
     return {
-      description: question,
-      dueAt: inferDueDate(question),
-      title: inferTaskTitle(question),
+      ...buildCreateTaskPayload(question, timezone),
+      question,
+      timezone,
     };
   }
 
   return {
     question,
     taskId: null,
+    timezone,
   };
 }
 
-function inferTaskTitle(question: string): string {
-  const cleaned = question.replace(/^(crea|crear|creá|recordá|recordar)\s+(una\s+)?tarea\s+(para\s+)?/i, '').trim();
-  return cleaned.length > 0 ? cleaned.slice(0, 120) : 'Tarea de Copi';
-}
-
-function inferDueDate(question: string): string | null {
-  if (/\bmañana\b/i.test(question)) {
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    tomorrow.setHours(10, 0, 0, 0);
-    return tomorrow.toISOString();
+/**
+ * Rewrites misclassified snooze/complete/cancel proposals back to create_task
+ * when the stored question clearly asks to create tasks.
+ *
+ * Handles payloads that only have `description` (legacy) or `question`.
+ */
+export function recoverCreateTaskProposal(
+  actionType: CopiActionType,
+  payload: Record<string, unknown>,
+): { actionType: CopiActionType; payload: Record<string, unknown> } {
+  if (actionType === 'create_task') {
+    // Ensure older single-title payloads still expose a question for auditing.
+    if (typeof payload.question !== 'string' && typeof payload.description === 'string') {
+      return {
+        actionType,
+        payload: { ...payload, question: payload.description },
+      };
+    }
+    return { actionType, payload };
   }
 
-  return null;
+  const question = readProposalQuestion(payload);
+  if (!question) {
+    return { actionType, payload };
+  }
+
+  const inferred = inferCopiActionType(question);
+  const missingTaskId = !isValidUuid(payload.taskId);
+  const shouldRecover =
+    inferred === 'create_task' ||
+    // Defensive: snooze/complete/cancel with no concrete task + create verbs in text.
+    (missingTaskId &&
+      /\btareas?\b/.test(normalizeCopiQuestion(question)) &&
+      /\b(crea|crear|creas|creame|recorda|recordar|anota|anotar)\b/.test(
+        normalizeCopiQuestion(question),
+      ));
+
+  if (!shouldRecover) {
+    return { actionType, payload };
+  }
+
+  const timezone =
+    typeof payload.timezone === 'string' && payload.timezone.trim()
+      ? payload.timezone
+      : DEFAULT_TIMEZONE;
+
+  return {
+    actionType: 'create_task',
+    payload: {
+      ...buildCreateTaskPayload(question, timezone),
+      question,
+      timezone,
+    },
+  };
+}
+
+function readProposalQuestion(payload: Record<string, unknown>): string {
+  if (typeof payload.question === 'string' && payload.question.trim()) {
+    return payload.question.trim();
+  }
+  if (typeof payload.description === 'string' && payload.description.trim()) {
+    return payload.description.trim();
+  }
+  if (typeof payload.title === 'string' && payload.title.trim() && /\btareas?\b/i.test(payload.title)) {
+    return payload.title.trim();
+  }
+  return '';
+}
+
+function readRequiredTaskId(
+  value: unknown,
+  verb: string,
+  customMessage?: string,
+): string {
+  const taskId = typeof value === 'string' ? value.trim() : '';
+  if (!taskId || taskId === 'null' || taskId === 'undefined' || !isValidUuid(taskId)) {
+    throw new Error(customMessage ?? `Falta el ID de la tarea a ${verb}.`);
+  }
+  return taskId;
+}
+
+function readOptionalUuid(value: unknown): string | null {
+  if (typeof value !== 'string') {
+    return null;
+  }
+  const trimmed = value.trim();
+  if (!trimmed || trimmed === 'null' || trimmed === 'undefined' || !isValidUuid(trimmed)) {
+    return null;
+  }
+  return trimmed;
+}
+
+function isValidUuid(value: unknown): boolean {
+  if (typeof value !== 'string') {
+    return false;
+  }
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    value.trim(),
+  );
 }
 
 function summarizeProposal(actionType: CopiActionType, payload: Record<string, unknown>): string {
   switch (actionType) {
     case 'create_task':
-      return `Crear tarea: ${String(payload.title ?? 'Sin título')}`;
+      return summarizeCreateTaskPayload(payload);
     case 'assign_task':
     case 'reassign_task':
       return 'Asignar tarea';

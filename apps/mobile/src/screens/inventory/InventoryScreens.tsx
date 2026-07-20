@@ -77,6 +77,7 @@ import {
 } from '../../lib/inventoryPresentation';
 import {
   getProductCodeTypeLabel,
+  readProductCodeType,
   readProductCodeValue,
   isProductCodeUnavailable,
   isGranelProduct,
@@ -143,6 +144,7 @@ export function ManageStockScreen(
     onDeleteProduct: (productId: string) => void;
     onEditProduct: (productId: string) => void;
     onOpenProductDetail: (productId: string) => void;
+    onScanCode?: () => void;
     products?: InventoryProductMock[];
   },
 ): ReactElement {
@@ -181,7 +183,11 @@ export function ManageStockScreen(
         subtitle="Busca, escanea y actualiza tu inventario"
         title="Gestionar stock"
       />
-      <SearchFilterRow onChangeText={setSearchQuery} searchValue={searchQuery} />
+      <SearchFilterRow
+        onChangeText={setSearchQuery}
+        onPressCamera={props.onScanCode}
+        searchValue={searchQuery}
+      />
       <Pressable
         onPress={() => setLowStockOnly((current) => !current)}
         style={[styles.filterChip, lowStockOnly && styles.filterChipActive]}
@@ -689,6 +695,7 @@ export function ProductDetailScreen(
     businessCenterName?: string | null;
     movements?: typeof movements;
     onBack: () => void;
+    onOpenProductCode?: () => void;
     parentProduct?: Product | null;
     product?: Product | null;
     childProducts?: Product[];
@@ -717,8 +724,13 @@ export function ProductDetailScreen(
   const showSubproductsSection = Boolean(product && isBaseProduct && isGranelProduct(product));
 
   return (
-    <ScreenContent>
-      <InventoryScreenTitle onBack={props.onBack} subtitle="Detalle y gestion del producto" title="Producto" />
+    <ScreenContent title={productName}>
+      <InventoryScreenTitle
+        onBack={props.onBack}
+        stickyTitle={productName}
+        subtitle="Detalle y gestion del producto"
+        title="Producto"
+      />
       <ProductSummaryCard
         category={productCategory}
         meta={summaryMeta}
@@ -828,14 +840,19 @@ export function ProductDetailScreen(
       </SectionCard>
       <SectionCard title="Codigo asociado">
         <View style={styles.barcodeRow}>
-          <Icon color={codeUnavailable ? colors.danger : colors.navy} kind="barcode" size={18} strokeWidth={1} />
+          <Icon
+            color={codeUnavailable ? colors.danger : colors.navy}
+            kind={product && readProductCodeType(product) === 'qr' ? 'qr' : 'barcode'}
+            size={18}
+            strokeWidth={1}
+          />
           <View>
             <Text style={[styles.codeValue, codeUnavailable && styles.dangerText]}>{codeValue}</Text>
             <Text style={styles.rowMeta}>{codeLabel}</Text>
           </View>
         </View>
-        <Pressable style={styles.outlineLink}>
-          <Text style={styles.outlineLinkText}>Ver / regenerar codigo</Text>
+        <Pressable onPress={props.onOpenProductCode} style={styles.outlineLink}>
+          <Text style={styles.outlineLinkText}>Gestionar codigo</Text>
           <Icon color={colors.primary} kind="chevron-right" size={14} strokeWidth={2.2} />
         </Pressable>
       </SectionCard>
@@ -1581,16 +1598,18 @@ export function DeleteProductScreen(props: {
 export function SellProductsScreen(
   props: {
     errorMessage?: string | null;
+    initialSearchQuery?: string;
     isLoading?: boolean;
     onAddToCart: (productId: string) => void;
     onEditProduct: (productId: string) => void;
     onOpenConfirmPayment: () => void;
     onOpenProductDetail: (productId: string) => void;
+    onScanCode?: () => void;
     products?: SellProductMock[];
   },
 ): ReactElement {
   const sellCart = useSellCart();
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState(props.initialSearchQuery ?? '');
   const [currentPage, setCurrentPage] = useState(1);
   const products = props.products ?? sellProducts;
   const filteredProducts = useMemo(
@@ -1666,7 +1685,11 @@ export function SellProductsScreen(
         subtitle="Busca, agrega y cobra tus productos"
         title="Ventas"
       />
-      <SearchFilterRow onChangeText={setSearchQuery} searchValue={searchQuery} />
+      <SearchFilterRow
+        onChangeText={setSearchQuery}
+        onPressCamera={props.onScanCode}
+        searchValue={searchQuery}
+      />
       {props.errorMessage ? <InfoBanner>{props.errorMessage}</InfoBanner> : null}
       <View style={styles.listCard}>
         <View style={styles.sellListHeader}>

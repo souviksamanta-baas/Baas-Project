@@ -34,14 +34,17 @@ function stockToneToBadgeTone(tone?: StockTone | 'neutral'): BadgeTone {
 export function InventoryScreenTitle(props: {
   onBack?: () => void;
   showBack?: boolean;
+  /** Title shown in the collapsed sticky app header; defaults to `title`. */
+  stickyTitle?: string;
   subtitle: string;
   title: string;
 }): ReactElement {
   const chrome = useHeaderChromeOptional();
+  const stickyTitle = props.stickyTitle ?? props.title;
 
   useEffect(() => {
-    chrome.setChrome({ collapseEnabled: true, title: props.title });
-  }, [chrome.setChrome, props.title]);
+    chrome.setChrome({ collapseEnabled: true, title: stickyTitle });
+  }, [chrome.setChrome, stickyTitle]);
 
   return (
     <ScreenHeader
@@ -55,12 +58,14 @@ export function InventoryScreenTitle(props: {
 
 export function SearchFilterRow(props: {
   onChangeText?: (text: string) => void;
+  onPressCamera?: () => void;
   searchValue?: string;
 }): ReactElement {
   return (
     <SearchActionRow
       onChangeText={props.onChangeText}
-      placeholder="Buscar por producto o categoria"
+      onPressCamera={props.onPressCamera}
+      placeholder="Buscar por producto, categoria o codigo"
       searchValue={props.searchValue}
       showCamera
       showFilter

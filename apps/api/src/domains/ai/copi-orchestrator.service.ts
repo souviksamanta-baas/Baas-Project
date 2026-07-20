@@ -119,7 +119,16 @@ export class CopiOrchestratorService {
     if (wantsProAction && this.policyService.canUseProAgent(flags)) {
       proposedAction = await this.actionService.proposeAction(context);
       if (proposedAction) {
-        answer = `${answer}\n\n${proposedAction.summary}. ¿Confirmo la acción?`;
+        const clarifications = Array.isArray(proposedAction.payload.clarificationQuestions)
+          ? proposedAction.payload.clarificationQuestions.filter(
+              (item): item is string => typeof item === 'string' && item.trim().length > 0,
+            )
+          : [];
+        const clarificationBlock =
+          clarifications.length > 0
+            ? `\n\n${clarifications.map((item) => `• ${item}`).join('\n')}\n(Si confirmás ahora, uso un horario estimado y después lo podemos ajustar.)`
+            : '';
+        answer = `${answer}\n\n${proposedAction.summary}.${clarificationBlock}\n\n¿Confirmo la acción?`;
       }
     }
 

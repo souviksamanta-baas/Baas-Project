@@ -284,6 +284,7 @@ export function SearchField(props: SearchFieldProps): ReactElement {
 
 type SearchActionRowProps = {
   onChangeText?: (text: string) => void;
+  onPressCamera?: () => void;
   onPressFilter?: () => void;
   placeholder?: string;
   searchValue?: string;
@@ -302,7 +303,7 @@ export function SearchActionRow(props: SearchActionRowProps): ReactElement {
         value={props.searchValue}
       />
       {props.showCamera ? (
-        <Pressable style={styles.searchIconButton}>
+        <Pressable onPress={props.onPressCamera} style={styles.searchIconButton}>
           <Icon color={colors.slate} kind="camera" size={18} strokeWidth={1.9} />
         </Pressable>
       ) : null}

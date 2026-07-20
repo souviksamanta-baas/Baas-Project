@@ -1,6 +1,5 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
-
 import type { Product } from '../types/products';
+import { getAppStorageItem, setAppStorageItem } from './appStorage';
 
 const QUOTES_STORAGE_KEY = 'baas_sell_quotes_v1';
 
@@ -25,11 +24,40 @@ export type SellCheckoutDraft = {
   receiptLabel: string;
 };
 
+/** Presupuesto lifecycle for Argentine SMB billing flows. */
+export type SellQuoteStatus =
+  | 'guardado'
+  | 'enviado'
+  | 'aceptado'
+  | 'cobrado'
+  | 'cancelado'
+  | 'vencido';
+
 export type SavedSellQuote = {
   createdAt: string;
   draft: SellCheckoutDraft;
   id: string;
+  status: SellQuoteStatus;
+  updatedAt: string;
 };
+
+export const SELL_QUOTE_STATUS_LABELS: Record<SellQuoteStatus, string> = {
+  aceptado: 'Aceptado',
+  cancelado: 'Cancelado',
+  cobrado: 'Cobrado',
+  enviado: 'Enviado',
+  guardado: 'Guardado',
+  vencido: 'Vencido',
+};
+
+export const SELL_QUOTE_STATUS_ORDER: SellQuoteStatus[] = [
+  'guardado',
+  'enviado',
+  'aceptado',
+  'cobrado',
+  'cancelado',
+  'vencido',
+];
 
 export const DEFAULT_FIELD_VALUE = 'Estandar';
 export const DEFAULT_CLIENT_LABEL = DEFAULT_FIELD_VALUE;
@@ -207,31 +235,97 @@ export function buildCheckoutDraft(
   };
 }
 
+function normalizeSavedQuote(raw: Partial<SavedSellQuote> & { draft?: SellCheckoutDraft; id?: string }): SavedSellQuote | null {
+  if (!raw.id || !raw.draft || !Array.isArray(raw.draft.cart)) {
+    return null;
+  }
+
+  const createdAt = typeof raw.createdAt === 'string' ? raw.createdAt : new Date().toISOString();
+  const status =
+    raw.status === 'enviado' ||
+    raw.status === 'aceptado' ||
+    raw.status === 'cobrado' ||
+    raw.status === 'cancelado' ||
+    raw.status === 'vencido' ||
+    raw.status === 'guardado'
+      ? raw.status
+      : 'guardado';
+
+  return {
+    createdAt,
+    draft: raw.draft,
+    id: raw.id,
+    status,
+    updatedAt: typeof raw.updatedAt === 'string' ? raw.updatedAt : createdAt,
+  };
+}
+
 async function readSavedQuotes(): Promise<SavedSellQuote[]> {
   try {
-    const raw = await AsyncStorage.getItem(QUOTES_STORAGE_KEY);
+    const raw = await getAppStorageItem(QUOTES_STORAGE_KEY);
 
     if (!raw) {
       return [];
     }
 
-    const parsed = JSON.parse(raw) as SavedSellQuote[];
-    return Array.isArray(parsed) ? parsed : [];
+    const parsed = JSON.parse(raw) as Array<Partial<SavedSellQuote> & { draft?: SellCheckoutDraft; id?: string }>;
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    return parsed
+      .map(normalizeSavedQuote)
+      .filter((quote): quote is SavedSellQuote => quote != null);
   } catch {
     return [];
   }
 }
 
+export async function listSellQuotes(): Promise<SavedSellQuote[]> {
+  return readSavedQuotes();
+}
+
+export function getSellQuoteTotalCents(quote: SavedSellQuote): number {
+  const subtotalCents = computeCartSubtotalCents(quote.draft.cart);
+  return computeSaleTotalCents(subtotalCents, quote.draft.discountMode, quote.draft.discountValue);
+}
+
+export async function updateSellQuoteStatus(
+  quoteId: string,
+  status: SellQuoteStatus,
+): Promise<SavedSellQuote | null> {
+  const existing = await readSavedQuotes();
+  const index = existing.findIndex((quote) => quote.id === quoteId);
+
+  if (index < 0) {
+    return null;
+  }
+
+  const updated: SavedSellQuote = {
+    ...existing[index]!,
+    status,
+    updatedAt: new Date().toISOString(),
+  };
+  const next = [...existing];
+  next[index] = updated;
+  await setAppStorageItem(QUOTES_STORAGE_KEY, JSON.stringify(next));
+
+  return updated;
+}
+
 export async function saveSellQuote(draft: SellCheckoutDraft): Promise<string> {
+  const now = new Date().toISOString();
   const id = `PRES-${Date.now().toString(36).toUpperCase()}`;
   const quote: SavedSellQuote = {
-    createdAt: new Date().toISOString(),
+    createdAt: now,
     draft,
     id,
+    status: 'guardado',
+    updatedAt: now,
   };
   const existing = await readSavedQuotes();
 
-  await AsyncStorage.setItem(QUOTES_STORAGE_KEY, JSON.stringify([quote, ...existing]));
+  await setAppStorageItem(QUOTES_STORAGE_KEY, JSON.stringify([quote, ...existing]));
 
   return id;
 }

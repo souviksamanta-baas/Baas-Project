@@ -5,6 +5,7 @@ import {
   Get,
   Headers,
   HttpCode,
+  HttpException,
   Param,
   Post,
   Query,
@@ -212,13 +213,29 @@ export class AiController {
     @Param('actionId') actionId: string,
     @Body() body: CopiActionConfirmRequestDto,
   ): Promise<{ result: Record<string, unknown>; status: 'executed' }> {
-    const userId = await this.resolveUserId(authorizationHeader);
-    return this.actionService.confirmAction({
-      actionId,
-      businessCenterId: body.businessCenterId,
-      organizationId: body.organizationId,
-      userId,
-    });
+    try {
+      const userId = await this.resolveUserId(authorizationHeader);
+      return await this.actionService.confirmAction({
+        actionId,
+        businessCenterId: body.businessCenterId,
+        organizationId: body.organizationId,
+        userId,
+      });
+    } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+
+      if (error instanceof Error && error.message.toLocaleLowerCase().includes('token')) {
+        throw new UnauthorizedException(error.message);
+      }
+
+      // Domain Errors (invalid UUID snooze, DB failures, etc.) must not become
+      // Nest's opaque 500 "Internal server error" — surface them to the client.
+      throw new BadRequestException(
+        error instanceof Error ? error.message : 'No se pudo confirmar la acción',
+      );
+    }
   }
 
   @Post('copilot/voice')

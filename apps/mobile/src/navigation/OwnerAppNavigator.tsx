@@ -362,7 +362,18 @@ export function OwnerAppNavigator(props: { onSignOut: () => void }): ReactElemen
                 whatsappConnection={legacyWhatsAppConnection}
               />
             ) : (
-              <MoreScreen onOpenAccount={() => setRoute('account')} onOpenInventory={openManageStock} />
+              <MoreScreen
+                onOpenRow={(rowId) => {
+                  if (rowId === 'account') {
+                    setRoute('account');
+                    return;
+                  }
+
+                  if (rowId === 'manage-stock' || rowId === 'add-product') {
+                    openManageStock();
+                  }
+                }}
+              />
             ))}
         </ScrollView>
       )}

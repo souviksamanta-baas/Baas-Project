@@ -11,6 +11,7 @@ import {
   productDeleteRoute,
   productDetailRoute,
   productEditRoute,
+  inventoryScanRoute,
 } from '../../../src/navigation/routes';
 import { ManageStockScreen } from '../../../src/screens/inventory/InventoryScreens';
 
@@ -37,6 +38,7 @@ export default function ManageStockRoute(): ReactElement {
       onDeleteProduct={(productId) => router.push(productDeleteRoute(productId, 'manage-stock'))}
       onEditProduct={(productId) => router.push(productEditRoute(productId, 'manage-stock'))}
       onOpenProductDetail={(productId) => router.push(productDetailRoute(productId, 'manage-stock'))}
+      onScanCode={() => router.push(inventoryScanRoute({ mode: 'manage-stock' }))}
       products={products}
     />
   );

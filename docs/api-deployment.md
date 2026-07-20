@@ -164,7 +164,7 @@ membership. Feature flags on `organizations.feature_flags` gate Basic vs Pro.
 | --- | --- | --- | --- |
 | `POST` | `/ai/copilot/query` | Basic+ | Ask Copi a business question |
 | `GET` | `/ai/copilot/sessions/:sessionId/messages` | Basic+ | Load session history |
-| `POST` | `/ai/copilot/actions/:actionId/confirm` | Pro | Confirm a proposed write action |
+| `POST` | `/ai/copilot/actions/:actionId/confirm` | Pro | Confirm a proposed write action (multi-task create + assignee resolve) |
 | `POST` | `/ai/copilot/voice` | Pro | Transcribe voice note (OpenAI) |
 | `POST` | `/ai/copilot/vision` | Pro | Analyze image (OpenAI) |
 | `POST` | `/ai/copilot/reports/run` | Pro | Run a built-in or saved report |

@@ -67,7 +67,9 @@ The resolved baseline after this cleanup is:
 | `expo` | `@baas/mobile` | `^56.0.8` |
 | `react` | `@baas/mobile` | `19.2.7` |
 | `react-native` | `@baas/mobile` | `0.85.3` |
-| `@react-native-async-storage/async-storage` | `@baas/mobile` | `3.1.1` |
+| `@react-native-async-storage/async-storage` | `@baas/mobile` | `2.2.0` (Expo SDK 56 bundled; do not use v3 in Expo Go) |
+| `expo-camera` | `@baas/mobile` | `~56.0.7` (barcode/QR scan on stock, sell, and Gestionar codigo) |
+| `react-native-qrcode-svg` | `@baas/mobile` | `^6.3.21` (product QR preview) |
 | `@supabase/supabase-js` | `@baas/mobile` | `^2.106.2` |
 | `@nestjs/common` | `@baas/api` | `^11.1.24` |
 | `@nestjs/core` | `@baas/api` | `^11.1.24` |

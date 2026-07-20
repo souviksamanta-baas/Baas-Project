@@ -15,21 +15,29 @@
       [
         "expo-audio",
         {
-          "microphonePermission": "Nexolia usa el micrófono para que Copi transcriba tus preguntas de voz.",
+          "microphonePermission": "Nexolia usa el micr\u00f3fono para que Copi transcriba tus preguntas de voz.",
           "recordAudioAndroid": true
         }
       ],
       [
         "expo-image-picker",
         {
-          "cameraPermission": "Nexolia usa la cámara para fotos de perfil y para que Copi analice productos.",
-          "photosPermission": "Nexolia accede a tus fotos para actualizar tu perfil y para que Copi analice imágenes del negocio."
+          "cameraPermission": "Nexolia usa la c\u00e1mara para escanear c\u00f3digos de productos, fotos de perfil y para que Copi analice productos.",
+          "photosPermission": "Nexolia accede a tus fotos para actualizar tu perfil y para que Copi analice im\u00e1genes del negocio."
         }
       ],
       [
         "expo-contacts",
         {
           "contactsPermission": "Nexolia usa contactos para invitar miembros del equipo y agregar clientes."
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Nexolia usa la c\u00e1mara para escanear c\u00f3digos de barras y QR de productos.",
+          "microphonePermission": false,
+          "recordAudioAndroid": false
         }
       ]
     ],

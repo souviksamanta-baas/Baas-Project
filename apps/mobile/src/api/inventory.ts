@@ -287,6 +287,72 @@ export async function getProductLots(
   return ((data ?? []) as InventoryLotRow[]).map(toInventoryLot);
 }
 
+export type CenterLotRow = InventoryLot & {
+  productName: string;
+};
+
+export async function getCenterLots(
+  organizationId: string,
+  businessCenterId: string,
+  limit = 40,
+): Promise<CenterLotRow[]> {
+  const { data, error } = await supabase
+    .from('inventory_lots')
+    .select(
+      'id, product_id, lot_code, received_quantity, remaining_quantity, unit_code, unit_cost_cents, received_at, expires_at, supplier_reference, products!inner(name)',
+    )
+    .eq('organization_id', organizationId)
+    .eq('business_center_id', businessCenterId)
+    .order('received_at', { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return ((data ?? []) as Array<InventoryLotRow & { products: { name: string } | { name: string }[] }>).map(
+    (row) => {
+      const product = Array.isArray(row.products) ? row.products[0] : row.products;
+      return {
+        ...toInventoryLot(row),
+        productName: product?.name?.trim() || 'Producto',
+      };
+    },
+  );
+}
+
+export type CenterMovementRow = MovementMock & {
+  productName: string;
+};
+
+export async function getCenterMovements(
+  organizationId: string,
+  businessCenterId: string,
+  limit = 40,
+): Promise<CenterMovementRow[]> {
+  const { data, error } = await supabase
+    .from('inventory_movements')
+    .select('id, movement_type, quantity_delta, unit_code, note, created_at, products!inner(name)')
+    .eq('organization_id', organizationId)
+    .eq('business_center_id', businessCenterId)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return (
+    (data ?? []) as Array<InventoryMovementRow & { products: { name: string } | { name: string }[] }>
+  ).map((row) => {
+    const product = Array.isArray(row.products) ? row.products[0] : row.products;
+    return {
+      ...mapInventoryMovementRow(row),
+      productName: product?.name?.trim() || 'Producto',
+    };
+  });
+}
+
 async function listLotCodesForDate(
   organizationId: string,
   businessCenterId: string,
@@ -850,6 +916,48 @@ export async function deleteProduct(organizationId: string, productId: string): 
   const { error } = await supabase
     .from('products')
     .delete()
+    .eq('id', productId)
+    .eq('organization_id', organizationId);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
+export async function updateProductAssociatedCode(
+  organizationId: string,
+  productId: string,
+  input: { code: string; codeType: 'codigo_de_barras' | 'qr' },
+): Promise<void> {
+  const code = input.code.trim();
+  if (!code) {
+    throw new Error('Ingresá un valor de código.');
+  }
+
+  const { data: existing, error: existingError } = await supabase
+    .from('products')
+    .select('metadata')
+    .eq('id', productId)
+    .eq('organization_id', organizationId)
+    .single<{ metadata: Record<string, unknown> | null }>();
+
+  if (existingError) {
+    throw new Error(existingError.message);
+  }
+
+  const metadata: Record<string, unknown> = {
+    ...(existing.metadata ?? {}),
+    codigo: code,
+    tipo_codigo: input.codeType,
+  };
+
+  if (input.codeType === 'codigo_de_barras') {
+    metadata.codigo_barras = code;
+  }
+
+  const { error } = await supabase
+    .from('products')
+    .update({ metadata })
     .eq('id', productId)
     .eq('organization_id', organizationId);
 

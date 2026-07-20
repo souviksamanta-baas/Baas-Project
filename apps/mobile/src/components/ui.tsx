@@ -90,15 +90,19 @@ export function ScreenContent(props: {
       };
     }
 
-    chrome.setChrome({
-      collapseEnabled: true,
-      ...(props.title != null ? { title: props.title } : {}),
-    });
-
+    chrome.setChrome({ collapseEnabled: true });
     return () => {
       chrome.resetChrome();
     };
-  }, [chrome.resetChrome, chrome.setChrome, collapseHeaderOnScroll, props.title]);
+  }, [chrome.resetChrome, chrome.setChrome, collapseHeaderOnScroll]);
+
+  useEffect(() => {
+    if (!collapseHeaderOnScroll || props.title == null) {
+      return;
+    }
+
+    chrome.setChrome({ title: props.title });
+  }, [chrome.setChrome, collapseHeaderOnScroll, props.title]);
 
   return (
     <ScrollView
@@ -258,21 +262,37 @@ export function NotificationRow(props: {
 
 export function ActionRow(props: {
   danger?: boolean;
+  disabled?: boolean;
   icon?: IconKind;
   onPress?: () => void;
   subtitle?: string;
   title: string;
 }): ReactElement {
+  const isDisabled = props.disabled === true || props.onPress == null;
+
   return (
-    <Pressable onPress={props.onPress} style={styles.actionRow}>
-      <View style={[styles.actionIcon, props.danger && styles.dangerIcon]}>
-        <ActionIcon color={props.danger ? colors.danger : colors.primary} kind={props.icon ?? 'message'} />
+    <Pressable
+      disabled={isDisabled}
+      onPress={props.onPress}
+      style={[styles.actionRow, isDisabled && styles.actionRowDisabled]}
+    >
+      <View style={[styles.actionIcon, props.danger && styles.dangerIcon, isDisabled && styles.actionIconDisabled]}>
+        <ActionIcon
+          color={isDisabled ? colors.textMuted : props.danger ? colors.danger : colors.primary}
+          kind={props.icon ?? 'message'}
+        />
       </View>
       <View style={styles.flex}>
-        <Text style={[styles.listTitle, props.danger && styles.dangerText]}>{props.title}</Text>
-        {props.subtitle ? <Text numberOfLines={1} style={styles.listDescription}>{props.subtitle}</Text> : null}
+        <Text style={[styles.listTitle, props.danger && styles.dangerText, isDisabled && styles.actionRowDisabledText]}>
+          {props.title}
+        </Text>
+        {props.subtitle ? (
+          <Text numberOfLines={1} style={[styles.listDescription, isDisabled && styles.actionRowDisabledText]}>
+            {props.subtitle}
+          </Text>
+        ) : null}
       </View>
-      <Text style={styles.primaryText}>›</Text>
+      {isDisabled ? null : <Text style={styles.primaryText}>›</Text>}
     </Pressable>
   );
 }
@@ -448,7 +468,7 @@ export function BottomNavigation(props: {
         <Text style={styles.centerActionText}>$</Text>
       </Pressable>
       <TabButton active={props.activeTab === 'copi'} icon="bot" label="Copi" onPress={() => props.onSelectTab('copi')} />
-      <TabButton active={props.activeTab === 'more'} icon="more" label="Mas" onPress={() => props.onSelectTab('more')} />
+      <TabButton active={props.activeTab === 'more'} icon="more" label="Más" onPress={() => props.onSelectTab('more')} />
     </View>
   );
 }
@@ -566,6 +586,9 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     lineHeight: 20,
+  },
+  actionIconDisabled: {
+    backgroundColor: colors.borderSoft,
   },
   actionRow: {
     alignItems: 'center',
@@ -701,6 +724,12 @@ const styles = StyleSheet.create({
     color: colors.surface,
     fontSize: 10,
     fontWeight: '600',
+  },
+  actionRowDisabled: {
+    opacity: 0.55,
+  },
+  actionRowDisabledText: {
+    color: colors.textMuted,
   },
   dangerIcon: {
     backgroundColor: '#ffeaf0',

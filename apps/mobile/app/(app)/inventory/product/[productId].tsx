@@ -51,9 +51,10 @@ export default function ProductDetailRoute(): ReactElement {
 
   if (isLoading && !product) {
     return (
-      <ScreenContent>
+      <ScreenContent title="Producto">
         <InventoryScreenTitle
           onBack={goBack}
+          stickyTitle="Producto"
           subtitle="Detalle y gestion del producto"
           title="Producto"
         />
@@ -64,9 +65,10 @@ export default function ProductDetailRoute(): ReactElement {
 
   if (!product) {
     return (
-      <ScreenContent>
+      <ScreenContent title="Producto">
         <InventoryScreenTitle
           onBack={() => router.replace(routes.inventoryManageStock)}
+          stickyTitle="Producto"
           subtitle="Detalle y gestion del producto"
           title="Producto"
         />
@@ -83,6 +85,9 @@ export default function ProductDetailRoute(): ReactElement {
       childProducts={childProducts}
       movements={movements}
       onBack={goBack}
+      onOpenProductCode={() =>
+        router.push(`/(app)/inventory/product/${productId}/code?returnTo=${returnTo ?? 'product-detail'}`)
+      }
       parentProduct={parentProduct}
       product={product}
     />

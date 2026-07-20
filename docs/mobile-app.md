@@ -329,6 +329,9 @@ assistant with sessions, task actions, and OpenAI-backed multimodal features.
   (`/ai/copilot/voice`), vision (`/ai/copilot/vision`), and reports
   (`/ai/copilot/reports/run`) are gated by org `feature_flags` from
   `get_owner_dashboard().features` (`useFeatureVisibility`).
+- **Multi-task create:** Copi splits numbered create requests into multiple
+  `owner_tasks` on confirm (`copi-task-parse.ts`). Inline “asignarlo a …”
+  assigns to a matching org member; “mañana” is a due date, not snooze.
 - **Tasks screen:** `/(app)/tasks` lists seguimientos; Copi can propose task
   writes when `copi_pro_agent` is on.
 - The AI and follow-up settings card edits active business center settings
@@ -355,7 +358,8 @@ sends can happen.
   sales/action button.
 - On non-home screens, scrolling collapses the header to a circular Nexolia
   icon (`assets/images/nexolia-icon.png`, swappable later via `setNexoliaIconUri`)
-  with the page title centered.
+  with the page title centered. Product detail uses the **product name** as the
+  sticky title (`ScreenContent` + `InventoryScreenTitle.stickyTitle`).
 - The shell supports the approved tabs: Inicio, Inbox, Copi, and Más, with a
   My Account profile surface reachable from the avatar and More menu.
 - The Home greeting uses `preferred_name` when set, otherwise the first word of
@@ -367,8 +371,23 @@ sends can happen.
   selected thread state using the existing inbox provider.
 - The Copi screen supports a hub state and continuous chat using
   `useOwnerCopilot`.
-- The More screen groups operation, growth, and configuration actions while
-  preserving the existing sign-out path.
+- The More screen (`Más`) groups Inventarios, Operaciones, Reportes, and
+  Configuraciones. Crecimiento is removed for now; Reportes is a placeholder.
+  Inventarios wires Gestionar stock, Agregar producto, Lotes y Movimientos,
+  and Notificaciones y Tareas. Operaciones includes Facturación (presupuestos)
+  and disabled Caja. Configuraciones covers Mi cuenta, Integraciones,
+  Proveedores, and Ayuda y soporte.
+
+### Product codes (barcode / QR)
+
+- Product detail → **Gestionar codigo** opens `ProductCodeScreen`
+  (`/(app)/inventory/product/[id]/code`).
+- Owners can view, regenerate, or **associate an existing pack code** by scanning
+  with the camera (`BarcodeScannerScreen` + `expo-camera`) or pasting manually.
+- Codes persist on `products.metadata` (`codigo`, `codigo_barras`, `tipo_codigo`)
+  via `updateProductAssociatedCode`.
+- Camera scan is also available from Gestionar stock and Vender search
+  (`/(app)/inventory/scan-code`) to jump to a matching product.
 
 ### Mi cuenta and settings
 
@@ -417,8 +436,14 @@ Accepted static screens:
 
 | Screen | Entry points |
 | --- | --- |
-| Gestionar stock | Home → Ver inventario, Más → Inventario |
+| Gestionar stock | Home → Ver inventario, Más → Gestionar stock |
+| Agregar producto | Más → Agregar producto |
+| Lotes y Movimientos | Más → Lotes y Movimientos |
+| Facturación (presupuestos) | Más → Facturación |
+| Integraciones / Proveedores / Ayuda | Más → Configuraciones |
 | Producto | Tap base product row in Gestionar stock |
+| Gestionar codigo | Producto → Gestionar codigo (view / scan / regenerate) |
+| Escanear código | Gestionar stock / Vender → camera |
 | Editar producto / Editar subproducto | Producto action bar or linked subproduct rows |
 | Agregar stock / Eliminar producto | Producto action bar |
 | Vender productos | Bottom nav `$` |

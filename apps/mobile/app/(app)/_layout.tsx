@@ -8,6 +8,8 @@ import type { AppTab } from '../../src/components/ui';
 import { HeaderChromeProvider } from '../../src/context/HeaderChromeProvider';
 import { InboxProvider } from '../../src/context/InboxProvider';
 import { useOwnerSessionContext } from '../../src/context/OwnerSessionProvider';
+import { ProductCatalogProvider } from '../../src/context/ProductCatalogProvider';
+import { SellCartProvider } from '../../src/context/SellCartProvider';
 import { hasSupabaseConfig } from '../../src/lib/supabase';
 import {
   getActiveTab,
@@ -68,11 +70,15 @@ export default function AppLayout(): ReactElement {
           }}
         />
         <InboxProvider>
-          <MobileOverlayProvider>
-            <View style={styles.content}>
-              <Slot />
-            </View>
-          </MobileOverlayProvider>
+          <ProductCatalogProvider>
+            <SellCartProvider>
+              <MobileOverlayProvider>
+                <View style={styles.content}>
+                  <Slot />
+                </View>
+              </MobileOverlayProvider>
+            </SellCartProvider>
+          </ProductCatalogProvider>
         </InboxProvider>
         {hideBottomNav ? null : (
           <BottomNavigation activeTab={activeTab} onOpenSell={openSellProducts} onSelectTab={selectTab} />
