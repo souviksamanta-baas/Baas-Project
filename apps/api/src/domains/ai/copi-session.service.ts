@@ -136,7 +136,7 @@ export class CopiSessionService {
       return { messages: [], sessionId: null };
     }
 
-    const messages = await this.listMessages(sessionId, params.organizationId);
+    const messages = await this.listMessages(sessionId, params.organizationId, params.userId);
     return { messages, sessionId };
   }
 
@@ -178,6 +178,7 @@ export class CopiSessionService {
   async listMessages(
     sessionId: string,
     organizationId: string,
+    userId: string,
   ): Promise<
     Array<{
       body: string;
@@ -186,11 +187,16 @@ export class CopiSessionService {
       role: 'owner' | 'assistant' | 'system';
     }>
   > {
+    const ownedSessionId = await this.getSession(sessionId, organizationId, userId);
+    if (!ownedSessionId) {
+      return [];
+    }
+
     const client = this.supabaseService.getServiceRoleClient();
     const { data, error } = await client
       .from('copi_messages')
       .select('id, role, body, created_at')
-      .eq('session_id', sessionId)
+      .eq('session_id', ownedSessionId)
       .eq('organization_id', organizationId)
       .gte('created_at', retentionCutoffIso())
       .order('created_at', { ascending: true });

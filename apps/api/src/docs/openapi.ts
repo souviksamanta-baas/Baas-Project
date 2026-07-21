@@ -1,4 +1,5 @@
 import type { INestApplication } from '@nestjs/common';
+import type { ConfigService } from '@nestjs/config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import type { NextFunction, Request, Response } from 'express';
 
@@ -56,7 +57,18 @@ export function createOpenApiDocument(app: INestApplication) {
   });
 }
 
-export function setupOpenApiDocs(app: INestApplication): void {
+export function setupOpenApiDocs(app: INestApplication, configService?: ConfigService): void {
+  const nodeEnv = configService?.get<string>('NODE_ENV') ?? process.env.NODE_ENV ?? 'development';
+  const explicit = (configService?.get<string>('BAAS_ENABLE_OPENAPI_DOCS') ?? process.env.BAAS_ENABLE_OPENAPI_DOCS ?? '')
+    .trim()
+    .toLowerCase();
+  const enabled =
+    explicit === 'true' || explicit === '1' || (explicit === '' && nodeEnv !== 'production');
+
+  if (!enabled) {
+    return;
+  }
+
   app.use(`/${OPENAPI_DOCS_PATH}`, (_request: Request, response: Response, next: NextFunction) => {
     response.removeHeader('Content-Security-Policy');
     next();

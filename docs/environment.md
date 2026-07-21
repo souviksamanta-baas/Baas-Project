@@ -46,6 +46,8 @@ These values must never be bundled into mobile/client code.
 | `BAAS_RATE_LIMIT_TTL_MS` | Global API rate-limit window in milliseconds | API server, deployment config |
 | `BAAS_WEBHOOK_RATE_LIMIT_MAX` | WhatsApp webhook request limit per TTL window | API server, deployment config |
 | `BAAS_WEBHOOK_RATE_LIMIT_TTL_MS` | WhatsApp webhook rate-limit window in milliseconds | API server, deployment config |
+| `BAAS_OTP_PEPPER` | HMAC pepper for WhatsApp login OTP hashes (falls back to service role key) | API server, deployment secret store |
+| `BAAS_ENABLE_OPENAPI_DOCS` | Set `true` to expose `/docs` (default off in production) | API server, deployment config |
 | `SUPABASE_URL` | Supabase API URL for server processes | API server, jobs, CI |
 | `SUPABASE_PROJECT_REF` | Project reference for Supabase CLI workflows | Local dev, CI |
 | `SUPABASE_SERVICE_ROLE_KEY` | Bypasses RLS for trusted backend operations | API server, backend jobs, CI secret store |
@@ -53,7 +55,7 @@ These values must never be bundled into mobile/client code.
 | `SUPABASE_DB_PASSWORD` | Database password for migration workflows when needed | Local dev, CI secret store |
 | `WHATSAPP_VERIFY_TOKEN` | Meta webhook setup token checked by `GET /webhooks/whatsapp` | API server, deployment secret store |
 | `WHATSAPP_APP_SECRET` | Meta app secret used to validate `x-hub-signature-256` | API server, deployment secret store |
-| `WHATSAPP_CLOUD_ACCESS_TOKEN` | Meta Cloud API access token for merchant messaging and fallback platform auth | API server, deployment secret store |
+| `WHATSAPP_CLOUD_ACCESS_TOKEN` | Shared Meta Cloud API token for outbound merchant messaging (preferred; not written into `whatsapp_config.access_token_encrypted`) and fallback platform auth | API server, deployment secret store |
 | `NEXOLIA_AUTH_WABA_PHONE_NUMBER_ID` | Platform WABA phone number ID for login OTP | API server |
 | `NEXOLIA_AUTH_WABA_ACCESS_TOKEN` | Optional dedicated token for platform auth OTP | API server |
 | `NEXOLIA_AUTH_OTP_TEMPLATE_NAME` | Meta authentication template name (default `nexolia_auth_otp`) | API server |

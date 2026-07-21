@@ -109,7 +109,9 @@ export class WhatsAppConnectionService {
           phone_number_id: params.phoneNumberId.trim(),
           waba_id: params.wabaId?.trim() || null,
           display_phone_number: displayPhoneNumber,
-          access_token_encrypted: accessToken ?? null,
+          // Shared platform token lives in WHATSAPP_CLOUD_ACCESS_TOKEN env only.
+          // access_token_encrypted is legacy plaintext until per-tenant KMS; do not persist the shared token.
+          access_token_encrypted: null,
           connection_status: connectionStatus,
           verified_at: verifiedAt,
           last_status_check_at: checkedAt,

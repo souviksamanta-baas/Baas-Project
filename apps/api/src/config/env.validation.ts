@@ -36,6 +36,8 @@ function validateCorsOrigins(value: string | undefined, helpers: Joi.CustomHelpe
 
 export const envValidationSchema = Joi.object({
   API_PORT: Joi.number().port().optional(),
+  BAAS_ENABLE_OPENAPI_DOCS: Joi.string().trim().valid('true', 'false', '1', '0', '').optional().allow(''),
+  BAAS_OTP_PEPPER: Joi.string().trim().optional().allow(''),
   BAAS_CORS_ALLOWED_ORIGINS: Joi.string()
     .trim()
     .optional()

@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import 'react-native-url-polyfill/auto';
 
-import { appStorage } from './appStorage';
+import { authSecureStorage } from './authSecureStorage';
 
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
 const supabasePublishableKey = process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
@@ -13,7 +13,7 @@ export const supabase = createClient(
   supabasePublishableKey ?? 'static-review-anon-key',
   {
     auth: {
-      storage: appStorage,
+      storage: authSecureStorage,
       autoRefreshToken: true,
       persistSession: true,
       detectSessionInUrl: false,

@@ -15,7 +15,7 @@ import {
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 
-import { ErrorResponseDto } from '../../docs/openapi.dtos';
+import { AcceptOrganizationInviteDto, ErrorResponseDto } from '../../docs/openapi.dtos';
 import {
   OrganizationInvitesService,
   type OrganizationInviteRole,
@@ -29,11 +29,6 @@ interface CreateInviteBody {
   invitedPhoneE164: string;
   organizationId: string;
   role: OrganizationInviteRole;
-}
-
-interface AcceptInviteBody {
-  inviteToken: string;
-  verifiedPhoneE164: string;
 }
 
 @ApiTags('Organizations')
@@ -87,21 +82,12 @@ export class OrganizationsController {
   @Post('invites/accept')
   @HttpCode(200)
   @ApiOperation({ summary: 'Accept a staff invite after phone verification' })
-  @ApiBody({
-    schema: {
-      properties: {
-        inviteToken: { type: 'string' },
-        verifiedPhoneE164: { example: '+5491112345678', type: 'string' },
-      },
-      required: ['inviteToken', 'verifiedPhoneE164'],
-      type: 'object',
-    },
-  })
+  @ApiBody({ type: AcceptOrganizationInviteDto })
   @ApiOkResponse({ description: 'Invite accepted.' })
   @ApiUnauthorizedResponse({ type: ErrorResponseDto })
   async acceptInvite(
     @Headers('authorization') authorizationHeader: string | undefined,
-    @Body() body: AcceptInviteBody,
+    @Body() body: AcceptOrganizationInviteDto,
   ): Promise<{ organizationId: string }> {
     try {
       return await this.invitesService.acceptInvite({

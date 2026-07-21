@@ -55,7 +55,7 @@ export class WhatsAppOutboundMessageService {
       {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${config.access_token_encrypted}`,
+          Authorization: `Bearer ${this.resolveAccessToken(config)}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -130,11 +130,28 @@ export class WhatsAppOutboundMessageService {
       throw new Error(`Failed to load WhatsApp send configuration: ${error.message}`);
     }
 
-    if (!data?.access_token_encrypted) {
-      throw new Error('Connected WhatsApp configuration with access token is required to send messages');
+    if (!data) {
+      throw new Error('Connected WhatsApp configuration is required to send messages');
+    }
+
+    const envToken = process.env.WHATSAPP_CLOUD_ACCESS_TOKEN?.trim();
+    if (!envToken && !data.access_token_encrypted) {
+      throw new Error('WhatsApp access token is not configured (set WHATSAPP_CLOUD_ACCESS_TOKEN)');
     }
 
     return data;
+  }
+
+  /** Prefer shared env token; legacy DB field is plaintext fallback until KMS. */
+  private resolveAccessToken(config: WhatsAppConfigRecord): string {
+    const envToken = process.env.WHATSAPP_CLOUD_ACCESS_TOKEN?.trim();
+    if (envToken) {
+      return envToken;
+    }
+    if (config.access_token_encrypted) {
+      return config.access_token_encrypted;
+    }
+    throw new Error('WhatsApp access token is not configured (set WHATSAPP_CLOUD_ACCESS_TOKEN)');
   }
 
   private async parseSendResponse(response: Response): Promise<WhatsAppSendResponse> {

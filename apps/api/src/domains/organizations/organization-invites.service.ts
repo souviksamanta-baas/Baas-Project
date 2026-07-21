@@ -1,6 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { createHash, randomBytes } from 'node:crypto';
 
+import {
+  normalizeAuthPhoneE164,
+  phoneFromAuthUser,
+  resolveAuthUser,
+} from '../../auth/request-auth.helper';
 import { SupabaseService } from '../../supabase/supabase.service';
 import { AuthSessionService } from '../auth/auth-session.service';
 
@@ -29,7 +34,8 @@ export interface OrganizationInviteSummary {
 export interface AcceptOrganizationInviteParams {
   authorizationHeader: string | undefined;
   inviteToken: string;
-  verifiedPhoneE164: string;
+  /** Ignored as auth evidence; optional mismatch logging only. */
+  verifiedPhoneE164?: string;
 }
 
 @Injectable()
@@ -91,90 +97,37 @@ export class OrganizationInvitesService {
   }
 
   async acceptInvite(params: AcceptOrganizationInviteParams): Promise<{ organizationId: string }> {
-    const userId = await this.authSessionService.getUserIdFromBearerToken(
-      params.authorizationHeader,
-    );
-    const tokenHash = createHash('sha256').update(params.inviteToken.trim()).digest('hex');
-    const client = this.supabaseService.getServiceRoleClient();
+    const user = await resolveAuthUser(this.supabaseService, params.authorizationHeader);
+    const authPhone = phoneFromAuthUser(user);
 
-    const { data: invite, error } = await client
-      .from('organization_invites')
-      .select(
-        'id, organization_id, business_center_id, invited_business_center_ids, invited_phone_e164, org_role, center_role, expires_at, accepted_at, revoked_at',
-      )
-      .eq('token_hash', tokenHash)
-      .maybeSingle<{
-        accepted_at: string | null;
-        business_center_id: string | null;
-        center_role: 'manager' | 'staff';
-        expires_at: string;
-        id: string;
-        invited_business_center_ids: string[] | null;
-        invited_phone_e164: string;
-        org_role: 'owner' | 'staff';
-        organization_id: string;
-        revoked_at: string | null;
-      }>();
-
-    if (error) {
-      throw new Error(`Failed to load invite: ${error.message}`);
+    if (!authPhone) {
+      throw new Error('El número verificado no está disponible en la sesión.');
     }
 
-    if (!invite || invite.revoked_at || invite.accepted_at) {
+    const clientPhone = normalizeAuthPhoneE164(params.verifiedPhoneE164);
+    if (clientPhone && clientPhone !== authPhone) {
+      console.warn(
+        '[invites] Client verifiedPhoneE164 does not match auth user phone; ignoring client value.',
+      );
+    }
+
+    const tokenHash = createHash('sha256').update(params.inviteToken.trim()).digest('hex');
+    const client = this.supabaseService.getServiceRoleClient();
+    const { data: organizationId, error } = await client.rpc('accept_organization_invite', {
+      p_token_hash: tokenHash,
+      p_user_id: user.id,
+      p_verified_phone_e164: authPhone,
+    });
+
+    if (error) {
+      throw new Error(mapInviteRpcError(error.message));
+    }
+
+    if (!organizationId || typeof organizationId !== 'string') {
       throw new Error('La invitación no es válida.');
     }
 
-    if (new Date(invite.expires_at).getTime() < Date.now()) {
-      throw new Error('La invitación expiró.');
-    }
-
-    if (invite.invited_phone_e164 !== params.verifiedPhoneE164) {
-      throw new Error('El número verificado no coincide con la invitación.');
-    }
-
-    const { data: existingMember } = await client
-      .from('organization_members')
-      .select('id')
-      .eq('organization_id', invite.organization_id)
-      .eq('user_id', userId)
-      .maybeSingle<{ id: string }>();
-
-    if (!existingMember) {
-      const { data: member, error: memberError } = await client
-        .from('organization_members')
-        .insert({
-          organization_id: invite.organization_id,
-          user_id: userId,
-          role: invite.org_role,
-        })
-        .select('id')
-        .single<{ id: string }>();
-
-      if (memberError || !member) {
-        throw new Error(`Failed to add organization member: ${memberError?.message}`);
-      }
-
-      const businessCenterIds = await this.resolveAcceptedBusinessCenterIds(invite);
-
-      for (const businessCenterId of businessCenterIds) {
-        await client.from('business_center_members').insert({
-          organization_id: invite.organization_id,
-          business_center_id: businessCenterId,
-          organization_member_id: member.id,
-          role: invite.center_role,
-        });
-      }
-    }
-
-    await client
-      .from('organization_invites')
-      .update({
-        accepted_at: new Date().toISOString(),
-        accepted_by_user_id: userId,
-      })
-      .eq('id', invite.id);
-
-    return { organizationId: invite.organization_id };
+    return { organizationId };
   }
 
   private async assertOwner(params: {
@@ -202,40 +155,26 @@ export class OrganizationInvitesService {
 
     return userId;
   }
+}
 
-  private async resolveAcceptedBusinessCenterIds(invite: {
-    business_center_id: string | null;
-    invited_business_center_ids: string[] | null;
-    organization_id: string;
-  }): Promise<string[]> {
-    const ids = invite.invited_business_center_ids?.filter(Boolean) ?? [];
-    if (ids.length > 0) {
-      return [...new Set(ids)];
-    }
-
-    if (invite.business_center_id) {
-      return [invite.business_center_id];
-    }
-
-    const defaultId = await this.getDefaultBusinessCenterId(invite.organization_id);
-    return defaultId ? [defaultId] : [];
+function mapInviteRpcError(message: string): string {
+  if (/PHONE_MISMATCH/i.test(message)) {
+    return 'El número verificado no coincide con la invitación.';
   }
 
-  private async getDefaultBusinessCenterId(organizationId: string): Promise<string | null> {
-    const client = this.supabaseService.getServiceRoleClient();
-    const { data, error } = await client
-      .from('business_centers')
-      .select('id')
-      .eq('organization_id', organizationId)
-      .eq('is_default', true)
-      .maybeSingle<{ id: string }>();
-
-    if (error) {
-      throw new Error(`Failed to resolve default business center: ${error.message}`);
-    }
-
-    return data?.id ?? null;
+  if (/INVITE_EXPIRED/i.test(message)) {
+    return 'La invitación expiró.';
   }
+
+  if (/PHONE_REQUIRED/i.test(message)) {
+    return 'El número verificado no está disponible en la sesión.';
+  }
+
+  if (/INVALID_INVITE|INVALID_USER/i.test(message)) {
+    return 'La invitación no es válida.';
+  }
+
+  return `Failed to accept invite: ${message}`;
 }
 
 function mapInviteRole(role: OrganizationInviteRole): {

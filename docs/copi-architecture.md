@@ -101,3 +101,10 @@ From the task portal, low-stock alerts open product detail with `returnTo=tasks-
 - `20260705210000_copi_pilot_pro_flags.sql` — Pro flags for Baas Admin + NEX Biz
 
 Confluence hub: [Copi](https://souviksamanta.atlassian.net/wiki/spaces/BaaS/pages/19857410/Copi)
+
+## Security (Test Launch)
+
+- Copi HTTP routes require bearer auth + organization membership.
+- Message history is scoped to the **session owner** (`copi_sessions.user_id`), both in the Nest service layer and RLS (`copi_messages_select_owner`).
+- The 14-day window is a **read filter**, not automated deletion, until a purge job exists.
+- See [test-launch-security.md](./test-launch-security.md).

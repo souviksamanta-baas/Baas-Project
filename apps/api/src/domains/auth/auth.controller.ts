@@ -1,7 +1,6 @@
 import {
   Body,
   Controller,
-  Headers,
   HttpCode,
   Post,
   UnauthorizedException,
@@ -14,18 +13,13 @@ import {
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 
-import { ErrorResponseDto } from '../../docs/openapi.dtos';
+import {
+  ErrorResponseDto,
+  WhatsAppOtpRequestDto,
+  WhatsAppOtpVerifyDto,
+} from '../../docs/openapi.dtos';
 import { AuthSessionService } from './auth-session.service';
 import { PlatformWhatsAppAuthService } from './platform-whatsapp-auth.service';
-
-interface WhatsAppOtpRequestBody {
-  phone: string;
-}
-
-interface WhatsAppOtpVerifyBody {
-  code: string;
-  phone: string;
-}
 
 interface WhatsAppOtpVerifyResponse {
   tokenHash: string;
@@ -46,17 +40,9 @@ export class AuthController {
     description:
       'Sends a Meta authentication template OTP from the Nexolia platform WABA. Auth phone is independent of merchant WABA numbers.',
   })
-  @ApiBody({
-    schema: {
-      properties: {
-        phone: { example: '+5491112345678', type: 'string' },
-      },
-      required: ['phone'],
-      type: 'object',
-    },
-  })
+  @ApiBody({ type: WhatsAppOtpRequestDto })
   @ApiOkResponse({ description: 'OTP requested.' })
-  async requestWhatsAppOtp(@Body() body: WhatsAppOtpRequestBody): Promise<{ ok: true }> {
+  async requestWhatsAppOtp(@Body() body: WhatsAppOtpRequestDto): Promise<{ ok: true }> {
     const phoneE164 = normalizePhone(body.phone);
     await this.platformWhatsAppAuthService.requestOtp(phoneE164);
     return { ok: true };
@@ -69,23 +55,14 @@ export class AuthController {
     description:
       'Validates the OTP challenge and returns a Supabase token hash the mobile client can exchange for a session.',
   })
-  @ApiBody({
-    schema: {
-      properties: {
-        code: { example: '123456', type: 'string' },
-        phone: { example: '+5491112345678', type: 'string' },
-      },
-      required: ['code', 'phone'],
-      type: 'object',
-    },
-  })
+  @ApiBody({ type: WhatsAppOtpVerifyDto })
   @ApiOkResponse({ description: 'OTP verified; session token hash returned.' })
   @ApiUnauthorizedResponse({
     description: 'Invalid or expired OTP.',
     type: ErrorResponseDto,
   })
   async verifyWhatsAppOtp(
-    @Body() body: WhatsAppOtpVerifyBody,
+    @Body() body: WhatsAppOtpVerifyDto,
   ): Promise<WhatsAppOtpVerifyResponse> {
     const phoneE164 = normalizePhone(body.phone);
     const isValid = await this.platformWhatsAppAuthService.verifyOtp({

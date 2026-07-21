@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  ForbiddenException,
   Get,
   Headers,
   HttpCode,
@@ -14,6 +15,7 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { Throttle } from '@nestjs/throttler';
 import {
   ApiBearerAuth,
   ApiBody,
@@ -24,6 +26,10 @@ import {
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 
+import {
+  assertOrgMembership,
+  resolveUserId,
+} from '../../auth/request-auth.helper';
 import {
   ApproveDraftRequestDto,
   CopiActionConfirmRequestDto,
@@ -36,6 +42,7 @@ import {
   ErrorResponseDto,
   OwnerCopilotResponseDto,
 } from '../../docs/openapi.dtos';
+import { SupabaseService } from '../../supabase/supabase.service';
 import { CopiActionService } from './copi-action.service';
 import { CopiPolicyService } from './copi-policy.service';
 import { CopiReportsService } from './copi-reports.service';
@@ -44,7 +51,6 @@ import { CopiVisionService } from './copi-vision.service';
 import { CopiVoiceService } from './copi-voice.service';
 import { OwnerCopilotService, type OwnerCopilotResponse } from './owner-copilot.service';
 import { SalesAiService } from './sales-ai.service';
-import { SupabaseService } from '../../supabase/supabase.service';
 
 interface UploadedAudioFile {
   buffer: Buffer;
@@ -92,11 +98,7 @@ export class AiController {
         editedBody: body.body,
       });
     } catch (error) {
-      if (error instanceof Error && error.message.toLocaleLowerCase().includes('token')) {
-        throw new UnauthorizedException(error.message);
-      }
-
-      throw error;
+      this.rethrowAuthError(error);
     }
   }
 
@@ -119,11 +121,7 @@ export class AiController {
         draftId,
       });
     } catch (error) {
-      if (error instanceof Error && error.message.toLocaleLowerCase().includes('token')) {
-        throw new UnauthorizedException(error.message);
-      }
-
-      throw error;
+      this.rethrowAuthError(error);
     }
   }
 
@@ -143,11 +141,11 @@ export class AiController {
   ): Promise<OwnerCopilotResponse> {
     try {
       if (!body.organizationId?.trim()) {
-        throw new Error('organizationId is required');
+        throw new BadRequestException('organizationId is required');
       }
 
       if (!body.question?.trim()) {
-        throw new Error('question is required');
+        throw new BadRequestException('question is required');
       }
 
       return await this.ownerCopilotService.answerQuestion({
@@ -158,11 +156,7 @@ export class AiController {
         sessionId: body.sessionId,
       });
     } catch (error) {
-      if (error instanceof Error && error.message.toLocaleLowerCase().includes('token')) {
-        throw new UnauthorizedException(error.message);
-      }
-
-      throw error;
+      this.rethrowAuthError(error);
     }
   }
 
@@ -170,6 +164,7 @@ export class AiController {
   @ApiOperation({
     summary: 'Get the owner’s active Copi chat thread (last 14 days)',
   })
+  @ApiUnauthorizedResponse({ type: ErrorResponseDto })
   async getActiveCopiSession(
     @Headers('authorization') authorizationHeader: string | undefined,
     @Query('organizationId') organizationId: string,
@@ -179,10 +174,10 @@ export class AiController {
     sessionId: string | null;
   }> {
     if (!organizationId?.trim()) {
-      throw new Error('organizationId is required');
+      throw new BadRequestException('organizationId is required');
     }
 
-    const userId = await this.resolveUserId(authorizationHeader);
+    const userId = await this.requireOrgMember(authorizationHeader, organizationId);
     return this.sessionService.getActiveThread({
       businessCenterId: businessCenterId?.trim() || undefined,
       organizationId,
@@ -192,15 +187,18 @@ export class AiController {
 
   @Get('copilot/sessions/:sessionId/messages')
   @ApiOperation({ summary: 'List Copi session messages' })
+  @ApiUnauthorizedResponse({ type: ErrorResponseDto })
   async listCopiSessionMessages(
+    @Headers('authorization') authorizationHeader: string | undefined,
     @Param('sessionId') sessionId: string,
     @Query('organizationId') organizationId: string,
   ): Promise<{ messages: Awaited<ReturnType<CopiSessionService['listMessages']>> }> {
     if (!organizationId?.trim()) {
-      throw new Error('organizationId is required');
+      throw new BadRequestException('organizationId is required');
     }
 
-    const messages = await this.sessionService.listMessages(sessionId, organizationId);
+    const userId = await this.requireOrgMember(authorizationHeader, organizationId);
+    const messages = await this.sessionService.listMessages(sessionId, organizationId, userId);
     return { messages };
   }
 
@@ -208,13 +206,18 @@ export class AiController {
   @HttpCode(200)
   @ApiOperation({ summary: 'Confirm a proposed Copi action' })
   @ApiBody({ type: CopiActionConfirmRequestDto })
+  @ApiUnauthorizedResponse({ type: ErrorResponseDto })
   async confirmCopiAction(
     @Headers('authorization') authorizationHeader: string | undefined,
     @Param('actionId') actionId: string,
     @Body() body: CopiActionConfirmRequestDto,
   ): Promise<{ result: Record<string, unknown>; status: 'executed' }> {
     try {
-      const userId = await this.resolveUserId(authorizationHeader);
+      if (!body.organizationId?.trim()) {
+        throw new BadRequestException('organizationId is required');
+      }
+
+      const userId = await this.requireOrgMember(authorizationHeader, body.organizationId);
       return await this.actionService.confirmAction({
         actionId,
         businessCenterId: body.businessCenterId,
@@ -240,11 +243,15 @@ export class AiController {
 
   @Post('copilot/voice')
   @HttpCode(200)
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @ApiOperation({ summary: 'Transcribe a Copi voice note' })
   @ApiBody({ type: CopiVoiceRequestDto })
+  @ApiUnauthorizedResponse({ type: ErrorResponseDto })
   async transcribeVoice(
+    @Headers('authorization') authorizationHeader: string | undefined,
     @Body() body: CopiVoiceRequestDto,
   ): Promise<{ text: string }> {
+    await this.requireOrgMember(authorizationHeader, body.organizationId);
     const flags = await this.policyService.loadFeatureFlags(body.organizationId);
     return this.voiceService.transcribe({
       audioBase64: body.audioBase64,
@@ -255,15 +262,20 @@ export class AiController {
 
   @Post('copilot/voice/upload')
   @HttpCode(200)
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @UseInterceptors(FileInterceptor('audio', { limits: { fileSize: 12 * 1024 * 1024 } }))
   @ApiOperation({ summary: 'Transcribe a Copi voice note from multipart upload' })
+  @ApiUnauthorizedResponse({ type: ErrorResponseDto })
   async transcribeVoiceUpload(
+    @Headers('authorization') authorizationHeader: string | undefined,
     @UploadedFile() file: UploadedAudioFile,
     @Body('organizationId') organizationId: string,
   ): Promise<{ text: string }> {
     if (!organizationId?.trim()) {
       throw new BadRequestException('organizationId is required');
     }
+
+    await this.requireOrgMember(authorizationHeader, organizationId);
 
     if (!file?.buffer?.length) {
       return { text: '' };
@@ -279,11 +291,15 @@ export class AiController {
 
   @Post('copilot/vision')
   @HttpCode(200)
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @ApiOperation({ summary: 'Analyze an image for Copi actions' })
   @ApiBody({ type: CopiVisionRequestDto })
+  @ApiUnauthorizedResponse({ type: ErrorResponseDto })
   async analyzeVision(
+    @Headers('authorization') authorizationHeader: string | undefined,
     @Body() body: CopiVisionRequestDto,
   ): Promise<{ extraction: Record<string, unknown>; summary: string }> {
+    await this.requireOrgMember(authorizationHeader, body.organizationId);
     const flags = await this.policyService.loadFeatureFlags(body.organizationId);
     return this.visionService.extract({
       featureFlags: flags,
@@ -297,9 +313,12 @@ export class AiController {
   @HttpCode(200)
   @ApiOperation({ summary: 'Run a saved or built-in Copi report' })
   @ApiBody({ type: CopiReportRunRequestDto })
+  @ApiUnauthorizedResponse({ type: ErrorResponseDto })
   async runCopiReport(
+    @Headers('authorization') authorizationHeader: string | undefined,
     @Body() body: CopiReportRunRequestDto,
   ): Promise<Record<string, unknown>> {
+    await this.requireOrgMember(authorizationHeader, body.organizationId);
     const flags = await this.policyService.loadFeatureFlags(body.organizationId);
     return this.reportsService.runReport({
       businessCenterId: body.businessCenterId,
@@ -310,18 +329,36 @@ export class AiController {
     });
   }
 
-  private async resolveUserId(authorizationHeader: string | undefined): Promise<string> {
-    const token = authorizationHeader?.replace(/^Bearer\s+/i, '').trim();
-    if (!token) {
-      throw new UnauthorizedException('Missing bearer token');
+  private async requireOrgMember(
+    authorizationHeader: string | undefined,
+    organizationId: string | undefined,
+  ): Promise<string> {
+    if (!organizationId?.trim()) {
+      throw new BadRequestException('organizationId is required');
     }
 
-    const client = this.supabaseService.getServiceRoleClient();
-    const { data, error } = await client.auth.getUser(token);
-    if (error || !data.user) {
-      throw new UnauthorizedException('Invalid bearer token');
+    const userId = await resolveUserId(this.supabaseService, authorizationHeader);
+    await assertOrgMembership({
+      organizationId: organizationId.trim(),
+      supabaseService: this.supabaseService,
+      userId,
+    });
+    return userId;
+  }
+
+  private rethrowAuthError(error: unknown): never {
+    if (error instanceof HttpException) {
+      throw error;
     }
 
-    return data.user.id;
+    if (error instanceof Error && error.message.toLocaleLowerCase().includes('token')) {
+      throw new UnauthorizedException(error.message);
+    }
+
+    if (error instanceof Error && /member|forbidden|owner/i.test(error.message)) {
+      throw new ForbiddenException(error.message);
+    }
+
+    throw error;
   }
 }

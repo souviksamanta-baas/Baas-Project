@@ -1,3 +1,8 @@
+/**
+ * LEGACY / UNREACHABLE under Expo Router (`main`: expo-router/entry).
+ * Kept only for static review / accidental imports; do not add new screens here.
+ * Production navigation lives under apps/mobile/app/.
+ */
 import { useMemo, useState, type ReactElement } from 'react';
 import { Platform, ScrollView, StyleSheet, View } from 'react-native';
 

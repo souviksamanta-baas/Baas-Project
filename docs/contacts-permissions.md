@@ -29,3 +29,8 @@ when importing a vendor from the phone book. Normalize Argentina formats (`011â€
 - **iOS / Android:** contacts permission copy is set in `apps/mobile/app.json`
   (`expo-contacts` plugin)
 - **Web:** contact picker is unavailable; manual entry only
+
+## Android
+
+The app reads contacts only. `android.permission.WRITE_CONTACTS` is blocked in
+`apps/mobile/app.json` (`blockedPermissions`) so the contact picker cannot request write access.

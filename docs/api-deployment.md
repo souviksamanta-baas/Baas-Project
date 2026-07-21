@@ -232,3 +232,11 @@ For KAN-11, completion is verified when:
 
 External deployment requires connecting the repository to Railway and setting
 the listed environment variables in that Railway project.
+
+## Test Launch security
+
+See [test-launch-security.md](./test-launch-security.md) (epic KAN-333).
+
+- Global `ValidationPipe` (`whitelist`, `forbidNonWhitelisted`, `transform`) in `main.ts`.
+- OpenAPI UI at `/docs` is **disabled in production** unless `BAAS_ENABLE_OPENAPI_DOCS=true`.
+- All Copi OpenAI/history routes require a valid Supabase bearer token and org membership.

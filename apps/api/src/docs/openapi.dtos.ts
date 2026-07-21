@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsObject, IsOptional, IsString, MinLength } from 'class-validator';
 
 export class HealthResponseDto {
   @ApiProperty({ enum: ['ok'], example: 'ok' })
@@ -39,22 +40,29 @@ export class CopilotQuestionRequestDto {
     description: 'Organization UUID whose business data should be queried.',
     example: '4e6f8a6f-9b6e-4f7f-8c1e-0f9f7c8d9a12',
   })
+  @IsString()
   organizationId!: string;
 
   @ApiPropertyOptional({
     description: 'Business center UUID. Defaults to the organization default center.',
   })
+  @IsOptional()
+  @IsString()
   businessCenterId?: string;
 
   @ApiPropertyOptional({
     description: 'Existing Copi session UUID to continue a conversation.',
   })
+  @IsOptional()
+  @IsString()
   sessionId?: string;
 
   @ApiProperty({
     description: 'Owner question for Copi.',
     example: '¿Qué clientes necesitan seguimiento hoy?',
   })
+  @IsString()
+  @MinLength(1)
   question!: string;
 }
 
@@ -93,48 +101,65 @@ export class OwnerCopilotResponseDto {
 
 export class CopiActionConfirmRequestDto {
   @ApiProperty()
+  @IsString()
   organizationId!: string;
 
   @ApiProperty()
+  @IsString()
   businessCenterId!: string;
 }
 
 export class CopiVoiceRequestDto {
   @ApiProperty()
+  @IsString()
   organizationId!: string;
 
   @ApiProperty()
+  @IsString()
+  @MinLength(1)
   audioBase64!: string;
 
   @ApiProperty({ example: 'audio/webm' })
+  @IsString()
   mimeType!: string;
 }
 
 export class CopiVisionRequestDto {
   @ApiProperty()
+  @IsString()
   organizationId!: string;
 
   @ApiProperty()
+  @IsString()
+  @MinLength(1)
   imageBase64!: string;
 
   @ApiProperty({ example: 'image/jpeg' })
+  @IsString()
   mimeType!: string;
 
   @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
   prompt?: string;
 }
 
 export class CopiReportRunRequestDto {
   @ApiProperty()
+  @IsString()
   organizationId!: string;
 
   @ApiProperty()
+  @IsString()
   businessCenterId!: string;
 
   @ApiProperty({ example: 'sales_last_7_days' })
+  @IsString()
   reportKey!: string;
 
   @ApiPropertyOptional()
+  @IsOptional()
+  @IsObject()
   parameters?: Record<string, unknown>;
 }
 
@@ -239,4 +264,38 @@ export class WhatsAppWebhookPayloadDto {
 
   @ApiPropertyOptional({ type: WhatsAppWebhookEntryDto, isArray: true })
   entry?: WhatsAppWebhookEntryDto[];
+}
+
+export class WhatsAppOtpRequestDto {
+  @ApiProperty({ example: '+5491112345678' })
+  @IsString()
+  @MinLength(8)
+  phone!: string;
+}
+
+export class WhatsAppOtpVerifyDto {
+  @ApiProperty({ example: '+5491112345678' })
+  @IsString()
+  @MinLength(8)
+  phone!: string;
+
+  @ApiProperty({ example: '123456' })
+  @IsString()
+  @MinLength(4)
+  code!: string;
+}
+
+export class AcceptOrganizationInviteDto {
+  @ApiProperty()
+  @IsString()
+  @MinLength(8)
+  inviteToken!: string;
+
+  @ApiPropertyOptional({
+    description: 'Ignored as auth evidence; phone is taken from the authenticated Supabase user.',
+    example: '+5491112345678',
+  })
+  @IsOptional()
+  @IsString()
+  verifiedPhoneE164?: string;
 }

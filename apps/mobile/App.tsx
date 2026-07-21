@@ -1,3 +1,4 @@
+/** LEGACY entry — Expo Router uses expo-router/entry; this file is not the production root. */
 import type { ReactElement } from 'react';
 import { SafeAreaView, ScrollView, Text } from 'react-native';
 

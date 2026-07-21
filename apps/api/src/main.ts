@@ -1,3 +1,4 @@
+import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import type { NestExpressApplication } from '@nestjs/platform-express';
@@ -26,7 +27,16 @@ async function bootstrap(): Promise<void> {
 
   app.use(json({ limit: '12mb', verify: saveRawBody }));
   app.use(urlencoded({ extended: true, limit: '12mb', verify: saveRawBody }));
-  setupOpenApiDocs(app);
+
+  app.useGlobalPipes(
+    new ValidationPipe({
+      forbidNonWhitelisted: true,
+      transform: true,
+      whitelist: true,
+    }),
+  );
+
+  setupOpenApiDocs(app, configService);
 
   const port = getApiPort(configService);
   await app.listen(port, '0.0.0.0');

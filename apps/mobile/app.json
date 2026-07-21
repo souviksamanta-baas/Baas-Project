@@ -39,7 +39,8 @@
           "microphonePermission": false,
           "recordAudioAndroid": false
         }
-      ]
+      ],
+      "expo-secure-store"
     ],
     "ios": {
       "bundleIdentifier": "com.nexolia.owner",
@@ -48,7 +49,10 @@
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#0f172a"
-      }
+      },
+      "blockedPermissions": [
+        "android.permission.WRITE_CONTACTS"
+      ]
     },
     "extra": {
       "phase": "0"

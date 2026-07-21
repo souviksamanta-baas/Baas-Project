@@ -55,7 +55,9 @@ export class CopiOrchestratorService {
       userId: member.userId,
     });
 
-    const conversationHistory = (await this.sessionService.listMessages(sessionId, params.organizationId))
+    const conversationHistory = (
+      await this.sessionService.listMessages(sessionId, params.organizationId, member.userId)
+    )
       .filter((message) => message.role !== 'system')
       .slice(-8)
       .map((message) => ({ body: message.body, role: message.role }));

@@ -1,7 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 /**
- * Tiny key-value storage used by auth, presupuestos, and proveedores.
+ * Tiny key-value storage for non-secret app cache (presupuestos, proveedores, etc.).
+ * Supabase Auth sessions use authSecureStorage (SecureStore), not this module.
  * Prefers AsyncStorage (Expo Go–compatible v2). Falls back to memory if the
  * native module is unavailable so the UI never surfaces a hard crash.
  */

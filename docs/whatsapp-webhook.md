@@ -324,3 +324,9 @@ For KAN-8, completion is verified when:
 - Inbound WhatsApp payload parsing extracts safe Phase 0 log fields.
 - Duplicate webhook deliveries are recognized through persistent event storage.
 - Server secrets are documented and read only from environment variables.
+
+## Access tokens (Test Launch)
+
+Outbound sends prefer `WHATSAPP_CLOUD_ACCESS_TOKEN` from the API environment.
+Registering a merchant connection **does not** persist that shared token into
+`whatsapp_config.access_token_encrypted` (legacy plaintext column until per-tenant KMS).
