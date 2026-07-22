@@ -17,7 +17,7 @@ export interface OwnerCopilotState {
   isLoadingHistory: boolean;
   messages: CopilotMessage[];
   policyMessage: string | null;
-  askQuestion: (question?: string) => Promise<void>;
+  askQuestion: (question?: string, options?: { imageContext?: string }) => Promise<void>;
   refreshHistory: () => Promise<void>;
   sessionId: string | null;
   setInputValue: (value: string) => void;
@@ -100,7 +100,7 @@ export function useOwnerCopilot(params: {
   }, [refreshHistory]);
 
   const askQuestion = useCallback(
-    async (questionOverride?: string): Promise<void> => {
+    async (questionOverride?: string, options?: { imageContext?: string }): Promise<void> => {
       if (!params.organizationId) {
         return;
       }
@@ -128,6 +128,7 @@ export function useOwnerCopilot(params: {
       try {
         const response = await askOwnerCopilot({
           businessCenterId: params.businessCenterId,
+          imageContext: options?.imageContext,
           organizationId: params.organizationId,
           question,
           sessionId,

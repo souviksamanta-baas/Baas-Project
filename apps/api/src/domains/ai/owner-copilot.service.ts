@@ -13,6 +13,7 @@ export class OwnerCopilotService {
   async answerQuestion(params: {
     authorizationHeader: string | undefined;
     businessCenterId?: string;
+    imageContext?: string;
     now?: Date;
     organizationId: string;
     question: string;

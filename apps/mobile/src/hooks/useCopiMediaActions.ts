@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from 'react';
 import { Alert, Platform } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import { File as ExpoFile } from 'expo-file-system';
 import {
   RecordingPresets,
   requestRecordingPermissionsAsync,
@@ -33,14 +34,65 @@ function pickWebRecorderMimeType(): string {
   return 'audio/webm';
 }
 
+/** Hermes/RN cannot create Blobs from ArrayBuffer; avoid fetch(uri).blob() on native. */
+async function readImageAssetAsBase64(
+  asset: ImagePicker.ImagePickerAsset,
+): Promise<{ base64: string; mimeType: string }> {
+  const mimeType = asset.mimeType ?? 'image/jpeg';
+
+  if (asset.base64?.trim()) {
+    return { base64: asset.base64.trim(), mimeType };
+  }
+
+  if (Platform.OS !== 'web' && asset.uri) {
+    const file = new ExpoFile(asset.uri);
+    const base64 = await file.base64();
+    if (!base64) {
+      throw new Error('No se pudo leer la imagen');
+    }
+    return { base64, mimeType: asset.mimeType ?? file.type ?? 'image/jpeg' };
+  }
+
+  const response = await fetch(asset.uri);
+  if (!response.ok) {
+    throw new Error('No se pudo leer la imagen');
+  }
+  const blob = await response.blob();
+  const base64 = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const result = reader.result;
+      if (typeof result !== 'string') {
+        reject(new Error('No se pudo leer la imagen'));
+        return;
+      }
+      resolve(result.split(',')[1] ?? '');
+    };
+    reader.onerror = () => reject(reader.error ?? new Error('No se pudo leer la imagen'));
+    reader.readAsDataURL(blob);
+  });
+
+  if (!base64) {
+    throw new Error('No se pudo leer la imagen');
+  }
+
+  return { base64, mimeType: asset.mimeType ?? (blob.type || 'image/jpeg') };
+}
+
+export type CopiPendingImage = {
+  base64: string;
+  mimeType: string;
+  uri: string;
+};
+
 export function useCopiMediaActions(params: {
   canUseVision: boolean;
   canUseVoice: boolean;
-  onVisionSummary: (summary: string) => Promise<void>;
   onVoiceText: (text: string) => Promise<void>;
   organizationId: string | null;
 }): {
   attachmentMenuOpen: boolean;
+  clearPendingImage: () => void;
   closeAttachmentMenu: () => void;
   isAnalyzingImage: boolean;
   isRecordingVoice: boolean;
@@ -49,10 +101,13 @@ export function useCopiMediaActions(params: {
   onPressAttachLibrary: () => void;
   onPressPlus: () => void;
   onPressVoice: () => void;
+  pendingImage: CopiPendingImage | null;
+  resolveImageAsk: (draft: string) => Promise<{ imageContext?: string; question: string }>;
 } {
   const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const recorderState = useAudioRecorderState(audioRecorder);
   const [attachmentMenuOpen, setAttachmentMenuOpen] = useState(false);
+  const [pendingImage, setPendingImage] = useState<CopiPendingImage | null>(null);
   const [isRecordingVoice, setIsRecordingVoice] = useState(false);
   const [isTranscribingVoice, setIsTranscribingVoice] = useState(false);
   const [isAnalyzingImage, setIsAnalyzingImage] = useState(false);
@@ -273,47 +328,83 @@ export function useCopiMediaActions(params: {
     setAttachmentMenuOpen((open) => !open);
   }, [params.canUseVision]);
 
-  const analyzeAsset = useCallback(
+  const clearPendingImage = useCallback(() => {
+    setPendingImage(null);
+  }, []);
+
+  const stageAsset = useCallback(
     async (asset: ImagePicker.ImagePickerAsset): Promise<void> => {
-      if (!params.organizationId || !asset.uri) {
+      if (!asset.uri) {
         return;
       }
 
-      setIsAnalyzingImage(true);
       closeAttachmentMenu();
 
       try {
-        const response = await fetch(asset.uri);
-        const blob = await response.blob();
-        const reader = new FileReader();
-        const base64 = await new Promise<string>((resolve, reject) => {
-          reader.onloadend = () => {
-            const result = reader.result;
-            if (typeof result !== 'string') {
-              reject(new Error('No se pudo leer el archivo'));
-              return;
-            }
-            resolve(result.split(',')[1] ?? '');
-          };
-          reader.onerror = () => reject(reader.error ?? new Error('No se pudo leer el archivo'));
-          reader.readAsDataURL(blob);
-        });
-        const mimeType = asset.mimeType ?? 'image/jpeg';
-        const result = await analyzeCopiVision({
-          imageBase64: base64,
+        const { base64, mimeType } = await readImageAssetAsBase64(asset);
+        setPendingImage({
+          base64,
           mimeType,
-          organizationId: params.organizationId,
-          prompt: 'Describí productos, cantidades y montos visibles para un negocio minorista.',
+          uri: asset.uri,
         });
-        await params.onVisionSummary(result.summary);
       } catch (error) {
-        const message = error instanceof Error ? error.message : 'No se pudo analizar la imagen';
+        const message = error instanceof Error ? error.message : 'No se pudo cargar la imagen';
         Alert.alert('Copi visión', message);
+      }
+    },
+    [closeAttachmentMenu],
+  );
+
+  const resolveImageAsk = useCallback(
+    async (draft: string): Promise<{ imageContext?: string; question: string }> => {
+      const trimmed = draft.trim();
+      const hasImage = Boolean(pendingImage);
+
+      if (!trimmed && !hasImage) {
+        throw new Error('Escribí un mensaje o adjuntá una imagen.');
+      }
+
+      const displayQuestion = hasImage
+        ? trimmed
+          ? `📷 ${trimmed}`
+          : '📷 Analizá esta imagen'
+        : trimmed;
+
+      if (!pendingImage) {
+        return { question: displayQuestion };
+      }
+
+      const organizationId = organizationIdRef.current;
+      if (!organizationId) {
+        throw new Error('No encontramos tu organización. Volvé a iniciar sesión.');
+      }
+
+      setIsAnalyzingImage(true);
+      try {
+        const prompt = [
+          'Sos el asistente visual de un negocio minorista en Argentina.',
+          trimmed
+            ? `El dueño pregunta: "${trimmed}". Usá la imagen para ayudarlo.`
+            : 'Describí productos, cantidades, precios y texto visible.',
+          'Respondé en español (es-AR). Preferí JSON con summary, products, amounts y notes.',
+        ].join(' ');
+
+        const result = await analyzeCopiVision({
+          imageBase64: pendingImage.base64,
+          mimeType: pendingImage.mimeType,
+          organizationId,
+          prompt,
+        });
+        setPendingImage(null);
+        return {
+          imageContext: result.summary,
+          question: displayQuestion,
+        };
       } finally {
         setIsAnalyzingImage(false);
       }
     },
-    [closeAttachmentMenu, params],
+    [pendingImage],
   );
 
   const onPressAttachCamera = useCallback(() => {
@@ -326,7 +417,7 @@ export function useCopiMediaActions(params: {
 
       const result = await ImagePicker.launchCameraAsync({
         allowsEditing: false,
-        base64: false,
+        base64: true,
         mediaTypes: ['images'],
         quality: 0.8,
       });
@@ -335,9 +426,9 @@ export function useCopiMediaActions(params: {
         return;
       }
 
-      await analyzeAsset(result.assets[0]);
+      await stageAsset(result.assets[0]);
     })();
-  }, [analyzeAsset]);
+  }, [stageAsset]);
 
   const onPressAttachLibrary = useCallback(() => {
     void (async () => {
@@ -349,7 +440,7 @@ export function useCopiMediaActions(params: {
 
       const result = await ImagePicker.launchImageLibraryAsync({
         allowsEditing: false,
-        base64: false,
+        base64: true,
         mediaTypes: ['images'],
         quality: 0.8,
       });
@@ -358,9 +449,9 @@ export function useCopiMediaActions(params: {
         return;
       }
 
-      await analyzeAsset(result.assets[0]);
+      await stageAsset(result.assets[0]);
     })();
-  }, [analyzeAsset]);
+  }, [stageAsset]);
 
   const onPressVoice = useCallback(() => {
     if (!params.canUseVoice) {
@@ -438,6 +529,7 @@ export function useCopiMediaActions(params: {
 
   return {
     attachmentMenuOpen,
+    clearPendingImage,
     closeAttachmentMenu,
     isAnalyzingImage,
     isRecordingVoice,
@@ -446,5 +538,7 @@ export function useCopiMediaActions(params: {
     onPressAttachLibrary,
     onPressPlus,
     onPressVoice,
+    pendingImage,
+    resolveImageAsk,
   };
 }

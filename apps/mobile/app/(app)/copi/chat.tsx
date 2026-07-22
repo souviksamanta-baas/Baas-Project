@@ -1,6 +1,7 @@
 import { useRouter } from 'expo-router';
 import type { ReactElement } from 'react';
 import { useCallback, useMemo } from 'react';
+import { Alert } from 'react-native';
 
 import { useOwnerSessionContext } from '../../../src/context/OwnerSessionProvider';
 import { useOwnerCopilotContext } from '../../../src/context/OwnerCopilotProvider';
@@ -21,17 +22,22 @@ export default function CopiChatRoute(): ReactElement {
     await copilot.askQuestion(text);
   }, [copilot]);
 
-  const onVisionSummary = useCallback(async (summary: string) => {
-    await copilot.askQuestion(`Analicé una imagen: ${summary}`);
-  }, [copilot]);
-
   const media = useCopiMediaActions({
     canUseVision,
     canUseVoice,
-    onVisionSummary,
     onVoiceText,
     organizationId,
   });
+
+  const handleSend = useCallback(async () => {
+    try {
+      const resolved = await media.resolveImageAsk(copilot.inputValue);
+      await copilot.askQuestion(resolved.question, { imageContext: resolved.imageContext });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'No se pudo enviar el mensaje';
+      Alert.alert('Copi', message);
+    }
+  }, [copilot, media]);
 
   const composer = useMemo<CopiComposerActions>(
     () => ({
@@ -41,10 +47,12 @@ export default function CopiChatRoute(): ReactElement {
       isAnalyzingImage: media.isAnalyzingImage,
       isRecordingVoice: media.isRecordingVoice,
       isTranscribingVoice: media.isTranscribingVoice,
+      onClearPendingImage: media.clearPendingImage,
       onPressAttachCamera: media.onPressAttachCamera,
       onPressAttachLibrary: media.onPressAttachLibrary,
       onPressPlus: media.onPressPlus,
       onPressVoice: media.onPressVoice,
+      pendingImageUri: media.pendingImage?.uri ?? null,
     }),
     [canUseVision, canUseVoice, media],
   );
@@ -55,6 +63,7 @@ export default function CopiChatRoute(): ReactElement {
       copilot={copilot}
       onBack={() => router.replace(routes.appCopi)}
       onOpenProduct={(productId) => router.push(productDetailRoute(productId, 'copi-chat'))}
+      onSend={handleSend}
     />
   );
 }

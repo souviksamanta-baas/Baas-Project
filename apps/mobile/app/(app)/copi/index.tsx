@@ -1,6 +1,7 @@
 import { useRouter } from 'expo-router';
 import type { ReactElement } from 'react';
 import { useCallback, useMemo, useState } from 'react';
+import { Alert } from 'react-native';
 
 import { useOwnerSessionContext } from '../../../src/context/OwnerSessionProvider';
 import { useOwnerCopilotContext } from '../../../src/context/OwnerCopilotProvider';
@@ -26,18 +27,9 @@ export default function CopiRoute(): ReactElement {
     [copilot, router],
   );
 
-  const onVisionSummary = useCallback(
-    async (summary: string) => {
-      router.push(routes.appCopiChat);
-      await copilot.askQuestion(`Analicé una imagen: ${summary}`);
-    },
-    [copilot, router],
-  );
-
   const media = useCopiMediaActions({
     canUseVision,
     canUseVoice,
-    onVisionSummary,
     onVoiceText,
     organizationId,
   });
@@ -50,16 +42,18 @@ export default function CopiRoute(): ReactElement {
       isAnalyzingImage: media.isAnalyzingImage,
       isRecordingVoice: media.isRecordingVoice,
       isTranscribingVoice: media.isTranscribingVoice,
+      onClearPendingImage: media.clearPendingImage,
       onPressAttachCamera: media.onPressAttachCamera,
       onPressAttachLibrary: media.onPressAttachLibrary,
       onPressPlus: media.onPressPlus,
       onPressVoice: media.onPressVoice,
+      pendingImageUri: media.pendingImage?.uri ?? null,
     }),
     [canUseVision, canUseVoice, media],
   );
 
-  async function handleAsk(question: string): Promise<void> {
-    await copilot.askQuestion(question);
+  async function handleAsk(question: string, imageContext?: string): Promise<void> {
+    await copilot.askQuestion(question, { imageContext });
   }
 
   return (
@@ -68,6 +62,7 @@ export default function CopiRoute(): ReactElement {
       metrics={dashboard?.metrics ?? null}
       onAskQuestion={handleAsk}
       onOpenChat={() => router.push(routes.appCopiChat)}
+      onResolveImageAsk={media.resolveImageAsk}
       questionDraft={draft}
       setQuestionDraft={setDraft}
     />

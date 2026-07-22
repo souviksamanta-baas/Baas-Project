@@ -49,6 +49,7 @@ interface AiDraftRow {
 
 export async function askOwnerCopilot(params: {
   businessCenterId?: string | null;
+  imageContext?: string;
   organizationId: string;
   question: string;
   sessionId?: string | null;
@@ -56,6 +57,7 @@ export async function askOwnerCopilot(params: {
   return apiFetchAuthJson<CopilotResponse>('/ai/copilot/query', {
     body: JSON.stringify({
       businessCenterId: params.businessCenterId ?? undefined,
+      imageContext: params.imageContext?.trim() || undefined,
       organizationId: params.organizationId,
       question: params.question,
       sessionId: params.sessionId ?? undefined,

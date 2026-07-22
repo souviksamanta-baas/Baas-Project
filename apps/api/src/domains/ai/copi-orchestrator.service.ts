@@ -29,6 +29,7 @@ export class CopiOrchestratorService {
   async answerQuestion(params: {
     authorizationHeader: string | undefined;
     businessCenterId?: string;
+    imageContext?: string;
     now?: Date;
     organizationId: string;
     question: string;
@@ -62,6 +63,11 @@ export class CopiOrchestratorService {
       .slice(-8)
       .map((message) => ({ body: message.body, role: message.role }));
 
+    const imageContext = params.imageContext?.trim();
+    const reasoningQuestion = imageContext
+      ? `${params.question.trim()}\n\nContexto de la imagen adjunta:\n${imageContext}`
+      : params.question;
+
     const context = {
       authorizationHeader: params.authorizationHeader,
       businessCenterId,
@@ -69,7 +75,7 @@ export class CopiOrchestratorService {
       now,
       organizationId: params.organizationId,
       ownerDisplayName: member.displayName,
-      question: params.question,
+      question: reasoningQuestion,
       sessionId,
       timezone: businessCenter.timezone,
       userId: member.userId,
@@ -82,7 +88,7 @@ export class CopiOrchestratorService {
       sessionId,
     });
 
-    const wantsProAction = detectProActionIntent(params.question);
+    const wantsProAction = detectProActionIntent(reasoningQuestion);
     if (wantsProAction && !this.policyService.canUseProAgent(flags)) {
       const answer =
         'Esta acción requiere Copi Pro. Activá el add-on para crear tareas, asignaciones y automatizaciones.';
@@ -103,7 +109,7 @@ export class CopiOrchestratorService {
     const selected = await this.toolSelectorService.selectTools({
       enabled: useLlm,
       history: conversationHistory,
-      question: params.question,
+      question: reasoningQuestion,
     });
     const tools = selected.tools;
     const toolResults = await this.toolRegistry.executeTools(context, tools);
@@ -112,7 +118,7 @@ export class CopiOrchestratorService {
       history: conversationHistory,
       locale: 'es-AR',
       ownerDisplayName: member.displayName,
-      question: params.question,
+      question: reasoningQuestion,
       toolResults,
     });
 

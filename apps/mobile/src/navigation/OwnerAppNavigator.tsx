@@ -41,10 +41,12 @@ const legacyCopiComposer: CopiComposerActions = {
   isAnalyzingImage: false,
   isRecordingVoice: false,
   isTranscribingVoice: false,
+  onClearPendingImage: () => undefined,
   onPressAttachCamera: () => undefined,
   onPressAttachLibrary: () => undefined,
   onPressPlus: () => undefined,
   onPressVoice: () => undefined,
+  pendingImageUri: null,
 };
 
 const legacyWhatsAppConnection: OwnerDashboard['whatsappConnection'] = {
@@ -302,7 +304,12 @@ export function OwnerAppNavigator(props: { onSignOut: () => void }): ReactElemen
           threadAvatar={selectedConversation.avatar}
         />
       ) : route === 'copi-chat' ? (
-        <CopiChatScreen composer={legacyCopiComposer} copilot={legacyCopilot} onBack={() => selectTab('copi')} />
+        <CopiChatScreen
+          composer={legacyCopiComposer}
+          copilot={legacyCopilot}
+          onBack={() => selectTab('copi')}
+          onSend={async () => undefined}
+        />
       ) : (
         <ScrollView contentContainerStyle={styles.scrollContent} style={styles.scroll}>
           {renderInventoryScreen() ??
@@ -339,6 +346,7 @@ export function OwnerAppNavigator(props: { onSignOut: () => void }): ReactElemen
                 metrics={null}
                 onAskQuestion={async () => undefined}
                 onOpenChat={() => setRoute('copi-chat')}
+                onResolveImageAsk={async (draft) => ({ question: draft.trim() || 'Hola' })}
                 questionDraft={copiDraft}
                 setQuestionDraft={setCopiDraft}
               />

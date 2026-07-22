@@ -64,6 +64,14 @@ export class CopilotQuestionRequestDto {
   @IsString()
   @MinLength(1)
   question!: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Optional vision analysis context. Used for reasoning but not stored as the owner chat bubble.',
+  })
+  @IsOptional()
+  @IsString()
+  imageContext?: string;
 }
 
 export class OwnerCopilotResponseDto {

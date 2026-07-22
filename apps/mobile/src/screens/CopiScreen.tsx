@@ -2,6 +2,7 @@ import type { ReactElement } from 'react';
 import { useEffect, useRef } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -40,26 +41,30 @@ export type CopiComposerActions = {
   isAnalyzingImage: boolean;
   isRecordingVoice: boolean;
   isTranscribingVoice: boolean;
+  onClearPendingImage: () => void;
   onPressAttachCamera: () => void;
   onPressAttachLibrary: () => void;
   onPressPlus: () => void;
   onPressVoice: () => void;
+  pendingImageUri: string | null;
 };
 
 function askAndOpenChat(params: {
-  onAskQuestion: (question: string) => Promise<void>;
+  imageContext?: string;
+  onAskQuestion: (question: string, imageContext?: string) => Promise<void>;
   onOpenChat: () => void;
   question: string;
 }): void {
   params.onOpenChat();
-  void params.onAskQuestion(params.question);
+  void params.onAskQuestion(params.question, params.imageContext);
 }
 
 export function CopiScreen(props: {
   composer: CopiComposerActions;
   metrics: OwnerDashboard['metrics'] | null;
-  onAskQuestion: (question: string) => Promise<void>;
+  onAskQuestion: (question: string, imageContext?: string) => Promise<void>;
   onOpenChat: () => void;
+  onResolveImageAsk: (draft: string) => Promise<{ imageContext?: string; question: string }>;
   questionDraft: string;
   setQuestionDraft: (value: string) => void;
 }): ReactElement {
@@ -112,23 +117,30 @@ export function CopiScreen(props: {
             isRecordingVoice={props.composer.isRecordingVoice}
             isTranscribingVoice={props.composer.isTranscribingVoice}
             onChangeText={props.setQuestionDraft}
+            onClearPendingImage={props.composer.onClearPendingImage}
             onPressAttachCamera={props.composer.onPressAttachCamera}
             onPressAttachLibrary={props.composer.onPressAttachLibrary}
             onPressPlus={props.composer.onPressPlus}
             onPressVoice={props.composer.onPressVoice}
             onSend={() => {
-              const question = props.questionDraft.trim();
-              if (!question) {
-                return;
-              }
-
-              props.setQuestionDraft('');
-              askAndOpenChat({
-                onAskQuestion: props.onAskQuestion,
-                onOpenChat: props.onOpenChat,
-                question,
-              });
+              void (async () => {
+                try {
+                  const resolved = await props.onResolveImageAsk(props.questionDraft);
+                  props.setQuestionDraft('');
+                  askAndOpenChat({
+                    imageContext: resolved.imageContext,
+                    onAskQuestion: props.onAskQuestion,
+                    onOpenChat: props.onOpenChat,
+                    question: resolved.question,
+                  });
+                } catch (error) {
+                  const message =
+                    error instanceof Error ? error.message : 'No se pudo enviar el mensaje';
+                  Alert.alert('Copi', message);
+                }
+              })();
             }}
+            pendingImageUri={props.composer.pendingImageUri}
             placeholder="Escribí tu pregunta..."
             value={props.questionDraft}
           />
@@ -197,6 +209,7 @@ export function CopiChatScreen(props: {
   copilot: OwnerCopilotState;
   onBack: () => void;
   onOpenProduct?: (productId: string) => void;
+  onSend: () => Promise<void> | void;
 }): ReactElement {
   const visibility = useFeatureVisibility();
   const scrollRef = useRef<ScrollView>(null);
@@ -286,12 +299,14 @@ export function CopiChatScreen(props: {
           isSending={props.copilot.isAsking}
           isTranscribingVoice={props.composer.isTranscribingVoice}
           onChangeText={props.copilot.setInputValue}
+          onClearPendingImage={props.composer.onClearPendingImage}
           onPressAttachCamera={props.composer.onPressAttachCamera}
           onPressAttachLibrary={props.composer.onPressAttachLibrary}
           onPressPlus={props.composer.onPressPlus}
           onPressVoice={props.composer.onPressVoice}
-          onSend={() => void props.copilot.askQuestion()}
-          placeholder="Escribi un mensaje..."
+          onSend={() => void props.onSend()}
+          pendingImageUri={props.composer.pendingImageUri}
+          placeholder="Escribí un mensaje..."
           value={props.copilot.inputValue}
         />
       </FeatureGate>

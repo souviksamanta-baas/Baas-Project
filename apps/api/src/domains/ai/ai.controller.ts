@@ -151,6 +151,7 @@ export class AiController {
       return await this.ownerCopilotService.answerQuestion({
         authorizationHeader,
         businessCenterId: body.businessCenterId,
+        imageContext: body.imageContext,
         organizationId: body.organizationId,
         question: body.question,
         sessionId: body.sessionId,

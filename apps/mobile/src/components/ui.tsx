@@ -378,18 +378,21 @@ export function ReplyComposer(props: {
   isSending?: boolean;
   isTranscribingVoice?: boolean;
   onChangeText?: (text: string) => void;
+  onClearPendingImage?: () => void;
   onPressAttachCamera?: () => void;
   onPressAttachLibrary?: () => void;
   onPressPlus?: () => void;
   onPressVoice?: () => void;
   onSend?: () => void;
+  pendingImageUri?: string | null;
   placeholder: string;
   value?: string;
 }): ReactElement {
   const hasText = Boolean(props.value?.trim());
+  const hasPendingImage = Boolean(props.pendingImageUri);
   const busy = props.isSending || props.isTranscribingVoice || props.isAnalyzingImage;
-  const canSend = Boolean(props.onSend && hasText && !busy);
-  const showVoice = Boolean(props.canUseVoice && !hasText && props.onPressVoice);
+  const canSend = Boolean(props.onSend && (hasText || hasPendingImage) && !busy);
+  const showVoice = Boolean(props.canUseVoice && !hasText && !hasPendingImage && props.onPressVoice);
 
   return (
     <View style={[styles.replyBarWrap, props.embedded && styles.replyBarWrapEmbedded]}>
@@ -402,6 +405,16 @@ export function ReplyComposer(props: {
           <Pressable onPress={props.onPressAttachLibrary} style={styles.attachmentOption}>
             <Icon color={colors.primary} kind="image" size={20} strokeWidth={1.9} />
             <Text style={styles.attachmentLabel}>Imagen</Text>
+          </Pressable>
+        </View>
+      ) : null}
+
+      {props.pendingImageUri ? (
+        <View style={styles.pendingImageRow}>
+          <Image source={{ uri: props.pendingImageUri }} style={styles.pendingImageThumb} />
+          <Text style={styles.pendingImageLabel}>Imagen lista. Escribí tu pregunta y enviá.</Text>
+          <Pressable hitSlop={8} onPress={props.onClearPendingImage}>
+            <Text style={styles.pendingImageClear}>Quitar</Text>
           </Pressable>
         </View>
       ) : null}
@@ -1076,6 +1089,34 @@ const styles = StyleSheet.create({
     minWidth: 72,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
+  },
+  pendingImageClear: {
+    color: colors.primary,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  pendingImageLabel: {
+    color: colors.slate,
+    flex: 1,
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  pendingImageRow: {
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderColor: colors.borderInput,
+    borderRadius: 12,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
+    marginHorizontal: spacing.xl,
+    padding: spacing.sm,
+  },
+  pendingImageThumb: {
+    borderRadius: 8,
+    height: 44,
+    width: 44,
   },
   recordingHint: {
     color: colors.slate,
