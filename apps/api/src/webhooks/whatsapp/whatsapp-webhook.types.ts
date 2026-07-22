@@ -44,6 +44,12 @@ export interface WhatsAppMessage {
   text?: {
     body?: string;
   };
+  image?: {
+    id?: string;
+    mime_type?: string;
+    caption?: string;
+    sha256?: string;
+  };
 }
 
 export interface WhatsAppInboundMessageLog {
@@ -54,6 +60,8 @@ export interface WhatsAppInboundMessageLog {
   timestamp: string | null;
   messageType: string;
   textBody: string | null;
+  mediaId: string | null;
+  mediaMimeType: string | null;
   duplicate: boolean;
 }
 

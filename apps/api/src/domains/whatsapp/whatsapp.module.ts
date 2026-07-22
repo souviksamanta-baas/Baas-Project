@@ -4,6 +4,7 @@ import { SupabaseService } from '../../supabase/supabase.service';
 import { WhatsAppConnectionService } from './whatsapp-connection.service';
 import { WhatsAppController } from './whatsapp.controller';
 import { WhatsAppConversationMessageRepository } from './whatsapp-conversation-message.repository';
+import { WhatsAppMediaService } from './whatsapp-media.service';
 import { WhatsAppMessagingService } from './whatsapp-messaging.service';
 import { WhatsAppOutboundMessageService } from './whatsapp-outbound-message.service';
 
@@ -13,12 +14,14 @@ import { WhatsAppOutboundMessageService } from './whatsapp-outbound-message.serv
     SupabaseService,
     WhatsAppConnectionService,
     WhatsAppConversationMessageRepository,
+    WhatsAppMediaService,
     WhatsAppMessagingService,
     WhatsAppOutboundMessageService,
   ],
   exports: [
     WhatsAppConnectionService,
     WhatsAppConversationMessageRepository,
+    WhatsAppMediaService,
     WhatsAppMessagingService,
     WhatsAppOutboundMessageService,
   ],

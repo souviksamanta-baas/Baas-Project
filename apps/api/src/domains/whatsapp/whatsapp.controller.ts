@@ -36,6 +36,15 @@ interface SendConversationMessageBody {
   organizationId: string;
 }
 
+interface SendConversationImageBody {
+  body?: string;
+  businessCenterId: string;
+  conversationId: string;
+  imageBase64: string;
+  mimeType?: string;
+  organizationId: string;
+}
+
 @ApiTags('WhatsApp')
 @ApiBearerAuth('SupabaseAuth')
 @Controller('whatsapp')
@@ -152,6 +161,71 @@ export class WhatsAppController {
         body: body.body,
         businessCenterId: body.businessCenterId,
         conversationId: body.conversationId,
+        organizationId: body.organizationId,
+      });
+    } catch (error) {
+      if (error instanceof Error && error.message.toLocaleLowerCase().includes('token')) {
+        throw new UnauthorizedException(error.message);
+      }
+
+      throw error;
+    }
+  }
+
+  @Post('messages/send-image')
+  @HttpCode(200)
+  @ApiOperation({
+    summary: 'Send a WhatsApp image in a conversation',
+    description:
+      'Owner-secured endpoint that uploads an image to WhatsApp Cloud API and sends it to the conversation contact.',
+  })
+  @ApiBody({
+    schema: {
+      properties: {
+        body: { example: 'Te mando la foto del producto', type: 'string' },
+        businessCenterId: { example: '00000000-0000-0000-0000-000000000002', type: 'string' },
+        conversationId: { example: '00000000-0000-0000-0000-000000000003', type: 'string' },
+        imageBase64: { type: 'string' },
+        mimeType: { example: 'image/jpeg', type: 'string' },
+        organizationId: { example: '00000000-0000-0000-0000-000000000001', type: 'string' },
+      },
+      required: ['imageBase64', 'businessCenterId', 'conversationId', 'organizationId'],
+      type: 'object',
+    },
+  })
+  @ApiOkResponse({ description: 'WhatsApp image sent.' })
+  @ApiUnauthorizedResponse({
+    description: 'The Supabase authorization token is missing or invalid.',
+    type: ErrorResponseDto,
+  })
+  async sendConversationImage(
+    @Headers('authorization') authorizationHeader: string | undefined,
+    @Body() body: SendConversationImageBody,
+  ): Promise<{ externalMessageId: string | null; status: 'sent' }> {
+    try {
+      if (!body.organizationId?.trim()) {
+        throw new Error('organizationId is required');
+      }
+
+      if (!body.businessCenterId?.trim()) {
+        throw new Error('businessCenterId is required');
+      }
+
+      if (!body.conversationId?.trim()) {
+        throw new Error('conversationId is required');
+      }
+
+      if (!body.imageBase64?.trim()) {
+        throw new Error('imageBase64 is required');
+      }
+
+      return await this.messagingService.sendConversationImageMessage({
+        authorizationHeader,
+        body: body.body,
+        businessCenterId: body.businessCenterId,
+        conversationId: body.conversationId,
+        imageBase64: body.imageBase64,
+        mimeType: body.mimeType,
         organizationId: body.organizationId,
       });
     } catch (error) {

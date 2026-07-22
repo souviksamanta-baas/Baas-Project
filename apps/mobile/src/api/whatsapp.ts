@@ -48,3 +48,21 @@ export async function registerWhatsAppConnection(
 }
 
 export { whatsappConnectionLabel };
+
+export interface SendConversationImageParams {
+  body?: string;
+  businessCenterId: string;
+  conversationId: string;
+  imageBase64: string;
+  mimeType?: string;
+  organizationId: string;
+}
+
+export async function sendConversationImage(
+  params: SendConversationImageParams,
+): Promise<SendConversationReplyResult> {
+  return apiFetchAuthJson<SendConversationReplyResult>('/whatsapp/messages/send-image', {
+    body: JSON.stringify(params),
+    method: 'POST',
+  });
+}

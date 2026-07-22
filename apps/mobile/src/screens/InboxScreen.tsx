@@ -1,6 +1,9 @@
 import type { ReactElement } from 'react';
-import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
+
+import { readImageAssetAsBase64 } from '../lib/readImageAssetAsBase64';
 
 import { MobileContainedModal } from '../components/MobileContainedModal';
 
@@ -238,6 +241,11 @@ export function ConversationDetailScreen(props: {
   isLoading: boolean;
   messages: WhatsAppMessagePreview[];
   onBack: () => void;
+  onSendImage?: (params: {
+    caption?: string;
+    imageBase64: string;
+    mimeType?: string;
+  }) => Promise<void>;
   onSendReply?: (body: string) => Promise<void>;
   statusLabel?: string;
   threadAvatar?: string;
@@ -245,13 +253,101 @@ export function ConversationDetailScreen(props: {
   const [draft, setDraft] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
+  const [attachmentMenuOpen, setAttachmentMenuOpen] = useState(false);
+  const [pendingImage, setPendingImage] = useState<{
+    base64: string;
+    mimeType: string;
+    uri: string;
+  } | null>(null);
   useHeaderScreenOptions({
     forceCollapsed: true,
     title: props.customerName || props.displayPhoneNumber || 'Chat',
   });
 
+  const stagePickedAsset = useCallback(async (asset: ImagePicker.ImagePickerAsset) => {
+    if (!asset.uri) {
+      return;
+    }
+    try {
+      const { base64, mimeType } = await readImageAssetAsBase64(asset);
+      setPendingImage({
+        base64,
+        mimeType,
+        uri: asset.uri,
+      });
+    } catch (error) {
+      Alert.alert(
+        'Foto',
+        error instanceof Error ? error.message : 'No se pudo cargar la imagen.',
+      );
+    }
+  }, []);
+
+  const onPressAttachCamera = useCallback(async () => {
+    setAttachmentMenuOpen(false);
+    const permission = await ImagePicker.requestCameraPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert('Permiso requerido', 'Necesitamos acceso a la cámara para sacar una foto.');
+      return;
+    }
+    const result = await ImagePicker.launchCameraAsync({
+      allowsEditing: false,
+      base64: true,
+      mediaTypes: ['images'],
+      quality: 0.8,
+    });
+    if (!result.canceled && result.assets[0]) {
+      await stagePickedAsset(result.assets[0]);
+    }
+  }, [stagePickedAsset]);
+
+  const onPressAttachLibrary = useCallback(async () => {
+    setAttachmentMenuOpen(false);
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert('Permiso requerido', 'Necesitamos acceso a tus fotos para adjuntar una imagen.');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      allowsEditing: false,
+      base64: true,
+      mediaTypes: ['images'],
+      quality: 0.8,
+    });
+    if (!result.canceled && result.assets[0]) {
+      await stagePickedAsset(result.assets[0]);
+    }
+  }, [stagePickedAsset]);
+
   async function handleSend(): Promise<void> {
-    if (!props.onSendReply || !draft.trim() || isSending) {
+    if (isSending) {
+      return;
+    }
+
+    const caption = draft.trim();
+    if (pendingImage) {
+      if (!props.onSendImage) {
+        return;
+      }
+      setIsSending(true);
+      setSendError(null);
+      try {
+        await props.onSendImage({
+          caption: caption || undefined,
+          imageBase64: pendingImage.base64,
+          mimeType: pendingImage.mimeType,
+        });
+        setPendingImage(null);
+        setDraft('');
+      } catch (error) {
+        setSendError(error instanceof Error ? error.message : 'No se pudo enviar la imagen.');
+      } finally {
+        setIsSending(false);
+      }
+      return;
+    }
+
+    if (!props.onSendReply || !caption) {
       return;
     }
 
@@ -259,7 +355,7 @@ export function ConversationDetailScreen(props: {
     setSendError(null);
 
     try {
-      await props.onSendReply(draft.trim());
+      await props.onSendReply(caption);
       setDraft('');
     } catch (error) {
       setSendError(error instanceof Error ? error.message : 'No se pudo enviar el mensaje.');
@@ -267,6 +363,10 @@ export function ConversationDetailScreen(props: {
       setIsSending(false);
     }
   }
+
+  const canSend = Boolean(
+    (pendingImage && props.onSendImage) || (draft.trim() && props.onSendReply),
+  );
 
   return (
     <View style={styles.detailRoot}>
@@ -287,6 +387,8 @@ export function ConversationDetailScreen(props: {
               <MessageBubble
                 direction={message.direction === 'outbound' ? 'outbound' : 'inbound'}
                 key={message.id}
+                mediaStoragePath={message.mediaStoragePath}
+                mediaUrl={message.mediaUrl}
                 text={messageBubbleText(message)}
                 time={messageBubbleTime(message)}
               />
@@ -297,9 +399,22 @@ export function ConversationDetailScreen(props: {
       <FeatureGate feature="chatComposer">
         {sendError ? <Text style={styles.sendErrorText}>{sendError}</Text> : null}
         <ReplyComposer
+          attachmentMenuOpen={attachmentMenuOpen}
           isSending={isSending}
           onChangeText={setDraft}
-          onSend={props.onSendReply ? handleSend : undefined}
+          onClearPendingImage={() => setPendingImage(null)}
+          onPressAttachCamera={() => {
+            void onPressAttachCamera();
+          }}
+          onPressAttachLibrary={() => {
+            void onPressAttachLibrary();
+          }}
+          onPressPlus={() => {
+            setAttachmentMenuOpen((open) => !open);
+          }}
+          onSend={canSend ? handleSend : undefined}
+          pendingImageHint="Foto lista. Escribí un texto (opcional) y enviá."
+          pendingImageUri={pendingImage?.uri ?? null}
           placeholder="Escribi un mensaje..."
           value={draft}
         />
@@ -307,6 +422,7 @@ export function ConversationDetailScreen(props: {
     </View>
   );
 }
+
 
 const styles = StyleSheet.create({
   activeStatusTab: {

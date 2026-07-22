@@ -40,6 +40,7 @@ export default function ConversationDetailRoute(): ReactElement {
         isLoading={isLoadingConversation || thread.isLoading}
         messages={thread.messages}
         onBack={() => router.replace(routes.appInbox)}
+        onSendImage={canSendReply ? thread.sendImageReply : undefined}
         onSendReply={canSendReply ? thread.sendReply : undefined}
         statusLabel={undefined}
       />
@@ -54,6 +55,7 @@ export default function ConversationDetailRoute(): ReactElement {
       isLoading={thread.isLoading}
       messages={thread.messages}
       onBack={() => router.replace(routes.appInbox)}
+      onSendImage={canSendReply ? thread.sendImageReply : undefined}
       onSendReply={canSendReply ? thread.sendReply : undefined}
       statusLabel={leadStatusLabel(conversation.contact.leadStatus)}
       threadAvatar={conversationAvatarLabel(conversation)}

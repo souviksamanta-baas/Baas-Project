@@ -18,6 +18,8 @@ export interface RecordInboundWhatsAppMessageResult {
 export interface RecordInboundWhatsAppMessageParams {
   businessCenterId: string;
   eventId: string;
+  mediaId?: string | null;
+  mediaMimeType?: string | null;
   organizationId: string;
   whatsappConfigId: string;
   messageId: string;
@@ -29,10 +31,15 @@ export interface RecordInboundWhatsAppMessageParams {
 }
 
 export interface RecordOutboundWhatsAppMessageParams {
-  body: string;
+  body: string | null;
   businessCenterId: string;
   errorMessage?: string;
   externalMessageId?: string;
+  mediaId?: string | null;
+  mediaMimeType?: string | null;
+  mediaStoragePath?: string | null;
+  mediaUrl?: string | null;
+  messageType?: string;
   organizationId: string;
   recipientPhone: string;
   senderPhone: string | null;
@@ -70,6 +77,8 @@ export class WhatsAppConversationMessageRepository {
         sender_phone: params.senderPhone,
         message_type: params.messageType,
         body: params.textBody,
+        media_id: params.mediaId ?? null,
+        media_mime_type: params.mediaMimeType ?? null,
         message_status: 'received',
         received_at: params.timestamp,
         metadata: {
@@ -87,6 +96,30 @@ export class WhatsAppConversationMessageRepository {
       conversationId: conversation.id,
       conversationMessageId: data?.id ?? null,
     };
+  }
+
+  async updateMessageMedia(params: {
+    conversationMessageId: string;
+    mediaId?: string | null;
+    mediaMimeType: string;
+    mediaStoragePath: string;
+    mediaUrl: string;
+  }): Promise<void> {
+    const client = this.supabaseService.getServiceRoleClient();
+    const { error } = await client
+      .from('conversation_messages')
+      .update({
+        media_id: params.mediaId ?? null,
+        media_mime_type: params.mediaMimeType,
+        media_storage_path: params.mediaStoragePath,
+        media_url: params.mediaUrl,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', params.conversationMessageId);
+
+    if (error) {
+      throw new Error(`Failed to update WhatsApp message media: ${error.message}`);
+    }
   }
 
   async updateMessageStatusByExternalId(params: {
@@ -143,8 +176,12 @@ export class WhatsAppConversationMessageRepository {
       external_message_id: params.externalMessageId,
       sender_phone: params.senderPhone,
       recipient_phone: params.recipientPhone,
-      message_type: 'text',
+      message_type: params.messageType ?? 'text',
       body: params.body,
+      media_id: params.mediaId ?? null,
+      media_mime_type: params.mediaMimeType ?? null,
+      media_storage_path: params.mediaStoragePath ?? null,
+      media_url: params.mediaUrl ?? null,
       message_status: params.status,
       sent_at: params.status === 'sent' ? sentAt : null,
       failed_at: params.status === 'failed' ? sentAt : null,

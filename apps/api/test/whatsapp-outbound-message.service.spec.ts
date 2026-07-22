@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { SupabaseService } from '../src/supabase/supabase.service';
 import { WhatsAppConversationMessageRepository } from '../src/domains/whatsapp/whatsapp-conversation-message.repository';
+import { WhatsAppMediaService } from '../src/domains/whatsapp/whatsapp-media.service';
 import { WhatsAppOutboundMessageService } from '../src/domains/whatsapp/whatsapp-outbound-message.service';
 
 function createSupabaseService(config: Record<string, unknown> | null): SupabaseService {
@@ -36,6 +37,7 @@ describe('WhatsAppOutboundMessageService', () => {
         connection_status: 'connected',
       }),
       { recordOutboundMessage } as unknown as WhatsAppConversationMessageRepository,
+      {} as unknown as WhatsAppMediaService,
     );
     const fetchMock = vi.fn(async () => {
       return new Response(JSON.stringify({ messages: [{ id: 'wamid.outbound-1' }] }), {
@@ -87,6 +89,7 @@ describe('WhatsAppOutboundMessageService', () => {
         connection_status: 'connected',
       }),
       { recordOutboundMessage } as unknown as WhatsAppConversationMessageRepository,
+      {} as unknown as WhatsAppMediaService,
     );
     vi.stubGlobal(
       'fetch',

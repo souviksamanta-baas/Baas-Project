@@ -2,6 +2,8 @@ import { Injectable, Logger, Optional } from '@nestjs/common';
 
 import { SalesAiService } from '../../domains/ai/sales-ai.service';
 import { WhatsAppConversationMessageRepository } from '../../domains/whatsapp/whatsapp-conversation-message.repository';
+import { WhatsAppMediaService } from '../../domains/whatsapp/whatsapp-media.service';
+import { WhatsAppOutboundMessageService } from '../../domains/whatsapp/whatsapp-outbound-message.service';
 import { SupabaseService } from '../../supabase/supabase.service';
 import { WhatsAppInboundMessageLog } from './whatsapp-webhook.types';
 
@@ -44,6 +46,10 @@ export class WhatsAppMessageEventRepository {
     private readonly messageRepository?: WhatsAppConversationMessageRepository,
     @Optional()
     private readonly salesAiService?: SalesAiService,
+    @Optional()
+    private readonly mediaService?: WhatsAppMediaService,
+    @Optional()
+    private readonly outboundMessageService?: WhatsAppOutboundMessageService,
   ) {}
 
   async recordInboundMessages(
@@ -136,6 +142,8 @@ export class WhatsAppMessageEventRepository {
       processing_status: 'received',
       payload_metadata: {
         source: 'whatsapp_cloud_api',
+        media_id: event.mediaId,
+        media_mime_type: event.mediaMimeType,
       },
     };
   }
@@ -156,6 +164,8 @@ export class WhatsAppMessageEventRepository {
     const persistedMessage = await this.messageRepository.recordInboundMessage({
       businessCenterId: messageEvent.business_center_id,
       eventId: messageEvent.id,
+      mediaId: event.mediaId,
+      mediaMimeType: event.mediaMimeType,
       organizationId: messageEvent.organization_id,
       whatsappConfigId: messageEvent.whatsapp_config_id,
       messageId: event.messageId,
@@ -165,6 +175,31 @@ export class WhatsAppMessageEventRepository {
       timestamp: event.timestamp,
       messageType: event.messageType,
     });
+
+    if (
+      persistedMessage.conversationMessageId &&
+      event.mediaId &&
+      event.messageType === 'image'
+    ) {
+      void this.hydrateInboundImage({
+        businessCenterId: messageEvent.business_center_id,
+        conversationId: persistedMessage.conversationId,
+        conversationMessageId: persistedMessage.conversationMessageId,
+        mediaId: event.mediaId,
+        mediaMimeType: event.mediaMimeType,
+        organizationId: messageEvent.organization_id,
+        phoneNumberId: event.phoneNumberId,
+      }).catch((error: unknown) => {
+        this.logger.error(
+          JSON.stringify({
+            event: 'whatsapp.media.inbound_hydrate.failed',
+            message: error instanceof Error ? error.message : 'Unknown media hydrate error',
+            mediaId: event.mediaId,
+            conversationMessageId: persistedMessage.conversationMessageId,
+          }),
+        );
+      });
+    }
 
     if (persistedMessage.conversationMessageId) {
       void this.salesAiService
@@ -185,6 +220,49 @@ export class WhatsAppMessageEventRepository {
           );
         });
     }
+  }
+
+  private async hydrateInboundImage(params: {
+    businessCenterId: string;
+    conversationId: string;
+    conversationMessageId: string;
+    mediaId: string;
+    mediaMimeType: string | null;
+    organizationId: string;
+    phoneNumberId: string;
+  }): Promise<void> {
+    if (!this.mediaService || !this.messageRepository || !this.outboundMessageService) {
+      return;
+    }
+
+    const config = await this.outboundMessageService.getConnectedConfigByPhoneNumberId(
+      params.phoneNumberId,
+    );
+    if (!config) {
+      throw new Error('Connected WhatsApp configuration is required to download media');
+    }
+
+    const accessToken = this.outboundMessageService.resolveAccessTokenForConfig(config);
+    const downloaded = await this.mediaService.downloadFromMeta({
+      accessToken,
+      mediaId: params.mediaId,
+    });
+    const stored = await this.mediaService.storeMedia({
+      buffer: downloaded.buffer,
+      businessCenterId: params.businessCenterId,
+      conversationId: params.conversationId,
+      messageId: params.conversationMessageId,
+      mimeType: downloaded.mimeType || params.mediaMimeType || 'image/jpeg',
+      organizationId: params.organizationId,
+    });
+
+    await this.messageRepository.updateMessageMedia({
+      conversationMessageId: params.conversationMessageId,
+      mediaId: params.mediaId,
+      mediaMimeType: stored.mediaMimeType,
+      mediaStoragePath: stored.mediaStoragePath,
+      mediaUrl: stored.mediaUrl,
+    });
   }
 }
 

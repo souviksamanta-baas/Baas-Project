@@ -9,6 +9,8 @@ import type { WhatsAppInboundMessageLog } from '../src/webhooks/whatsapp/whatsap
 const inboundEvents: WhatsAppInboundMessageLog[] = [
   {
     duplicate: false,
+    mediaId: null,
+    mediaMimeType: null,
     messageId: 'wamid.1',
     messageType: 'text',
     phoneNumberId: 'phone-number-1',
@@ -19,6 +21,8 @@ const inboundEvents: WhatsAppInboundMessageLog[] = [
   },
   {
     duplicate: false,
+    mediaId: null,
+    mediaMimeType: null,
     messageId: 'wamid.2',
     messageType: 'text',
     phoneNumberId: 'phone-number-1',

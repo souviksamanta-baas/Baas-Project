@@ -9,7 +9,11 @@ interface ConversationMessageRow {
   body: string | null;
   created_at: string;
   direction: 'inbound' | 'outbound';
+  media_mime_type: string | null;
+  media_storage_path: string | null;
+  media_url: string | null;
   message_status: string;
+  message_type: string | null;
   recipient_phone: string | null;
   sender_phone: string | null;
 }
@@ -119,7 +123,7 @@ async function getLatestMessagesForConversations(
 
   const { data, error } = await supabase
     .from('conversation_messages')
-    .select('id, conversation_id, direction, body, message_status, sender_phone, recipient_phone, created_at')
+    .select('id, conversation_id, direction, body, message_type, message_status, media_url, media_storage_path, media_mime_type, sender_phone, recipient_phone, created_at')
     .eq('organization_id', organizationId)
     .eq('business_center_id', businessCenterId)
     .in('conversation_id', conversationIds)
@@ -146,7 +150,7 @@ export async function getRecentConversationMessages(
 ): Promise<WhatsAppMessagePreview[]> {
   const { data, error } = await supabase
     .from('conversation_messages')
-    .select('id, conversation_id, direction, body, message_status, sender_phone, recipient_phone, created_at')
+    .select('id, conversation_id, direction, body, message_type, message_status, media_url, media_storage_path, media_mime_type, sender_phone, recipient_phone, created_at')
     .eq('organization_id', organizationId)
     .eq('business_center_id', businessCenterId)
     .order('created_at', { ascending: false })
@@ -164,7 +168,7 @@ export async function getConversationMessages(
 ): Promise<WhatsAppMessagePreview[]> {
   const { data, error } = await supabase
     .from('conversation_messages')
-    .select('id, conversation_id, direction, body, message_status, sender_phone, recipient_phone, created_at')
+    .select('id, conversation_id, direction, body, message_type, message_status, media_url, media_storage_path, media_mime_type, sender_phone, recipient_phone, created_at')
     .eq('conversation_id', conversationId)
     .order('created_at', { ascending: true });
 
@@ -268,7 +272,11 @@ function toWhatsAppMessagePreview(row: ConversationMessageRow): WhatsAppMessageP
     body: row.body,
     createdAt: row.created_at,
     direction: row.direction,
+    mediaMimeType: row.media_mime_type ?? null,
+    mediaStoragePath: row.media_storage_path ?? null,
+    mediaUrl: row.media_url ?? null,
     messageStatus: row.message_status,
+    messageType: row.message_type ?? 'text',
     recipientPhone: row.recipient_phone,
     senderPhone: row.sender_phone,
   };

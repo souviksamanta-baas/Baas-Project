@@ -114,11 +114,72 @@ describe('WhatsAppWebhookService', () => {
         timestamp: '2024-06-01T12:00:00.000Z',
         messageType: 'text',
         textBody: 'Hello',
+        mediaId: null,
+        mediaMimeType: null,
         duplicate: false,
       },
     ]);
 
     expect(service.parseInboundMessages(payload)[0]?.duplicate).toBe(false);
+  });
+
+
+  it('parses inbound image messages with caption and media id', () => {
+    const service = new WhatsAppWebhookService();
+    const payload: WhatsAppWebhookPayload = {
+      object: 'whatsapp_business_account',
+      entry: [
+        {
+          id: 'waba-test',
+          changes: [
+            {
+              field: 'messages',
+              value: {
+                messaging_product: 'whatsapp',
+                metadata: {
+                  display_phone_number: '15551234567',
+                  phone_number_id: 'phone-number-id-1',
+                },
+                contacts: [
+                  {
+                    wa_id: '15557654321',
+                    profile: { name: 'Test Sender' },
+                  },
+                ],
+                messages: [
+                  {
+                    id: 'wamid.image-1',
+                    from: '15557654321',
+                    timestamp: '1717243200',
+                    type: 'image',
+                    image: {
+                      id: 'media-123',
+                      mime_type: 'image/jpeg',
+                      caption: 'Miren esto',
+                    },
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      ],
+    };
+
+    expect(service.parseInboundMessages(payload)).toEqual([
+      {
+        messageId: 'wamid.image-1',
+        senderPhone: '15557654321',
+        senderDisplayName: 'Test Sender',
+        phoneNumberId: 'phone-number-id-1',
+        timestamp: '2024-06-01T12:00:00.000Z',
+        messageType: 'image',
+        textBody: 'Miren esto',
+        mediaId: 'media-123',
+        mediaMimeType: 'image/jpeg',
+        duplicate: false,
+      },
+    ]);
   });
 
   it('extracts message status updates from Meta webhook payloads', () => {

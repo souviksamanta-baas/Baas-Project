@@ -4,7 +4,11 @@ export interface WhatsAppMessagePreview {
   body: string | null;
   createdAt: string;
   direction: 'inbound' | 'outbound';
+  mediaMimeType: string | null;
+  mediaStoragePath: string | null;
+  mediaUrl: string | null;
   messageStatus: string;
+  messageType: string;
   recipientPhone: string | null;
   senderPhone: string | null;
 }

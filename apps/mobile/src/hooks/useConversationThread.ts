@@ -5,7 +5,7 @@ import {
   getInboxConversationById,
   subscribeToConversationMessages,
 } from '../api/conversations';
-import { sendConversationReply } from '../api/whatsapp';
+import { sendConversationImage, sendConversationReply } from '../api/whatsapp';
 import type { InboxConversationSummary, WhatsAppMessagePreview } from '../types/messages';
 
 export function useInboxConversation(params: {
@@ -60,6 +60,11 @@ export function useConversationThread(params: {
   errorMessage: string | null;
   isLoading: boolean;
   messages: WhatsAppMessagePreview[];
+  sendImageReply: (params: {
+    caption?: string;
+    imageBase64: string;
+    mimeType?: string;
+  }) => Promise<void>;
   sendReply: (body: string) => Promise<void>;
 } {
   const [messages, setMessages] = useState<WhatsAppMessagePreview[]>([]);
@@ -138,10 +143,33 @@ export function useConversationThread(params: {
     [params.businessCenterId, params.conversationId, params.organizationId],
   );
 
+  const sendImageReply = useCallback(
+    async (imageParams: {
+      caption?: string;
+      imageBase64: string;
+      mimeType?: string;
+    }): Promise<void> => {
+      if (!params.organizationId || !params.businessCenterId || !params.conversationId) {
+        throw new Error('Missing conversation context.');
+      }
+
+      await sendConversationImage({
+        body: imageParams.caption,
+        businessCenterId: params.businessCenterId,
+        conversationId: params.conversationId,
+        imageBase64: imageParams.imageBase64,
+        mimeType: imageParams.mimeType,
+        organizationId: params.organizationId,
+      });
+    },
+    [params.businessCenterId, params.conversationId, params.organizationId],
+  );
+
   return {
     errorMessage,
     isLoading,
     messages,
+    sendImageReply,
     sendReply,
   };
 }

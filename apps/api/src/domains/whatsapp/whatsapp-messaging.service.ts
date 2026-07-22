@@ -24,6 +24,16 @@ export interface SendConversationTextMessageParams {
   organizationId: string;
 }
 
+export interface SendConversationImageMessageParams {
+  authorizationHeader: string | undefined;
+  body?: string | null;
+  businessCenterId: string;
+  conversationId: string;
+  imageBase64: string;
+  mimeType?: string | null;
+  organizationId: string;
+}
+
 @Injectable()
 export class WhatsAppMessagingService {
   constructor(
@@ -54,6 +64,35 @@ export class WhatsAppMessagingService {
     return this.outboundMessageService.sendTextMessage({
       body,
       businessCenterId: conversation.business_center_id,
+      organizationId: conversation.organization_id,
+      recipientPhone: conversation.external_contact_id,
+    });
+  }
+
+  async sendConversationImageMessage(
+    params: SendConversationImageMessageParams,
+  ): Promise<SendWhatsAppTextMessageResult> {
+    if (!params.imageBase64?.trim()) {
+      throw new Error('imageBase64 is required');
+    }
+
+    await this.assertMember({
+      authorizationHeader: params.authorizationHeader,
+      organizationId: params.organizationId,
+    });
+
+    const conversation = await this.getConversation({
+      businessCenterId: params.businessCenterId,
+      conversationId: params.conversationId,
+      organizationId: params.organizationId,
+    });
+
+    return this.outboundMessageService.sendImageMessage({
+      body: params.body,
+      businessCenterId: conversation.business_center_id,
+      conversationId: params.conversationId,
+      imageBase64: params.imageBase64,
+      mimeType: params.mimeType,
       organizationId: conversation.organization_id,
       recipientPhone: conversation.external_contact_id,
     });

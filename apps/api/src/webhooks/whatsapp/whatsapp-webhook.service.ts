@@ -88,6 +88,8 @@ export class WhatsAppWebhookService {
           }
 
           const contact = change.value?.contacts?.find((candidate) => candidate.wa_id === message.from);
+          const messageType = message.type ?? 'unknown';
+          const caption = message.image?.caption?.trim() || null;
 
           events.push({
             messageId: message.id,
@@ -95,8 +97,10 @@ export class WhatsAppWebhookService {
             senderDisplayName: contact?.profile?.name ?? null,
             phoneNumberId,
             timestamp: this.toIsoTimestamp(message.timestamp),
-            messageType: message.type ?? 'unknown',
-            textBody: message.text?.body ?? null,
+            messageType,
+            textBody: message.text?.body ?? caption,
+            mediaId: message.image?.id ?? null,
+            mediaMimeType: message.image?.mime_type ?? null,
             duplicate: false,
           });
         }

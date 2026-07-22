@@ -61,8 +61,18 @@ export function conversationAvatarLabel(conversation: InboxConversationSummary):
 }
 
 export function conversationPreview(conversation: InboxConversationSummary): string {
-  const body = conversation.latestMessage?.body?.trim();
-  return body || 'Sin mensajes todavía';
+  const latest = conversation.latestMessage;
+  if (!latest) {
+    return 'Sin mensajes todavía';
+  }
+  const body = latest.body?.trim();
+  if (body) {
+    return body;
+  }
+  if (latest.messageType === 'image' || latest.mediaUrl || latest.mediaStoragePath) {
+    return '📷 Foto';
+  }
+  return 'Sin mensajes todavía';
 }
 
 export function leadStatusLabel(
@@ -89,7 +99,20 @@ export function messageBubbleTime(message: WhatsAppMessagePreview): string {
 }
 
 export function messageBubbleText(message: WhatsAppMessagePreview): string {
-  return message.body?.trim() || 'Mensaje sin texto';
+  const body = message.body?.trim();
+  if (body) {
+    return body;
+  }
+  if (message.messageType === 'image' || message.mediaUrl || message.mediaStoragePath) {
+    return '';
+  }
+  return 'Mensaje sin texto';
+}
+
+export function messageHasImage(message: WhatsAppMessagePreview): boolean {
+  return Boolean(
+    message.messageType === 'image' || message.mediaUrl || message.mediaStoragePath,
+  );
 }
 
 export function openConversationCount(conversations: InboxConversationSummary[]): number {

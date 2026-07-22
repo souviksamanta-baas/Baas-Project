@@ -1,6 +1,15 @@
 import type { ReactElement, ReactNode } from 'react';
-import { useEffect } from 'react';
-import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  Image,
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { Channel, DashboardMetricMock, NotificationMock, Tone } from '../api/mockData';
@@ -19,6 +28,7 @@ import {
 import { useHeaderChromeOptional } from '../context/HeaderChromeProvider';
 import { useProfileChromeOptional } from '../context/ProfileChromeProvider';
 import { parseCopiRichText } from '../lib/copiRichText';
+import { resolveWhatsAppMediaUrl } from '../lib/whatsappMedia';
 import { ChannelIcon, CopiRobotIcon, Icon } from './icons';
 import type { IconKind } from './icons';
 import { NexoliaMark } from './NexoliaMark';
@@ -307,6 +317,8 @@ function ActionIcon(props: { color: string; kind: IconKind }): ReactElement {
 
 export function MessageBubble(props: {
   direction: 'inbound' | 'outbound';
+  mediaStoragePath?: string | null;
+  mediaUrl?: string | null;
   onPressProduct?: (productId: string) => void;
   source?: MessageSource;
   text: string;
@@ -315,39 +327,108 @@ export function MessageBubble(props: {
   const outbound = props.direction === 'outbound';
   const showCopiTag = props.source === 'copi';
   const parts = parseCopiRichText(props.text);
+  const hasText = Boolean(props.text.trim());
+  const hasImage = Boolean(props.mediaUrl || props.mediaStoragePath);
 
   return (
     <View style={[styles.messageWrap, outbound && styles.outboundMessageWrap]}>
       <View style={[styles.messageBubble, outbound && styles.outboundMessageBubble]}>
         {showCopiTag ? <MessageSourceBadge source="copi" /> : null}
-        <Text style={styles.messageText}>
-          {parts.map((part, index) => {
-            if (part.type === 'text') {
-              return <Text key={`t-${index}`}>{part.value}</Text>;
-            }
+        {hasImage ? (
+          <MessageBubbleImage
+            mediaStoragePath={props.mediaStoragePath}
+            mediaUrl={props.mediaUrl}
+          />
+        ) : null}
+        {hasText ? (
+          <Text style={styles.messageText}>
+            {parts.map((part, index) => {
+              if (part.type === 'text') {
+                return <Text key={`t-${index}`}>{part.value}</Text>;
+              }
 
-            if (!props.onPressProduct || !part.productId) {
+              if (!props.onPressProduct || !part.productId) {
+                return (
+                  <Text key={`p-${index}`} style={styles.productLinkText}>
+                    {part.label}
+                  </Text>
+                );
+              }
+
               return (
-                <Text key={`p-${index}`} style={styles.productLinkText}>
+                <Text
+                  key={`p-${index}`}
+                  onPress={() => props.onPressProduct?.(part.productId)}
+                  style={styles.productLinkText}
+                >
                   {part.label}
                 </Text>
               );
-            }
-
-            return (
-              <Text
-                key={`p-${index}`}
-                onPress={() => props.onPressProduct?.(part.productId)}
-                style={styles.productLinkText}
-              >
-                {part.label}
-              </Text>
-            );
-          })}
-        </Text>
+            })}
+          </Text>
+        ) : null}
         <Text style={styles.messageTime}>{props.time}</Text>
       </View>
     </View>
+  );
+}
+
+function MessageBubbleImage(props: {
+  mediaStoragePath?: string | null;
+  mediaUrl?: string | null;
+}): ReactElement | null {
+  const [uri, setUri] = useState<string | null>(props.mediaUrl ?? null);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (props.mediaUrl) {
+      setUri(props.mediaUrl);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    void (async () => {
+      const nextUri = await resolveWhatsAppMediaUrl({
+        mediaStoragePath: props.mediaStoragePath,
+        mediaUrl: props.mediaUrl,
+      });
+      if (!cancelled) {
+        setUri(nextUri);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [props.mediaStoragePath, props.mediaUrl]);
+
+  if (!uri) {
+    return (
+      <View style={styles.messageImagePlaceholder}>
+        <Text style={styles.messageImagePlaceholderText}>📷 Cargando foto…</Text>
+      </View>
+    );
+  }
+
+  return (
+    <Image
+      onError={() => {
+        if (!props.mediaStoragePath) {
+          return;
+        }
+        void resolveWhatsAppMediaUrl({
+          mediaStoragePath: props.mediaStoragePath,
+          mediaUrl: null,
+        }).then((nextUri) => {
+          if (nextUri) {
+            setUri(nextUri);
+          }
+        });
+      }}
+      source={{ uri }}
+      style={styles.messageImage}
+    />
   );
 }
 
@@ -384,6 +465,7 @@ export function ReplyComposer(props: {
   onPressPlus?: () => void;
   onPressVoice?: () => void;
   onSend?: () => void;
+  pendingImageHint?: string;
   pendingImageUri?: string | null;
   placeholder: string;
   value?: string;
@@ -393,26 +475,25 @@ export function ReplyComposer(props: {
   const busy = props.isSending || props.isTranscribingVoice || props.isAnalyzingImage;
   const canSend = Boolean(props.onSend && (hasText || hasPendingImage) && !busy);
   const showVoice = Boolean(props.canUseVoice && !hasText && !hasPendingImage && props.onPressVoice);
+  const showAttachmentSheet = Boolean(
+    props.attachmentMenuOpen && (props.onPressAttachCamera || props.onPressAttachLibrary),
+  );
+  const insets = useSafeAreaInsets();
+
+  function closeAttachmentSheet(): void {
+    if (props.attachmentMenuOpen && props.onPressPlus) {
+      props.onPressPlus();
+    }
+  }
 
   return (
     <View style={[styles.replyBarWrap, props.embedded && styles.replyBarWrapEmbedded]}>
-      {props.attachmentMenuOpen ? (
-        <View style={styles.attachmentMenu}>
-          <Pressable onPress={props.onPressAttachCamera} style={styles.attachmentOption}>
-            <Icon color={colors.primary} kind="camera" size={20} strokeWidth={1.9} />
-            <Text style={styles.attachmentLabel}>Cámara</Text>
-          </Pressable>
-          <Pressable onPress={props.onPressAttachLibrary} style={styles.attachmentOption}>
-            <Icon color={colors.primary} kind="image" size={20} strokeWidth={1.9} />
-            <Text style={styles.attachmentLabel}>Imagen</Text>
-          </Pressable>
-        </View>
-      ) : null}
-
       {props.pendingImageUri ? (
         <View style={styles.pendingImageRow}>
           <Image source={{ uri: props.pendingImageUri }} style={styles.pendingImageThumb} />
-          <Text style={styles.pendingImageLabel}>Imagen lista. Escribí tu pregunta y enviá.</Text>
+          <Text style={styles.pendingImageLabel}>
+            {props.pendingImageHint ?? 'Imagen lista. Escribí tu pregunta y enviá.'}
+          </Text>
           <Pressable hitSlop={8} onPress={props.onClearPendingImage}>
             <Text style={styles.pendingImageClear}>Quitar</Text>
           </Pressable>
@@ -422,7 +503,7 @@ export function ReplyComposer(props: {
       <View style={[styles.replyBar, props.embedded && styles.replyBarEmbedded]}>
         <ComposerInput
           editable={props.editable ?? true}
-          leadingIcon="plus"
+          leadingIcon={props.onPressPlus ? (showAttachmentSheet ? 'x' : 'plus') : undefined}
           onChangeText={props.onChangeText}
           onLeadingPress={props.onPressPlus}
           onSubmitEditing={canSend ? props.onSend : undefined}
@@ -455,7 +536,64 @@ export function ReplyComposer(props: {
           }
         />
       </View>
-      {props.isRecordingVoice ? <Text style={styles.recordingHint}>Grabando… tocá el micrófono para terminar.</Text> : null}
+      {props.isRecordingVoice ? (
+        <Text style={styles.recordingHint}>Grabando… tocá el micrófono para terminar.</Text>
+      ) : null}
+
+      <Modal
+        animationType="fade"
+        onRequestClose={closeAttachmentSheet}
+        transparent
+        visible={showAttachmentSheet}
+      >
+        <View style={styles.attachmentModalRoot}>
+          <Pressable onPress={closeAttachmentSheet} style={styles.attachmentBackdrop} />
+          <View
+            style={[
+              styles.attachmentSheet,
+              { paddingBottom: Math.max(insets.bottom, spacing.md) + spacing.sm },
+            ]}
+          >
+            <View style={styles.attachmentSheetHandle} />
+            <Text style={styles.attachmentSheetTitle}>Adjuntar</Text>
+            <View style={styles.attachmentGrid}>
+              {props.onPressAttachCamera ? (
+                <Pressable
+                  onPress={() => {
+                    closeAttachmentSheet();
+                    // Let the sheet dismiss before opening the system picker (iOS).
+                    setTimeout(() => {
+                      props.onPressAttachCamera?.();
+                    }, 280);
+                  }}
+                  style={styles.attachmentCircleOption}
+                >
+                  <View style={[styles.attachmentCircle, styles.attachmentCircleCamera]}>
+                    <Icon color={colors.surface} kind="camera" size={24} strokeWidth={1.9} />
+                  </View>
+                  <Text style={styles.attachmentCircleLabel}>Cámara</Text>
+                </Pressable>
+              ) : null}
+              {props.onPressAttachLibrary ? (
+                <Pressable
+                  onPress={() => {
+                    closeAttachmentSheet();
+                    setTimeout(() => {
+                      props.onPressAttachLibrary?.();
+                    }, 280);
+                  }}
+                  style={styles.attachmentCircleOption}
+                >
+                  <View style={[styles.attachmentCircle, styles.attachmentCircleGallery]}>
+                    <Icon color={colors.surface} kind="image" size={24} strokeWidth={1.9} />
+                  </View>
+                  <Text style={styles.attachmentCircleLabel}>Galería</Text>
+                </Pressable>
+              ) : null}
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -887,6 +1025,25 @@ const styles = StyleSheet.create({
     fontWeight: '300',
     lineHeight: 18,
   },
+  messageImage: {
+    borderRadius: 10,
+    height: 220,
+    marginBottom: spacing.sm,
+    width: 220,
+  },
+  messageImagePlaceholder: {
+    alignItems: 'center',
+    backgroundColor: '#e8ecf2',
+    borderRadius: 10,
+    height: 120,
+    justifyContent: 'center',
+    marginBottom: spacing.sm,
+    width: 220,
+  },
+  messageImagePlaceholderText: {
+    color: colors.slate,
+    fontSize: 12,
+  },
   messageTime: {
     color: colors.slateLight,
     fontSize: 10,
@@ -1068,27 +1225,64 @@ const styles = StyleSheet.create({
   replyBarWrapEmbedded: {
     backgroundColor: 'transparent',
   },
-  attachmentLabel: {
-    color: colors.navy,
-    fontSize: 10,
-    fontWeight: '500',
-    marginTop: 4,
-  },
-  attachmentMenu: {
-    flexDirection: 'row',
-    gap: spacing.lg,
-    paddingBottom: spacing.sm,
-    paddingHorizontal: spacing.xl,
-  },
-  attachmentOption: {
+  attachmentCircle: {
     alignItems: 'center',
+    borderRadius: 28,
+    height: 56,
+    justifyContent: 'center',
+    width: 56,
+  },
+  attachmentCircleCamera: {
+    backgroundColor: '#e05c84',
+  },
+  attachmentCircleGallery: {
+    backgroundColor: '#8f66d8',
+  },
+  attachmentCircleLabel: {
+    color: colors.navy,
+    fontSize: 12,
+    fontWeight: '500',
+    marginTop: spacing.sm,
+  },
+  attachmentCircleOption: {
+    alignItems: 'center',
+    minWidth: 76,
+  },
+  attachmentBackdrop: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: 'rgba(16, 25, 53, 0.35)',
+  },
+  attachmentGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xl,
+    justifyContent: 'flex-start',
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+  },
+  attachmentModalRoot: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  attachmentSheet: {
     backgroundColor: colors.surface,
-    borderColor: colors.borderInput,
-    borderRadius: 12,
-    borderWidth: 1,
-    minWidth: 72,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingTop: spacing.sm,
+  },
+  attachmentSheetHandle: {
+    alignSelf: 'center',
+    backgroundColor: colors.borderInput,
+    borderRadius: 999,
+    height: 4,
+    marginBottom: spacing.md,
+    width: 40,
+  },
+  attachmentSheetTitle: {
+    color: colors.navy,
+    fontSize: 16,
+    fontWeight: '600',
+    paddingHorizontal: spacing.lg,
   },
   pendingImageClear: {
     color: colors.primary,
