@@ -11,6 +11,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { useAndroidBackHandler } from '../hooks/useAndroidBackHandler';
+
 import {
   getOrganizationProfile,
   updateOrganizationProfile,
@@ -52,6 +54,11 @@ export function BusinessSettingsScreen(props: {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [timezonePickerOpen, setTimezonePickerOpen] = useState(false);
+
+  useAndroidBackHandler(timezonePickerOpen, () => {
+    setTimezonePickerOpen(false);
+    return true;
+  });
 
   useEffect(() => {
     let cancelled = false;

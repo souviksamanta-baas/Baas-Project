@@ -6,24 +6,37 @@
     "version": "0.1.0",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
+    "icon": "./assets/images/nexolia-icon.png",
+    "splash": {
+      "image": "./assets/images/nexolia-mark.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0f172a"
+    },
     "assetBundlePatterns": [
       "**/*"
     ],
     "plugins": [
       "expo-router",
-      "expo-notifications",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/nexolia-notification-icon.png",
+          "color": "#08bd66",
+          "defaultChannel": "tareas"
+        }
+      ],
       [
         "expo-audio",
         {
-          "microphonePermission": "Nexolia usa el micr\u00f3fono para que Copi transcriba tus preguntas de voz.",
+          "microphonePermission": "Nexolia usa el micrófono para que Copi transcriba tus preguntas de voz.",
           "recordAudioAndroid": true
         }
       ],
       [
         "expo-image-picker",
         {
-          "cameraPermission": "Nexolia usa la c\u00e1mara para escanear c\u00f3digos de productos, fotos de perfil y para que Copi analice productos.",
-          "photosPermission": "Nexolia accede a tus fotos para actualizar tu perfil y para que Copi analice im\u00e1genes del negocio."
+          "cameraPermission": "Nexolia usa la cámara para escanear códigos de productos, fotos de perfil y para que Copi analice productos.",
+          "photosPermission": "Nexolia accede a tus fotos para actualizar tu perfil y para que Copi analice imágenes del negocio."
         }
       ],
       [
@@ -35,7 +48,7 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Nexolia usa la c\u00e1mara para escanear c\u00f3digos de barras y QR de productos.",
+          "cameraPermission": "Nexolia usa la cámara para escanear códigos de barras y QR de productos.",
           "microphonePermission": false,
           "recordAudioAndroid": false
         }
@@ -47,15 +60,52 @@
       "supportsTablet": true
     },
     "android": {
+      "package": "com.nexolia.owner",
+      "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
-        "backgroundColor": "#0f172a"
+        "foregroundImage": "./assets/images/nexolia-adaptive-foreground.png",
+        "backgroundColor": "#0f172a",
+        "monochromeImage": "./assets/images/nexolia-notification-icon.png"
       },
       "blockedPermissions": [
         "android.permission.WRITE_CONTACTS"
-      ]
+      ],
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.READ_CONTACTS",
+        "android.permission.POST_NOTIFICATIONS"
+      ],
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": false,
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ],
+          "data": [
+            {
+              "scheme": "baas-owner"
+            }
+          ]
+        }
+      ],
+      "navigationBar": {
+        "backgroundColor": "#ffffff",
+        "barStyle": "dark-content"
+      }
     },
     "extra": {
-      "phase": "0"
+      "phase": "0",
+      "eas": {
+        "projectId": "REPLACE_WITH_EAS_PROJECT_ID"
+      }
+    },
+    "androidStatusBar": {
+      "backgroundColor": "#0f172a",
+      "barStyle": "light-content",
+      "translucent": true
     }
   }
 }

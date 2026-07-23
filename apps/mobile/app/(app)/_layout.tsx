@@ -17,6 +17,7 @@ import {
   shouldHideBottomNav,
   tabRoute,
 } from '../../src/navigation/routes';
+import { useAndroidRootExitBack } from '../../src/hooks/useAndroidUnsavedBack';
 import { LoadingScreen } from '../../src/screens/LoadingScreen';
 import { colors } from '../../src/theme';
 
@@ -49,6 +50,7 @@ export default function AppLayout(): ReactElement {
 
   const activeTab = getActiveTab(pathname);
   const hideBottomNav = shouldHideBottomNav(pathname);
+  useAndroidRootExitBack(!hideBottomNav);
 
   function selectTab(tab: AppTab): void {
     router.replace(tabRoute(tab));

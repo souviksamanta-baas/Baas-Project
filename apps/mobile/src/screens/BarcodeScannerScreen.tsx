@@ -3,6 +3,8 @@ import type { ReactElement } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { showPermissionDeniedAlert } from '../lib/androidPermissions';
+
 import type { ProductCodeTypeSlug } from '../lib/productCatalog';
 import { colors } from '../theme';
 
@@ -52,8 +54,19 @@ export function BarcodeScannerScreen(props: {
       ) : !permission.granted ? (
         <View style={styles.centered}>
           <Text style={styles.message}>Necesitamos permiso de cámara para escanear códigos.</Text>
-          <Pressable onPress={() => void requestPermission()} style={styles.permissionButton}>
-            <Text style={styles.permissionText}>Permitir cámara</Text>
+          <Pressable
+            onPress={() => {
+              if (permission.canAskAgain === false) {
+                showPermissionDeniedAlert('camera', { canAskAgain: false });
+                return;
+              }
+              void requestPermission();
+            }}
+            style={styles.permissionButton}
+          >
+            <Text style={styles.permissionText}>
+              {permission.canAskAgain === false ? 'Abrir Ajustes' : 'Permitir cámara'}
+            </Text>
           </Pressable>
         </View>
       ) : (

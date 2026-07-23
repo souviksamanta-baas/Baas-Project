@@ -1,5 +1,7 @@
 import { useCallback, useRef, useState } from 'react';
 import { Alert, Platform } from 'react-native';
+
+import { showPermissionDeniedAlert } from '../lib/androidPermissions';
 import * as ImagePicker from 'expo-image-picker';
 import { File as ExpoFile } from 'expo-file-system';
 import {
@@ -411,7 +413,7 @@ export function useCopiMediaActions(params: {
     void (async () => {
       const permission = await ImagePicker.requestCameraPermissionsAsync();
       if (!permission.granted) {
-        Alert.alert('Cámara', 'Necesitamos permiso de cámara para sacar una foto.');
+        showPermissionDeniedAlert('camera', { canAskAgain: permission.canAskAgain !== false });
         return;
       }
 
@@ -434,7 +436,7 @@ export function useCopiMediaActions(params: {
     void (async () => {
       const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!permission.granted) {
-        Alert.alert('Fotos', 'Necesitamos permiso para elegir una imagen.');
+        showPermissionDeniedAlert('photos', { canAskAgain: permission.canAskAgain !== false });
         return;
       }
 
@@ -498,7 +500,7 @@ export function useCopiMediaActions(params: {
       try {
         const permission = await requestRecordingPermissionsAsync();
         if (!permission.granted) {
-          Alert.alert('Micrófono', 'Necesitamos permiso de micrófono para grabar.');
+          showPermissionDeniedAlert('microphone', { canAskAgain: permission.canAskAgain !== false });
           return;
         }
 

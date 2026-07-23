@@ -25,18 +25,20 @@ export const shadowValues = {
 
 export const shadows = StyleSheet.create({
   card: {
+    elevation: 2,
     shadowColor: colors.navy,
     shadowOffset: { height: 1, width: 0 },
     shadowOpacity: 0.04,
     shadowRadius: 10,
   },
   dock: {
+    elevation: 8,
     shadowColor: colors.navy,
     shadowOffset: { height: -8, width: 0 },
     shadowOpacity: 0.08,
     shadowRadius: 24,
   },
-  sm: shadowValues.sm,
-  md: shadowValues.md,
-  lg: shadowValues.lg,
+  sm: { ...shadowValues.sm, elevation: 2 },
+  md: { ...shadowValues.md, elevation: 4 },
+  lg: { ...shadowValues.lg, elevation: 8 },
 });

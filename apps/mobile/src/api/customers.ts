@@ -5,6 +5,7 @@ import {
   requestPermissionsAsync,
 } from 'expo-contacts';
 
+import { showPermissionDeniedAlert } from '../lib/androidPermissions';
 import { normalizePhoneNumber } from '../services/phone';
 
 export interface DeviceContactOption {
@@ -17,6 +18,7 @@ export async function loadDeviceContacts(): Promise<DeviceContactOption[]> {
   const permission = await requestPermissionsAsync();
 
   if (permission.status !== 'granted') {
+    showPermissionDeniedAlert('contacts', { canAskAgain: permission.canAskAgain !== false });
     throw new Error('Necesitamos acceso a contactos para buscar un número.');
   }
 

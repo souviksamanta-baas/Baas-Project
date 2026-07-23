@@ -13,7 +13,9 @@
   },
   "overrides": {
     "react": "19.2.3",
-    "react-dom": "19.2.3"
+    "react-dom": "19.2.3",
+    "react-native-safe-area-context": "5.8.0",
+    "react-native-svg": "15.15.5"
   },
   "scripts": {
     "build": "npm run build -w @baas/api",
@@ -35,7 +37,10 @@
     "typecheck": "npm run typecheck -w @baas/api && npm run typecheck -w @baas/mobile && npm run typecheck -w @baas/ui-mockups",
     "validate:migrations": "node scripts/validate-migrations.mjs",
     "validate:rls": "node scripts/validate-rls-coverage.mjs",
-    "validate:mobile": "expo config apps/mobile --type public"
+    "validate:mobile": "expo config apps/mobile --type public",
+    "build:android:preview": "npm run build:android:preview -w @baas/mobile",
+    "build:android:production": "npm run build:android:production -w @baas/mobile",
+    "build:android:development": "npm run build:android:development -w @baas/mobile"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

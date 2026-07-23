@@ -24,7 +24,7 @@ from environment configuration instead of hardcoded in source files.
 | `EXPO_PUBLIC_SUPABASE_URL` | Supabase API URL for the mobile app | Current development URL: `https://efcyejbvcskbnipwdfge.supabase.co` |
 | `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Supabase publishable key for client requests | Prefer this for new client work |
 | `EXPO_PUBLIC_SUPABASE_ANON_KEY` | Legacy anon key for client requests | Use only if a library or integration requires the legacy JWT key |
-| `EXPO_PUBLIC_API_BASE_URL` | Deployed NestJS API base URL for authenticated mobile actions | Required for WhatsApp OTP login and staff invites. Current production URL: `https://baas-project-production.up.railway.app` |
+| `EXPO_PUBLIC_API_BASE_URL` | Deployed NestJS API base URL for authenticated mobile actions | Required for WhatsApp OTP login, staff invites, Copi, and WhatsApp send/send-image. Current production URL: `https://baas-project-production.up.railway.app`. Bake into EAS Android/iOS builds before `eas build` (see `docs/mobile-android-install.md`, KAN-349). |
 
 The mobile login screen reads `EXPO_PUBLIC_AUTH_LOGIN_CHANNELS` (comma-separated). Production ships with **`email` only** until Meta business verification and the Spanish AUTHENTICATION template are approved. Set `email,whatsapp,sms` locally to exercise all channels.
 

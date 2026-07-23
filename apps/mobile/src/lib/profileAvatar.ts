@@ -1,10 +1,12 @@
 import * as ImagePicker from 'expo-image-picker';
 
-import { supabase } from '../lib/supabase';
+import { showPermissionDeniedAlert } from './androidPermissions';
+import { supabase } from './supabase';
 
 export async function pickAndUploadProfileAvatar(): Promise<string> {
   const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
   if (!permission.granted) {
+    showPermissionDeniedAlert('photos', { canAskAgain: permission.canAskAgain !== false });
     throw new Error('Necesitamos acceso a tus fotos para actualizar el perfil.');
   }
 

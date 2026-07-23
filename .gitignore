@@ -12,3 +12,6 @@ build/
 
 supabase/.branches/
 supabase/.temp/
+
+# Firebase / Android push (real file; keep example in repo)
+apps/mobile/google-services.json

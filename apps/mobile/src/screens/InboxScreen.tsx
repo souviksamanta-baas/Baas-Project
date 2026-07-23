@@ -1,9 +1,24 @@
 import type { ReactElement } from 'react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
+} from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 
+import { showPermissionDeniedAlert } from '../lib/androidPermissions';
 import { readImageAssetAsBase64 } from '../lib/readImageAssetAsBase64';
+import { useAndroidBackHandler } from '../hooks/useAndroidBackHandler';
 
 import { MobileContainedModal } from '../components/MobileContainedModal';
 
@@ -82,78 +97,83 @@ export function InboxScreen(props: {
   const openCount = openConversationCount(props.conversations);
 
   return (
-    <ScreenContent title="Inbox">
-      <ScreenTitle subtitle="Todas tus conversaciones en un solo lugar" title="Inbox" />
+    <ScreenContent disableScroll title="Inbox">
+      <FlatList
+        contentContainerStyle={styles.inboxListContent}
+        data={props.isLoading ? [] : filteredConversations}
+        keyExtractor={(item) => item.id}
+        keyboardShouldPersistTaps="handled"
+        ListEmptyComponent={
+          props.isLoading ? (
+            <View style={styles.centered}>
+              <ActivityIndicator color={colors.primary} />
+            </View>
+          ) : props.errorMessage ? (
+            <Text style={styles.errorText}>{props.errorMessage}</Text>
+          ) : (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyTitle}>No hay conversaciones</Text>
+              <Text style={styles.emptyBody}>
+                {filters.query || filters.channel !== 'all' || filters.status !== 'all'
+                  ? 'Probá con otro término de búsqueda o filtro.'
+                  : 'Cuando un cliente escriba por WhatsApp, Instagram u otro canal, la conversación va a aparecer acá.'}
+              </Text>
+            </View>
+          )
+        }
+        ListHeaderComponent={
+          <View style={styles.inboxListHeader}>
+            <ScreenTitle subtitle="Todas tus conversaciones en un solo lugar" title="Inbox" />
 
-      {connection.status === 'connected' && connection.displayPhoneNumber ? (
-        <InfoBanner>{`Respondiendo desde ${connection.displayPhoneNumber}`}</InfoBanner>
-      ) : null}
+            {connection.status === 'connected' && connection.displayPhoneNumber ? (
+              <InfoBanner>{`Respondiendo desde ${connection.displayPhoneNumber}`}</InfoBanner>
+            ) : null}
 
-      {connection.status !== 'connected' ? (
-        <View style={styles.setupBlock}>
-          <InfoBanner>{`${connectionCopy.title}\n${connectionCopy.subtitle}`}</InfoBanner>
-          <PrimaryButton
-            fullWidth
-            label="Configurar WhatsApp"
-            onPress={props.onOpenWhatsAppSetup}
-          />
-        </View>
-      ) : null}
+            {connection.status !== 'connected' ? (
+              <View style={styles.setupBlock}>
+                <InfoBanner>{`${connectionCopy.title}\n${connectionCopy.subtitle}`}</InfoBanner>
+                <PrimaryButton
+                  fullWidth
+                  label="Configurar WhatsApp"
+                  onPress={props.onOpenWhatsAppSetup}
+                />
+              </View>
+            ) : null}
 
-      <FeatureGate feature="inboxSearch">
-        <SearchActionRow
-          onChangeText={(query) => setFilters((current) => ({ ...current, query }))}
-          onPressFilter={() => setFiltersOpen(true)}
-          placeholder="Buscar conversaciones"
-          searchValue={filters.query}
-          showFilter
-        />
-      </FeatureGate>
+            <FeatureGate feature="inboxSearch">
+              <SearchActionRow
+                onChangeText={(query) => setFilters((current) => ({ ...current, query }))}
+                onPressFilter={() => setFiltersOpen(true)}
+                placeholder="Buscar conversaciones"
+                searchValue={filters.query}
+                showFilter
+              />
+            </FeatureGate>
 
-      <Card flush>
-        <FeatureGate feature="inboxTabs">
-          <View style={styles.statusTabs}>
-            <Text style={styles.activeStatusTab}>Abiertos {openCount}</Text>
-            <Text style={styles.statusTab}>
-              {filters.channel === 'all' ? 'Todos los canales' : filters.channel}
-            </Text>
+            <FeatureGate feature="inboxTabs">
+              <View style={styles.statusTabs}>
+                <Text style={styles.activeStatusTab}>Abiertos {openCount}</Text>
+                <Text style={styles.statusTab}>
+                  {filters.channel === 'all' ? 'Todos los canales' : filters.channel}
+                </Text>
+              </View>
+            </FeatureGate>
           </View>
-        </FeatureGate>
-
-        {props.isLoading ? (
-          <View style={styles.centered}>
-            <ActivityIndicator color={colors.primary} />
-          </View>
-        ) : null}
-
-        {!props.isLoading && props.errorMessage ? (
-          <Text style={styles.errorText}>{props.errorMessage}</Text>
-        ) : null}
-
-        {!props.isLoading && filteredConversations.length === 0 ? (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyTitle}>No hay conversaciones</Text>
-            <Text style={styles.emptyBody}>
-              {filters.query || filters.channel !== 'all' || filters.status !== 'all'
-                ? 'Probá con otro término de búsqueda o filtro.'
-                : 'Cuando un cliente escriba por WhatsApp, Instagram u otro canal, la conversación va a aparecer acá.'}
-            </Text>
-          </View>
-        ) : null}
-
-        {filteredConversations.map((conversation) => (
+        }
+        renderItem={({ item: conversation }) => (
           <ConversationRow
             avatar={conversationAvatarLabel(conversation)}
             channel={conversation.channel as Channel}
-            key={conversation.id}
             name={conversationDisplayName(conversation)}
             onPress={() => props.onOpenConversation(conversation.id)}
             preview={conversationPreview(conversation)}
             statusLabel={leadStatusLabel(conversation.contact.leadStatus)}
             time={formatConversationTime(conversation.lastMessageAt)}
           />
-        ))}
-      </Card>
+        )}
+        showsVerticalScrollIndicator={false}
+        style={styles.inboxList}
+      />
 
       <InboxFilterModal
         filters={filters}
@@ -259,9 +279,26 @@ export function ConversationDetailScreen(props: {
     mimeType: string;
     uri: string;
   } | null>(null);
+  const [stickToBottom, setStickToBottom] = useState(true);
+  const messagesScrollRef = useRef<ScrollView>(null);
   useHeaderScreenOptions({
     forceCollapsed: true,
     title: props.customerName || props.displayPhoneNumber || 'Chat',
+  });
+
+  useEffect(() => {
+    if (!stickToBottom) {
+      return;
+    }
+    const frame = requestAnimationFrame(() => {
+      messagesScrollRef.current?.scrollToEnd({ animated: true });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [props.messages, pendingImage, stickToBottom]);
+
+  useAndroidBackHandler(attachmentMenuOpen, () => {
+    setAttachmentMenuOpen(false);
+    return true;
   });
 
   const stagePickedAsset = useCallback(async (asset: ImagePicker.ImagePickerAsset) => {
@@ -287,7 +324,7 @@ export function ConversationDetailScreen(props: {
     setAttachmentMenuOpen(false);
     const permission = await ImagePicker.requestCameraPermissionsAsync();
     if (!permission.granted) {
-      Alert.alert('Permiso requerido', 'Necesitamos acceso a la cámara para sacar una foto.');
+      showPermissionDeniedAlert('camera', { canAskAgain: permission.canAskAgain !== false });
       return;
     }
     const result = await ImagePicker.launchCameraAsync({
@@ -305,7 +342,7 @@ export function ConversationDetailScreen(props: {
     setAttachmentMenuOpen(false);
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
-      Alert.alert('Permiso requerido', 'Necesitamos acceso a tus fotos para adjuntar una imagen.');
+      showPermissionDeniedAlert('photos', { canAskAgain: permission.canAskAgain !== false });
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -368,8 +405,17 @@ export function ConversationDetailScreen(props: {
     (pendingImage && props.onSendImage) || (draft.trim() && props.onSendReply),
   );
 
+  function handleMessagesScroll(event: NativeSyntheticEvent<NativeScrollEvent>): void {
+    const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
+    const distanceFromBottom = contentSize.height - (contentOffset.y + layoutMeasurement.height);
+    setStickToBottom(distanceFromBottom < 48);
+  }
+
   return (
-    <View style={styles.detailRoot}>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      style={styles.detailRoot}
+    >
       <View style={styles.chatToolbar}>
         <Pressable hitSlop={8} onPress={props.onBack} style={styles.chatBackButton}>
           <Text style={styles.backText}>‹</Text>
@@ -378,7 +424,19 @@ export function ConversationDetailScreen(props: {
       </View>
       <View style={styles.detailBody}>
         <FeatureGate feature="chatMessages">
-          <View style={styles.chatArea}>
+          <ScrollView
+            ref={messagesScrollRef}
+            contentContainerStyle={styles.chatAreaContent}
+            keyboardShouldPersistTaps="handled"
+            onContentSizeChange={() => {
+              if (stickToBottom) {
+                messagesScrollRef.current?.scrollToEnd({ animated: false });
+              }
+            }}
+            onScroll={handleMessagesScroll}
+            scrollEventThrottle={16}
+            style={styles.chatArea}
+          >
             {props.isLoading ? <ActivityIndicator color={colors.primary} /> : null}
             {!props.isLoading && props.messages.length === 0 ? (
               <Text style={styles.emptyBody}>Todavía no hay mensajes en este hilo.</Text>
@@ -393,7 +451,7 @@ export function ConversationDetailScreen(props: {
                 time={messageBubbleTime(message)}
               />
             ))}
-          </View>
+          </ScrollView>
         </FeatureGate>
       </View>
       <FeatureGate feature="chatComposer">
@@ -419,12 +477,23 @@ export function ConversationDetailScreen(props: {
           value={draft}
         />
       </FeatureGate>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
 
 const styles = StyleSheet.create({
+  inboxList: {
+    flex: 1,
+  },
+  inboxListContent: {
+    paddingBottom: 24,
+    paddingHorizontal: 16,
+  },
+  inboxListHeader: {
+    gap: 12,
+    marginBottom: 8,
+  },
   activeStatusTab: {
     borderBottomColor: colors.primary,
     borderBottomWidth: 2,
@@ -463,9 +532,12 @@ const styles = StyleSheet.create({
   },
   chatArea: {
     backgroundColor: '#efeae2',
+    flex: 1,
+    minHeight: 0,
+  },
+  chatAreaContent: {
     flexGrow: 1,
     gap: 8,
-    minHeight: 448,
     paddingHorizontal: 12,
     paddingVertical: 16,
   },
@@ -508,11 +580,12 @@ const styles = StyleSheet.create({
   },
   detailBody: {
     flex: 1,
+    minHeight: 0,
   },
   detailRoot: {
     backgroundColor: '#efeae2',
     flex: 1,
-    justifyContent: 'space-between',
+    minHeight: 0,
   },
   emptyBody: {
     color: colors.slate,

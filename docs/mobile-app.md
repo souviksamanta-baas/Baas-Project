@@ -474,6 +474,7 @@ Jira epic [KAN-304](https://souviksamanta.atlassian.net/browse/KAN-304). Conflue
 | Inbox search/filters | KAN-310 | `SearchActionRow` wired; filter sheet |
 | Copi API | KAN-311 / KAN-319 | `OwnerCopilotProvider`, full Copi API surface in `api/ai.ts` |
 | iPhone install | KAN-312 | `docs/mobile-iphone-install.md`, `apps/mobile/eas.json` |
+| Android compatibility | [KAN-346](https://souviksamanta.atlassian.net/browse/KAN-346) | Adaptation (not rebuild): `docs/mobile-android-install.md`, Confluence [Android adaptation](https://souviksamanta.atlassian.net/wiki/spaces/BaaS/pages/26083329/Android+compatibility+and+adaptation) |
 
 **Ops before production QA:** apply migration
 `supabase/migrations/20260703163000_jul_pilot_dashboard_channels_invites.sql` and

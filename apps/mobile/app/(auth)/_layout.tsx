@@ -1,28 +1,37 @@
 import { Stack } from 'expo-router';
 import type { ReactElement } from 'react';
-import { SafeAreaView, ScrollView, StyleSheet } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { colors } from '../../src/design-system';
 
 export default function AuthLayout(): ReactElement {
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <ScrollView
-        contentContainerStyle={styles.container}
-        keyboardShouldPersistTaps="handled"
+    <SafeAreaView edges={['top', 'left', 'right', 'bottom']} style={styles.safeArea}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.flex}
       >
-        <Stack screenOptions={{ headerShown: false }} />
-      </ScrollView>
+        <ScrollView
+          contentContainerStyle={styles.container}
+          keyboardShouldPersistTaps="handled"
+        >
+          <Stack screenOptions={{ headerShown: false }} />
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  container: {
+    flexGrow: 1,
+  },
+  flex: {
+    flex: 1,
+  },
   safeArea: {
     backgroundColor: colors.background,
     flex: 1,
-  },
-  container: {
-    flexGrow: 1,
   },
 });

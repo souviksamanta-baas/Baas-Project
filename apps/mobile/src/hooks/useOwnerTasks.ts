@@ -2,6 +2,10 @@ import { useCallback, useEffect, useState } from 'react';
 import * as Notifications from 'expo-notifications';
 import { Alert } from 'react-native';
 
+import { ensureAndroidNotificationChannels } from '../lib/androidNotificationChannels';
+import { showPermissionDeniedAlert } from '../lib/androidPermissions';
+import { getEasProjectId } from '../lib/easProject';
+
 import {
   completeOwnerTask,
   dismissAllOwnerNotifications,
@@ -167,19 +171,27 @@ export function useOwnerTasks(
     setErrorMessage(null);
 
     try {
+      await ensureAndroidNotificationChannels();
+
       const permissions = await Notifications.getPermissionsAsync();
       const finalPermissions = permissions.granted
         ? permissions
         : await Notifications.requestPermissionsAsync();
 
       if (!finalPermissions.granted) {
-        setPushRegistrationStatus('Push permission was not granted.');
+        showPermissionDeniedAlert('notifications', {
+          canAskAgain: finalPermissions.canAskAgain !== false,
+        });
+        setPushRegistrationStatus('No se otorgó el permiso de notificaciones.');
         return;
       }
 
-      const token = await Notifications.getExpoPushTokenAsync();
+      const projectId = getEasProjectId();
+      const token = await Notifications.getExpoPushTokenAsync(
+        projectId ? { projectId } : undefined,
+      );
       await registerOwnerPushToken(organizationId, businessCenterId, token.data);
-      setPushRegistrationStatus('Low-stock push alerts are enabled on this device.');
+      setPushRegistrationStatus('Las alertas push están activas en este dispositivo.');
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown push registration error';
       setErrorMessage(message);

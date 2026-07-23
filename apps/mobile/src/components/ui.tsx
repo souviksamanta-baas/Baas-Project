@@ -87,6 +87,8 @@ export function ScreenContent(props: {
   children: ReactNode;
   /** Defaults to true on every screen; pass false on Home to keep the text logo. */
   collapseHeaderOnScroll?: boolean;
+  /** When true, children manage their own scrolling (e.g. FlatList). */
+  disableScroll?: boolean;
   title?: string;
 }): ReactElement {
   const chrome = useHeaderChromeOptional();
@@ -113,6 +115,10 @@ export function ScreenContent(props: {
 
     chrome.setChrome({ title: props.title });
   }, [chrome.setChrome, collapseHeaderOnScroll, props.title]);
+
+  if (props.disableScroll) {
+    return <View style={{ flex: 1 }}>{props.children}</View>;
+  }
 
   return (
     <ScrollView
@@ -427,6 +433,7 @@ function MessageBubbleImage(props: {
         });
       }}
       source={{ uri }}
+      resizeMode="cover"
       style={styles.messageImage}
     />
   );
@@ -487,7 +494,13 @@ export function ReplyComposer(props: {
   }
 
   return (
-    <View style={[styles.replyBarWrap, props.embedded && styles.replyBarWrapEmbedded]}>
+    <View
+      style={[
+        styles.replyBarWrap,
+        props.embedded && styles.replyBarWrapEmbedded,
+        !props.embedded && { paddingBottom: Math.max(insets.bottom, spacing.sm) },
+      ]}
+    >
       {props.pendingImageUri ? (
         <View style={styles.pendingImageRow}>
           <Image source={{ uri: props.pendingImageUri }} style={styles.pendingImageThumb} />
@@ -611,15 +624,20 @@ export function BottomNavigation(props: {
   onOpenSell: () => void;
   onSelectTab: (tab: AppTab) => void;
 }): ReactElement {
+  const insets = useSafeAreaInsets();
+  const bottomPad = Math.max(insets.bottom, spacing.sm);
+
   return (
-    <View style={styles.bottomNav}>
-      <TabButton active={props.activeTab === 'home'} icon="home" label="Inicio" onPress={() => props.onSelectTab('home')} />
-      <TabButton active={props.activeTab === 'inbox'} icon="inbox" label="Inbox" onPress={() => props.onSelectTab('inbox')} />
-      <Pressable onPress={props.onOpenSell} style={styles.centerAction}>
-        <Text style={styles.centerActionText}>$</Text>
-      </Pressable>
-      <TabButton active={props.activeTab === 'copi'} icon="bot" label="Copi" onPress={() => props.onSelectTab('copi')} />
-      <TabButton active={props.activeTab === 'more'} icon="more" label="Más" onPress={() => props.onSelectTab('more')} />
+    <View style={[styles.bottomNavWrap, { paddingBottom: bottomPad }]}>
+      <View style={styles.bottomNav}>
+        <TabButton active={props.activeTab === 'home'} icon="home" label="Inicio" onPress={() => props.onSelectTab('home')} />
+        <TabButton active={props.activeTab === 'inbox'} icon="inbox" label="Inbox" onPress={() => props.onSelectTab('inbox')} />
+        <Pressable hitSlop={8} onPress={props.onOpenSell} style={styles.centerAction}>
+          <Text style={styles.centerActionText}>$</Text>
+        </Pressable>
+        <TabButton active={props.activeTab === 'copi'} icon="bot" label="Copi" onPress={() => props.onSelectTab('copi')} />
+        <TabButton active={props.activeTab === 'more'} icon="more" label="Más" onPress={() => props.onSelectTab('more')} />
+      </View>
     </View>
   );
 }
@@ -773,17 +791,22 @@ const styles = StyleSheet.create({
   blueTone: {
     backgroundColor: '#eef8ff',
   },
-  bottomNav: {
+  bottomNavWrap: {
     ...shadows.dock,
-    alignItems: 'center',
     backgroundColor: colors.surface,
     borderColor: colors.border,
-    borderRadius: 24,
-    borderWidth: 1,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    borderTopWidth: 1,
+    paddingHorizontal: 12,
+    paddingTop: spacing.xs,
+  },
+  bottomNav: {
+    alignItems: 'center',
     flexDirection: 'row',
-    height: 64,
+    height: 56,
     justifyContent: 'space-between',
-    paddingHorizontal: 22,
+    paddingHorizontal: 10,
   },
   branchMenu: {
     ...shadows.card,
@@ -1029,6 +1052,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     height: 220,
     marginBottom: spacing.sm,
+    maxWidth: '100%',
     width: 220,
   },
   messageImagePlaceholder: {
@@ -1355,6 +1379,8 @@ const styles = StyleSheet.create({
   tabButton: {
     alignItems: 'center',
     flex: 1,
+    minHeight: 48,
+    justifyContent: 'center',
   },
   tabIcon: {
     color: colors.slateLight,

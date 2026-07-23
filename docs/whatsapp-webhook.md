@@ -207,19 +207,59 @@ Sales AI draft generation asynchronously. Draft generation uses the stored
 conversation/message IDs, writes `ai_drafts` and `ai_draft_events`, and logs
 errors without failing the webhook acknowledgement.
 
+## Media (images)
+
+Inbound and outbound **image** messages are supported for the owner inbox
+([KAN-346](https://souviksamanta.atlassian.net/browse/KAN-346) Android clients
+consume the same API/schema as iOS).
+
+### Inbound images
+
+Webhook parsing extracts Meta `image.id`, `mime_type`, and optional `caption`:
+
+- `message_type` is stored as `image`
+- caption (if any) is stored in `conversation_messages.body`
+- `media_id` / `media_mime_type` are persisted on insert
+- Async hydrate downloads the binary from Meta Graph, uploads to the private
+  Supabase Storage bucket `whatsapp-media`, then updates
+  `media_storage_path` + `media_url` (signed URL, ~30 days)
+
+Path layout: `{organization_id}/{business_center_id}/{conversation_id}/{message_id}.{ext}`
+
+Org members can create signed URLs client-side via Storage RLS when
+`media_url` expires (mobile helper: `resolveWhatsAppMediaUrl`).
+
+### Outbound images
+
+Owner-authenticated:
+
+```text
+POST /whatsapp/messages/send-image
+```
+
+Body: `{ organizationId, businessCenterId, conversationId, imageBase64, mimeType?, body? }`
+(`body` is the optional caption). The API uploads to Meta media, sends
+`type: image`, mirrors the file into `whatsapp-media`, and persists
+`message_type: image` with media columns. Max size **5 MB**. JPEG/PNG/WebP/GIF.
+
+Mobile never calls Meta with a Cloud token; only the Nest API does.
+
 ## Outbound Sends
 
-`WhatsAppOutboundMessageService` sends text messages through the WhatsApp Cloud
-API from the server only:
+`WhatsAppOutboundMessageService` sends **text** and **image** messages through
+the WhatsApp Cloud API from the server only:
 
 ```text
 POST https://graph.facebook.com/v20.0/{phone_number_id}/messages
+POST https://graph.facebook.com/v20.0/{phone_number_id}/media   # image upload
 ```
 
 The service loads the connected WhatsApp configuration by organization, sends
 with the server-side access token, and persists a `sent` or `failed` outbound
 message record. Mobile code does not call Meta APIs directly and does not receive
 WhatsApp access tokens.
+
+Text replies: `POST /whatsapp/messages/send` with `{ body, ... }`.
 
 KAN-70 owner-approved AI drafts and allowed auto-send replies also route through
 `WhatsAppOutboundMessageService`. Auto-send is off by default and requires

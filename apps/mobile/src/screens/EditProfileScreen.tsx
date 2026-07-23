@@ -1,11 +1,12 @@
 import type { ReactElement } from 'react';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Card, ScreenContent, ScreenTitle } from '../components/ui';
 import { useProfileChromeOptional } from '../context/ProfileChromeProvider';
 import { PrimaryButton, TextField } from '../design-system';
 import { supabase } from '../lib/supabase';
+import { useAndroidUnsavedBack } from '../hooks/useAndroidUnsavedBack';
 import { colors } from '../theme';
 
 export function EditProfileScreen(props: { onBack: () => void }): ReactElement {
@@ -15,6 +16,7 @@ export function EditProfileScreen(props: { onBack: () => void }): ReactElement {
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [initial, setInitial] = useState({ fullName: '', preferredName: '', phone: '' });
 
   useEffect(() => {
     void supabase.auth.getUser().then(({ data }) => {
@@ -24,11 +26,25 @@ export function EditProfileScreen(props: { onBack: () => void }): ReactElement {
       }
 
       setEmail(user.email ?? '');
-      setFullName(String(user.user_metadata?.full_name ?? ''));
-      setPreferredName(String(user.user_metadata?.preferred_name ?? ''));
-      setPhone(String(user.user_metadata?.phone ?? user.phone ?? ''));
+      const nextFullName = String(user.user_metadata?.full_name ?? '');
+      const nextPreferredName = String(user.user_metadata?.preferred_name ?? '');
+      const nextPhone = String(user.user_metadata?.phone ?? user.phone ?? '');
+      setFullName(nextFullName);
+      setPreferredName(nextPreferredName);
+      setPhone(nextPhone);
+      setInitial({ fullName: nextFullName, preferredName: nextPreferredName, phone: nextPhone });
     });
   }, []);
+
+  const dirty = useMemo(
+    () =>
+      fullName !== initial.fullName ||
+      preferredName !== initial.preferredName ||
+      phone !== initial.phone,
+    [fullName, initial.fullName, initial.phone, initial.preferredName, phone, preferredName],
+  );
+
+  useAndroidUnsavedBack({ dirty, onDiscard: props.onBack });
 
   async function handleSave(): Promise<void> {
     const trimmedName = fullName.trim();

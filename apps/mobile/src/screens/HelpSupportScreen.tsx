@@ -16,7 +16,14 @@ export function buildSupportWhatsAppUrl(displayNumber = SUPPORT_WHATSAPP_DISPLAY
 
 export function HelpSupportScreen(props: { onBack: () => void }): ReactElement {
   async function openWhatsApp(): Promise<void> {
-    await Linking.openURL(buildSupportWhatsAppUrl());
+    const url = buildSupportWhatsAppUrl();
+    const canOpen = await Linking.canOpenURL(url);
+    if (!canOpen) {
+      // Fallback keeps package-visibility quirks from blocking support on Android.
+      await Linking.openURL(url);
+      return;
+    }
+    await Linking.openURL(url);
   }
 
   return (
