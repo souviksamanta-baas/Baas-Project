@@ -374,6 +374,7 @@ export function OwnerAppNavigator(props: { onSignOut: () => void }): ReactElemen
                 businessName={ownerProfile.businessName}
                 fullName={ownerProfile.businessName}
                 onOpenEditProfile={() => undefined}
+                onOpenPrivacyData={() => undefined}
                 onOpenStaffInvite={() => undefined}
                 onOpenWhatsAppSetup={() => setRoute('account')}
                 onSignOut={props.onSignOut}

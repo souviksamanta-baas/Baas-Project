@@ -29,6 +29,8 @@ export const routes = {
   integrations: '/(app)/integrations',
   suppliers: '/(app)/suppliers',
   helpSupport: '/(app)/help-support',
+  privacyData: '/(app)/privacy-data',
+  instagramConnect: '/(app)/instagram-connect',
 } as const;
 
 export function manageStockRoute(options?: { lowStock?: boolean }): string {

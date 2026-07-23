@@ -26,16 +26,20 @@ export default function ConversationDetailRoute(): ReactElement {
     organizationId,
   });
   const thread = useConversationThread({
+    channel: conversation?.channel ?? null,
     businessCenterId,
     conversationId: conversationId ?? null,
     organizationId,
   });
 
-  const canSendReply = Boolean(organizationId && businessCenterId && conversationId);
+  const canSendReply = Boolean(
+    organizationId && businessCenterId && conversationId && !thread.composerBlockedMessage,
+  );
 
   if (!conversation) {
     return (
       <ConversationDetailScreen
+        composerBlockedMessage={thread.composerBlockedMessage}
         customerName="Conversación"
         isLoading={isLoadingConversation || thread.isLoading}
         messages={thread.messages}
@@ -50,6 +54,7 @@ export default function ConversationDetailRoute(): ReactElement {
   return (
     <ConversationDetailScreen
       channel={conversation.channel}
+      composerBlockedMessage={thread.composerBlockedMessage}
       customerName={conversationDisplayName(conversation)}
       displayPhoneNumber={dashboard?.whatsappConnection?.displayPhoneNumber ?? null}
       isLoading={thread.isLoading}

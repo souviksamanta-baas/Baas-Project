@@ -206,3 +206,18 @@ For KAN-14, the acceptance criteria are satisfied when:
 - Public client variables are documented separately from server-only secrets.
 - `.env.example` exists with placeholders only.
 - Service-role handling is explicitly documented as server-only.
+
+
+### Instagram Messaging
+
+| Variable | Purpose |
+| --- | --- |
+| `META_APP_ID` | Platform Meta / Instagram app id (alias: `INSTAGRAM_APP_ID`) |
+| `META_APP_SECRET` | App secret for OAuth + webhook HMAC (alias: `INSTAGRAM_APP_SECRET`) |
+| `INSTAGRAM_VERIFY_TOKEN` | Meta hub verify token for Instagram webhooks (falls back to WhatsApp verify token) |
+| `INSTAGRAM_OAUTH_REDIRECT_URI` | Mobile deep link; default `baas-owner://instagram-oauth` |
+| `BAAS_TOKEN_ENCRYPTION_KEY` | AES-256-GCM key for tenant Instagram tokens (prefer 32-byte base64) |
+
+Primary webhook path: `/integrations/meta/instagram/webhook` (alias `/webhooks/instagram`).
+
+See `docs/instagram-messaging.md` and `docs/instagram-webhook.md`.

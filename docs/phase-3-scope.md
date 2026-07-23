@@ -15,7 +15,9 @@ This document captures candidate Phase 3 work identified after the Task Portal M
 ### CRM and inbox maturity
 
 - Lead status lifecycle (KAN-313 epic): `new` → `active`, manual picker, inbox filter alignment
-- Multi-channel production polish beyond WhatsApp (Instagram, Facebook, email send/receive)
+- Multi-channel production polish beyond WhatsApp (Facebook, email send/receive)
+- **Shipped (KAN-365):** Instagram Business Login OAuth + text receive/send + 24h messaging window — see `docs/instagram-messaging.md` and [Confluence](https://souviksamanta.atlassian.net/wiki/spaces/BaaS/pages/26247169/Instagram+Messaging+Owner+inbox)
+- Account lifecycle / GDPR / store deletion URL ([KAN-363](https://souviksamanta.atlassian.net/browse/KAN-363))
 - Staff invite multi-sucursal picker (UI deferred; invites still attach the default center)
 
 ### Task portal v2

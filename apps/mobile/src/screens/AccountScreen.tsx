@@ -40,6 +40,7 @@ export function AccountScreen(props: {
   fullName: string;
   onOpenBusinessSettings?: () => void;
   onOpenEditProfile: () => void;
+  onOpenPrivacyData: () => void;
   onOpenStaffInvite: () => void;
   onOpenWhatsAppSetup: () => void;
   onSignOut: () => void;
@@ -110,6 +111,7 @@ export function AccountScreen(props: {
         <Card>
           <ActionRow icon="users" onPress={props.onOpenStaffInvite} title="Invitar miembro (QR)" />
           <ActionRow icon="user" onPress={props.onOpenEditProfile} title="Editar perfil" />
+          <ActionRow icon="gear" onPress={props.onOpenPrivacyData} title="Privacidad y datos" />
           {canManageBusiness && props.onOpenBusinessSettings ? (
             <ActionRow
               icon="gear"

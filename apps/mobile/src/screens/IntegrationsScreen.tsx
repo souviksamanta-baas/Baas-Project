@@ -23,10 +23,9 @@ const INTEGRATIONS: Array<{
     title: 'WhatsApp Business',
   },
   {
-    comingSoon: true,
     icon: 'instagram',
     id: 'instagram',
-    subtitle: 'Mensajes y comentarios de Instagram',
+    subtitle: 'Mensajes directos de Instagram',
     title: 'Instagram',
   },
   {
@@ -47,7 +46,9 @@ const INTEGRATIONS: Array<{
 
 export function IntegrationsScreen(props: {
   onBack: () => void;
+  onOpenInstagram: () => void;
   onOpenWhatsApp: () => void;
+  instagramConnection?: OwnerDashboard['instagramConnection'] | null;
   whatsappConnection: OwnerDashboard['whatsappConnection'] | null;
 }): ReactElement {
   const connection = props.whatsappConnection ?? {
@@ -59,6 +60,11 @@ export function IntegrationsScreen(props: {
     lastError: null,
   };
   const whatsappCopy = whatsappConnectionLabel(connection);
+  const ig = props.instagramConnection;
+  const igSubtitle =
+    ig?.status === 'connected'
+      ? `Conectado · ${ig.igUsername ? `@${ig.igUsername}` : ig.igUserId ?? 'cuenta'}`
+      : 'Mensajes directos de Instagram';
 
   return (
     <ScreenContent title="Integraciones">
@@ -83,6 +89,18 @@ export function IntegrationsScreen(props: {
                 key={item.id}
                 onPress={props.onOpenWhatsApp}
                 subtitle={`${whatsappCopy.title} · ${whatsappCopy.subtitle}`}
+                title={item.title}
+              />
+            );
+          }
+
+          if (item.id === 'instagram') {
+            return (
+              <ActionRow
+                icon={item.icon}
+                key={item.id}
+                onPress={props.onOpenInstagram}
+                subtitle={igSubtitle}
                 title={item.title}
               />
             );

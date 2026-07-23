@@ -30,6 +30,15 @@ export interface OwnerDashboard {
     lastStatusCheckAt: string | null;
     lastError: string | null;
   };
+  instagramConnection?: {
+    status: 'not_configured' | 'pending' | 'connected' | 'error' | 'disabled';
+    pageId: string | null;
+    igUserId: string | null;
+    igUsername: string | null;
+    verifiedAt: string | null;
+    lastStatusCheckAt: string | null;
+    lastError: string | null;
+  };
   metrics: {
     contacts: number;
     lowStockItems: number;

@@ -256,6 +256,7 @@ function InboxFilterModal(props: {
 
 export function ConversationDetailScreen(props: {
   channel?: Channel;
+  composerBlockedMessage?: string | null;
   customerName: string;
   displayPhoneNumber?: string | null;
   isLoading: boolean;
@@ -456,24 +457,44 @@ export function ConversationDetailScreen(props: {
       </View>
       <FeatureGate feature="chatComposer">
         {sendError ? <Text style={styles.sendErrorText}>{sendError}</Text> : null}
+        {props.composerBlockedMessage ? (
+          <Text style={styles.windowBlockedText}>{props.composerBlockedMessage}</Text>
+        ) : null}
         <ReplyComposer
           attachmentMenuOpen={attachmentMenuOpen}
+          editable={!props.composerBlockedMessage}
           isSending={isSending}
           onChangeText={setDraft}
           onClearPendingImage={() => setPendingImage(null)}
-          onPressAttachCamera={() => {
-            void onPressAttachCamera();
-          }}
-          onPressAttachLibrary={() => {
-            void onPressAttachLibrary();
-          }}
-          onPressPlus={() => {
-            setAttachmentMenuOpen((open) => !open);
-          }}
-          onSend={canSend ? handleSend : undefined}
+          onPressAttachCamera={
+            props.composerBlockedMessage
+              ? undefined
+              : () => {
+                  void onPressAttachCamera();
+                }
+          }
+          onPressAttachLibrary={
+            props.composerBlockedMessage
+              ? undefined
+              : () => {
+                  void onPressAttachLibrary();
+                }
+          }
+          onPressPlus={
+            props.composerBlockedMessage
+              ? undefined
+              : () => {
+                  setAttachmentMenuOpen((open) => !open);
+                }
+          }
+          onSend={canSend && !props.composerBlockedMessage ? handleSend : undefined}
           pendingImageHint="Foto lista. Escribí un texto (opcional) y enviá."
           pendingImageUri={pendingImage?.uri ?? null}
-          placeholder="Escribi un mensaje..."
+          placeholder={
+            props.composerBlockedMessage
+              ? 'Respuesta no disponible'
+              : 'Escribi un mensaje...'
+          }
           value={draft}
         />
       </FeatureGate>
@@ -660,6 +681,13 @@ const styles = StyleSheet.create({
     fontSize: 11,
     paddingHorizontal: 18,
     paddingTop: 4,
+  },
+  windowBlockedText: {
+    color: colors.slate,
+    fontSize: 12,
+    lineHeight: 16,
+    paddingHorizontal: 18,
+    paddingTop: 8,
   },
   statusTab: {
     color: colors.slate,

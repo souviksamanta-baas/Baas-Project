@@ -5,6 +5,12 @@ import {
   getInboxConversationById,
   subscribeToConversationMessages,
 } from '../api/conversations';
+import {
+  getInstagramMessagingWindowState,
+  instagramWindowComposerCopy,
+  sendInstagramReply,
+  type InstagramMessagingWindowState,
+} from '../api/instagram';
 import { sendConversationImage, sendConversationReply } from '../api/whatsapp';
 import type { InboxConversationSummary, WhatsAppMessagePreview } from '../types/messages';
 
@@ -54,12 +60,15 @@ export function useInboxConversation(params: {
 
 export function useConversationThread(params: {
   businessCenterId: string | null;
+  channel?: string | null;
   conversationId: string | null;
   organizationId: string | null;
 }): {
+  composerBlockedMessage: string | null;
   errorMessage: string | null;
   isLoading: boolean;
   messages: WhatsAppMessagePreview[];
+  messagingWindowState: InstagramMessagingWindowState | null;
   sendImageReply: (params: {
     caption?: string;
     imageBase64: string;
@@ -70,6 +79,8 @@ export function useConversationThread(params: {
   const [messages, setMessages] = useState<WhatsAppMessagePreview[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [messagingWindowState, setMessagingWindowState] =
+    useState<InstagramMessagingWindowState | null>(null);
 
   useEffect(() => {
     if (!params.conversationId) {
@@ -127,10 +138,47 @@ export function useConversationThread(params: {
     };
   }, [params.businessCenterId, params.conversationId, params.organizationId]);
 
+  useEffect(() => {
+    if (params.channel !== 'instagram' || !params.organizationId || !params.conversationId) {
+      setMessagingWindowState(null);
+      return;
+    }
+
+    let mounted = true;
+    getInstagramMessagingWindowState({
+      conversationId: params.conversationId,
+      organizationId: params.organizationId,
+    })
+      .then((result) => {
+        if (mounted) {
+          setMessagingWindowState(result.state);
+        }
+      })
+      .catch(() => {
+        if (mounted) {
+          setMessagingWindowState('reply_available');
+        }
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [params.channel, params.conversationId, params.organizationId, messages.length]);
+
   const sendReply = useCallback(
     async (body: string): Promise<void> => {
       if (!params.organizationId || !params.businessCenterId || !params.conversationId) {
         throw new Error('Missing conversation context.');
+      }
+
+      if (params.channel === 'instagram') {
+        await sendInstagramReply({
+          body,
+          businessCenterId: params.businessCenterId,
+          conversationId: params.conversationId,
+          organizationId: params.organizationId,
+        });
+        return;
       }
 
       await sendConversationReply({
@@ -140,7 +188,7 @@ export function useConversationThread(params: {
         organizationId: params.organizationId,
       });
     },
-    [params.businessCenterId, params.conversationId, params.organizationId],
+    [params.businessCenterId, params.channel, params.conversationId, params.organizationId],
   );
 
   const sendImageReply = useCallback(
@@ -153,6 +201,10 @@ export function useConversationThread(params: {
         throw new Error('Missing conversation context.');
       }
 
+      if (params.channel === 'instagram') {
+        throw new Error('El envío de imágenes por Instagram llega en una próxima versión.');
+      }
+
       await sendConversationImage({
         body: imageParams.caption,
         businessCenterId: params.businessCenterId,
@@ -162,13 +214,20 @@ export function useConversationThread(params: {
         organizationId: params.organizationId,
       });
     },
-    [params.businessCenterId, params.conversationId, params.organizationId],
+    [params.businessCenterId, params.channel, params.conversationId, params.organizationId],
   );
 
+  const windowCopy =
+    params.channel === 'instagram' && messagingWindowState
+      ? instagramWindowComposerCopy(messagingWindowState)
+      : null;
+
   return {
+    composerBlockedMessage: windowCopy?.blocked ? windowCopy.message : null,
     errorMessage,
     isLoading,
     messages,
+    messagingWindowState,
     sendImageReply,
     sendReply,
   };

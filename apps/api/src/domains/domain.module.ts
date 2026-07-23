@@ -7,6 +7,7 @@ import { CustomersModule } from './customers/customers.module';
 import { InventoryModule } from './inventory/inventory.module';
 import { OrganizationsModule } from './organizations/organizations.module';
 import { TasksModule } from './tasks/tasks.module';
+import { InstagramModule } from './instagram/instagram.module';
 import { WhatsAppModule } from './whatsapp/whatsapp.module';
 
 @Module({
@@ -19,6 +20,7 @@ import { WhatsAppModule } from './whatsapp/whatsapp.module';
     InventoryModule,
     AiModule,
     WhatsAppModule,
+    InstagramModule,
   ],
   exports: [
     AuthModule,
@@ -29,6 +31,7 @@ import { WhatsAppModule } from './whatsapp/whatsapp.module';
     InventoryModule,
     AiModule,
     WhatsAppModule,
+    InstagramModule,
   ],
 })
 export class DomainModule {}

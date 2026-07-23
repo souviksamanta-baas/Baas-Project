@@ -307,3 +307,110 @@ export class AcceptOrganizationInviteDto {
   @IsString()
   verifiedPhoneE164?: string;
 }
+
+export class InstagramOAuthStartDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsString()
+  organizationId!: string;
+}
+
+export class InstagramOAuthStartResponseDto {
+  @ApiProperty({ example: 'https://www.instagram.com/oauth/authorize?...' })
+  authUrl!: string;
+
+  @ApiProperty({ description: 'Signed state returned to oauth/callback' })
+  state!: string;
+}
+
+export class InstagramOAuthCallbackDto {
+  @ApiProperty()
+  @IsString()
+  code!: string;
+
+  @ApiProperty()
+  @IsString()
+  state!: string;
+}
+
+export class InstagramConnectionSummaryDto {
+  @ApiPropertyOptional({ nullable: true })
+  igUserId!: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  igUsername!: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  lastError!: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  lastStatusCheckAt!: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  pageId!: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  profilePictureUrl?: string | null;
+
+  @ApiProperty({
+    enum: ['not_configured', 'pending', 'connected', 'error', 'disabled'],
+  })
+  status!: 'not_configured' | 'pending' | 'connected' | 'error' | 'disabled';
+
+  @ApiPropertyOptional({ nullable: true })
+  tokenExpiresAt?: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  verifiedAt!: string | null;
+}
+
+export class InstagramDisconnectDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsString()
+  organizationId!: string;
+}
+
+export class InstagramMessagingWindowStateDto {
+  @ApiProperty({
+    enum: [
+      'customer_must_message_first',
+      'reply_available',
+      'human_reply_only',
+      'window_expired',
+      'meta_approval_required',
+    ],
+  })
+  state!: string;
+
+  @ApiPropertyOptional({ nullable: true })
+  expiresAt!: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  lastInboundAt!: string | null;
+}
+
+export class InstagramSendMessageDto {
+  @ApiProperty()
+  @IsString()
+  @MinLength(1)
+  body!: string;
+
+  @ApiProperty({ format: 'uuid' })
+  @IsString()
+  businessCenterId!: string;
+
+  @ApiProperty({ format: 'uuid' })
+  @IsString()
+  conversationId!: string;
+
+  @ApiProperty({ format: 'uuid' })
+  @IsString()
+  organizationId!: string;
+}
+
+export class InstagramSendMessageResponseDto {
+  @ApiPropertyOptional({ nullable: true })
+  externalMessageId!: string | null;
+
+  @ApiProperty({ enum: ['sent'] })
+  status!: 'sent';
+}
