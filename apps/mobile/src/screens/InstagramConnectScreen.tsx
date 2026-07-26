@@ -69,13 +69,7 @@ export function InstagramConnectScreen(props: {
       Alert.alert('Instagram conectado', 'La cuenta quedó vinculada a Nexolia.');
     } catch (error) {
       const raw = error instanceof Error ? error.message : 'Error';
-      const message =
-        /internal server error/i.test(raw) || /META_APP_|INSTAGRAM_APP_/i.test(raw)
-          ? raw.includes('INSTAGRAM_APP') || raw.includes('META_APP')
-            ? raw
-            : 'El servidor no tiene configurado Instagram (INSTAGRAM_APP_ID / INSTAGRAM_APP_SECRET). Revisá Railway y Meta Business login settings.'
-          : raw;
-      Alert.alert('No se pudo conectar', message);
+      Alert.alert('No se pudo conectar', raw);
     } finally {
       setBusy(false);
     }
