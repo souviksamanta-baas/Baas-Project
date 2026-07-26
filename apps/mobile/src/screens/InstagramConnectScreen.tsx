@@ -37,15 +37,23 @@ export function InstagramConnectScreen(props: {
   const handleConnect = useCallback(async () => {
     setBusy(true);
     try {
-      const { authUrl } = await startInstagramOAuth({
+      const { authUrl, redirectUri } = await startInstagramOAuth({
         organizationId: props.organizationId,
       });
+      if (!/^https:\/\//i.test(redirectUri)) {
+        throw new Error(
+          `El servidor envió un redirect inválido (${redirectUri}). Tiene que ser HTTPS registrado en Meta Business Login.`,
+        );
+      }
+
       const result = await WebBrowser.openAuthSessionAsync(authUrl, APP_OAUTH_RETURN_URL);
       if (result.type !== 'success' || !('url' in result) || !result.url) {
         if (result.type === 'cancel' || result.type === 'dismiss') {
           return;
         }
-        throw new Error('No se completó la autorización de Instagram.');
+        throw new Error(
+          `No se completó la autorización. Verificá en Meta que el OAuth redirect URI sea exactamente:\n${redirectUri}`,
+        );
       }
 
       const { code, error, state } = parseOAuthCallbackUrl(result.url);
@@ -62,10 +70,10 @@ export function InstagramConnectScreen(props: {
     } catch (error) {
       const raw = error instanceof Error ? error.message : 'Error';
       const message =
-        /internal server error/i.test(raw) || /META_APP_/i.test(raw)
-          ? raw.includes('META_APP')
+        /internal server error/i.test(raw) || /META_APP_|INSTAGRAM_APP_/i.test(raw)
+          ? raw.includes('INSTAGRAM_APP') || raw.includes('META_APP')
             ? raw
-            : 'El servidor no tiene configurado Instagram (META_APP_ID / META_APP_SECRET). Revisá las variables en Railway.'
+            : 'El servidor no tiene configurado Instagram (INSTAGRAM_APP_ID / INSTAGRAM_APP_SECRET). Revisá Railway y Meta Business login settings.'
           : raw;
       Alert.alert('No se pudo conectar', message);
     } finally {

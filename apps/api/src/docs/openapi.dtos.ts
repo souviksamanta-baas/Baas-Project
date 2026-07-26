@@ -318,6 +318,13 @@ export class InstagramOAuthStartResponseDto {
   @ApiProperty({ example: 'https://www.instagram.com/oauth/authorize?...' })
   authUrl!: string;
 
+  @ApiProperty({
+    description: 'HTTPS redirect_uri sent to Meta (must match Business login settings exactly)',
+    example:
+      'https://baas-project-production.up.railway.app/integrations/meta/instagram/oauth/callback',
+  })
+  redirectUri!: string;
+
   @ApiProperty({ description: 'Signed state returned to oauth/callback' })
   state!: string;
 }

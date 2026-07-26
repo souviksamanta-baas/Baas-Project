@@ -70,10 +70,11 @@ Ack-then-process: validate signature → insert `instagram_message_events` → H
 
 | Variable | Purpose |
 | --- | --- |
-| `META_APP_ID` / `INSTAGRAM_APP_ID` | Platform Meta app id |
-| `META_APP_SECRET` / `INSTAGRAM_APP_SECRET` | App secret (signature + OAuth); may reuse `WHATSAPP_APP_SECRET` if same Meta app |
+| `INSTAGRAM_APP_ID` | **Instagram App ID** from Business login settings (not the Meta App ID in the dashboard header) |
+| `INSTAGRAM_APP_SECRET` | **Instagram App Secret** from the same panel (prefer over WhatsApp/Meta secret for OAuth) |
+| `META_APP_ID` / `META_APP_SECRET` | Fallback only if you have not set `INSTAGRAM_APP_*` |
 | `INSTAGRAM_VERIFY_TOKEN` | Hub verify token |
-| `INSTAGRAM_OAUTH_REDIRECT_URI` | HTTPS Meta OAuth callback (default production API `/integrations/meta/instagram/oauth/callback`). **Not** a deep link. |
+| `INSTAGRAM_OAUTH_REDIRECT_URI` | HTTPS callback registered in Meta Business Login (default production API `/integrations/meta/instagram/oauth/callback`). **Not** a deep link. |
 | `BAAS_TOKEN_ENCRYPTION_KEY` | 32-byte base64 (or any secret hashed to 32 bytes in non-prod) |
 
 Missing `META_APP_ID` / secret returns Spanish **503** (not opaque 500).

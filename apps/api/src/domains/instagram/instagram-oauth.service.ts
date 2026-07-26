@@ -40,7 +40,7 @@ export class InstagramOAuthService {
   async startOAuth(params: {
     authorizationHeader: string | undefined;
     organizationId: string;
-  }): Promise<{ authUrl: string; state: string }> {
+  }): Promise<{ authUrl: string; redirectUri: string; state: string }> {
     const user = await resolveAuthUser(this.supabaseService, params.authorizationHeader);
     const role = await assertOrgMembership({
       organizationId: params.organizationId,
@@ -51,7 +51,7 @@ export class InstagramOAuthService {
       throw new BadRequestException('Solo el dueño puede conectar Instagram.');
     }
 
-    const appId = this.requireMetaAppId();
+    const appId = this.requireInstagramAppId();
     const redirectUri = this.redirectUri();
     const state = this.signState({
       organizationId: params.organizationId,
@@ -66,7 +66,7 @@ export class InstagramOAuthService {
     authUrl.searchParams.set('scope', OAUTH_SCOPES.join(','));
     authUrl.searchParams.set('state', state);
 
-    return { authUrl: authUrl.toString(), state };
+    return { authUrl: authUrl.toString(), redirectUri, state };
   }
 
   /**
@@ -235,29 +235,49 @@ export class InstagramOAuthService {
     return decryptSecret(encrypted, this.configService.get<string>('BAAS_TOKEN_ENCRYPTION_KEY'));
   }
 
-  private requireMetaAppId(): string {
+  /**
+   * Business Login for Instagram requires the **Instagram App ID** from
+   * App Dashboard → Instagram → API setup with Instagram login → Business login settings.
+   * The Meta/Facebook App ID at the top of the dashboard is a different value and will fail OAuth.
+   */
+  private requireInstagramAppId(): string {
     const appId =
-      this.configService.get<string>('META_APP_ID') ??
-      this.configService.get<string>('INSTAGRAM_APP_ID');
-    if (!appId?.trim()) {
+      this.configService.get<string>('INSTAGRAM_APP_ID')?.trim() ||
+      this.configService.get<string>('META_INSTAGRAM_APP_ID')?.trim() ||
+      this.configService.get<string>('META_APP_ID')?.trim();
+    if (!appId) {
       throw new ServiceUnavailableException(
-        'Instagram no está configurado en el servidor (falta META_APP_ID). Pedile al administrador que lo cargue en Railway.',
+        'Instagram no está configurado (falta INSTAGRAM_APP_ID). En Meta: Instagram → API setup with Instagram login → Business login settings → Instagram App ID. Cargalo en Railway (no uses el App ID de Facebook del encabezado).',
       );
     }
-    return appId.trim();
+    return appId;
+  }
+
+  /**
+   * Instagram App Secret from the same Business login settings panel (not WhatsApp/Meta app secret).
+   * Falls back to META_APP_SECRET / WHATSAPP_APP_SECRET only if ops reused one Meta app secret everywhere.
+   */
+  private requireInstagramAppSecret(): string {
+    const secret =
+      this.configService.get<string>('INSTAGRAM_APP_SECRET')?.trim() ||
+      this.configService.get<string>('META_INSTAGRAM_APP_SECRET')?.trim() ||
+      this.configService.get<string>('META_APP_SECRET')?.trim() ||
+      this.configService.get<string>('WHATSAPP_APP_SECRET')?.trim();
+    if (!secret) {
+      throw new ServiceUnavailableException(
+        'Instagram no está configurado (falta INSTAGRAM_APP_SECRET). En Meta: Business login settings → Instagram app secret. Cargalo en Railway.',
+      );
+    }
+    return secret;
+  }
+
+  /** @deprecated Prefer requireInstagramAppId for OAuth; kept for state HMAC compatibility naming. */
+  private requireMetaAppId(): string {
+    return this.requireInstagramAppId();
   }
 
   private requireMetaAppSecret(): string {
-    const secret =
-      this.configService.get<string>('META_APP_SECRET') ??
-      this.configService.get<string>('INSTAGRAM_APP_SECRET') ??
-      this.configService.get<string>('WHATSAPP_APP_SECRET');
-    if (!secret?.trim()) {
-      throw new ServiceUnavailableException(
-        'Instagram no está configurado en el servidor (falta META_APP_SECRET). Pedile al administrador que lo cargue en Railway.',
-      );
-    }
-    return secret.trim();
+    return this.requireInstagramAppSecret();
   }
 
   /**
@@ -314,8 +334,8 @@ export class InstagramOAuthService {
 
   private async exchangeCode(code: string): Promise<{ accessToken: string }> {
     const body = new URLSearchParams({
-      client_id: this.requireMetaAppId(),
-      client_secret: this.requireMetaAppSecret(),
+      client_id: this.requireInstagramAppId(),
+      client_secret: this.requireInstagramAppSecret(),
       grant_type: 'authorization_code',
       redirect_uri: this.redirectUri(),
       code,

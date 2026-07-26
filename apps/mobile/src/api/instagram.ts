@@ -21,7 +21,7 @@ export type InstagramMessagingWindowState =
 
 export async function startInstagramOAuth(params: {
   organizationId: string;
-}): Promise<{ authUrl: string; state: string }> {
+}): Promise<{ authUrl: string; redirectUri: string; state: string }> {
   return apiFetchAuthJson('/instagram/oauth/start', {
     body: JSON.stringify(params),
     method: 'POST',

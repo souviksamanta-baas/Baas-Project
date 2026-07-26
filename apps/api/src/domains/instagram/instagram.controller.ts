@@ -43,7 +43,7 @@ export class InstagramController {
   async startOAuth(
     @Headers('authorization') authorizationHeader: string | undefined,
     @Body() body: InstagramOAuthStartDto,
-  ): Promise<{ authUrl: string; state: string }> {
+  ): Promise<{ authUrl: string; redirectUri: string; state: string }> {
     return this.oauthService.startOAuth({
       authorizationHeader,
       organizationId: body.organizationId,

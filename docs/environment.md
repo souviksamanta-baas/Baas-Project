@@ -214,11 +214,14 @@ Platform secrets (Nexolia Meta app)—set **once** by ops in Railway. Merchants 
 
 | Variable | Purpose |
 | --- | --- |
-| `META_APP_ID` | Platform Meta / Instagram app id (alias: `INSTAGRAM_APP_ID`) |
-| `META_APP_SECRET` | App secret for OAuth + webhook HMAC (alias: `INSTAGRAM_APP_SECRET`; may reuse `WHATSAPP_APP_SECRET` if same Meta app) |
+| `INSTAGRAM_APP_ID` | **Instagram App ID** from Meta → Instagram → API setup with Instagram login → Business login settings (not the Facebook App ID in the dashboard header) |
+| `INSTAGRAM_APP_SECRET` | **Instagram App Secret** from the same panel |
+| `META_APP_ID` / `META_APP_SECRET` | Optional fallback if `INSTAGRAM_APP_*` unset |
 | `INSTAGRAM_VERIFY_TOKEN` | Meta hub verify token for Instagram webhooks (falls back to WhatsApp verify token) |
-| `INSTAGRAM_OAUTH_REDIRECT_URI` | HTTPS callback registered in Meta Business Login (default `https://baas-project-production.up.railway.app/integrations/meta/instagram/oauth/callback`). Meta rejects custom schemes. |
+| `INSTAGRAM_OAUTH_REDIRECT_URI` | HTTPS callback registered in Meta Business Login (default `https://baas-project-production.up.railway.app/integrations/meta/instagram/oauth/callback`). Meta rejects custom schemes. Must match Meta **exactly** (trailing slash included/excluded). |
 | `BAAS_TOKEN_ENCRYPTION_KEY` | AES-256-GCM key for tenant Instagram tokens (prefer 32-byte base64) |
+
+If Meta shows **Invalid request: Request parameters are invalid** after the login/2FA code: (1) OAuth redirect URI not registered exactly under Instagram Business login settings, or (2) Railway has the Facebook App ID instead of the Instagram App ID.
 
 Primary webhook path: `/integrations/meta/instagram/webhook` (alias `/webhooks/instagram`).
 
