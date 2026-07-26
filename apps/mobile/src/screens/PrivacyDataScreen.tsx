@@ -25,7 +25,7 @@ import { PrimaryButton, colors, spacing } from '../design-system';
 
 /** Public store-facing deletion instructions (host or link from Play/App Store). */
 export const ACCOUNT_DELETION_PUBLIC_URL =
-  'https://github.com/souviksamanta-baas/Baas-Project/blob/main/docs/account-deletion.md';
+  'https://nexolia.com.ar/eliminacion-de-cuenta';
 
 export function PrivacyDataScreen(props: {
   onBack: () => void;
