@@ -1,7 +1,10 @@
 # Eliminación de cuenta y datos (Nexolia Owner)
 
 **Jira:** [KAN-363](https://souviksamanta.atlassian.net/browse/KAN-363)  
-Este documento es la **URL pública orientada a Play Store / App Store** para solicitudes de eliminación de cuenta.
+**URL pública (Play Store / App Store):** [https://nexolia.com.ar/eliminacion-de-cuenta](https://nexolia.com.ar/eliminacion-de-cuenta)  
+Alias en inglés: [https://nexolia.com.ar/account-deletion](https://nexolia.com.ar/account-deletion)
+
+Este documento en el repo refleja el contenido publicado en el sitio.
 
 ## Cómo eliminar tu cuenta desde la app
 
@@ -34,7 +37,7 @@ Los dueños pueden **Exportar datos del negocio** (JSON preliminar: org, miembro
 
 ## Solicitud por email (si no podés entrar a la app)
 
-Escribí a soporte Nexolia (WhatsApp de ayuda en la app o el canal publicado en la ficha de Play/App Store) con:
+Escribí a [privacidad@nexolia.com.ar](mailto:privacidad@nexolia.com.ar) con:
 
 - email o teléfono de la cuenta;
 - nombre del negocio;
@@ -46,5 +49,3 @@ Procesamos la baja en un plazo razonable (objetivo ≤ 30 días).
 
 - **Se borra:** membresías, org (si aplica), conversaciones, productos/stock del tenant, tokens push, configuración WhatsApp/Instagram del tenant.
 - **Puede quedar temporalmente:** backups operativos, logs de infraestructura, registros legales mínimos, hasta la rotación habitual.
-
-Actualizá esta página cuando el hosting público de Nexolia Web esté vivo (reemplazar el enlace de GitHub por el dominio de producto).
