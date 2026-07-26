@@ -291,7 +291,7 @@ function toInboxConversationSummary(row: ConversationRow): InboxConversationSumm
       displayName: contact?.display_name ?? row.customer_display_name,
       id: contact?.id ?? null,
       leadStatus: contact?.lead_status ?? null,
-      phoneNumber: contact?.phone_number ?? row.external_contact_id,
+      phoneNumber: contact?.phone_number ?? (row.channel === 'whatsapp' ? row.external_contact_id : null),
     },
     externalContactId: row.external_contact_id,
     id: row.id,

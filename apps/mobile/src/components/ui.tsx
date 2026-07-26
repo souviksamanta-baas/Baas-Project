@@ -659,12 +659,17 @@ function TabButton(props: { active: boolean; icon: IconKind; label: string; onPr
   );
 }
 
+function channelAccentColor(channel: Channel): string {
+  return messageSourceMeta(channel).color;
+}
+
 function Avatar(props: { channel: Channel; label: string }): ReactElement {
+  const accent = channelAccentColor(props.channel);
   return (
     <View style={styles.customerAvatar}>
       <Text style={styles.customerAvatarText}>{props.label}</Text>
-      <View style={styles.channelBadge}>
-        <ChannelIcon channel={props.channel} size={12} />
+      <View style={[styles.channelBadge, { borderColor: accent }]}>
+        <ChannelIcon channel={props.channel} size={14} />
       </View>
     </View>
   );
@@ -855,19 +860,19 @@ const styles = StyleSheet.create({
   },
   channelBadge: {
     alignItems: 'center',
-    backgroundColor: colors.primary,
-    borderColor: colors.surface,
+    backgroundColor: colors.surface,
     borderRadius: radius.pill,
-    borderWidth: 1,
+    borderWidth: 1.5,
     bottom: -3,
-    height: 19,
+    height: 20,
     justifyContent: 'center',
+    overflow: 'hidden',
     position: 'absolute',
     right: -4,
-    width: 19,
+    width: 20,
   },
   channelBadgeText: {
-    color: colors.surface,
+    color: colors.navy,
     fontSize: 9,
     fontWeight: '600',
   },

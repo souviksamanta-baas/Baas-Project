@@ -41,11 +41,23 @@ export function formatConversationTime(value: string | null): string {
 }
 
 export function conversationDisplayName(conversation: InboxConversationSummary): string {
-  return (
-    conversation.contact.displayName ??
-    conversation.contact.phoneNumber ??
-    conversation.externalContactId
-  );
+  const named = conversation.contact.displayName?.trim();
+  if (named) {
+    return named;
+  }
+
+  if (conversation.channel === 'whatsapp') {
+    const phone = conversation.contact.phoneNumber?.trim();
+    if (phone) {
+      return phone;
+    }
+  }
+
+  if (conversation.channel === 'instagram') {
+    return 'Cliente de Instagram';
+  }
+
+  return conversation.contact.phoneNumber?.trim() || conversation.externalContactId || 'Sin nombre';
 }
 
 export function conversationAvatarLabel(conversation: InboxConversationSummary): string {

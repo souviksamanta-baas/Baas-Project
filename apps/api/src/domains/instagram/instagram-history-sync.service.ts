@@ -63,7 +63,11 @@ export class InstagramHistorySyncService {
             business_center_id: params.businessCenterId,
             channel: 'instagram',
             external_contact_id: customer.id,
-            display_name: customer.username ?? null,
+            display_name: customer.username
+              ? customer.username.startsWith('@')
+                ? customer.username
+                : `@${customer.username}`
+              : null,
             last_seen_at: new Date().toISOString(),
           },
           { onConflict: 'organization_id,channel,external_contact_id' },
@@ -79,6 +83,11 @@ export class InstagramHistorySyncService {
       const windowExpires = lastInboundAt
         ? new Date(new Date(lastInboundAt).getTime() + 24 * 60 * 60 * 1000).toISOString()
         : null;
+      const displayName = customer.username
+        ? customer.username.startsWith('@')
+          ? customer.username
+          : `@${customer.username}`
+        : null;
 
       const { data: conversation } = await client
         .from('conversations')
@@ -89,6 +98,7 @@ export class InstagramHistorySyncService {
             channel: 'instagram',
             external_contact_id: customer.id,
             contact_id: contact?.id ?? null,
+            customer_display_name: displayName,
             status: 'open',
             last_message_at: lastAt,
             last_inbound_at: lastInboundAt,

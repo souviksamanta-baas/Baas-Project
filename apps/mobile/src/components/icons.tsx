@@ -75,9 +75,9 @@ export function Icon(props: {
 export function ChannelIcon(props: { channel: 'email' | 'facebook' | 'instagram' | 'whatsapp'; size?: number }): ReactElement {
   const color =
     props.channel === 'whatsapp'
-      ? '#20c76a'
+      ? '#08bd66'
       : props.channel === 'instagram'
-        ? '#d94a8c'
+        ? '#e13b8d'
         : props.channel === 'facebook'
           ? '#1877f2'
           : '#6b4fc3';
@@ -86,7 +86,7 @@ export function ChannelIcon(props: { channel: 'email' | 'facebook' | 'instagram'
     <Svg fill="none" height={props.size ?? 13} viewBox="0 0 24 24" width={props.size ?? 13}>
       {props.channel === 'whatsapp' ? (
         <>
-          <Path d="M5.2 19.2 6.3 15.6a7.3 7.3 0 1 1 2.8 2.7l-3.9.9Z" fill="#ffffff" stroke={color} strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.1} />
+          <Path d="M5.2 19.2 6.3 15.6a7.3 7.3 0 1 1 2.8 2.7l-3.9.9Z" fill="#e9f8ef" stroke={color} strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.1} />
           <Path d="M9.5 8.6c.2-.5.4-.5.8-.5h.5c.2 0 .4.1.5.4l.7 1.6c.1.3.1.5-.1.7l-.5.6c.8 1.3 1.8 2.2 3.2 2.8l.6-.7c.2-.2.4-.3.7-.2l1.6.7c.3.1.4.3.4.6v.4c0 .5-.2.8-.6 1-1 .5-3.1-.1-5.2-1.9-2.3-2-3.3-4.4-2.6-5.5Z" fill={color} />
         </>
       ) : props.channel === 'instagram' ? (

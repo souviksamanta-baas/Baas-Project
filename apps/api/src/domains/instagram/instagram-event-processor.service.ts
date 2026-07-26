@@ -1,5 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 
+import { decryptSecret } from '../../lib/token-crypto';
 import { SupabaseService } from '../../supabase/supabase.service';
 
 const WINDOW_MS = 24 * 60 * 60 * 1000;
@@ -18,7 +20,10 @@ export interface InstagramInboundEnvelope {
 export class InstagramEventProcessor {
   private readonly logger = new Logger(InstagramEventProcessor.name);
 
-  constructor(private readonly supabaseService: SupabaseService) {}
+  constructor(
+    private readonly supabaseService: SupabaseService,
+    private readonly configService: ConfigService,
+  ) {}
 
   scheduleProcess(eventIds: string[]): void {
     setImmediate(() => {
@@ -84,6 +89,11 @@ export class InstagramEventProcessor {
 
       const inboundAt = new Date(envelope.timestampMs).toISOString();
       const windowExpires = new Date(envelope.timestampMs + WINDOW_MS).toISOString();
+      const displayName = await this.resolveSenderDisplayName({
+        accessTokenEncrypted: config.access_token_encrypted,
+        organizationId: config.organization_id,
+        senderId: envelope.senderId,
+      });
 
       const { data: contact } = await client
         .from('contacts')
@@ -93,7 +103,7 @@ export class InstagramEventProcessor {
             business_center_id: config.business_center_id,
             channel: 'instagram',
             external_contact_id: envelope.senderId,
-            display_name: null,
+            display_name: displayName,
             last_seen_at: inboundAt,
           },
           { onConflict: 'organization_id,channel,external_contact_id' },
@@ -110,6 +120,7 @@ export class InstagramEventProcessor {
             channel: 'instagram',
             external_contact_id: envelope.senderId,
             contact_id: contact?.id ?? null,
+            customer_display_name: displayName,
             status: 'open',
             last_message_at: inboundAt,
             last_inbound_at: inboundAt,
@@ -231,7 +242,54 @@ export class InstagramEventProcessor {
     return null;
   }
 
+  private async resolveSenderDisplayName(params: {
+    accessTokenEncrypted: string | null;
+    organizationId: string;
+    senderId: string;
+  }): Promise<string | null> {
+    const client = this.supabaseService.getServiceRoleClient();
+    const { data: existing } = await client
+      .from('contacts')
+      .select('display_name')
+      .eq('organization_id', params.organizationId)
+      .eq('channel', 'instagram')
+      .eq('external_contact_id', params.senderId)
+      .maybeSingle<{ display_name: string | null }>();
+
+    const existingName = existing?.display_name?.trim() || null;
+    if (existingName) {
+      return existingName;
+    }
+
+    if (!params.accessTokenEncrypted) {
+      return null;
+    }
+
+    try {
+      const accessToken = decryptSecret(
+        params.accessTokenEncrypted,
+        this.configService.get<string>('BAAS_TOKEN_ENCRYPTION_KEY'),
+      );
+      const url = new URL(`https://graph.instagram.com/v21.0/${params.senderId}`);
+      url.searchParams.set('fields', 'name,username');
+      url.searchParams.set('access_token', accessToken);
+      const response = await fetch(url);
+      if (!response.ok) {
+        return null;
+      }
+      const payload = (await response.json()) as { name?: string; username?: string };
+      const username = payload.username?.trim();
+      if (username) {
+        return username.startsWith('@') ? username : `@${username}`;
+      }
+      return payload.name?.trim() || null;
+    } catch {
+      return null;
+    }
+  }
+
   private async resolveConfig(recipientId: string): Promise<{
+    access_token_encrypted: string | null;
     business_center_id: string;
     id: string;
     organization_id: string;
@@ -242,10 +300,11 @@ export class InstagramEventProcessor {
     const client = this.supabaseService.getServiceRoleClient();
     const { data } = await client
       .from('instagram_config')
-      .select('id, organization_id, business_center_id')
+      .select('id, organization_id, business_center_id, access_token_encrypted')
       .or(`ig_user_id.eq.${recipientId},page_id.eq.${recipientId}`)
       .eq('connection_status', 'connected')
       .maybeSingle<{
+        access_token_encrypted: string | null;
         business_center_id: string;
         id: string;
         organization_id: string;
