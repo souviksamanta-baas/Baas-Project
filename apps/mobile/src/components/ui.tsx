@@ -625,10 +625,11 @@ export function BottomNavigation(props: {
   onSelectTab: (tab: AppTab) => void;
 }): ReactElement {
   const insets = useSafeAreaInsets();
-  const bottomPad = Math.max(insets.bottom, spacing.sm);
+  // Floating dock: keep a tight gap above the home indicator (full inset looked like a huge empty band).
+  const bottomPad = insets.bottom > 0 ? spacing.xs : spacing.sm;
 
   return (
-    <View style={[styles.bottomNavWrap, { paddingBottom: bottomPad }]}>
+    <View style={[styles.bottomNavSafe, { paddingBottom: bottomPad }]}>
       <View style={styles.bottomNav}>
         <TabButton active={props.activeTab === 'home'} icon="home" label="Inicio" onPress={() => props.onSelectTab('home')} />
         <TabButton active={props.activeTab === 'inbox'} icon="inbox" label="Inbox" onPress={() => props.onSelectTab('inbox')} />
@@ -796,22 +797,22 @@ const styles = StyleSheet.create({
   blueTone: {
     backgroundColor: '#eef8ff',
   },
-  bottomNavWrap: {
-    ...shadows.dock,
-    backgroundColor: colors.surface,
-    borderColor: colors.border,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    borderTopWidth: 1,
-    paddingHorizontal: 12,
-    paddingTop: spacing.xs,
+  bottomNavSafe: {
+    backgroundColor: 'transparent',
+    paddingHorizontal: spacing.sm,
   },
   bottomNav: {
+    ...shadows.dock,
     alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: radius.dock,
+    borderWidth: 1,
     flexDirection: 'row',
     height: 56,
     justifyContent: 'space-between',
-    paddingHorizontal: 10,
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.xs,
   },
   branchMenu: {
     ...shadows.card,
