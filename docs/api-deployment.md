@@ -147,10 +147,13 @@ Health check path:
 | `WHATSAPP_VERIFY_TOKEN` | Required before Meta webhook setup | Verification token for `GET /webhooks/whatsapp`. |
 | `WHATSAPP_APP_SECRET` | Required in production webhook handling | Meta app secret for webhook signature validation. |
 | `WHATSAPP_WEBHOOK_PATH` | Optional | Documented path, default `/webhooks/whatsapp`. |
-| `META_APP_ID` / `META_APP_SECRET` | Required for Instagram OAuth | Platform Meta app credentials (aliases `INSTAGRAM_APP_*`). |
+| `META_APP_ID` / `META_APP_SECRET` | Required for Instagram OAuth | Platform Meta app credentials (aliases `INSTAGRAM_APP_*`). Ops sets these in Railway dashboard—never paste into chat. Merchants use OAuth only. |
 | `INSTAGRAM_VERIFY_TOKEN` | Required before Instagram webhook setup | Verification for `GET /integrations/meta/instagram/webhook` (alias `/webhooks/instagram`). |
 | `INSTAGRAM_OAUTH_REDIRECT_URI` | Optional | Default `baas-owner://instagram-oauth`. |
 | `BAAS_TOKEN_ENCRYPTION_KEY` | Required when encrypting Instagram tokens | AES-256-GCM key for `instagram_config`. |
+
+Client onboarding (Spanish): Confluence [Onboarding de clientes — Instagram](https://souviksamanta.atlassian.net/wiki/spaces/BaaS/pages/27230209/Onboarding+de+clientes+Instagram). Ops checklist: [Instagram Messaging](https://souviksamanta.atlassian.net/wiki/spaces/BaaS/pages/26247169/Instagram+Messaging+Owner+inbox).
+
 | `BAAS_TASKS_JOB_SECRET` | Required for task automation trigger | Shared secret expected in `x-baas-job-secret` for `POST /tasks/run-maintenance`. |
 | `OPENAI_API_KEY` | Optional | Enables Copi LLM phrasing, voice STT, and vision. Falls back to deterministic templates when unset. |
 | `OPENAI_MODEL` | Optional | Copi phrasing model. Default `gpt-4o-mini`. |

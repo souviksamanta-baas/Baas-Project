@@ -31,7 +31,14 @@ export function InstagramConnectScreen(props: {
       }
       await Linking.openURL(authUrl);
     } catch (error) {
-      Alert.alert('No se pudo conectar', error instanceof Error ? error.message : 'Error');
+      const raw = error instanceof Error ? error.message : 'Error';
+      const message =
+        /internal server error/i.test(raw) || /META_APP_/i.test(raw)
+          ? raw.includes('META_APP')
+            ? raw
+            : 'El servidor no tiene configurado Instagram (META_APP_ID / META_APP_SECRET). Revisá las variables en Railway.'
+          : raw;
+      Alert.alert('No se pudo conectar', message);
     } finally {
       setBusy(false);
     }

@@ -1,6 +1,10 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 
-import { BadRequestException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 import {
@@ -210,7 +214,9 @@ export class InstagramOAuthService {
       this.configService.get<string>('META_APP_ID') ??
       this.configService.get<string>('INSTAGRAM_APP_ID');
     if (!appId?.trim()) {
-      throw new Error('META_APP_ID is not configured');
+      throw new ServiceUnavailableException(
+        'Instagram no está configurado en el servidor (falta META_APP_ID). Pedile al administrador que lo cargue en Railway.',
+      );
     }
     return appId.trim();
   }
@@ -221,7 +227,9 @@ export class InstagramOAuthService {
       this.configService.get<string>('INSTAGRAM_APP_SECRET') ??
       this.configService.get<string>('WHATSAPP_APP_SECRET');
     if (!secret?.trim()) {
-      throw new Error('META_APP_SECRET is not configured');
+      throw new ServiceUnavailableException(
+        'Instagram no está configurado en el servidor (falta META_APP_SECRET). Pedile al administrador que lo cargue en Railway.',
+      );
     }
     return secret.trim();
   }

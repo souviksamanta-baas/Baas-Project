@@ -2,7 +2,21 @@
 
 Canonical product/ops guide for Instagram DMs in Nexolia ([KAN-365](https://souviksamanta.atlassian.net/browse/KAN-365)).
 
-Confluence: [Instagram Messaging (Owner inbox)](https://souviksamanta.atlassian.net/wiki/spaces/BaaS/pages/26247169/Instagram+Messaging+Owner+inbox)
+**Confluence**
+
+- Integration / ops: [Instagram Messaging (Owner inbox)](https://souviksamanta.atlassian.net/wiki/spaces/BaaS/pages/26247169/Instagram+Messaging+Owner+inbox)
+- **Client onboarding (Spanish):** [Onboarding de clientes — Instagram](https://souviksamanta.atlassian.net/wiki/spaces/BaaS/pages/27230209/Onboarding+de+clientes+Instagram)
+
+## Platform vs merchant
+
+| Actor | Action | Secrets |
+| --- | --- | --- |
+| **Nexolia ops** | Meta Developer app + Railway Variables **once** per environment | `META_APP_ID`, `META_APP_SECRET`, verify token, `BAAS_TOKEN_ENCRYPTION_KEY` |
+| **Merchant (client)** | Integraciones → **Conectar cuenta existente** → Meta OAuth | Tenant token encrypted in `instagram_config` |
+
+Merchants never open Railway and never provide Meta App Secret. Ops sets platform vars in the Railway dashboard (or local CLI)—**do not paste secrets into Cursor/chat**.
+
+If connect fails with a server-configuration message, it is an ops gap (`META_APP_*` missing), not a client mistake.
 
 ## Product shape
 
@@ -24,6 +38,8 @@ Owners connect an Instagram Professional account with **Instagram Business Login
 6. `POST /instagram/connection/disconnect` disables the config and clears the token
 
 Manual `POST /instagram/connection/register` is deprecated (ops only).
+
+Client-facing Spanish steps: Confluence **Onboarding de clientes — Instagram**.
 
 ## Messaging window
 
@@ -54,10 +70,12 @@ Ack-then-process: validate signature → insert `instagram_message_events` → H
 | Variable | Purpose |
 | --- | --- |
 | `META_APP_ID` / `INSTAGRAM_APP_ID` | Platform Meta app id |
-| `META_APP_SECRET` / `INSTAGRAM_APP_SECRET` | App secret (signature + OAuth) |
+| `META_APP_SECRET` / `INSTAGRAM_APP_SECRET` | App secret (signature + OAuth); may reuse `WHATSAPP_APP_SECRET` if same Meta app |
 | `INSTAGRAM_VERIFY_TOKEN` | Hub verify token |
 | `INSTAGRAM_OAUTH_REDIRECT_URI` | Default `baas-owner://instagram-oauth` |
 | `BAAS_TOKEN_ENCRYPTION_KEY` | 32-byte base64 (or any secret hashed to 32 bytes in non-prod) |
+
+Missing `META_APP_ID` / secret returns Spanish **503** (not opaque 500).
 
 ## App Review demo script (sketch)
 

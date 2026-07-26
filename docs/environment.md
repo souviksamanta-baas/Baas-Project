@@ -210,14 +210,16 @@ For KAN-14, the acceptance criteria are satisfied when:
 
 ### Instagram Messaging
 
+Platform secrets (Nexolia Meta app)—set **once** by ops in Railway. Merchants never receive these values; they connect via OAuth only. Do not paste secrets into Cursor or Confluence.
+
 | Variable | Purpose |
 | --- | --- |
 | `META_APP_ID` | Platform Meta / Instagram app id (alias: `INSTAGRAM_APP_ID`) |
-| `META_APP_SECRET` | App secret for OAuth + webhook HMAC (alias: `INSTAGRAM_APP_SECRET`) |
+| `META_APP_SECRET` | App secret for OAuth + webhook HMAC (alias: `INSTAGRAM_APP_SECRET`; may reuse `WHATSAPP_APP_SECRET` if same Meta app) |
 | `INSTAGRAM_VERIFY_TOKEN` | Meta hub verify token for Instagram webhooks (falls back to WhatsApp verify token) |
 | `INSTAGRAM_OAUTH_REDIRECT_URI` | Mobile deep link; default `baas-owner://instagram-oauth` |
 | `BAAS_TOKEN_ENCRYPTION_KEY` | AES-256-GCM key for tenant Instagram tokens (prefer 32-byte base64) |
 
 Primary webhook path: `/integrations/meta/instagram/webhook` (alias `/webhooks/instagram`).
 
-See `docs/instagram-messaging.md` and `docs/instagram-webhook.md`.
+See `docs/instagram-messaging.md`, `docs/instagram-webhook.md`, and Confluence [Onboarding de clientes — Instagram](https://souviksamanta.atlassian.net/wiki/spaces/BaaS/pages/27230209/Onboarding+de+clientes+Instagram).

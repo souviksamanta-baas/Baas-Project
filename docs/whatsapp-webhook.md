@@ -47,6 +47,8 @@ ignored local env files or deployment secret stores.
 | **Nexolia platform** | `NEXOLIA_AUTH_WABA_*` | Login/staff verification OTP (`POST /auth/otp/whatsapp/*`) |
 | **Merchant** | Per-row in `whatsapp_config` | Customer inbox webhooks and outbound replies |
 
+Platform Cloud tokens (`WHATSAPP_CLOUD_ACCESS_TOKEN`, `WHATSAPP_APP_SECRET`, etc.) live on Railway only—same pattern as Instagram `META_APP_*`. Merchants do **not** paste system Cloud API tokens into the Owner app; they register Phone Number ID / display number (see `docs/mobile-app.md`). Instagram merchants use OAuth instead of IDs.
+
 Webhooks on `/webhooks/whatsapp` route inbound **customer** messages by merchant `phone_number_id`. Auth OTP messages use the platform WABA and do not appear in the merchant inbox.
 
 See [meta-platform-waba-setup.md](./meta-platform-waba-setup.md) for developer setup and test limits.

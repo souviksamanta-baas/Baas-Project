@@ -44,17 +44,10 @@ export class InstagramController {
     @Headers('authorization') authorizationHeader: string | undefined,
     @Body() body: InstagramOAuthStartDto,
   ): Promise<{ authUrl: string; state: string }> {
-    try {
-      return await this.oauthService.startOAuth({
-        authorizationHeader,
-        organizationId: body.organizationId,
-      });
-    } catch (error) {
-      if (error instanceof Error && /token|owner|auth/i.test(error.message)) {
-        throw new UnauthorizedException(error.message);
-      }
-      throw error;
-    }
+    return this.oauthService.startOAuth({
+      authorizationHeader,
+      organizationId: body.organizationId,
+    });
   }
 
   @Post('oauth/callback')

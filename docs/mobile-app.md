@@ -141,7 +141,9 @@ After organization creation, the dashboard shows:
 - Instagram connection from the same dashboard (`instagramConnection`). Connect via
   **Integraciones → Instagram → Conectar cuenta existente** (Meta OAuth + deep link
   `baas-owner://instagram-oauth`). Composer blocks replies outside the 24h window.
-  See `docs/instagram-messaging.md`.
+  Client onboarding (Spanish): Confluence
+  [Onboarding de clientes — Instagram](https://souviksamanta.atlassian.net/wiki/spaces/BaaS/pages/27230209/Onboarding+de+clientes+Instagram).
+  Ops/platform secrets: `docs/instagram-messaging.md`.
 - Active/default business center metadata for center-scoped settings and filters.
 - Zero-count metrics for contacts, open conversations, products, and low stock.
 - Setup prompts for WhatsApp, product catalog, and follow-up rules.
@@ -479,7 +481,7 @@ Jira epic [KAN-304](https://souviksamanta.atlassian.net/browse/KAN-304). Conflue
 | Copi API | KAN-311 / KAN-319 | `OwnerCopilotProvider`, full Copi API surface in `api/ai.ts` |
 | iPhone install | KAN-312 | `docs/mobile-iphone-install.md`, `apps/mobile/eas.json` |
 | Account lifecycle / GDPR | [KAN-363](https://souviksamanta.atlassian.net/browse/KAN-363) | Privacidad y datos, archive/delete org, delete account |
-| Instagram messaging | [KAN-365](https://souviksamanta.atlassian.net/browse/KAN-365) | Business Login OAuth, webhook ack-then-process, 24h window, text send (`docs/instagram-messaging.md`, [Confluence](https://souviksamanta.atlassian.net/wiki/spaces/BaaS/pages/26247169/Instagram+Messaging+Owner+inbox)) |
+| Instagram messaging | [KAN-365](https://souviksamanta.atlassian.net/browse/KAN-365) | Business Login OAuth, webhook ack-then-process, 24h window, text send (`docs/instagram-messaging.md`, [Confluence integration](https://souviksamanta.atlassian.net/wiki/spaces/BaaS/pages/26247169/Instagram+Messaging+Owner+inbox), [client onboarding](https://souviksamanta.atlassian.net/wiki/spaces/BaaS/pages/27230209/Onboarding+de+clientes+Instagram)) |
 | Android compatibility | [KAN-346](https://souviksamanta.atlassian.net/browse/KAN-346) | Adaptation (not rebuild): `docs/mobile-android-install.md`, Confluence [Android adaptation](https://souviksamanta.atlassian.net/wiki/spaces/BaaS/pages/26083329/Android+compatibility+and+adaptation) |
 
 **Ops before production QA:** apply migration
