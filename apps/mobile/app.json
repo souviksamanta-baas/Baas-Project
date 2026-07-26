@@ -97,10 +97,7 @@
       }
     },
     "extra": {
-      "phase": "0",
-      "eas": {
-        "projectId": "REPLACE_WITH_EAS_PROJECT_ID"
-      }
+      "phase": "0"
     },
     "androidStatusBar": {
       "backgroundColor": "#0f172a",

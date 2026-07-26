@@ -27,7 +27,7 @@ eas build:configure   # links EAS projectId into app.json extra.eas.projectId
 Ensure [`apps/mobile/app.json`](../apps/mobile/app.json):
 
 - `android.package`: `com.nexolia.owner` (same as iOS bundle id)
-- `extra.eas.projectId`: run `eas build:configure` and replace `REPLACE_WITH_EAS_PROJECT_ID` in `app.json`
+- `extra.eas.projectId`: only after `eas build:configure` (omit until then — a placeholder breaks local Expo / Simulator)
 - Adaptive icon / splash / notification icon wired under `assets/images/`
 
 [`apps/mobile/eas.json`](../apps/mobile/eas.json) profiles:
@@ -99,7 +99,7 @@ Use the same EAS channel as the installed build profile.
 
 These cannot be completed from CI/agent without your Expo/Google accounts:
 
-1. `eas login` then `eas build:configure` → write real `extra.eas.projectId` (replace `REPLACE_WITH_EAS_PROJECT_ID`)
+1. **Only for cloud EAS builds / Expo push** — not for `expo start` + iOS Simulator: `eas login` then `eas build:configure` so a real `extra.eas.projectId` is written into `app.json` / `app.config.js`
 2. Place Firebase `apps/mobile/google-services.json` and configure EAS FCM credentials
 3. `npm run build:android:development` / `preview` / `production` and install on hardware
 4. Play Console app + data-safety + internal/closed tracks ([mobile-android-play.md](./mobile-android-play.md))
