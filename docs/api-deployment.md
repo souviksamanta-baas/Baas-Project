@@ -152,7 +152,7 @@ Health check path:
 | `INSTAGRAM_OAUTH_REDIRECT_URI` | Optional | Default `baas-owner://instagram-oauth`. |
 | `BAAS_TOKEN_ENCRYPTION_KEY` | Required when encrypting Instagram tokens | AES-256-GCM key for `instagram_config`. |
 
-Client onboarding (Spanish): Confluence [Onboarding de clientes — Instagram](https://souviksamanta.atlassian.net/wiki/spaces/BaaS/pages/27230209/Onboarding+de+clientes+Instagram). Ops checklist: [Instagram Messaging](https://souviksamanta.atlassian.net/wiki/spaces/BaaS/pages/26247169/Instagram+Messaging+Owner+inbox).
+Client onboarding (Spanish): Confluence [Onboarding de clientes](https://souviksamanta.atlassian.net/wiki/spaces/BaaS/pages/27230209/Onboarding+de+clientes). Ops checklist: [Instagram Messaging](https://souviksamanta.atlassian.net/wiki/spaces/BaaS/pages/26247169/Instagram+Messaging+Owner+inbox).
 
 | `BAAS_TASKS_JOB_SECRET` | Required for task automation trigger | Shared secret expected in `x-baas-job-secret` for `POST /tasks/run-maintenance`. |
 | `OPENAI_API_KEY` | Optional | Enables Copi LLM phrasing, voice STT, and vision. Falls back to deterministic templates when unset. |

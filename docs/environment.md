@@ -222,4 +222,4 @@ Platform secrets (Nexolia Meta app)—set **once** by ops in Railway. Merchants 
 
 Primary webhook path: `/integrations/meta/instagram/webhook` (alias `/webhooks/instagram`).
 
-See `docs/instagram-messaging.md`, `docs/instagram-webhook.md`, and Confluence [Onboarding de clientes — Instagram](https://souviksamanta.atlassian.net/wiki/spaces/BaaS/pages/27230209/Onboarding+de+clientes+Instagram).
+See `docs/instagram-messaging.md`, `docs/instagram-webhook.md`, and Confluence [Onboarding de clientes](https://souviksamanta.atlassian.net/wiki/spaces/BaaS/pages/27230209/Onboarding+de+clientes).

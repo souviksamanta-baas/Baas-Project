@@ -4,8 +4,9 @@ Canonical product/ops guide for Instagram DMs in Nexolia ([KAN-365](https://souv
 
 **Confluence**
 
+- Platform index: [BaaS Platform Documentation](https://souviksamanta.atlassian.net/wiki/spaces/BaaS/pages/131074/BaaS+Platform+Documentation)
 - Integration / ops: [Instagram Messaging (Owner inbox)](https://souviksamanta.atlassian.net/wiki/spaces/BaaS/pages/26247169/Instagram+Messaging+Owner+inbox)
-- **Client onboarding (Spanish):** [Onboarding de clientes — Instagram](https://souviksamanta.atlassian.net/wiki/spaces/BaaS/pages/27230209/Onboarding+de+clientes+Instagram)
+- **Client onboarding (Spanish, full app):** [Onboarding de clientes](https://souviksamanta.atlassian.net/wiki/spaces/BaaS/pages/27230209/Onboarding+de+clientes)
 
 ## Platform vs merchant
 
@@ -39,7 +40,7 @@ Owners connect an Instagram Professional account with **Instagram Business Login
 
 Manual `POST /instagram/connection/register` is deprecated (ops only).
 
-Client-facing Spanish steps: Confluence **Onboarding de clientes — Instagram**.
+Client-facing Spanish steps: Confluence **Onboarding de clientes**.
 
 ## Messaging window
 

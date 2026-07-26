@@ -7,7 +7,7 @@ Canonical product guide: `docs/instagram-messaging.md`.
 Confluence:
 
 - [Instagram Messaging (Owner inbox)](https://souviksamanta.atlassian.net/wiki/spaces/BaaS/pages/26247169/Instagram+Messaging+Owner+inbox)
-- Client guide: [Onboarding de clientes — Instagram](https://souviksamanta.atlassian.net/wiki/spaces/BaaS/pages/27230209/Onboarding+de+clientes+Instagram)
+- Client guide: [Onboarding de clientes](https://souviksamanta.atlassian.net/wiki/spaces/BaaS/pages/27230209/Onboarding+de+clientes)
 
 ## Endpoints
 
