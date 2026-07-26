@@ -33,8 +33,8 @@ Owners connect an Instagram Professional account with **Instagram Business Login
 
 1. Mobile **Integraciones → Instagram → Conectar cuenta existente**
 2. `POST /instagram/oauth/start` → Meta authorize URL (`instagram_business_basic`, `instagram_business_manage_messages`)
-3. Redirect `baas-owner://instagram-oauth?code=&state=`
-4. `POST /instagram/oauth/callback` → long-lived token, profile, encrypt+upsert, `subscribed_apps`
+3. Meta redirects to HTTPS `…/integrations/meta/instagram/oauth/callback` → 302 to `baas-owner://instagram-oauth?code=&state=`
+4. App exchanges code via `POST /instagram/oauth/callback` → long-lived token, profile, encrypt+upsert, `subscribed_apps`
 5. Best-effort Conversations API history import (async; **not** a full-history promise)
 6. `POST /instagram/connection/disconnect` disables the config and clears the token
 
@@ -73,7 +73,7 @@ Ack-then-process: validate signature → insert `instagram_message_events` → H
 | `META_APP_ID` / `INSTAGRAM_APP_ID` | Platform Meta app id |
 | `META_APP_SECRET` / `INSTAGRAM_APP_SECRET` | App secret (signature + OAuth); may reuse `WHATSAPP_APP_SECRET` if same Meta app |
 | `INSTAGRAM_VERIFY_TOKEN` | Hub verify token |
-| `INSTAGRAM_OAUTH_REDIRECT_URI` | Default `baas-owner://instagram-oauth` |
+| `INSTAGRAM_OAUTH_REDIRECT_URI` | HTTPS Meta OAuth callback (default production API `/integrations/meta/instagram/oauth/callback`). **Not** a deep link. |
 | `BAAS_TOKEN_ENCRYPTION_KEY` | 32-byte base64 (or any secret hashed to 32 bytes in non-prod) |
 
 Missing `META_APP_ID` / secret returns Spanish **503** (not opaque 500).

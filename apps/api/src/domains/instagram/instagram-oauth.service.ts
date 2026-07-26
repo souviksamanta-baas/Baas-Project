@@ -69,6 +69,32 @@ export class InstagramOAuthService {
     return { authUrl: authUrl.toString(), state };
   }
 
+  /**
+   * Deep link the HTTPS Meta callback bridges into (app scheme, not registered with Meta).
+   */
+  buildAppDeepLink(params: {
+    code?: string;
+    error?: string;
+    errorDescription?: string;
+    state?: string;
+  }): string {
+    const deepLink = new URL(this.appDeepLinkBase());
+    if (params.error) {
+      deepLink.searchParams.set('error', params.error);
+      if (params.errorDescription) {
+        deepLink.searchParams.set('error_description', params.errorDescription);
+      }
+      return deepLink.toString();
+    }
+    if (params.code) {
+      deepLink.searchParams.set('code', params.code);
+    }
+    if (params.state) {
+      deepLink.searchParams.set('state', params.state);
+    }
+    return deepLink.toString();
+  }
+
   async handleCallback(params: {
     authorizationHeader: string | undefined;
     code: string;
@@ -234,9 +260,26 @@ export class InstagramOAuthService {
     return secret.trim();
   }
 
+  /**
+   * Meta Business Login only accepts HTTPS redirect URIs registered in the App Dashboard.
+   * Custom schemes (baas-owner://) are rejected with "Invalid request: Request parameters are invalid".
+   */
   private redirectUri(): string {
+    const configured = this.configService.get<string>('INSTAGRAM_OAUTH_REDIRECT_URI')?.trim();
+    const redirectUri =
+      configured ||
+      'https://baas-project-production.up.railway.app/integrations/meta/instagram/oauth/callback';
+    if (!/^https:\/\//i.test(redirectUri)) {
+      throw new ServiceUnavailableException(
+        'INSTAGRAM_OAUTH_REDIRECT_URI debe ser una URL HTTPS registrada en Meta (no un deep link). Ejemplo: https://baas-project-production.up.railway.app/integrations/meta/instagram/oauth/callback',
+      );
+    }
+    return redirectUri;
+  }
+
+  private appDeepLinkBase(): string {
     return (
-      this.configService.get<string>('INSTAGRAM_OAUTH_REDIRECT_URI')?.trim() ||
+      this.configService.get<string>('INSTAGRAM_OAUTH_APP_DEEP_LINK')?.trim() ||
       'baas-owner://instagram-oauth'
     );
   }

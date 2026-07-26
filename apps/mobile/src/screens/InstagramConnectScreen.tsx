@@ -1,14 +1,29 @@
+import * as WebBrowser from 'expo-web-browser';
 import type { ReactElement } from 'react';
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import {
+  completeInstagramOAuth,
   disconnectInstagram,
   startInstagramOAuth,
   type InstagramConnectionSummary,
 } from '../api/instagram';
 import { Card, ScreenContent, ScreenTitle } from '../components/ui';
 import { PrimaryButton, colors, spacing } from '../design-system';
+
+WebBrowser.maybeCompleteAuthSession();
+
+const APP_OAUTH_RETURN_URL = 'baas-owner://instagram-oauth';
+
+function parseOAuthCallbackUrl(url: string): { code?: string; error?: string; state?: string } {
+  const parsed = new URL(url);
+  return {
+    code: parsed.searchParams.get('code') ?? undefined,
+    error: parsed.searchParams.get('error') ?? undefined,
+    state: parsed.searchParams.get('state') ?? undefined,
+  };
+}
 
 export function InstagramConnectScreen(props: {
   connection: InstagramConnectionSummary | null;
@@ -25,11 +40,25 @@ export function InstagramConnectScreen(props: {
       const { authUrl } = await startInstagramOAuth({
         organizationId: props.organizationId,
       });
-      const canOpen = await Linking.canOpenURL(authUrl);
-      if (!canOpen) {
-        throw new Error('No se pudo abrir el inicio de sesión de Meta.');
+      const result = await WebBrowser.openAuthSessionAsync(authUrl, APP_OAUTH_RETURN_URL);
+      if (result.type !== 'success' || !('url' in result) || !result.url) {
+        if (result.type === 'cancel' || result.type === 'dismiss') {
+          return;
+        }
+        throw new Error('No se completó la autorización de Instagram.');
       }
-      await Linking.openURL(authUrl);
+
+      const { code, error, state } = parseOAuthCallbackUrl(result.url);
+      if (error) {
+        throw new Error('La autorización fue cancelada o rechazada.');
+      }
+      if (!code || !state) {
+        throw new Error('Faltan parámetros de autorización.');
+      }
+
+      await completeInstagramOAuth({ code, state });
+      await props.onConnected();
+      Alert.alert('Instagram conectado', 'La cuenta quedó vinculada a Nexolia.');
     } catch (error) {
       const raw = error instanceof Error ? error.message : 'Error';
       const message =
@@ -42,7 +71,7 @@ export function InstagramConnectScreen(props: {
     } finally {
       setBusy(false);
     }
-  }, [props.organizationId]);
+  }, [props.onConnected, props.organizationId]);
 
   const handleDisconnect = useCallback(async () => {
     setBusy(true);
@@ -104,8 +133,7 @@ export function InstagramConnectScreen(props: {
         ) : (
           <>
             <Text style={styles.hint}>
-              Vas a autorizar Nexolia en Meta. Al terminar, volvés a la app por el enlace
-              baas-owner://instagram-oauth.
+              Vas a autorizar Nexolia en Meta. Al terminar, volvés automáticamente a la app.
             </Text>
             <PrimaryButton
               disabled={busy}

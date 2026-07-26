@@ -149,7 +149,7 @@ Health check path:
 | `WHATSAPP_WEBHOOK_PATH` | Optional | Documented path, default `/webhooks/whatsapp`. |
 | `META_APP_ID` / `META_APP_SECRET` | Required for Instagram OAuth | Platform Meta app credentials (aliases `INSTAGRAM_APP_*`). Ops sets these in Railway dashboard—never paste into chat. Merchants use OAuth only. |
 | `INSTAGRAM_VERIFY_TOKEN` | Required before Instagram webhook setup | Verification for `GET /integrations/meta/instagram/webhook` (alias `/webhooks/instagram`). |
-| `INSTAGRAM_OAUTH_REDIRECT_URI` | Optional | Default `baas-owner://instagram-oauth`. |
+| `INSTAGRAM_OAUTH_REDIRECT_URI` | Optional | HTTPS OAuth callback registered in Meta. Default: `https://baas-project-production.up.railway.app/integrations/meta/instagram/oauth/callback`. |
 | `BAAS_TOKEN_ENCRYPTION_KEY` | Required when encrypting Instagram tokens | AES-256-GCM key for `instagram_config`. |
 
 Client onboarding (Spanish): Confluence [Onboarding de clientes](https://souviksamanta.atlassian.net/wiki/spaces/BaaS/pages/27230209/Onboarding+de+clientes). Ops checklist: [Instagram Messaging](https://souviksamanta.atlassian.net/wiki/spaces/BaaS/pages/26247169/Instagram+Messaging+Owner+inbox).

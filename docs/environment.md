@@ -217,7 +217,7 @@ Platform secrets (Nexolia Meta app)—set **once** by ops in Railway. Merchants 
 | `META_APP_ID` | Platform Meta / Instagram app id (alias: `INSTAGRAM_APP_ID`) |
 | `META_APP_SECRET` | App secret for OAuth + webhook HMAC (alias: `INSTAGRAM_APP_SECRET`; may reuse `WHATSAPP_APP_SECRET` if same Meta app) |
 | `INSTAGRAM_VERIFY_TOKEN` | Meta hub verify token for Instagram webhooks (falls back to WhatsApp verify token) |
-| `INSTAGRAM_OAUTH_REDIRECT_URI` | Mobile deep link; default `baas-owner://instagram-oauth` |
+| `INSTAGRAM_OAUTH_REDIRECT_URI` | HTTPS callback registered in Meta Business Login (default `https://baas-project-production.up.railway.app/integrations/meta/instagram/oauth/callback`). Meta rejects custom schemes. |
 | `BAAS_TOKEN_ENCRYPTION_KEY` | AES-256-GCM key for tenant Instagram tokens (prefer 32-byte base64) |
 
 Primary webhook path: `/integrations/meta/instagram/webhook` (alias `/webhooks/instagram`).
