@@ -5,6 +5,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 
 import { Icon } from '../components/icons';
 import { Card, ScreenContent, ScreenTitle } from '../components/ui';
+import { useOwnerSessionContext } from '../context/OwnerSessionProvider';
 import {
   formatCurrency,
   getCartLineSubtotalCents,
@@ -71,20 +72,35 @@ export function BillingQuotesScreen(props: {
   onBack: () => void;
   onOpenSell: () => void;
 }): ReactElement {
+  const { dashboard } = useOwnerSessionContext();
+  const organizationId = dashboard?.organization?.id ?? null;
+  const businessCenterId = dashboard?.businessCenter?.id ?? null;
   const [quotes, setQuotes] = useState<SavedSellQuote[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [activeFilter, setActiveFilter] = useState<SellQuoteStatus | 'all'>('all');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
   const load = useCallback(async () => {
+    if (!organizationId || !businessCenterId) {
+      setQuotes([]);
+      setErrorMessage(null);
+      setIsLoading(false);
+      return;
+    }
+
     setIsLoading(true);
+    setErrorMessage(null);
     try {
-      setQuotes(await listSellQuotes());
+      setQuotes(await listSellQuotes(organizationId, businessCenterId));
+    } catch (error) {
+      setQuotes([]);
+      setErrorMessage(error instanceof Error ? error.message : 'No se pudieron cargar los presupuestos.');
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [businessCenterId, organizationId]);
 
   useFocusEffect(
     useCallback(() => {
@@ -101,10 +117,16 @@ export function BillingQuotesScreen(props: {
   }, [activeFilter, quotes]);
 
   async function handleStatusChange(quoteId: string, status: SellQuoteStatus): Promise<void> {
+    if (!organizationId || !businessCenterId) {
+      return;
+    }
+
     setIsSaving(true);
     try {
-      await updateSellQuoteStatus(quoteId, status);
-      setQuotes(await listSellQuotes());
+      await updateSellQuoteStatus(organizationId, businessCenterId, quoteId, status);
+      setQuotes(await listSellQuotes(organizationId, businessCenterId));
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'No se pudo actualizar el estado.');
     } finally {
       setIsSaving(false);
     }
@@ -143,6 +165,7 @@ export function BillingQuotesScreen(props: {
       </View>
 
       {isLoading ? <ActivityIndicator color={colors.primary} /> : null}
+      {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
 
       {!isLoading && visibleQuotes.length === 0 ? (
         <Card>
@@ -166,7 +189,7 @@ export function BillingQuotesScreen(props: {
                 <View style={[styles.expandButton, isExpanded && styles.expandButtonOpen]}>
                   <Icon
                     color={isExpanded ? colors.surface : colors.primary}
-                    kind="plus"
+                    kind={isExpanded ? 'chevron-up' : 'chevron-down'}
                     size={14}
                     strokeWidth={2.2}
                   />
@@ -257,6 +280,11 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     fontSize: 12,
     lineHeight: 18,
+  },
+  errorText: {
+    color: colors.danger,
+    fontSize: 12,
+    marginBottom: 8,
   },
   expandButton: {
     alignItems: 'center',

@@ -1,6 +1,6 @@
 # Play Console — internal / closed testing
 
-Package: `com.nexolia.owner`  
+Package: `ar.com.nexolia.app`  
 Epic: [KAN-346](https://souviksamanta.atlassian.net/browse/KAN-346)
 
 ## Artifact
@@ -15,7 +15,7 @@ EAS manages the upload keystore by default (`eas credentials`).
 
 ## Play Console checklist
 
-1. Create app with application id `com.nexolia.owner`
+1. Create app with application id `ar.com.nexolia.app`
 2. Complete **Data safety** (auth, contacts read, photos/camera, notifications, SecureStore session)
 3. Privacy policy URL
 4. Account deletion URL → https://nexolia.com.ar/eliminacion-de-cuenta (also `/account-deletion`)

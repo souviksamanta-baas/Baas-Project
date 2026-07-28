@@ -9,7 +9,7 @@
       "client_info": {
         "mobilesdk_app_id": "1:REPLACE:android:REPLACE",
         "android_client_info": {
-          "package_name": "com.nexolia.owner"
+          "package_name": "ar.com.nexolia.app"
         }
       },
       "oauth_client": [],

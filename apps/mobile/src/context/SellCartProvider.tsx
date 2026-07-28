@@ -9,6 +9,7 @@ import {
 } from 'react';
 
 import type { Product } from '../types/products';
+import { useOwnerSessionContext } from './OwnerSessionProvider';
 import {
   buildCheckoutDraft,
   computeCartSubtotalCents,
@@ -52,6 +53,9 @@ type SellCartContextValue = {
 const SellCartContext = createContext<SellCartContextValue | null>(null);
 
 export function SellCartProvider(props: { children: ReactNode }): ReactElement {
+  const { dashboard } = useOwnerSessionContext();
+  const organizationId = dashboard?.organization?.id ?? null;
+  const businessCenterId = dashboard?.businessCenter?.id ?? null;
   const [cart, setCart] = useState<SellCartLine[]>([]);
   const [discountMode, setDiscountModeState] = useState<SellDiscountMode>('percent');
   const [discountInput, setDiscountInputState] = useState('');
@@ -235,11 +239,19 @@ export function SellCartProvider(props: { children: ReactNode }): ReactElement {
   }, []);
 
   const saveQuote = useCallback(async () => {
-    const quoteId = await saveSellQuote(buildCheckoutDraft(cart, discountMode, discountInput));
+    if (!organizationId || !businessCenterId) {
+      throw new Error('No hay un negocio activo para guardar el presupuesto.');
+    }
+
+    const quoteId = await saveSellQuote(
+      organizationId,
+      businessCenterId,
+      buildCheckoutDraft(cart, discountMode, discountInput),
+    );
     setIsCartDirty(false);
     setQuoteMessage(`Presupuesto guardado. ID: ${quoteId}`);
     return quoteId;
-  }, [cart, discountInput, discountMode]);
+  }, [businessCenterId, cart, discountInput, discountMode, organizationId]);
 
   const value = useMemo(
     (): SellCartContextValue => ({

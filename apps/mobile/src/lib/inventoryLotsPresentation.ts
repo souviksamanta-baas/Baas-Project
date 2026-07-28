@@ -12,7 +12,22 @@ function formatLotDate(receivedAt: string): string {
   return date.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' });
 }
 
-function formatLotCost(lot: InventoryLot): string {
+export function formatLotCost(
+  lot: Pick<InventoryLot, 'unitCostCents'>,
+  options?: { baseUnitEquivalent?: number | null; isSubproduct?: boolean },
+): string {
+  if (options?.isSubproduct && (lot.unitCostCents == null || lot.unitCostCents === 0)) {
+    if (options.baseUnitEquivalent != null && options.baseUnitEquivalent > 0) {
+      const equivalent = options.baseUnitEquivalent.toLocaleString('es-AR', {
+        maximumFractionDigits: 3,
+        minimumFractionDigits: 0,
+      });
+      return `Fracción · ${equivalent}`;
+    }
+
+    return 'Fracción';
+  }
+
   if (lot.unitCostCents === null) {
     return '—';
   }

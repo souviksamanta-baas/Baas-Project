@@ -43,7 +43,7 @@ Do **not** declare unused location / calendar / biometrics permissions.
 
 ## Notifications (FCM)
 
-1. Create Firebase Android app for `com.nexolia.owner`
+1. Create Firebase Android app for `ar.com.nexolia.app`
 2. Place real `apps/mobile/google-services.json` (see `.example`)
 3. `eas credentials` → upload FCM / Google service account for Android
 4. Channels created in Spanish at startup: `tareas`, `ventas`, `stock`, `pagos` (`androidNotificationChannels.ts`)

@@ -39,6 +39,7 @@ export interface MovementMock {
   amount?: string;
   id: string;
   label: string;
+  price?: string;
   time: string;
   tone: 'blue' | 'green' | 'red';
 }

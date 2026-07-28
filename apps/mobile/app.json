@@ -2,6 +2,7 @@
   "expo": {
     "name": "BaaS Owner",
     "slug": "baas-owner",
+    "owner": "baas1",
     "scheme": "baas-owner",
     "version": "0.1.0",
     "orientation": "portrait",
@@ -60,7 +61,7 @@
       "supportsTablet": true
     },
     "android": {
-      "package": "com.nexolia.owner",
+      "package": "ar.com.nexolia.app",
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/nexolia-adaptive-foreground.png",
@@ -97,7 +98,10 @@
       }
     },
     "extra": {
-      "phase": "0"
+      "phase": "0",
+      "eas": {
+        "projectId": "9c573ec4-4c8a-49eb-a723-f629296b4565"
+      }
     },
     "androidStatusBar": {
       "backgroundColor": "#0f172a",

@@ -1,5 +1,5 @@
 import type { MovementMock } from '../api/inventoryMockData';
-import { readProductStatusSlug } from './productCatalog';
+import { formatUnitLabel, readProductStatusSlug } from './productCatalog';
 import type { Product, ProductEditFormValues } from '../types/products';
 
 export interface InventoryMovementRow {
@@ -29,15 +29,20 @@ export function formatMovementTime(createdAt: string): string {
   return created.toLocaleDateString('es-AR', { day: 'numeric', month: 'short' });
 }
 
-export function mapInventoryMovementRow(row: InventoryMovementRow): MovementMock {
+export function mapInventoryMovementRow(
+  row: InventoryMovementRow,
+  options?: { unitPriceCents?: number | null },
+): MovementMock {
   const quantity = Number(row.quantity_delta);
   const note = row.note?.trim() ?? '';
+  const price = formatMovementSalePrice(options?.unitPriceCents ?? null, quantity);
 
   if (row.movement_type === 'sale') {
     return {
       amount: formatSignedQuantity(quantity, row.unit_code, 'red'),
       id: row.id,
       label: 'Venta',
+      price,
       time: formatMovementTime(row.created_at),
       tone: 'red',
     };
@@ -48,6 +53,7 @@ export function mapInventoryMovementRow(row: InventoryMovementRow): MovementMock
       amount: formatSignedQuantity(quantity, row.unit_code, 'green'),
       id: row.id,
       label: note.length > 0 ? note : 'Ingreso de lote',
+      price,
       time: formatMovementTime(row.created_at),
       tone: 'green',
     };
@@ -58,6 +64,7 @@ export function mapInventoryMovementRow(row: InventoryMovementRow): MovementMock
       amount: formatSignedQuantity(quantity, row.unit_code, 'red'),
       id: row.id,
       label: note.length > 0 ? note : 'Conversion a subproducto',
+      price,
       time: formatMovementTime(row.created_at),
       tone: 'red',
     };
@@ -67,6 +74,7 @@ export function mapInventoryMovementRow(row: InventoryMovementRow): MovementMock
     return {
       id: row.id,
       label: 'Ajuste de precio',
+      price,
       time: formatMovementTime(row.created_at),
       tone: 'blue',
     };
@@ -76,6 +84,7 @@ export function mapInventoryMovementRow(row: InventoryMovementRow): MovementMock
     return {
       id: row.id,
       label: 'Actualizacion de subproducto',
+      price,
       time: formatMovementTime(row.created_at),
       tone: 'blue',
     };
@@ -84,6 +93,7 @@ export function mapInventoryMovementRow(row: InventoryMovementRow): MovementMock
   return {
     id: row.id,
     label: note.length > 0 ? note : 'Actualizacion de producto',
+    price,
     time: formatMovementTime(row.created_at),
     tone: 'blue',
   };
@@ -95,9 +105,23 @@ function formatSignedQuantity(
   tone: 'green' | 'red',
 ): string {
   const absolute = Math.abs(quantity);
-  const formatted = Number.isInteger(absolute) ? absolute.toString() : absolute.toFixed(2);
+  const formattedQuantity = formatUnitLabel(absolute, unitCode);
   const prefix = tone === 'green' ? '+' : '-';
-  return `${prefix}${formatted} ${unitCode}`;
+  return `${prefix}${formattedQuantity}`;
+}
+
+function formatMovementSalePrice(unitPriceCents: number | null, quantity: number): string | undefined {
+  if (unitPriceCents == null || unitPriceCents <= 0 || !Number.isFinite(quantity) || quantity === 0) {
+    return undefined;
+  }
+
+  const totalCents = Math.round(unitPriceCents * Math.abs(quantity));
+  const amount = (totalCents / 100).toLocaleString('es-AR', {
+    maximumFractionDigits: 2,
+    minimumFractionDigits: 0,
+  });
+
+  return `$${amount}`;
 }
 
 export function buildProductEditMovementNote(

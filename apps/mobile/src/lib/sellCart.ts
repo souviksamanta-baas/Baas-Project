@@ -1,7 +1,9 @@
 import type { Product } from '../types/products';
-import { getAppStorageItem, setAppStorageItem } from './appStorage';
+import { getAppStorageItem, removeAppStorageItem, setAppStorageItem } from './appStorage';
+import { supabase } from './supabase';
 
 const QUOTES_STORAGE_KEY = 'baas_sell_quotes_v1';
+const QUOTES_MIGRATED_KEY = 'baas_sell_quotes_migrated_v1';
 
 export type SellDiscountMode = 'amount' | 'percent';
 
@@ -39,6 +41,14 @@ export type SavedSellQuote = {
   id: string;
   status: SellQuoteStatus;
   updatedAt: string;
+};
+
+type SellQuoteRow = {
+  created_at: string;
+  draft: SellCheckoutDraft;
+  id: string;
+  status: SellQuoteStatus;
+  updated_at: string;
 };
 
 export const SELL_QUOTE_STATUS_LABELS: Record<SellQuoteStatus, string> = {
@@ -235,21 +245,26 @@ export function buildCheckoutDraft(
   };
 }
 
-function normalizeSavedQuote(raw: Partial<SavedSellQuote> & { draft?: SellCheckoutDraft; id?: string }): SavedSellQuote | null {
+function isSellQuoteStatus(value: unknown): value is SellQuoteStatus {
+  return (
+    value === 'enviado' ||
+    value === 'aceptado' ||
+    value === 'cobrado' ||
+    value === 'cancelado' ||
+    value === 'vencido' ||
+    value === 'guardado'
+  );
+}
+
+function normalizeSavedQuote(
+  raw: Partial<SavedSellQuote> & { draft?: SellCheckoutDraft; id?: string },
+): SavedSellQuote | null {
   if (!raw.id || !raw.draft || !Array.isArray(raw.draft.cart)) {
     return null;
   }
 
   const createdAt = typeof raw.createdAt === 'string' ? raw.createdAt : new Date().toISOString();
-  const status =
-    raw.status === 'enviado' ||
-    raw.status === 'aceptado' ||
-    raw.status === 'cobrado' ||
-    raw.status === 'cancelado' ||
-    raw.status === 'vencido' ||
-    raw.status === 'guardado'
-      ? raw.status
-      : 'guardado';
+  const status = isSellQuoteStatus(raw.status) ? raw.status : 'guardado';
 
   return {
     createdAt,
@@ -260,7 +275,17 @@ function normalizeSavedQuote(raw: Partial<SavedSellQuote> & { draft?: SellChecko
   };
 }
 
-async function readSavedQuotes(): Promise<SavedSellQuote[]> {
+function mapSellQuoteRow(row: SellQuoteRow): SavedSellQuote | null {
+  return normalizeSavedQuote({
+    createdAt: row.created_at,
+    draft: row.draft,
+    id: row.id,
+    status: row.status,
+    updatedAt: row.updated_at,
+  });
+}
+
+async function readLocalSavedQuotes(): Promise<SavedSellQuote[]> {
   try {
     const raw = await getAppStorageItem(QUOTES_STORAGE_KEY);
 
@@ -281,8 +306,70 @@ async function readSavedQuotes(): Promise<SavedSellQuote[]> {
   }
 }
 
-export async function listSellQuotes(): Promise<SavedSellQuote[]> {
-  return readSavedQuotes();
+/** One-time upload of device-local presupuestos into Supabase for this center. */
+export async function migrateLocalSellQuotesIfNeeded(
+  organizationId: string,
+  businessCenterId: string,
+): Promise<void> {
+  const migratedFlag = await getAppStorageItem(QUOTES_MIGRATED_KEY);
+  if (migratedFlag === '1') {
+    return;
+  }
+
+  const localQuotes = await readLocalSavedQuotes();
+  if (localQuotes.length === 0) {
+    await setAppStorageItem(QUOTES_MIGRATED_KEY, '1');
+    return;
+  }
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const rows = localQuotes.map((quote) => ({
+    business_center_id: businessCenterId,
+    created_at: quote.createdAt,
+    created_by: user?.id ?? null,
+    draft: quote.draft,
+    id: quote.id,
+    organization_id: organizationId,
+    status: quote.status,
+    updated_at: quote.updatedAt,
+  }));
+
+  const { error } = await supabase.from('sell_quotes').upsert(rows, {
+    ignoreDuplicates: true,
+    onConflict: 'id',
+  });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  await setAppStorageItem(QUOTES_MIGRATED_KEY, '1');
+  await removeAppStorageItem(QUOTES_STORAGE_KEY);
+}
+
+export async function listSellQuotes(
+  organizationId: string,
+  businessCenterId: string,
+): Promise<SavedSellQuote[]> {
+  await migrateLocalSellQuotesIfNeeded(organizationId, businessCenterId);
+
+  const { data, error } = await supabase
+    .from('sell_quotes')
+    .select('id, status, draft, created_at, updated_at')
+    .eq('organization_id', organizationId)
+    .eq('business_center_id', businessCenterId)
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return ((data ?? []) as SellQuoteRow[])
+    .map(mapSellQuoteRow)
+    .filter((quote): quote is SavedSellQuote => quote != null);
 }
 
 export function getSellQuoteTotalCents(quote: SavedSellQuote): number {
@@ -291,41 +378,56 @@ export function getSellQuoteTotalCents(quote: SavedSellQuote): number {
 }
 
 export async function updateSellQuoteStatus(
+  organizationId: string,
+  businessCenterId: string,
   quoteId: string,
   status: SellQuoteStatus,
 ): Promise<SavedSellQuote | null> {
-  const existing = await readSavedQuotes();
-  const index = existing.findIndex((quote) => quote.id === quoteId);
+  const { data, error } = await supabase
+    .from('sell_quotes')
+    .update({ status })
+    .eq('organization_id', organizationId)
+    .eq('business_center_id', businessCenterId)
+    .eq('id', quoteId)
+    .select('id, status, draft, created_at, updated_at')
+    .maybeSingle();
 
-  if (index < 0) {
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  if (!data) {
     return null;
   }
 
-  const updated: SavedSellQuote = {
-    ...existing[index]!,
-    status,
-    updatedAt: new Date().toISOString(),
-  };
-  const next = [...existing];
-  next[index] = updated;
-  await setAppStorageItem(QUOTES_STORAGE_KEY, JSON.stringify(next));
-
-  return updated;
+  return mapSellQuoteRow(data as SellQuoteRow);
 }
 
-export async function saveSellQuote(draft: SellCheckoutDraft): Promise<string> {
+export async function saveSellQuote(
+  organizationId: string,
+  businessCenterId: string,
+  draft: SellCheckoutDraft,
+): Promise<string> {
   const now = new Date().toISOString();
   const id = `PRES-${Date.now().toString(36).toUpperCase()}`;
-  const quote: SavedSellQuote = {
-    createdAt: now,
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const { error } = await supabase.from('sell_quotes').insert({
+    business_center_id: businessCenterId,
+    created_at: now,
+    created_by: user?.id ?? null,
     draft,
     id,
+    organization_id: organizationId,
     status: 'guardado',
-    updatedAt: now,
-  };
-  const existing = await readSavedQuotes();
+    updated_at: now,
+  });
 
-  await setAppStorageItem(QUOTES_STORAGE_KEY, JSON.stringify([quote, ...existing]));
+  if (error) {
+    throw new Error(error.message);
+  }
 
   return id;
 }

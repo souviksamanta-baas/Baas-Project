@@ -26,7 +26,7 @@ eas build:configure   # links EAS projectId into app.json extra.eas.projectId
 
 Ensure [`apps/mobile/app.json`](../apps/mobile/app.json):
 
-- `android.package`: `com.nexolia.owner` (same as iOS bundle id)
+- `android.package`: `ar.com.nexolia.app` (Play Console application id; iOS stays `com.nexolia.owner`)
 - `extra.eas.projectId`: only after `eas build:configure` (omit until then — a placeholder breaks local Expo / Simulator)
 - Adaptive icon / splash / notification icon wired under `assets/images/`
 
@@ -83,7 +83,7 @@ npm run build:android:production
 eas submit --platform android --profile production
 ```
 
-Create the Play app with application id `com.nexolia.owner`, complete data-safety, then use **internal** then **closed** testing tracks (KAN-361).
+Create the Play app with application id `ar.com.nexolia.app`, complete data-safety, then use **internal** then **closed** testing tracks (KAN-361).
 
 ## OTA updates (JS-only)
 

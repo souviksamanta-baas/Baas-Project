@@ -1,0 +1,6 @@
+
+# Local Play/EAS signing exports (do not commit)
+.play-signing/
+credentials.json
+*.jks
+*.keystore

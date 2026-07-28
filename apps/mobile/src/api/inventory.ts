@@ -288,6 +288,8 @@ export async function getProductLots(
 }
 
 export type CenterLotRow = InventoryLot & {
+  baseUnitEquivalent: number | null;
+  parentProductId: string | null;
   productName: string;
 };
 
@@ -299,7 +301,7 @@ export async function getCenterLots(
   const { data, error } = await supabase
     .from('inventory_lots')
     .select(
-      'id, product_id, lot_code, received_quantity, remaining_quantity, unit_code, unit_cost_cents, received_at, expires_at, supplier_reference, products!inner(name)',
+      'id, product_id, lot_code, received_quantity, remaining_quantity, unit_code, unit_cost_cents, received_at, expires_at, supplier_reference, products!inner(name, parent_product_id, metadata)',
     )
     .eq('organization_id', organizationId)
     .eq('business_center_id', businessCenterId)
@@ -310,18 +312,34 @@ export async function getCenterLots(
     throw new Error(error.message);
   }
 
-  return ((data ?? []) as Array<InventoryLotRow & { products: { name: string } | { name: string }[] }>).map(
-    (row) => {
-      const product = Array.isArray(row.products) ? row.products[0] : row.products;
-      return {
-        ...toInventoryLot(row),
-        productName: product?.name?.trim() || 'Producto',
-      };
-    },
-  );
+  return ((data ?? []) as Array<
+    InventoryLotRow & {
+      products:
+        | { metadata: Record<string, unknown> | null; name: string; parent_product_id: string | null }
+        | { metadata: Record<string, unknown> | null; name: string; parent_product_id: string | null }[];
+    }
+  >).map((row) => {
+    const product = Array.isArray(row.products) ? row.products[0] : row.products;
+    const metadata = product?.metadata ?? {};
+    const equivalentRaw = metadata.equivalente_unidad_base;
+    const baseUnitEquivalent =
+      typeof equivalentRaw === 'number'
+        ? equivalentRaw
+        : typeof equivalentRaw === 'string'
+          ? Number.parseFloat(equivalentRaw.replace(',', '.'))
+          : null;
+
+    return {
+      ...toInventoryLot(row),
+      baseUnitEquivalent: Number.isFinite(baseUnitEquivalent) ? baseUnitEquivalent : null,
+      parentProductId: product?.parent_product_id ?? null,
+      productName: product?.name?.trim() || 'Producto',
+    };
+  });
 }
 
 export type CenterMovementRow = MovementMock & {
+  createdAt: string;
   productName: string;
 };
 
@@ -332,7 +350,9 @@ export async function getCenterMovements(
 ): Promise<CenterMovementRow[]> {
   const { data, error } = await supabase
     .from('inventory_movements')
-    .select('id, movement_type, quantity_delta, unit_code, note, created_at, products!inner(name)')
+    .select(
+      'id, movement_type, quantity_delta, unit_code, note, created_at, products!inner(name, unit_price_cents)',
+    )
     .eq('organization_id', organizationId)
     .eq('business_center_id', businessCenterId)
     .order('created_at', { ascending: false })
@@ -343,11 +363,18 @@ export async function getCenterMovements(
   }
 
   return (
-    (data ?? []) as Array<InventoryMovementRow & { products: { name: string } | { name: string }[] }>
+    (data ?? []) as Array<
+      InventoryMovementRow & {
+        products:
+          | { name: string; unit_price_cents: number }
+          | { name: string; unit_price_cents: number }[];
+      }
+    >
   ).map((row) => {
     const product = Array.isArray(row.products) ? row.products[0] : row.products;
     return {
-      ...mapInventoryMovementRow(row),
+      ...mapInventoryMovementRow(row, { unitPriceCents: product?.unit_price_cents ?? null }),
+      createdAt: row.created_at,
       productName: product?.name?.trim() || 'Producto',
     };
   });
