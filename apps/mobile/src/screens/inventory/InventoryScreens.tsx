@@ -35,6 +35,7 @@ import {
   InventorySupplierField,
   InventoryTextField,
 } from '../../components/ProductEditFormFields';
+import { BrandSuccessModal } from '../../components/BrandSuccessModal';
 import {
   CartLineRow,
   CobrarButton,
@@ -1772,6 +1773,7 @@ export function ConfirmPaymentScreen(props: {
   onConfirmPayment?: () => Promise<void>;
 }): ReactElement {
   const sellCart = useSellCart();
+  const [localSuccessVisible, setLocalSuccessVisible] = useState(false);
   const discountLabel = formatSaleDiscountLabel(
     sellCart.discountMode,
     Number.parseFloat(sellCart.discountInput.replace(',', '.')) || 0,
@@ -1834,7 +1836,11 @@ export function ConfirmPaymentScreen(props: {
       return;
     }
 
-    Alert.alert('Pago confirmado', 'La venta quedo registrada como cobrada.');
+    setLocalSuccessVisible(true);
+  }
+
+  function handleLocalSuccessClose(): void {
+    setLocalSuccessVisible(false);
     sellCart.clearCart();
     props.onBack();
   }
@@ -1897,6 +1903,13 @@ export function ConfirmPaymentScreen(props: {
         <Icon color={colors.primary} kind="shield" size={14} strokeWidth={1.8} />
         <Text style={styles.confirmFooterText}>Marca esta venta como cobrada una vez recibido el pago.</Text>
       </View>
+      <BrandSuccessModal
+        body="La venta quedó registrada como cobrada."
+        buttonLabel="Entendido"
+        onClose={handleLocalSuccessClose}
+        title="Pago confirmado"
+        visible={localSuccessVisible}
+      />
     </ScreenContent>
   );
 }

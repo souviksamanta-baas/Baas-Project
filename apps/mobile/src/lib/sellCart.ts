@@ -407,9 +407,11 @@ export async function saveSellQuote(
   organizationId: string,
   businessCenterId: string,
   draft: SellCheckoutDraft,
+  options?: { status?: SellQuoteStatus },
 ): Promise<string> {
   const now = new Date().toISOString();
   const id = `PRES-${Date.now().toString(36).toUpperCase()}`;
+  const status = options?.status ?? 'guardado';
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -421,7 +423,7 @@ export async function saveSellQuote(
     draft,
     id,
     organization_id: organizationId,
-    status: 'guardado',
+    status,
     updated_at: now,
   });
 

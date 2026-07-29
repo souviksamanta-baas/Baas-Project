@@ -248,6 +248,9 @@ export function SellCartProvider(props: { children: ReactNode }): ReactElement {
       businessCenterId,
       buildCheckoutDraft(cart, discountMode, discountInput),
     );
+    setCart([]);
+    setDiscountModeState('percent');
+    setDiscountInputState('');
     setIsCartDirty(false);
     setQuoteMessage(`Presupuesto guardado. ID: ${quoteId}`);
     return quoteId;
