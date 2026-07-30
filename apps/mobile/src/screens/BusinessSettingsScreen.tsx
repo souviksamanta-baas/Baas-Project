@@ -342,7 +342,7 @@ const styles = StyleSheet.create({
   },
   sectionLabel: {
     color: colors.navy,
-    fontSize: 12,
+    fontSize: 15,
     fontWeight: '600',
   },
 });

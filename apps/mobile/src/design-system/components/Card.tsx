@@ -100,7 +100,7 @@ const styles = StyleSheet.create({
   },
   listBoxAction: {
     color: colors.slate,
-    fontSize: 11,
+    fontSize: 15,
     fontWeight: '300',
   },
   listBoxHeader: {
@@ -120,12 +120,12 @@ const styles = StyleSheet.create({
   },
   listBoxMeta: {
     color: colors.slate,
-    fontSize: 10,
+    fontSize: 13,
     fontWeight: '300',
   },
   listBoxSubtitle: {
     color: colors.slate,
-    fontSize: 10,
+    fontSize: 13,
     fontWeight: '300',
     marginTop: 4,
   },

@@ -2,8 +2,8 @@
 export const spacing = {
   /** 4px — micro gaps */
   xxs: 4,
-  /** 10px — stacked box rhythm on scroll screens */
-  boxGap: 10,
+  /** 20px — stacked box rhythm on scroll screens */
+  boxGap: 20,
   /** 8px — icon/text spacing */
   xs: 8,
   /** 12px — compact internal spacing */
@@ -26,7 +26,7 @@ export const screenPadding = {
 } as const;
 
 export const layout = {
-  bottomNavClearance: 96,
+  bottomNavClearance: 100,
   minTapTarget: 44,
   listRowMinHeight: 72,
 } as const;

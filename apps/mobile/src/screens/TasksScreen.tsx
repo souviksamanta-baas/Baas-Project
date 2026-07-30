@@ -156,12 +156,12 @@ function WorkQueueRow(props: {
 const styles = StyleSheet.create({
   actionText: {
     color: colors.slate,
-    fontSize: 12,
+    fontSize: 15,
     fontWeight: '500',
   },
   actionTextPrimary: {
     color: colors.primary,
-    fontSize: 12,
+    fontSize: 15,
     fontWeight: '600',
   },
   actions: {
@@ -181,7 +181,7 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     color: colors.slate,
-    fontSize: 12,
+    fontSize: 15,
   },
   filterPill: {
     borderColor: colors.border,
@@ -197,7 +197,7 @@ const styles = StyleSheet.create({
   },
   filterText: {
     color: colors.slate,
-    fontSize: 10,
+    fontSize: 13,
     fontWeight: '300',
   },
   row: {

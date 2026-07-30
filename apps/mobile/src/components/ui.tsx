@@ -1,15 +1,18 @@
 import type { ReactElement, ReactNode } from 'react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Animated,
   Image,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import { BlurView } from 'expo-blur';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { Channel, DashboardMetricMock, NotificationMock, Tone } from '../api/mockData';
@@ -19,6 +22,7 @@ import {
   SectionHeader as DsSectionHeader,
   StatusDot,
   colors,
+  layout,
   radius,
   shadows,
   spacing,
@@ -37,6 +41,14 @@ export type AppTab = 'copi' | 'home' | 'inbox' | 'more';
 type MessageSource = Channel | 'copi' | 'owner';
 
 const HEADER_COLLAPSE_OFFSET = 28;
+
+/** Use on FlatList/ScrollView when ScreenContent has disableScroll. */
+export function useHeaderCollapseOnScroll(): (offsetY: number) => void {
+  const chrome = useHeaderChromeOptional();
+  return (offsetY: number) => {
+    chrome.setCollapsed(offsetY > HEADER_COLLAPSE_OFFSET);
+  };
+}
 
 export function AppHeader(props: {
   onOpenAccount: () => void;
@@ -67,7 +79,7 @@ export function AppHeader(props: {
         )}
         <View style={styles.headerActions}>
           <Pressable onPress={props.onOpenNotifications} style={styles.headerIcon}>
-            <Icon kind="bell" size={18} strokeWidth={1.7} />
+            <Icon kind="bell" size={26} strokeWidth={1.7} />
             <View style={styles.unreadDot} />
           </Pressable>
           <Pressable onPress={props.onOpenAccount} style={styles.ownerAvatar}>
@@ -173,16 +185,14 @@ export function MetricGrid(props: {
 }): ReactElement {
   return (
     <View style={styles.metricGrid}>
-      {props.metrics.map((metric, index) => {
+      {props.metrics.map((metric) => {
         const content = (
           <>
             <MetricIcon metricId={metric.id} tone={metric.tone} />
             <Text numberOfLines={1} style={[styles.metricValue, toneText(metric.tone)]}>
               {metric.value}
             </Text>
-            <Text numberOfLines={2} style={styles.metricLabel}>
-              {metric.label}
-            </Text>
+            <Text style={styles.metricLabel}>{metric.label}</Text>
           </>
         );
 
@@ -192,7 +202,7 @@ export function MetricGrid(props: {
               accessibilityRole="button"
               key={metric.id}
               onPress={() => props.onMetricPress?.(metric.id)}
-              style={[styles.metricItem, index === props.metrics.length - 1 && styles.metricItemLast]}
+              style={styles.metricItem}
             >
               {content}
             </Pressable>
@@ -200,10 +210,7 @@ export function MetricGrid(props: {
         }
 
         return (
-          <View
-            key={metric.id}
-            style={[styles.metricItem, index === props.metrics.length - 1 && styles.metricItemLast]}
-          >
+          <View key={metric.id} style={styles.metricItem}>
             {content}
           </View>
         );
@@ -218,21 +225,26 @@ export function ConversationRow(props: {
   name: string;
   onPress?: () => void;
   preview: string;
+  showDivider?: boolean;
   statusLabel?: string;
   time: string;
   unreadCount?: number;
 }): ReactElement {
+  const showDivider = props.showDivider !== false;
+
   return (
     <Pressable onPress={props.onPress} style={styles.listRow}>
       <Avatar channel={props.channel} label={props.avatar} />
-      <View style={styles.flexShrink}>
-        <Text numberOfLines={1} style={styles.listTitle}>{props.name}</Text>
-        <Text numberOfLines={1} style={styles.listDescription}>{props.preview}</Text>
-        {props.statusLabel ? <Text numberOfLines={1} style={styles.leadBadge}>{props.statusLabel}</Text> : null}
-      </View>
-      <View style={styles.rowMeta}>
-        <Text style={styles.timestamp}>{props.time}</Text>
-        {props.unreadCount ? <Text style={styles.unreadBadge}>{props.unreadCount}</Text> : null}
+      <View style={[styles.listRowContent, showDivider && styles.listRowContentDivider]}>
+        <View style={styles.flexShrink}>
+          <Text numberOfLines={1} style={styles.listTitle}>{props.name}</Text>
+          <Text numberOfLines={1} style={styles.listDescription}>{props.preview}</Text>
+          {props.statusLabel ? <Text numberOfLines={1} style={styles.leadBadge}>{props.statusLabel}</Text> : null}
+        </View>
+        <View style={styles.rowMeta}>
+          <Text style={styles.timestamp}>{props.time}</Text>
+          {props.unreadCount ? <Text style={styles.unreadBadge}>{props.unreadCount}</Text> : null}
+        </View>
       </View>
     </Pressable>
   );
@@ -248,19 +260,23 @@ export function NotificationRow(props: {
     unread?: boolean;
   };
   onPress?: () => void;
+  showDivider?: boolean;
 }): ReactElement {
+  const showDivider = props.showDivider !== false;
   const content = (
     <>
       <ToneIcon tone={props.notification.tone} />
-      <View style={styles.flex}>
-        <Text style={styles.listTitle}>{props.notification.title}</Text>
-        {props.notification.subtitle ? (
-          <Text numberOfLines={1} style={styles.listDescription}>{props.notification.subtitle}</Text>
-        ) : null}
-      </View>
-      <View style={styles.notificationMeta}>
-        <Text style={styles.timestamp}>{props.notification.time}</Text>
-        {props.notification.unread ? <StatusDot /> : null}
+      <View style={[styles.listRowContent, showDivider && styles.listRowContentDivider]}>
+        <View style={styles.flex}>
+          <Text style={styles.listTitle}>{props.notification.title}</Text>
+          {props.notification.subtitle ? (
+            <Text numberOfLines={1} style={styles.listDescription}>{props.notification.subtitle}</Text>
+          ) : null}
+        </View>
+        <View style={styles.notificationMeta}>
+          <Text style={styles.timestamp}>{props.notification.time}</Text>
+          {props.notification.unread ? <StatusDot /> : null}
+        </View>
       </View>
     </>
   );
@@ -281,10 +297,12 @@ export function ActionRow(props: {
   disabled?: boolean;
   icon?: IconKind;
   onPress?: () => void;
+  showDivider?: boolean;
   subtitle?: string;
   title: string;
 }): ReactElement {
   const isDisabled = props.disabled === true || props.onPress == null;
+  const showDivider = props.showDivider !== false;
 
   return (
     <Pressable
@@ -292,33 +310,43 @@ export function ActionRow(props: {
       onPress={props.onPress}
       style={[styles.actionRow, isDisabled && styles.actionRowDisabled]}
     >
-      <View style={[styles.actionIcon, props.danger && styles.dangerIcon, isDisabled && styles.actionIconDisabled]}>
+      <View style={styles.actionIconPlain}>
         <ActionIcon
           color={isDisabled ? colors.textMuted : props.danger ? colors.danger : colors.primary}
           kind={props.icon ?? 'message'}
         />
       </View>
-      <View style={styles.flex}>
-        <Text style={[styles.listTitle, props.danger && styles.dangerText, isDisabled && styles.actionRowDisabledText]}>
-          {props.title}
-        </Text>
-        {props.subtitle ? (
-          <Text numberOfLines={1} style={[styles.listDescription, isDisabled && styles.actionRowDisabledText]}>
-            {props.subtitle}
+      <View style={[styles.actionContent, showDivider && styles.actionContentDivider]}>
+        <View style={styles.flex}>
+          <Text
+            style={[
+              styles.actionTitle,
+              props.danger && styles.dangerText,
+              isDisabled && styles.actionRowDisabledText,
+            ]}
+          >
+            {props.title}
           </Text>
-        ) : null}
+          {props.subtitle ? (
+            <Text numberOfLines={1} style={[styles.listDescription, isDisabled && styles.actionRowDisabledText]}>
+              {props.subtitle}
+            </Text>
+          ) : null}
+        </View>
+        {isDisabled ? null : (
+          <Icon color="#c7c7cc" kind="chevron-right" size={20} strokeWidth={2.4} />
+        )}
       </View>
-      {isDisabled ? null : <Text style={styles.primaryText}>›</Text>}
     </Pressable>
   );
 }
 
 function ActionIcon(props: { color: string; kind: IconKind }): ReactElement {
   if (props.kind === 'whatsapp' || props.kind === 'instagram' || props.kind === 'facebook' || props.kind === 'email') {
-    return <ChannelIcon channel={props.kind} size={18} />;
+    return <ChannelIcon channel={props.kind} size={26} />;
   }
 
-  return <Icon color={props.color} kind={props.kind} size={18} strokeWidth={1.85} />;
+  return <Icon color={props.color} kind={props.kind} size={26} strokeWidth={1.7} />;
 }
 
 export function MessageBubble(props: {
@@ -624,38 +652,101 @@ export function BottomNavigation(props: {
   onOpenSell: () => void;
   onSelectTab: (tab: AppTab) => void;
 }): ReactElement {
-  const insets = useSafeAreaInsets();
-  // Floating dock: keep a tight gap above the home indicator (full inset looked like a huge empty band).
-  const bottomPad = insets.bottom > 0 ? spacing.xs : spacing.sm;
+  // WhatsApp floating dock: equal inset on left/right/bottom (~16pt from screen edges).
+  const edgeInset = 16;
 
   return (
-    <View style={[styles.bottomNavSafe, { paddingBottom: bottomPad }]}>
-      <View style={styles.bottomNav}>
-        <TabButton active={props.activeTab === 'home'} icon="home" label="Inicio" onPress={() => props.onSelectTab('home')} />
-        <TabButton active={props.activeTab === 'inbox'} icon="inbox" label="Inbox" onPress={() => props.onSelectTab('inbox')} />
-        <Pressable hitSlop={8} onPress={props.onOpenSell} style={styles.centerAction}>
-          <Text style={styles.centerActionText}>$</Text>
-        </Pressable>
-        <TabButton active={props.activeTab === 'copi'} icon="bot" label="Copi" onPress={() => props.onSelectTab('copi')} />
-        <TabButton active={props.activeTab === 'more'} icon="more" label="Más" onPress={() => props.onSelectTab('more')} />
+    <View pointerEvents="box-none" style={styles.bottomNavOverlay}>
+      {/* Frosted veil in the side/bottom gaps so scrolled content shows through faintly. */}
+      {Platform.OS === 'web' ? (
+        <View pointerEvents="none" style={[styles.bottomNavEdgeGlass, styles.bottomNavEdgeGlassFallback]} />
+      ) : (
+        <BlurView
+          experimentalBlurMethod="dimezisBlurView"
+          intensity={55}
+          pointerEvents="none"
+          style={styles.bottomNavEdgeGlass}
+          tint="systemThinMaterialLight"
+        />
+      )}
+      <View pointerEvents="none" style={styles.bottomNavEdgeTint} />
+      <View
+        style={[
+          styles.bottomNavSafe,
+          { paddingBottom: edgeInset, paddingHorizontal: edgeInset },
+        ]}
+      >
+        <View style={styles.bottomNav}>
+          <TabButton
+            active={props.activeTab === 'home'}
+            icon="home"
+            label="Inicio"
+            onPress={() => props.onSelectTab('home')}
+          />
+          <TabButton
+            active={props.activeTab === 'inbox'}
+            icon="inbox"
+            label="Chats"
+            onPress={() => props.onSelectTab('inbox')}
+          />
+          <Pressable hitSlop={8} onPress={props.onOpenSell} style={styles.centerAction}>
+            <Text style={styles.centerActionText}>$</Text>
+          </Pressable>
+          <TabButton
+            active={props.activeTab === 'copi'}
+            icon="bot"
+            label="Copi"
+            onPress={() => props.onSelectTab('copi')}
+          />
+          <TabButton
+            active={props.activeTab === 'more'}
+            icon="more"
+            label="Más"
+            onPress={() => props.onSelectTab('more')}
+          />
+        </View>
       </View>
     </View>
   );
 }
 
 function TabButton(props: { active: boolean; icon: IconKind; label: string; onPress: () => void }): ReactElement {
+  const scale = useRef(new Animated.Value(props.active ? 1 : 0.94)).current;
+  const glassOpacity = useRef(new Animated.Value(props.active ? 1 : 0)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.spring(scale, {
+        toValue: props.active ? 1 : 0.94,
+        useNativeDriver: true,
+        friction: 7,
+        tension: 120,
+      }),
+      Animated.timing(glassOpacity, {
+        toValue: props.active ? 1 : 0,
+        duration: 180,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [glassOpacity, props.active, scale]);
+
   const useFilled = props.active && (props.icon === 'home' || props.icon === 'inbox' || props.icon === 'bot');
 
   return (
     <Pressable onPress={props.onPress} style={styles.tabButton}>
-      <Icon
-        color={props.active ? colors.primary : '#53607a'}
-        filled={useFilled}
-        kind={props.icon}
-        size={22}
-        strokeWidth={1.9}
-      />
-      <Text style={[styles.tabLabel, props.active && styles.activeTabText]}>{props.label}</Text>
+      <Animated.View style={{ alignItems: 'center', transform: [{ scale }] }}>
+        <View style={styles.tabIconWrap}>
+          <Animated.View style={[styles.tabGlassHighlight, { opacity: glassOpacity }]} />
+          <Icon
+            color={props.active ? colors.tabActive : colors.tabInactive}
+            filled={useFilled}
+            kind={props.icon}
+            size={32}
+            strokeWidth={1.55}
+          />
+        </View>
+        <Text style={[styles.tabLabel, props.active && styles.activeTabText]}>{props.label}</Text>
+      </Animated.View>
     </Pressable>
   );
 }
@@ -670,7 +761,7 @@ function Avatar(props: { channel: Channel; label: string }): ReactElement {
     <View style={styles.customerAvatar}>
       <Text style={styles.customerAvatarText}>{props.label}</Text>
       <View style={[styles.channelBadge, { borderColor: accent }]}>
-        <ChannelIcon channel={props.channel} size={14} />
+        <ChannelIcon channel={props.channel} size={16} />
       </View>
     </View>
   );
@@ -687,8 +778,8 @@ function MetricIcon(props: { metricId: string; tone: Tone }): ReactElement {
           : 'money';
 
   return (
-    <View style={[styles.toneIcon, toneBackground(props.tone)]}>
-      <Icon color={toneColor(props.tone)} kind={kind} size={18} strokeWidth={1.8} />
+    <View style={styles.metricIconPlain}>
+      <Icon color={toneColor(props.tone)} kind={kind} size={26} strokeWidth={1.7} />
     </View>
   );
 }
@@ -762,18 +853,51 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     lineHeight: 20,
   },
+  actionChevron: {
+    color: '#c7c7cc',
+    fontSize: 28,
+    fontWeight: '300',
+    lineHeight: 28,
+    marginLeft: 4,
+  },
+  actionContent: {
+    alignItems: 'center',
+    flex: 1,
+    flexDirection: 'row',
+    minHeight: 56,
+    paddingRight: 12,
+    paddingVertical: 12,
+  },
+  actionContentDivider: {
+    borderBottomColor: colors.separator,
+    borderBottomWidth: 1,
+  },
   actionIconDisabled: {
     backgroundColor: colors.borderSoft,
   },
+  actionIconPlain: {
+    alignItems: 'center',
+    height: 36,
+    justifyContent: 'center',
+    marginLeft: 14,
+    marginRight: 14,
+    width: 30,
+  },
   actionRow: {
     alignItems: 'center',
-    borderBottomColor: colors.borderSoft,
-    borderBottomWidth: 1,
     flexDirection: 'row',
-    gap: spacing.md,
-    minHeight: 42,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
+  },
+  actionRowDisabled: {
+    opacity: 0.55,
+  },
+  actionRowDisabledText: {
+    color: colors.textMuted,
+  },
+  actionTitle: {
+    color: colors.navy,
+    fontSize: 17,
+    fontWeight: '400',
+    lineHeight: 22,
   },
   activeBranchRow: {
     backgroundColor: colors.primarySoft,
@@ -783,7 +907,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   activeTabText: {
-    color: colors.primary,
+    color: colors.tabActive,
   },
   addButton: {
     color: colors.primary,
@@ -797,9 +921,33 @@ const styles = StyleSheet.create({
   blueTone: {
     backgroundColor: '#eef8ff',
   },
+  bottomNavOverlay: {
+    bottom: 0,
+    left: 0,
+    position: 'absolute',
+    right: 0,
+    zIndex: 40,
+  },
+  bottomNavEdgeGlass: {
+    bottom: 0,
+    left: 0,
+    position: 'absolute',
+    right: 0,
+    top: 0,
+  },
+  bottomNavEdgeGlassFallback: {
+    backgroundColor: 'rgba(251, 252, 251, 0.72)',
+  },
+  bottomNavEdgeTint: {
+    backgroundColor: 'rgba(251, 252, 251, 0.55)',
+    bottom: 0,
+    left: 0,
+    position: 'absolute',
+    right: 0,
+    top: 0,
+  },
   bottomNavSafe: {
-    backgroundColor: 'transparent',
-    paddingHorizontal: spacing.sm,
+    paddingTop: 8,
   },
   bottomNav: {
     ...shadows.dock,
@@ -809,10 +957,25 @@ const styles = StyleSheet.create({
     borderRadius: radius.dock,
     borderWidth: 1,
     flexDirection: 'row',
-    height: 56,
+    height: 66,
     justifyContent: 'space-between',
-    paddingHorizontal: spacing.md,
-    paddingTop: spacing.xs,
+    overflow: 'visible',
+    paddingHorizontal: 4,
+  },
+  tabGlassHighlight: {
+    backgroundColor: 'rgba(60, 60, 67, 0.12)',
+    borderRadius: 18,
+    bottom: 0,
+    left: 0,
+    position: 'absolute',
+    right: 0,
+    top: 0,
+  },
+  tabIconWrap: {
+    alignItems: 'center',
+    height: 36,
+    justifyContent: 'center',
+    width: 52,
   },
   branchMenu: {
     ...shadows.card,
@@ -836,7 +999,7 @@ const styles = StyleSheet.create({
   },
   branchText: {
     color: colors.navy,
-    fontSize: 10,
+    fontSize: 13,
     fontWeight: '300',
   },
   centerAction: {
@@ -845,13 +1008,15 @@ const styles = StyleSheet.create({
     borderColor: colors.surface,
     borderRadius: radius.pill,
     borderWidth: 6,
-    height: 63,
+    elevation: 10,
+    height: 66,
     justifyContent: 'center',
     marginTop: -28,
-    shadowColor: colors.primary,
-    shadowOpacity: 0.18,
-    shadowRadius: 24,
-    width: 63,
+    shadowColor: '#000000',
+    shadowOffset: { height: 2, width: 0 },
+    shadowOpacity: 0.22,
+    shadowRadius: 6,
+    width: 66,
   },
   centerActionText: {
     color: colors.surface,
@@ -864,17 +1029,17 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderRadius: radius.pill,
     borderWidth: 1.5,
-    bottom: -3,
-    height: 20,
+    bottom: -2,
+    height: 22,
     justifyContent: 'center',
     overflow: 'hidden',
     position: 'absolute',
-    right: -4,
-    width: 20,
+    right: -2,
+    width: 22,
   },
   channelBadgeText: {
     color: colors.navy,
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: '600',
   },
   chevron: {
@@ -884,7 +1049,7 @@ const styles = StyleSheet.create({
   },
   content: {
     gap: spacing.boxGap,
-    paddingBottom: spacing.lg,
+    paddingBottom: layout.bottomNavClearance,
     paddingHorizontal: spacing.xl,
     paddingTop: spacing.sm,
   },
@@ -896,20 +1061,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#dfaa8b',
     borderRadius: radius.pill,
-    height: 42,
+    height: 54,
     justifyContent: 'center',
-    width: 42,
+    width: 54,
   },
   customerAvatarText: {
     color: colors.surface,
-    fontSize: 10,
+    fontSize: 18,
     fontWeight: '600',
-  },
-  actionRowDisabled: {
-    opacity: 0.55,
-  },
-  actionRowDisabledText: {
-    color: colors.textMuted,
   },
   dangerIcon: {
     backgroundColor: '#ffeaf0',
@@ -951,10 +1110,10 @@ const styles = StyleSheet.create({
   },
   headerIcon: {
     alignItems: 'center',
-    height: 24,
+    height: 28,
     justifyContent: 'center',
     position: 'relative',
-    width: 24,
+    width: 28,
   },
   headerLeading: {
     alignItems: 'center',
@@ -970,7 +1129,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     ...StyleSheet.absoluteFill,
     color: colors.navy,
-    fontSize: 15,
+    fontSize: 17,
     fontWeight: '600',
     lineHeight: 40,
     paddingHorizontal: 76,
@@ -982,7 +1141,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primarySoft,
     borderRadius: radius.pill,
     color: colors.primaryDark,
-    fontSize: 9,
+    fontSize: 15,
     fontWeight: '300',
     marginTop: 4,
     paddingHorizontal: 6,
@@ -990,38 +1149,49 @@ const styles = StyleSheet.create({
   },
   listDescription: {
     color: colors.slate,
-    fontSize: 10,
-    fontWeight: '300',
-    lineHeight: 13,
+    fontSize: 15,
+    fontWeight: '400',
+    lineHeight: 20,
   },
   listRow: {
     alignItems: 'center',
-    borderBottomColor: colors.borderSoft,
-    borderBottomWidth: 1,
     flexDirection: 'row',
     gap: spacing.md,
-    minHeight: 62,
-    paddingHorizontal: 14,
-    paddingVertical: spacing.sm,
+    minHeight: 72,
+    paddingLeft: 14,
+  },
+  listRowContent: {
+    alignItems: 'center',
+    flex: 1,
+    flexDirection: 'row',
+    gap: spacing.md,
+    minHeight: 72,
+    paddingLeft: 2,
+    paddingRight: 14,
+    paddingVertical: 10,
+  },
+  listRowContentDivider: {
+    borderBottomColor: colors.separator,
+    borderBottomWidth: 1,
   },
   listTitle: {
     color: colors.navy,
-    fontSize: 11,
+    fontSize: 17,
     fontWeight: '600',
-    lineHeight: 15,
+    lineHeight: 22,
   },
   logo: {
     color: '#0c367f',
-    fontSize: 23,
+    fontSize: 28,
     fontWeight: '300',
-    letterSpacing: 5.1,
-    lineHeight: 24,
+    letterSpacing: 4.2,
+    lineHeight: 34,
   },
   logoTagline: {
     color: '#53607a',
-    fontSize: 11,
-    fontWeight: '300',
-    marginTop: 3,
+    fontSize: 13,
+    fontWeight: '400',
+    marginTop: 2,
   },
   messageBubble: {
     ...shadows.card,
@@ -1044,15 +1214,15 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
   },
   messageSourceText: {
-    fontSize: 9,
+    fontSize: 15,
     fontWeight: '600',
     lineHeight: 11,
   },
   messageText: {
     color: colors.navy,
-    fontSize: 13,
-    fontWeight: '300',
-    lineHeight: 18,
+    fontSize: 17,
+    fontWeight: '400',
+    lineHeight: 22,
   },
   messageImage: {
     borderRadius: 10,
@@ -1072,11 +1242,11 @@ const styles = StyleSheet.create({
   },
   messageImagePlaceholderText: {
     color: colors.slate,
-    fontSize: 12,
+    fontSize: 15,
   },
   messageTime: {
     color: colors.slateLight,
-    fontSize: 10,
+    fontSize: 13,
     marginTop: 2,
     textAlign: 'right',
   },
@@ -1093,33 +1263,39 @@ const styles = StyleSheet.create({
   },
   metricGrid: {
     flexDirection: 'row',
-    paddingTop: spacing.lg,
+    flexWrap: 'wrap',
+    paddingHorizontal: 8,
+    paddingTop: spacing.md,
+  },
+  metricIconPlain: {
+    alignItems: 'center',
+    height: 32,
+    justifyContent: 'center',
+    marginBottom: 4,
+    width: 32,
   },
   metricItem: {
     alignItems: 'center',
-    borderRightColor: colors.borderSoft,
-    borderRightWidth: 1,
-    flex: 1,
-    minHeight: 72,
-    minWidth: 0,
-    paddingHorizontal: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 10,
+    width: '50%',
   },
   metricItemLast: {
     borderRightWidth: 0,
   },
   metricLabel: {
     color: colors.slate,
-    fontSize: 8,
-    fontWeight: '300',
-    lineHeight: 11,
+    fontSize: 13,
+    fontWeight: '400',
+    lineHeight: 17,
     marginTop: 4,
     textAlign: 'center',
   },
   metricValue: {
-    fontSize: 11,
-    fontWeight: '600',
-    lineHeight: 14,
-    marginTop: 6,
+    fontSize: 20,
+    fontWeight: '700',
+    lineHeight: 24,
+    marginTop: 2,
     textAlign: 'center',
   },
   micButton: {
@@ -1138,7 +1314,7 @@ const styles = StyleSheet.create({
   },
   micButtonText: {
     color: colors.surface,
-    fontSize: 12,
+    fontSize: 15,
   },
   notificationMeta: {
     alignItems: 'center',
@@ -1180,7 +1356,7 @@ const styles = StyleSheet.create({
   },
   primaryText: {
     color: colors.primary,
-    fontSize: 12,
+    fontSize: 15,
     fontWeight: '600',
   },
   profileAvatar: {
@@ -1198,7 +1374,7 @@ const styles = StyleSheet.create({
   },
   profileLine: {
     color: colors.slate,
-    fontSize: 10,
+    fontSize: 13,
     marginTop: 8,
   },
   profileName: {
@@ -1227,7 +1403,7 @@ const styles = StyleSheet.create({
   },
   quickActionText: {
     color: colors.navy,
-    fontSize: 10,
+    fontSize: 13,
     fontWeight: '600',
   },
   redText: {
@@ -1270,7 +1446,7 @@ const styles = StyleSheet.create({
   },
   attachmentCircleLabel: {
     color: colors.navy,
-    fontSize: 12,
+    fontSize: 15,
     fontWeight: '500',
     marginTop: spacing.sm,
   },
@@ -1316,13 +1492,13 @@ const styles = StyleSheet.create({
   },
   pendingImageClear: {
     color: colors.primary,
-    fontSize: 12,
+    fontSize: 15,
     fontWeight: '600',
   },
   pendingImageLabel: {
     color: colors.slate,
     flex: 1,
-    fontSize: 12,
+    fontSize: 15,
     lineHeight: 16,
   },
   pendingImageRow: {
@@ -1344,7 +1520,7 @@ const styles = StyleSheet.create({
   },
   recordingHint: {
     color: colors.slate,
-    fontSize: 10,
+    fontSize: 13,
     paddingBottom: spacing.xs,
     paddingHorizontal: spacing.xl,
     textAlign: 'center',
@@ -1377,27 +1553,29 @@ const styles = StyleSheet.create({
   },
   subheading: {
     color: colors.slate,
-    fontSize: 11,
-    fontWeight: '300',
-    lineHeight: 14,
-    marginTop: 7,
+    fontSize: 15,
+    fontWeight: '400',
+    lineHeight: 20,
+    marginTop: 4,
   },
   tabButton: {
     alignItems: 'center',
     flex: 1,
-    minHeight: 48,
     justifyContent: 'center',
+    minHeight: 52,
+    overflow: 'visible',
+    zIndex: 1,
   },
   tabIcon: {
-    color: colors.slateLight,
+    color: colors.tabInactive,
     fontSize: 20,
     fontWeight: '300',
   },
   tabLabel: {
-    color: colors.slateLight,
-    fontSize: 10,
+    color: colors.tabInactive,
+    fontSize: 11,
     fontWeight: '600',
-    marginTop: 2,
+    marginTop: 4,
   },
   threadHeader: {
     alignItems: 'center',
@@ -1411,7 +1589,7 @@ const styles = StyleSheet.create({
   },
   timestamp: {
     color: colors.slate,
-    fontSize: 10,
+    fontSize: 13,
     fontWeight: '300',
   },
   toneIcon: {
@@ -1430,7 +1608,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
     borderRadius: radius.pill,
     color: colors.surface,
-    fontSize: 10,
+    fontSize: 13,
     fontWeight: '600',
     minWidth: 17,
     paddingHorizontal: 5,

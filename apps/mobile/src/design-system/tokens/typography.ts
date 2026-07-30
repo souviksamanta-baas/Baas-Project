@@ -11,72 +11,75 @@ export const fontWeight = {
   bold: '700' as const,
 };
 
-/** Full type scale from Nexolia design system. */
+/**
+ * Type scale aligned with WhatsApp / iOS Large Title conventions:
+ * page titles ~34, row titles ~17, previews/captions ~15, tab labels ~10–11.
+ */
 export const textStyles = {
   displayLg: {
     color: colors.textPrimary,
     fontSize: 34,
     fontWeight: fontWeight.bold,
-    letterSpacing: -0.68,
-    lineHeight: 40,
+    letterSpacing: 0.37,
+    lineHeight: 41,
   },
   headingMd: {
     color: colors.textPrimary,
-    fontSize: 22,
+    fontSize: 28,
     fontWeight: fontWeight.bold,
-    letterSpacing: -0.33,
-    lineHeight: 28,
+    letterSpacing: 0.36,
+    lineHeight: 34,
   },
   cardTitle: {
     color: colors.textPrimary,
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: fontWeight.bold,
-    letterSpacing: -0.22,
-    lineHeight: 28,
+    letterSpacing: -0.2,
+    lineHeight: 25,
   },
   bodyLg: {
     color: colors.textSecondary,
-    fontSize: 19,
+    fontSize: 17,
     fontWeight: fontWeight.regular,
-    lineHeight: 28,
+    lineHeight: 22,
   },
   bodyMd: {
     color: colors.textSecondary,
     fontSize: 17,
     fontWeight: fontWeight.regular,
-    lineHeight: 25,
+    lineHeight: 22,
   },
   bodySm: {
     color: colors.textSecondary,
     fontSize: 15,
     fontWeight: fontWeight.regular,
-    lineHeight: 22,
+    lineHeight: 20,
   },
   metricLg: {
     color: colors.textPrimary,
-    fontSize: 28,
+    fontSize: 22,
     fontWeight: fontWeight.bold,
-    letterSpacing: -0.42,
-    lineHeight: 34,
+    letterSpacing: -0.3,
+    lineHeight: 28,
   },
   metricMd: {
     color: colors.textPrimary,
-    fontSize: 25,
+    fontSize: 20,
     fontWeight: fontWeight.bold,
-    letterSpacing: -0.38,
-    lineHeight: 31,
+    letterSpacing: -0.2,
+    lineHeight: 25,
   },
   listTitle: {
     color: colors.textPrimary,
-    fontSize: 18,
-    fontWeight: fontWeight.bold,
-    lineHeight: 24,
+    fontSize: 17,
+    fontWeight: fontWeight.semibold,
+    lineHeight: 22,
   },
   listBody: {
     color: colors.textSecondary,
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: fontWeight.regular,
-    lineHeight: 22,
+    lineHeight: 20,
   },
   labelMd: {
     color: colors.textSecondary,
@@ -93,45 +96,56 @@ export const textStyles = {
   buttonMd: {
     color: colors.surface,
     fontSize: 17,
-    fontWeight: fontWeight.bold,
+    fontWeight: fontWeight.semibold,
     lineHeight: 22,
   },
-  // Inventory / compact screen presets (approved mockups)
   pageTitle: {
     color: colors.textPrimary,
-    fontSize: 18,
-    fontWeight: fontWeight.semibold,
-    letterSpacing: -0.4,
-    lineHeight: 22,
+    fontSize: 34,
+    fontWeight: fontWeight.bold,
+    letterSpacing: 0.37,
+    lineHeight: 41,
   },
   pageSubtitle: {
     color: colors.textSecondary,
-    fontSize: 11,
+    fontSize: 15,
     fontWeight: fontWeight.regular,
-    lineHeight: 14,
+    lineHeight: 20,
   },
   sectionTitle: {
     color: colors.textPrimary,
-    fontSize: 12,
-    fontWeight: fontWeight.semibold,
+    fontSize: 18,
+    fontWeight: fontWeight.bold,
+    letterSpacing: -0.2,
+    lineHeight: 23,
   },
   fieldLabel: {
     color: colors.textPrimary,
-    fontSize: 9,
+    fontSize: 13,
     fontWeight: fontWeight.semibold,
+    lineHeight: 18,
   },
   fieldValue: {
     color: colors.textPrimary,
-    fontSize: 10,
+    fontSize: 17,
     fontWeight: fontWeight.regular,
+    lineHeight: 22,
   },
   badge: {
-    fontSize: 9,
-    fontWeight: fontWeight.regular,
+    fontSize: 12,
+    fontWeight: fontWeight.semibold,
+    lineHeight: 16,
   },
   buttonCompact: {
-    fontSize: 11,
+    fontSize: 15,
     fontWeight: fontWeight.semibold,
+    lineHeight: 20,
+  },
+  /** Bottom tab / compact chrome labels (WhatsApp ~10–11). */
+  tabLabel: {
+    fontSize: 10,
+    fontWeight: fontWeight.medium,
+    lineHeight: 12,
   },
 } as const;
 
@@ -140,9 +154,9 @@ export const typography = {
   sectionTitle: textStyles.sectionTitle,
   title: {
     color: colors.textPrimary,
-    fontSize: 22,
-    fontWeight: fontWeight.semibold,
-    letterSpacing: -0.4,
-    lineHeight: 26,
+    fontSize: 34,
+    fontWeight: fontWeight.bold,
+    letterSpacing: 0.37,
+    lineHeight: 41,
   },
 };

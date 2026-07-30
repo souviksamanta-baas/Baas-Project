@@ -25,7 +25,7 @@ export default function App(): ReactElement {
         <OwnerRouteView ownerSession={ownerSession} />
       ) : (
         <ScrollView contentContainerStyle={styles.container}>
-          <Text style={styles.eyebrow}>BaaS Phase 0</Text>
+          <Text style={styles.eyebrow}>Nexolia</Text>
           <Text style={styles.title}>Owner Assistant</Text>
           <OwnerRouteView ownerSession={ownerSession} />
         </ScrollView>

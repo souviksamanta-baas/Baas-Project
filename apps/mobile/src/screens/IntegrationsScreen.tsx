@@ -19,7 +19,7 @@ const INTEGRATIONS: Array<{
   {
     icon: 'whatsapp',
     id: 'whatsapp',
-    subtitle: 'Inbox y mensajes con clientes',
+    subtitle: 'Chats y mensajes con clientes',
     title: 'WhatsApp Business',
   },
   {

@@ -310,7 +310,7 @@ const styles = StyleSheet.create({
   },
   amountText: {
     color: colors.navy,
-    fontSize: 11,
+    fontSize: 15,
     fontWeight: '700',
   },
   backPressable: {
@@ -328,7 +328,7 @@ const styles = StyleSheet.create({
   },
   costText: {
     color: colors.slate,
-    fontSize: 11,
+    fontSize: 15,
     fontWeight: '600',
   },
   detailRow: {
@@ -343,12 +343,12 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     color: colors.textMuted,
-    fontSize: 12,
+    fontSize: 15,
     paddingVertical: 8,
   },
   errorText: {
     color: colors.danger,
-    fontSize: 12,
+    fontSize: 15,
   },
   flex: {
     flex: 1,
@@ -359,7 +359,7 @@ const styles = StyleSheet.create({
   },
   groupCount: {
     color: colors.textMuted,
-    fontSize: 12,
+    fontSize: 15,
     fontWeight: '600',
   },
   groupDate: {
@@ -394,12 +394,12 @@ const styles = StyleSheet.create({
   },
   priceText: {
     color: colors.slate,
-    fontSize: 11,
+    fontSize: 15,
     fontWeight: '600',
   },
   qtyText: {
     color: colors.navy,
-    fontSize: 12,
+    fontSize: 15,
     fontWeight: '700',
   },
   rightCol: {
@@ -408,7 +408,7 @@ const styles = StyleSheet.create({
   },
   rowMeta: {
     color: colors.textMuted,
-    fontSize: 11,
+    fontSize: 15,
     marginTop: 2,
   },
   rowTitle: {
@@ -418,13 +418,13 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     color: colors.navy,
-    fontSize: 12,
+    fontSize: 15,
     fontWeight: '600',
     marginBottom: 8,
     marginTop: 4,
   },
   statusText: {
-    fontSize: 10,
+    fontSize: 13,
     fontWeight: '600',
   },
 });

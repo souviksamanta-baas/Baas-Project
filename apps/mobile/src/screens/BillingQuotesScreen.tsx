@@ -278,12 +278,12 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     color: colors.textMuted,
-    fontSize: 12,
+    fontSize: 15,
     lineHeight: 18,
   },
   errorText: {
     color: colors.danger,
-    fontSize: 12,
+    fontSize: 15,
     marginBottom: 8,
   },
   expandButton: {
@@ -322,7 +322,7 @@ const styles = StyleSheet.create({
   },
   filterText: {
     color: colors.textSecondary,
-    fontSize: 11,
+    fontSize: 15,
     fontWeight: '600',
   },
   filterTextActive: {
@@ -338,7 +338,7 @@ const styles = StyleSheet.create({
   },
   lineMeta: {
     color: colors.textMuted,
-    fontSize: 11,
+    fontSize: 15,
     marginTop: 2,
   },
   lineName: {
@@ -374,7 +374,7 @@ const styles = StyleSheet.create({
   },
   quoteMeta: {
     color: colors.textMuted,
-    fontSize: 11,
+    fontSize: 15,
     marginTop: 2,
   },
   sellLink: {
@@ -405,7 +405,7 @@ const styles = StyleSheet.create({
   },
   statusChipText: {
     color: colors.textSecondary,
-    fontSize: 11,
+    fontSize: 15,
     fontWeight: '600',
   },
   statusChipTextActive: {
@@ -413,7 +413,7 @@ const styles = StyleSheet.create({
   },
   statusHint: {
     color: colors.textMuted,
-    fontSize: 11,
+    fontSize: 15,
     marginBottom: 8,
     marginTop: 12,
   },
@@ -423,12 +423,12 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
   },
   statusText: {
-    fontSize: 10,
+    fontSize: 13,
     fontWeight: '700',
   },
   totalLabel: {
     color: colors.textSecondary,
-    fontSize: 12,
+    fontSize: 15,
     fontWeight: '600',
   },
   totalRow: {

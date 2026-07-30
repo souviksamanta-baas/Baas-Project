@@ -21,6 +21,12 @@ export const colors = {
   borderSoft: '#eef3f6',
   borderInput: '#dfe7ec',
   divider: '#edf2f4',
+  /** WhatsApp/iOS-style inset list separator */
+  separator: 'rgba(60, 60, 67, 0.18)',
+
+  // Tab bar (WhatsApp-like neutrals; $ FAB keeps brand green)
+  tabInactive: '#3a3a3c',
+  tabActive: '#1c1c1e',
 
   // Semantic
   success: '#08bd66',

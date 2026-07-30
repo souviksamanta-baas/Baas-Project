@@ -763,7 +763,7 @@ const styles = StyleSheet.create({
     color: colors.danger,
   },
   badgeText: {
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: '300',
   },
   buttonFullWidth: {
@@ -819,7 +819,7 @@ const styles = StyleSheet.create({
   },
   cartName: {
     color: colors.navy,
-    fontSize: 10,
+    fontSize: 13,
     fontWeight: '600',
   },
   cartNameRow: {
@@ -829,7 +829,7 @@ const styles = StyleSheet.create({
   },
   cartPrice: {
     color: colors.navy,
-    fontSize: 10,
+    fontSize: 13,
     fontWeight: '600',
   },
   changePhotoBadge: {
@@ -861,7 +861,7 @@ const styles = StyleSheet.create({
   },
   cobrarLabel: {
     color: colors.surface,
-    fontSize: 11,
+    fontSize: 15,
     fontWeight: '600',
   },
   cobrarSymbol: {
@@ -880,7 +880,7 @@ const styles = StyleSheet.create({
   },
   discountActiveText: {
     color: colors.surface,
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: '600',
   },
   discountControls: {
@@ -896,7 +896,7 @@ const styles = StyleSheet.create({
   },
   discountInactiveText: {
     color: colors.slate,
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: '600',
   },
   discountInput: {
@@ -917,19 +917,19 @@ const styles = StyleSheet.create({
   },
   discountInputPrefix: {
     color: colors.navy,
-    fontSize: 10,
+    fontSize: 13,
     fontWeight: '600',
   },
   discountInputSuffix: {
     color: colors.navy,
     flexShrink: 0,
-    fontSize: 10,
+    fontSize: 13,
     fontWeight: '600',
   },
   discountInputText: {
     color: colors.navy,
     flex: 1,
-    fontSize: 10,
+    fontSize: 13,
     fontWeight: '600',
     minWidth: 52,
     padding: 0,
@@ -942,7 +942,7 @@ const styles = StyleSheet.create({
   cartWeightInput: {
     color: colors.navy,
     flex: 1,
-    fontSize: 10,
+    fontSize: 13,
     fontWeight: '600',
     minWidth: 0,
     padding: 0,
@@ -963,7 +963,7 @@ const styles = StyleSheet.create({
   },
   cartWeightSuffix: {
     color: colors.slate,
-    fontSize: 10,
+    fontSize: 13,
     fontWeight: '600',
   },
   inputWebNoOutline: {
@@ -972,7 +972,7 @@ const styles = StyleSheet.create({
   },
   discountPercentValue: {
     color: colors.info,
-    fontSize: 10,
+    fontSize: 13,
     fontWeight: '600',
   },
   discountToggle: {
@@ -992,7 +992,7 @@ const styles = StyleSheet.create({
   },
   discountToggleText: {
     color: colors.slate,
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: '600',
   },
   discountToggleTextActive: {
@@ -1000,7 +1000,7 @@ const styles = StyleSheet.create({
   },
   discountValue: {
     color: colors.info,
-    fontSize: 10,
+    fontSize: 13,
     fontWeight: '600',
   },
   fieldBox: {
@@ -1023,17 +1023,17 @@ const styles = StyleSheet.create({
   },
   fieldLabel: {
     color: colors.navy,
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: '600',
     marginBottom: 4,
   },
   fieldLabelCompact: {
-    fontSize: 11,
+    fontSize: 15,
   },
   fieldValue: {
     color: colors.navy,
     flex: 1,
-    fontSize: 10,
+    fontSize: 13,
     fontWeight: '300',
   },
   fieldValueGreen: {
@@ -1074,7 +1074,7 @@ const styles = StyleSheet.create({
   infoBannerText: {
     color: colors.navy,
     flex: 1,
-    fontSize: 10,
+    fontSize: 13,
     fontWeight: '300',
     lineHeight: 15,
   },
@@ -1083,12 +1083,12 @@ const styles = StyleSheet.create({
   },
   infoBlockLabel: {
     color: colors.slate,
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: '300',
   },
   infoBlockValue: {
     color: colors.navy,
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: '600',
     lineHeight: 13,
     marginTop: 4,
@@ -1100,7 +1100,7 @@ const styles = StyleSheet.create({
   },
   linkedDeleteName: {
     color: colors.navy,
-    fontSize: 10,
+    fontSize: 13,
     fontWeight: '600',
   },
   linkedDeleteRow: {
@@ -1119,7 +1119,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   linkedSubproductActionText: {
-    fontSize: 10,
+    fontSize: 13,
     fontWeight: '600',
   },
   linkedSubproductEditText: {
@@ -1127,13 +1127,13 @@ const styles = StyleSheet.create({
   },
   linkedSubproductMeta: {
     color: colors.slate,
-    fontSize: 10,
+    fontSize: 13,
     fontWeight: '300',
     marginTop: 2,
   },
   linkedSubproductName: {
     color: colors.navy,
-    fontSize: 11,
+    fontSize: 15,
     fontWeight: '600',
   },
   linkedSubproductRow: {
@@ -1150,7 +1150,7 @@ const styles = StyleSheet.create({
   },
   linkedText: {
     color: colors.info,
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: '300',
     marginTop: 4,
   },
@@ -1168,12 +1168,12 @@ const styles = StyleSheet.create({
   },
   metaLabel: {
     color: colors.slate,
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: '300',
   },
   metaValue: {
     color: colors.navy,
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: '600',
     marginTop: 2,
   },
@@ -1200,7 +1200,7 @@ const styles = StyleSheet.create({
   },
   paginationButtonText: {
     color: colors.slate,
-    fontSize: 10,
+    fontSize: 13,
     fontWeight: '600',
   },
   paginationButtonTextActive: {
@@ -1217,14 +1217,14 @@ const styles = StyleSheet.create({
   },
   paginationGap: {
     color: colors.slate,
-    fontSize: 10,
+    fontSize: 13,
     fontWeight: '600',
     paddingHorizontal: 2,
   },
   paginationMeta: {
     color: colors.slate,
     flex: 1,
-    fontSize: 10,
+    fontSize: 13,
     fontWeight: '300',
     minWidth: 0,
   },
@@ -1259,12 +1259,12 @@ const styles = StyleSheet.create({
   },
   outlineButtonText: {
     color: colors.navy,
-    fontSize: 11,
+    fontSize: 15,
     fontWeight: '600',
   },
   pageSubtitle: {
     color: colors.slate,
-    fontSize: 11,
+    fontSize: 15,
     fontWeight: '300',
     lineHeight: 14,
     marginTop: 7,
@@ -1294,7 +1294,7 @@ const styles = StyleSheet.create({
   },
   paymentChipText: {
     color: colors.slate,
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: '600',
   },
   paymentChipTextActive: {
@@ -1312,7 +1312,7 @@ const styles = StyleSheet.create({
   },
   primaryButtonText: {
     color: colors.surface,
-    fontSize: 11,
+    fontSize: 15,
     fontWeight: '600',
   },
   qtyButton: {
@@ -1326,7 +1326,7 @@ const styles = StyleSheet.create({
   },
   qtyButtonText: {
     color: colors.navy,
-    fontSize: 12,
+    fontSize: 15,
     fontWeight: '600',
   },
   qtyControls: {
@@ -1340,7 +1340,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     borderWidth: 1,
     color: colors.navy,
-    fontSize: 10,
+    fontSize: 13,
     fontWeight: '600',
     height: 28,
     marginTop: 6,
@@ -1350,7 +1350,7 @@ const styles = StyleSheet.create({
   },
   qtyValue: {
     color: colors.navy,
-    fontSize: 10,
+    fontSize: 13,
     fontWeight: '600',
   },
   radioCircle: {
@@ -1389,12 +1389,12 @@ const styles = StyleSheet.create({
   },
   radioOptionMeta: {
     color: colors.slate,
-    fontSize: 10,
+    fontSize: 13,
     fontWeight: '300',
   },
   radioOptionName: {
     color: colors.navy,
-    fontSize: 11,
+    fontSize: 15,
     fontWeight: '600',
   },
   rowActions: {
@@ -1425,7 +1425,7 @@ const styles = StyleSheet.create({
   searchPlaceholder: {
     color: '#65708a',
     flex: 1,
-    fontSize: 11,
+    fontSize: 15,
     fontWeight: '300',
   },
   searchField: {
@@ -1444,13 +1444,13 @@ const styles = StyleSheet.create({
   },
   sectionCardSubtitle: {
     color: colors.slate,
-    fontSize: 10,
+    fontSize: 13,
     fontWeight: '300',
     marginTop: 4,
   },
   sectionCardTitle: {
     color: colors.navy,
-    fontSize: 12,
+    fontSize: 15,
     fontWeight: '600',
     paddingBottom: 8,
   },
@@ -1467,7 +1467,7 @@ const styles = StyleSheet.create({
   },
   solidDangerButtonText: {
     color: colors.surface,
-    fontSize: 11,
+    fontSize: 15,
     fontWeight: '600',
   },
   stockCol: {
@@ -1475,7 +1475,7 @@ const styles = StyleSheet.create({
   },
   stockLabel: {
     color: colors.slate,
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: '300',
   },
   stockValue: {
@@ -1494,13 +1494,13 @@ const styles = StyleSheet.create({
   },
   summaryCategory: {
     color: colors.slate,
-    fontSize: 10,
+    fontSize: 13,
     fontWeight: '300',
     marginTop: 2,
   },
   summaryName: {
     color: colors.navy,
-    fontSize: 12,
+    fontSize: 15,
     fontWeight: '600',
   },
   summaryTop: {
@@ -1534,7 +1534,7 @@ const styles = StyleSheet.create({
   },
   thumbQty: {
     color: colors.navy,
-    fontSize: 8,
+    fontSize: 12,
     fontWeight: '600',
     marginTop: 2,
   },
@@ -1571,7 +1571,7 @@ const styles = StyleSheet.create({
   },
   totalRowLabel: {
     color: colors.slate,
-    fontSize: 10,
+    fontSize: 13,
     fontWeight: '300',
   },
   totalsBlock: {
@@ -1588,7 +1588,7 @@ const styles = StyleSheet.create({
   },
   weightBadgeText: {
     color: colors.info,
-    fontSize: 8,
+    fontSize: 12,
     fontWeight: '300',
   },
 });

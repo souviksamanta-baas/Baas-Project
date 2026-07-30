@@ -306,7 +306,7 @@ const styles = StyleSheet.create({
   dateInput: {
     color: colors.navy,
     flex: 1,
-    fontSize: 12,
+    fontSize: 15,
     fontWeight: '500',
     minWidth: 0,
     paddingVertical: 0,
@@ -340,7 +340,7 @@ const styles = StyleSheet.create({
   },
   label: {
     color: colors.slate,
-    fontSize: 10,
+    fontSize: 13,
     fontWeight: '600',
     marginBottom: 6,
   },
@@ -377,7 +377,7 @@ const styles = StyleSheet.create({
   prefixInput: {
     color: colors.navy,
     flex: 1,
-    fontSize: 12,
+    fontSize: 15,
     fontWeight: '500',
     minWidth: 0,
     paddingVertical: 0,
@@ -395,7 +395,7 @@ const styles = StyleSheet.create({
   },
   prefixText: {
     color: colors.slate,
-    fontSize: 12,
+    fontSize: 15,
     fontWeight: '600',
   },
   readOnlyBox: {
@@ -409,7 +409,7 @@ const styles = StyleSheet.create({
   },
   readOnlyValue: {
     color: colors.slate,
-    fontSize: 12,
+    fontSize: 15,
     fontWeight: '500',
   },
   selectBox: {
@@ -434,7 +434,7 @@ const styles = StyleSheet.create({
   selectValue: {
     color: colors.navy,
     flex: 1,
-    fontSize: 12,
+    fontSize: 15,
     fontWeight: '500',
   },
   selectValueDisabled: {
@@ -447,7 +447,7 @@ const styles = StyleSheet.create({
   suffixInput: {
     color: colors.navy,
     flex: 1,
-    fontSize: 12,
+    fontSize: 15,
     fontWeight: '500',
     minWidth: 0,
     paddingVertical: 0,
@@ -455,7 +455,7 @@ const styles = StyleSheet.create({
   },
   suffixText: {
     color: colors.slate,
-    fontSize: 12,
+    fontSize: 15,
     fontWeight: '600',
   },
   suggestionItem: {
@@ -474,7 +474,7 @@ const styles = StyleSheet.create({
   },
   suggestionText: {
     color: colors.navy,
-    fontSize: 12,
+    fontSize: 15,
     fontWeight: '500',
   },
   supplierInput: {
@@ -483,7 +483,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     borderWidth: 1,
     color: colors.navy,
-    fontSize: 12,
+    fontSize: 15,
     fontWeight: '500',
     minHeight: 40,
     paddingHorizontal: 10,

@@ -15,3 +15,6 @@ supabase/.temp/
 
 # Firebase / Android push (real file; keep example in repo)
 apps/mobile/google-services.json
+
+# Local Expo prebuild / Xcode (do not commit)
+apps/mobile/ios/

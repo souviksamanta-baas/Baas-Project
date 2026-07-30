@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "BaaS Owner",
+    "name": "Nexolia",
     "slug": "baas-owner",
     "owner": "baas1",
     "scheme": "baas-owner",
@@ -58,7 +58,10 @@
     ],
     "ios": {
       "bundleIdentifier": "com.nexolia.owner",
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "ar.com.nexolia.app",

@@ -33,6 +33,7 @@ export default function AccountRoute(): ReactElement {
           : undefined
       }
       onOpenEditProfile={() => router.push(routes.editProfile)}
+      onOpenHelpSupport={() => router.push(routes.helpSupport)}
       onOpenPrivacyData={() => router.push(routes.privacyData)}
       onOpenStaffInvite={() => router.push(routes.staffInvite)}
       onOpenWhatsAppSetup={() => router.push(routes.whatsappConnect)}

@@ -1,8 +1,8 @@
 # Instagram Webhook
 
-Inbound Meta Instagram Messaging webhook for the owner inbox ([KAN-365](https://souviksamanta.atlassian.net/browse/KAN-365) / [KAN-370](https://souviksamanta.atlassian.net/browse/KAN-370)).
+Inbound Meta Instagram Messaging webhook for the owner **Chats** inbox ([KAN-365](https://souviksamanta.atlassian.net/browse/KAN-365) / [KAN-370](https://souviksamanta.atlassian.net/browse/KAN-370)).
 
-Canonical product guide: `docs/instagram-messaging.md`.
+Owner-facing tab label is **Chats**; routes remain `/(app)/inbox`. Canonical product guide: `docs/instagram-messaging.md`.
 
 Confluence:
 

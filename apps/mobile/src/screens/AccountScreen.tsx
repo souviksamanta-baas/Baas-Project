@@ -1,7 +1,6 @@
 import type { ReactElement } from 'react';
 import { Alert, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import type { IconKind } from '../components/icons';
 import { Icon } from '../components/icons';
 import { ActionRow, Card, ScreenContent, ScreenTitle } from '../components/ui';
 import { FeatureGate } from '../hooks/useFeatureVisibility';
@@ -40,6 +39,7 @@ export function AccountScreen(props: {
   fullName: string;
   onOpenBusinessSettings?: () => void;
   onOpenEditProfile: () => void;
+  onOpenHelpSupport: () => void;
   onOpenPrivacyData: () => void;
   onOpenStaffInvite: () => void;
   onOpenWhatsAppSetup: () => void;
@@ -108,39 +108,50 @@ export function AccountScreen(props: {
       </FeatureGate>
 
       <FeatureGate feature="accountSettings">
-        <Card>
-          <ActionRow icon="users" onPress={props.onOpenStaffInvite} title="Invitar miembro (QR)" />
-          <ActionRow icon="user" onPress={props.onOpenEditProfile} title="Editar perfil" />
-          <ActionRow icon="gear" onPress={props.onOpenPrivacyData} title="Privacidad y datos" />
+        <Card flush>
+          <ActionRow icon="users" onPress={props.onOpenStaffInvite} showDivider title="Invitar miembro (QR)" />
+          <ActionRow icon="user" onPress={props.onOpenEditProfile} showDivider title="Editar perfil" />
+          <ActionRow
+            icon="shield"
+            onPress={props.onOpenPrivacyData}
+            showDivider={Boolean(canManageBusiness && props.onOpenBusinessSettings)}
+            title="Privacidad y datos"
+          />
           {canManageBusiness && props.onOpenBusinessSettings ? (
             <ActionRow
               icon="gear"
               onPress={props.onOpenBusinessSettings}
+              showDivider={false}
               title="Configuracion del negocio"
             />
           ) : null}
-          <ActionRow icon={'help' as IconKind} title="Ayuda y soporte" />
         </Card>
       </FeatureGate>
 
       <FeatureGate feature="accountConnectedServices">
-        <Card>
+        <Card flush>
           <ActionRow
             icon="whatsapp"
             onPress={props.onOpenWhatsAppSetup}
+            showDivider
             subtitle={connectionCopy.subtitle}
             title={connectionCopy.title}
           />
           <ActionRow
             icon="globe"
             onPress={canManageBusiness ? props.onOpenBusinessSettings : undefined}
+            showDivider={false}
             subtitle={canManageBusiness ? 'Tocá para editar' : undefined}
             title={`Zona horaria: ${props.timezoneLabel}`}
           />
         </Card>
       </FeatureGate>
 
-      <ActionRow danger icon="logout" onPress={props.onSignOut} title="Cerrar sesion" />
+      <Card flush>
+        <ActionRow icon="help" onPress={props.onOpenHelpSupport} showDivider={false} title="Ayuda y soporte" />
+      </Card>
+
+      <ActionRow danger icon="logout" onPress={props.onSignOut} showDivider={false} title="Cerrar sesion" />
     </ScreenContent>
   );
 }
@@ -169,14 +180,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#dfaa8b',
     borderRadius: 999,
-    height: 78,
+    height: 72,
     justifyContent: 'center',
-    width: 78,
+    width: 72,
   },
   profileAvatarImage: {
     borderRadius: 999,
-    height: 78,
-    width: 78,
+    height: 72,
+    width: 72,
   },
   profileCard: {
     ...shadows.card,
@@ -186,25 +197,27 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderWidth: 1,
     flexDirection: 'row',
-    gap: 18,
-    minHeight: 128,
-    paddingHorizontal: 18,
+    gap: 16,
+    minHeight: 104,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
   },
   profileInitials: {
     color: colors.surface,
-    fontSize: 18,
+    fontSize: 24,
     fontWeight: '600',
   },
   profileLine: {
     color: colors.slate,
-    fontSize: 10,
-    fontWeight: '300',
-    marginTop: 8,
+    fontSize: 15,
+    fontWeight: '400',
+    lineHeight: 20,
+    marginTop: 4,
   },
   profileName: {
     color: colors.navy,
-    fontSize: 17,
+    fontSize: 22,
     fontWeight: '600',
-    lineHeight: 21,
+    lineHeight: 28,
   },
 });

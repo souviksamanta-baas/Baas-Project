@@ -180,7 +180,7 @@ const styles = StyleSheet.create({
   },
   errorText: {
     color: colors.danger,
-    fontSize: 12,
+    fontSize: 15,
   },
   flex: {
     flex: 1,
@@ -195,12 +195,12 @@ const styles = StyleSheet.create({
   },
   linkText: {
     color: colors.slate,
-    fontSize: 11,
+    fontSize: 15,
     textAlign: 'center',
   },
   qrBody: {
     color: colors.slate,
-    fontSize: 12,
+    fontSize: 15,
     lineHeight: 18,
     textAlign: 'center',
   },
@@ -233,7 +233,7 @@ const styles = StyleSheet.create({
   },
   roleChipText: {
     color: colors.slate,
-    fontSize: 11,
+    fontSize: 15,
   },
   roleChipTextActive: {
     color: colors.primary,
@@ -246,7 +246,7 @@ const styles = StyleSheet.create({
   },
   sectionLabel: {
     color: colors.navy,
-    fontSize: 12,
+    fontSize: 15,
     fontWeight: '600',
   },
 });

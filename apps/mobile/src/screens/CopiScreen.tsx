@@ -152,7 +152,7 @@ export function CopiScreen(props: {
           <View style={styles.listHeader}>
             <Text style={styles.sectionTitle}>Preguntas sugeridas</Text>
           </View>
-          {copiSuggestedQuestions.map((question) => (
+          {copiSuggestedQuestions.map((question, index) => (
             <ActionRow
               icon="message"
               key={question}
@@ -163,6 +163,7 @@ export function CopiScreen(props: {
                   question,
                 })
               }
+              showDivider={index < copiSuggestedQuestions.length - 1}
               title={question}
             />
           ))}
@@ -174,7 +175,7 @@ export function CopiScreen(props: {
           <View style={styles.listHeader}>
             <Text style={styles.sectionTitle}>Copi Pro</Text>
           </View>
-          {copiProSuggestedQuestions.map((question) => (
+          {copiProSuggestedQuestions.map((question, index) => (
             <ActionRow
               icon="message"
               key={question}
@@ -185,6 +186,7 @@ export function CopiScreen(props: {
                   question,
                 })
               }
+              showDivider={index < copiProSuggestedQuestions.length - 1}
               title={question}
             />
           ))}
@@ -323,7 +325,7 @@ const styles = StyleSheet.create({
   },
   cardDescription: {
     color: colors.slate,
-    fontSize: 11,
+    fontSize: 15,
     fontWeight: '300',
     lineHeight: 16,
     marginTop: 3,
@@ -373,7 +375,7 @@ const styles = StyleSheet.create({
   },
   confirmButtonText: {
     color: colors.surface,
-    fontSize: 12,
+    fontSize: 15,
     fontWeight: '600',
   },
   copiCard: {
@@ -413,7 +415,7 @@ const styles = StyleSheet.create({
   },
   homeCardTitle: {
     color: colors.navy,
-    fontSize: 12,
+    fontSize: 15,
     fontWeight: '600',
     lineHeight: 16,
   },
@@ -421,7 +423,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primarySoft,
     borderRadius: 999,
     color: colors.primary,
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: '600',
     overflow: 'hidden',
     paddingHorizontal: 8,
@@ -446,7 +448,7 @@ const styles = StyleSheet.create({
   },
   policyText: {
     color: colors.navy,
-    fontSize: 11,
+    fontSize: 15,
     lineHeight: 16,
   },
   purpleText: {
@@ -455,7 +457,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     color: colors.navy,
-    fontSize: 12,
+    fontSize: 15,
     fontWeight: '600',
   },
   summaryCard: {
@@ -463,7 +465,7 @@ const styles = StyleSheet.create({
   },
   summaryText: {
     color: colors.navy,
-    fontSize: 11,
+    fontSize: 15,
     fontWeight: '300',
     lineHeight: 16,
   },
@@ -475,7 +477,7 @@ const styles = StyleSheet.create({
   },
   typingText: {
     color: colors.slate,
-    fontSize: 11,
+    fontSize: 15,
   },
   upsellCard: {
     backgroundColor: '#f8faf8',

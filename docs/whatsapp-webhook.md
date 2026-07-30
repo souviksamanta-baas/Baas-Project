@@ -2,6 +2,12 @@
 
 This document tracks the Phase 0 WhatsApp webhook work for `KAN-8`.
 
+## Owner app naming
+
+Inbound customer messages appear in the owner app under the **Chats** tab
+(Spanish UI). Routes and code still use `inbox` / `conversations`
+(`/(app)/inbox`, `InboxProvider`). Webhook contracts below are unchanged.
+
 ## Scope
 
 Phase 0 proved WhatsApp Cloud API connectivity. Phase 1 adds durable webhook
@@ -322,7 +328,7 @@ npm run dev:api
 
 ## Inbound message not in inbox
 
-Symptom: WhatsApp shows the message as **delivered**, but Nexolia Inbox stays on seed/test data only.
+Symptom: WhatsApp shows the message as **delivered**, but Nexolia **Chats** stays on seed/test data only.
 
 ### Quick diagnosis
 
@@ -353,7 +359,7 @@ An empty `whatsapp_message_events` table means Meta did not successfully POST to
 
 ```text
 Your phone → Meta WABA → POST /webhooks/whatsapp → whatsapp_message_events
-  → conversation_messages + conversations → Inbox (Supabase Realtime)
+  → conversation_messages + conversations → Chats tab (Supabase Realtime)
 ```
 
 ## Verification Status

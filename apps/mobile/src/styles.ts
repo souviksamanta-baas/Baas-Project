@@ -130,7 +130,7 @@ export const styles = StyleSheet.create({
   },
   messagePreviewMeta: {
     color: '#0369a1',
-    fontSize: 12,
+    fontSize: 15,
     fontWeight: '700',
   },
   messagePreviewBody: {
@@ -162,7 +162,7 @@ export const styles = StyleSheet.create({
   },
   conversationMeta: {
     color: '#64748b',
-    fontSize: 12,
+    fontSize: 15,
     fontWeight: '600',
   },
   threadCard: {
@@ -216,7 +216,7 @@ export const styles = StyleSheet.create({
     backgroundColor: '#fee2e2',
     borderRadius: 999,
     color: '#b91c1c',
-    fontSize: 11,
+    fontSize: 15,
     fontWeight: '800',
     overflow: 'hidden',
     paddingHorizontal: 8,
@@ -227,7 +227,7 @@ export const styles = StyleSheet.create({
     backgroundColor: '#dbeafe',
     borderRadius: 999,
     color: '#1d4ed8',
-    fontSize: 11,
+    fontSize: 15,
     fontWeight: '800',
     overflow: 'hidden',
     paddingHorizontal: 8,

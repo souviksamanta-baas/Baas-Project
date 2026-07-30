@@ -2072,7 +2072,7 @@ const styles = StyleSheet.create({
   },
   actionLabel: {
     color: colors.primary,
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: '600',
     textAlign: 'center',
   },
@@ -2088,7 +2088,7 @@ const styles = StyleSheet.create({
   },
   addAnotherText: {
     color: colors.primary,
-    fontSize: 11,
+    fontSize: 15,
     fontWeight: '600',
   },
   addStockSaveAnotherButton: {
@@ -2109,7 +2109,7 @@ const styles = StyleSheet.create({
   },
   addStockSaveAnotherButtonText: {
     color: colors.primary,
-    fontSize: 12,
+    fontSize: 15,
     fontWeight: '600',
     textAlign: 'center',
   },
@@ -2152,13 +2152,13 @@ const styles = StyleSheet.create({
   },
   addProductSubtitle: {
     color: colors.slate,
-    fontSize: 10,
+    fontSize: 13,
     fontWeight: '300',
     marginTop: 2,
   },
   addProductTitle: {
     color: colors.navy,
-    fontSize: 11,
+    fontSize: 15,
     fontWeight: '600',
   },
   addSubproductButton: {
@@ -2173,12 +2173,12 @@ const styles = StyleSheet.create({
   },
   addSubproductButtonText: {
     color: colors.primary,
-    fontSize: 11,
+    fontSize: 15,
     fontWeight: '600',
   },
   alternativeBody: {
     color: colors.navy,
-    fontSize: 10,
+    fontSize: 13,
     fontWeight: '300',
     lineHeight: 15,
     marginTop: 4,
@@ -2204,7 +2204,7 @@ const styles = StyleSheet.create({
   },
   alternativeTitle: {
     color: colors.primary,
-    fontSize: 11,
+    fontSize: 15,
     fontWeight: '600',
   },
   batchColMain: {
@@ -2213,7 +2213,7 @@ const styles = StyleSheet.create({
   },
   batchCostPrice: {
     color: colors.navy,
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: '600',
     textAlign: 'left',
     width: 88,
@@ -2228,20 +2228,20 @@ const styles = StyleSheet.create({
   },
   batchHeaderLabel: {
     color: colors.slate,
-    fontSize: 8,
+    fontSize: 12,
     fontWeight: '600',
     width: 88,
   },
   batchHeaderStatus: {
     color: colors.slate,
-    fontSize: 8,
+    fontSize: 12,
     fontWeight: '600',
     textAlign: 'center',
     width: 64,
   },
   batchQty: {
     color: colors.navy,
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: '600',
     marginTop: 2,
   },
@@ -2278,7 +2278,7 @@ const styles = StyleSheet.create({
   },
   cartName: {
     color: colors.navy,
-    fontSize: 10,
+    fontSize: 13,
     fontWeight: '600',
   },
   cartNameRow: {
@@ -2288,7 +2288,7 @@ const styles = StyleSheet.create({
   },
   cartPrice: {
     color: colors.navy,
-    fontSize: 10,
+    fontSize: 13,
     fontWeight: '600',
   },
   cartRow: {
@@ -2325,13 +2325,13 @@ const styles = StyleSheet.create({
   },
   clientComprobanteLabel: {
     color: colors.slate,
-    fontSize: 10,
+    fontSize: 13,
     fontWeight: '300',
     marginTop: 8,
   },
   clientComprobanteValue: {
     color: colors.navy,
-    fontSize: 11,
+    fontSize: 15,
     fontWeight: '600',
     marginTop: 2,
   },
@@ -2344,12 +2344,12 @@ const styles = StyleSheet.create({
   codeText: {
     color: colors.slate,
     flexShrink: 1,
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: '300',
   },
   codeValue: {
     color: colors.navy,
-    fontSize: 12,
+    fontSize: 15,
     fontWeight: '600',
   },
   confirmFooterNote: {
@@ -2361,7 +2361,7 @@ const styles = StyleSheet.create({
   },
   confirmFooterText: {
     color: colors.primary,
-    fontSize: 10,
+    fontSize: 13,
     fontWeight: '300',
   },
   confirmInput: {
@@ -2375,7 +2375,7 @@ const styles = StyleSheet.create({
   },
   confirmInputField: {
     color: colors.navy,
-    fontSize: 12,
+    fontSize: 15,
     fontWeight: '500',
     paddingVertical: 0,
   },
@@ -2387,12 +2387,12 @@ const styles = StyleSheet.create({
   },
   confirmListTitle: {
     color: colors.navy,
-    fontSize: 11,
+    fontSize: 15,
     fontWeight: '600',
   },
   confirmText: {
     color: colors.navy,
-    fontSize: 12,
+    fontSize: 15,
     fontWeight: '600',
   },
   confirmTotalsWrap: {
@@ -2409,7 +2409,7 @@ const styles = StyleSheet.create({
   createCodeLink: {
     color: colors.primary,
     flexShrink: 0,
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: '600',
   },
   createCodeRow: {
@@ -2434,19 +2434,19 @@ const styles = StyleSheet.create({
   },
   deactivateButtonText: {
     color: colors.primary,
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: '600',
   },
   deleteFooterNote: {
     color: colors.slate,
-    fontSize: 10,
+    fontSize: 13,
     fontWeight: '300',
     marginTop: 10,
     textAlign: 'center',
   },
   deleteWarningBody: {
     color: colors.navy,
-    fontSize: 10,
+    fontSize: 13,
     fontWeight: '300',
     lineHeight: 15,
     marginTop: 8,
@@ -2466,13 +2466,13 @@ const styles = StyleSheet.create({
   },
   deleteWarningSubtitle: {
     color: colors.danger,
-    fontSize: 10,
+    fontSize: 13,
     fontWeight: '600',
     marginTop: 10,
   },
   deleteWarningTitle: {
     color: colors.danger,
-    fontSize: 11,
+    fontSize: 15,
     fontWeight: '600',
   },
   fieldRow: {
@@ -2485,7 +2485,7 @@ const styles = StyleSheet.create({
   },
   footerNote: {
     color: colors.slate,
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: '300',
     marginTop: 10,
   },
@@ -2517,7 +2517,7 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     color: colors.slate,
-    fontSize: 11,
+    fontSize: 15,
     fontWeight: '400',
     paddingHorizontal: 12,
     paddingVertical: 16,
@@ -2538,7 +2538,7 @@ const styles = StyleSheet.create({
   },
   filterChipText: {
     color: colors.slate,
-    fontSize: 11,
+    fontSize: 15,
     fontWeight: '500',
   },
   filterChipTextActive: {
@@ -2552,7 +2552,7 @@ const styles = StyleSheet.create({
   },
   linkedToText: {
     color: colors.info,
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: '300',
     marginTop: 2,
   },
@@ -2575,7 +2575,7 @@ const styles = StyleSheet.create({
   },
   listHeaderMeta: {
     color: colors.slate,
-    fontSize: 10,
+    fontSize: 13,
     fontWeight: '300',
   },
   listHeaderStacked: {
@@ -2586,23 +2586,23 @@ const styles = StyleSheet.create({
   },
   listHeaderSubtitle: {
     color: colors.slate,
-    fontSize: 10,
+    fontSize: 13,
     fontWeight: '300',
     marginTop: 4,
   },
   listHeaderTitle: {
     color: colors.navy,
-    fontSize: 11,
+    fontSize: 15,
     fontWeight: '600',
   },
   movementAmountGreen: {
     color: colors.primary,
-    fontSize: 11,
+    fontSize: 15,
     fontWeight: '600',
   },
   movementAmountRed: {
     color: colors.danger,
-    fontSize: 11,
+    fontSize: 15,
     fontWeight: '600',
   },
   movementBlue: {
@@ -2631,7 +2631,7 @@ const styles = StyleSheet.create({
     paddingTop: 10,
   },
   movementSymbol: {
-    fontSize: 11,
+    fontSize: 15,
     fontWeight: '600',
   },
   outlineLink: {
@@ -2647,7 +2647,7 @@ const styles = StyleSheet.create({
   },
   outlineLinkText: {
     color: colors.primary,
-    fontSize: 11,
+    fontSize: 15,
     fontWeight: '600',
   },
   paymentChip: {
@@ -2671,7 +2671,7 @@ const styles = StyleSheet.create({
   },
   paymentChipText: {
     color: colors.slate,
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: '600',
   },
   paymentChipTextActive: {
@@ -2682,7 +2682,7 @@ const styles = StyleSheet.create({
   },
   paymentLabel: {
     color: colors.navy,
-    fontSize: 10,
+    fontSize: 13,
     fontWeight: '600',
     marginTop: 10,
   },
@@ -2698,12 +2698,12 @@ const styles = StyleSheet.create({
   },
   paymentStatusSubtitle: {
     color: colors.warning,
-    fontSize: 10,
+    fontSize: 13,
     fontWeight: '300',
   },
   paymentStatusTitle: {
     color: colors.warning,
-    fontSize: 11,
+    fontSize: 15,
     fontWeight: '600',
   },
   qtyButton: {
@@ -2717,7 +2717,7 @@ const styles = StyleSheet.create({
   },
   qtyButtonText: {
     color: colors.navy,
-    fontSize: 12,
+    fontSize: 15,
     fontWeight: '600',
   },
   qtyControls: {
@@ -2728,17 +2728,17 @@ const styles = StyleSheet.create({
   },
   qtyValue: {
     color: colors.navy,
-    fontSize: 10,
+    fontSize: 13,
     fontWeight: '600',
   },
   rowMeta: {
     color: colors.slate,
-    fontSize: 10,
+    fontSize: 13,
     fontWeight: '300',
   },
   rowTitle: {
     color: colors.navy,
-    fontSize: 11,
+    fontSize: 15,
     fontWeight: '600',
   },
   saleLineItem: {
@@ -2752,7 +2752,7 @@ const styles = StyleSheet.create({
   },
   sectionLabel: {
     color: colors.navy,
-    fontSize: 12,
+    fontSize: 15,
     fontWeight: '600',
     marginTop: 14,
   },
@@ -2770,7 +2770,7 @@ const styles = StyleSheet.create({
   },
   sellMeta: {
     color: colors.slate,
-    fontSize: 10,
+    fontSize: 13,
     fontWeight: '300',
     marginTop: 4,
   },
@@ -2806,7 +2806,7 @@ const styles = StyleSheet.create({
   },
   stockValueInline: {
     color: colors.navy,
-    fontSize: 10,
+    fontSize: 13,
     fontWeight: '600',
   },
   subproductSection: {
@@ -2829,13 +2829,13 @@ const styles = StyleSheet.create({
   },
   subproductSectionSubtitle: {
     color: colors.slate,
-    fontSize: 10,
+    fontSize: 13,
     fontWeight: '300',
     marginTop: 4,
   },
   subproductSectionTitle: {
     color: colors.navy,
-    fontSize: 12,
+    fontSize: 15,
     fontWeight: '600',
   },
   weightBadge: {
@@ -2846,7 +2846,7 @@ const styles = StyleSheet.create({
   },
   weightBadgeText: {
     color: colors.info,
-    fontSize: 8,
+    fontSize: 12,
     fontWeight: '300',
   },
 });

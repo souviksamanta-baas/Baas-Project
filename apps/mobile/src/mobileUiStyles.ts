@@ -200,7 +200,7 @@ export const mobileUi = StyleSheet.create({
   },
   channelText: {
     color: colors.navy,
-    fontSize: 12,
+    fontSize: 15,
     fontWeight: '700',
   },
   chatButton: {
@@ -270,7 +270,7 @@ export const mobileUi = StyleSheet.create({
   },
   customerAvatarText: {
     color: colors.primary,
-    fontSize: 12,
+    fontSize: 15,
     fontWeight: '800',
   },
   errorText: {
@@ -357,7 +357,7 @@ export const mobileUi = StyleSheet.create({
   },
   leadBadge: {
     color: colors.primary,
-    fontSize: 12,
+    fontSize: 15,
     fontWeight: '700',
     marginTop: 2,
   },
@@ -387,7 +387,7 @@ export const mobileUi = StyleSheet.create({
   },
   logoTagline: {
     color: colors.slate,
-    fontSize: 11,
+    fontSize: 15,
     marginTop: -2,
   },
   messageBubble: {
@@ -407,7 +407,7 @@ export const mobileUi = StyleSheet.create({
   },
   messageTime: {
     color: colors.slate,
-    fontSize: 11,
+    fontSize: 15,
     marginTop: 4,
     textAlign: 'right',
   },
@@ -424,7 +424,7 @@ export const mobileUi = StyleSheet.create({
   },
   metricLabel: {
     color: colors.slate,
-    fontSize: 11,
+    fontSize: 15,
     lineHeight: 16,
   },
   metricOrange: {
@@ -520,7 +520,7 @@ export const mobileUi = StyleSheet.create({
   },
   quickActionText: {
     color: colors.navy,
-    fontSize: 12,
+    fontSize: 15,
     fontWeight: '800',
   },
   replyBar: {
@@ -650,7 +650,7 @@ export const mobileUi = StyleSheet.create({
   },
   tabLabel: {
     color: colors.slate,
-    fontSize: 11,
+    fontSize: 15,
     fontWeight: '700',
   },
   threadCard: {
@@ -672,13 +672,13 @@ export const mobileUi = StyleSheet.create({
   },
   timestamp: {
     color: colors.slate,
-    fontSize: 12,
+    fontSize: 15,
   },
   unreadBadge: {
     backgroundColor: colors.primary,
     borderRadius: 999,
     color: colors.surface,
-    fontSize: 12,
+    fontSize: 15,
     fontWeight: '800',
     overflow: 'hidden',
     paddingHorizontal: 8,

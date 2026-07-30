@@ -128,7 +128,7 @@ const styles = StyleSheet.create({
   },
   chipText: {
     color: colors.slate,
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: '600',
   },
   chipTextActive: {
@@ -164,7 +164,7 @@ const styles = StyleSheet.create({
   infoBannerText: {
     color: colors.navy,
     flex: 1,
-    fontSize: 10,
+    fontSize: 13,
     fontWeight: '300',
     lineHeight: 15,
   },

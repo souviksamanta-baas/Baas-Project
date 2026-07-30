@@ -85,12 +85,12 @@ function taskTypeLabel(taskType: OwnerTask['taskType']): string {
 const styles = StyleSheet.create({
   actionText: {
     color: colors.slate,
-    fontSize: 12,
+    fontSize: 15,
     fontWeight: '500',
   },
   actionTextPrimary: {
     color: colors.primary,
-    fontSize: 12,
+    fontSize: 15,
     fontWeight: '600',
   },
   actions: {
@@ -100,12 +100,12 @@ const styles = StyleSheet.create({
   },
   backText: {
     color: colors.primary,
-    fontSize: 12,
+    fontSize: 15,
     fontWeight: '600',
   },
   body: {
     color: colors.navy,
-    fontSize: 12,
+    fontSize: 15,
     lineHeight: 18,
   },
   card: {
@@ -117,11 +117,11 @@ const styles = StyleSheet.create({
   },
   linkText: {
     color: colors.primary,
-    fontSize: 12,
+    fontSize: 15,
     fontWeight: '600',
   },
   meta: {
     color: colors.slate,
-    fontSize: 11,
+    fontSize: 15,
   },
 });

@@ -27,6 +27,7 @@ import {
 import { MoreScreen } from '../screens/MoreScreen';
 import { NotificationsScreen } from '../screens/NotificationsScreen';
 import { useOwnerCopilot } from '../hooks/useOwnerCopilot';
+import { whatsappConnectionLabel } from '../lib/whatsappPresentation';
 import type { InboxConversationSummary } from '../types/messages';
 import type { OwnerDashboard } from '../types/dashboard';
 import type { Product } from '../types/products';
@@ -374,6 +375,7 @@ export function OwnerAppNavigator(props: { onSignOut: () => void }): ReactElemen
                 businessName={ownerProfile.businessName}
                 fullName={ownerProfile.businessName}
                 onOpenEditProfile={() => undefined}
+                onOpenHelpSupport={() => undefined}
                 onOpenPrivacyData={() => undefined}
                 onOpenStaffInvite={() => undefined}
                 onOpenWhatsAppSetup={() => setRoute('account')}
@@ -385,6 +387,19 @@ export function OwnerAppNavigator(props: { onSignOut: () => void }): ReactElemen
               />
             ) : (
               <MoreScreen
+                avatarUrl={null}
+                businessName={ownerProfile.businessName}
+                canManageBusiness
+                fullName={ownerProfile.businessName}
+                onAccountAction={(actionId) => {
+                  if (actionId === 'sign-out') {
+                    props.onSignOut();
+                    return;
+                  }
+                  if (actionId === 'whatsapp') {
+                    setRoute('account');
+                  }
+                }}
                 onOpenRow={(rowId) => {
                   if (rowId === 'account') {
                     setRoute('account');
@@ -395,6 +410,9 @@ export function OwnerAppNavigator(props: { onSignOut: () => void }): ReactElemen
                     openManageStock();
                   }
                 }}
+                timezoneLabel="Argentina / Cordoba"
+                whatsappSubtitle={whatsappConnectionLabel(legacyWhatsAppConnection).subtitle}
+                whatsappTitle={whatsappConnectionLabel(legacyWhatsAppConnection).title}
               />
             ))}
         </ScrollView>

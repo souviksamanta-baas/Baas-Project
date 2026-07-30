@@ -85,7 +85,7 @@ export function WhatsAppConnectScreen(props: {
 const styles = StyleSheet.create({
   errorText: {
     color: colors.danger,
-    fontSize: 12,
+    fontSize: 15,
     lineHeight: 18,
   },
   form: {

@@ -232,18 +232,18 @@ const styles = StyleSheet.create({
   },
   helper: {
     color: colors.textMuted,
-    fontSize: 12,
+    fontSize: 15,
     lineHeight: 16,
     marginTop: -4,
   },
   label: {
     color: colors.textSecondary,
-    fontSize: 12,
+    fontSize: 15,
     fontWeight: '600',
   },
   meta: {
     color: colors.textMuted,
-    fontSize: 12,
+    fontSize: 15,
     marginTop: 4,
   },
   preview: {
@@ -276,7 +276,7 @@ const styles = StyleSheet.create({
   },
   typeChipText: {
     color: colors.textSecondary,
-    fontSize: 12,
+    fontSize: 15,
     fontWeight: '600',
   },
   typeChipTextActive: {

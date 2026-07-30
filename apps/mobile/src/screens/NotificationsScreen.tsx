@@ -77,8 +77,8 @@ export function NotificationsScreen(props: {
             <Text style={styles.emptyText}>No hay alertas activas.</Text>
           </Card>
         ) : (
-          <Card>
-            {items.map((item) => (
+          <Card flush>
+            {items.map((item, index) => (
               <NotificationRow
                 key={item.id}
                 notification={{
@@ -102,6 +102,7 @@ export function NotificationsScreen(props: {
 
                   props.onOpenTasks();
                 }}
+                showDivider={index < items.length - 1}
               />
             ))}
           </Card>
@@ -123,7 +124,7 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     color: colors.slate,
-    fontSize: 12,
+    fontSize: 15,
   },
   filterPill: {
     borderColor: colors.border,
@@ -139,12 +140,12 @@ const styles = StyleSheet.create({
   },
   filterText: {
     color: colors.slate,
-    fontSize: 10,
+    fontSize: 13,
     fontWeight: '300',
   },
   markRead: {
     color: colors.slate,
-    fontSize: 10,
+    fontSize: 13,
     fontWeight: '300',
     paddingBottom: 2,
   },
@@ -158,7 +159,7 @@ const styles = StyleSheet.create({
   },
   tasksLinkText: {
     color: colors.primary,
-    fontSize: 12,
+    fontSize: 15,
     fontWeight: '600',
   },
   titleRow: {

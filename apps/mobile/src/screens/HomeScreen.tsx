@@ -4,7 +4,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Card, ConversationRow, MetricGrid, NotificationRow, RobotAvatar, ScreenContent } from '../components/ui';
 import type { AppTab } from '../components/ui';
 import { Icon } from '../components/icons';
-import { InfoBanner, ListBox, PrimaryButton, colors as dsColors } from '../design-system';
+import { InfoBanner, ListBox, PrimaryButton, colors as dsColors, textStyles } from '../design-system';
 import { FeatureGate } from '../hooks/useFeatureVisibility';
 import {
   conversationAvatarLabel,
@@ -137,7 +137,7 @@ export function HomeScreen(props: {
           {props.conversations.length === 0 ? (
             <Text style={styles.emptyBody}>Todavía no hay conversaciones de WhatsApp.</Text>
           ) : null}
-          {props.conversations.slice(0, 4).map((conversation) => (
+          {props.conversations.slice(0, 4).map((conversation, index, rows) => (
             <ConversationRow
               avatar={conversationAvatarLabel(conversation)}
               channel={conversation.channel}
@@ -145,6 +145,7 @@ export function HomeScreen(props: {
               name={conversationDisplayName(conversation)}
               onPress={() => props.onOpenConversation(conversation.id)}
               preview={conversationPreview(conversation)}
+              showDivider={index < rows.length - 1}
               statusLabel={leadStatusLabel(conversation.contact.leadStatus)}
               time={formatConversationTime(conversation.lastMessageAt)}
             />
@@ -158,10 +159,10 @@ export function HomeScreen(props: {
             <Icon color={colors.primary} kind="box" size={18} strokeWidth={1.8} />
           </View>
           <View style={styles.flex}>
-            <Text style={styles.cardTitle}>Gestionar stock</Text>
-            <Text style={styles.cardDescription}>Revisa tu inventario y actualiza productos</Text>
+            <Text style={styles.inventoryTitle}>Gestionar stock</Text>
+            <Text style={styles.inventoryDescription}>Revisa tu inventario y actualiza productos</Text>
           </View>
-          <Text style={styles.primaryText}>Ver inventario ›</Text>
+          <Icon color="#c7c7cc" kind="chevron-right" size={20} strokeWidth={2.4} />
         </Pressable>
       </FeatureGate>
 
@@ -173,7 +174,7 @@ export function HomeScreen(props: {
           {recentAlerts.length === 0 ? (
             <Text style={styles.emptyBody}>No hay alertas activas.</Text>
           ) : null}
-          {recentAlerts.map((alert) => (
+          {recentAlerts.map((alert, index) => (
             <NotificationRow
               key={alert.id}
               notification={{
@@ -197,6 +198,7 @@ export function HomeScreen(props: {
 
                 props.onOpenNotifications();
               }}
+              showDivider={index < recentAlerts.length - 1}
             />
           ))}
         </ListBox>
@@ -207,17 +209,11 @@ export function HomeScreen(props: {
 
 const styles = StyleSheet.create({
   cardDescription: {
-    color: colors.slate,
-    fontSize: 10,
-    fontWeight: '300',
-    lineHeight: 15,
-    marginTop: 4,
+    ...textStyles.listBody,
+    marginTop: 2,
   },
   cardTitle: {
-    color: colors.navy,
-    fontSize: 12,
-    fontWeight: '600',
-    lineHeight: 16,
+    ...textStyles.listTitle,
   },
   chatButton: {
     alignItems: 'center',
@@ -241,7 +237,7 @@ const styles = StyleSheet.create({
   },
   emptyBody: {
     color: colors.slate,
-    fontSize: 11,
+    fontSize: 15,
     lineHeight: 16,
     paddingHorizontal: 12,
     paddingVertical: 8,
@@ -255,9 +251,10 @@ const styles = StyleSheet.create({
   },
   greeting: {
     color: colors.navy,
-    fontSize: 24,
+    fontSize: 34,
     fontWeight: '700',
-    lineHeight: 30,
+    letterSpacing: 0.37,
+    lineHeight: 41,
   },
   inventoryCard: {
     ...shadows.card,
@@ -268,8 +265,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     flexDirection: 'row',
     gap: 12,
-    minHeight: 78,
+    minHeight: 72,
     paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  inventoryDescription: {
+    ...textStyles.listBody,
+    marginTop: 2,
   },
   inventoryIcon: {
     alignItems: 'center',
@@ -279,15 +281,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     width: 34,
   },
-  primaryText: {
-    color: colors.primary,
-    fontSize: 10,
-    fontWeight: '600',
+  inventoryTitle: {
+    ...textStyles.listTitle,
   },
   sectionTitle: {
-    color: colors.navy,
-    fontSize: 12,
-    fontWeight: '600',
+    ...textStyles.sectionTitle,
     paddingHorizontal: 14,
     paddingTop: 14,
   },
@@ -296,19 +294,19 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     color: colors.slate,
-    fontSize: 12,
-    fontWeight: '300',
+    fontSize: 15,
+    fontWeight: '400',
     marginTop: 4,
   },
   summaryCard: {
-    gap: 8,
-    paddingBottom: 12,
+    gap: 4,
+    paddingBottom: 8,
   },
   summaryDescription: {
     color: colors.slate,
-    fontSize: 10,
-    fontWeight: '300',
-    lineHeight: 15,
+    fontSize: 15,
+    fontWeight: '400',
+    lineHeight: 20,
     marginTop: 4,
     paddingHorizontal: 14,
   },

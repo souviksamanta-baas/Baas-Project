@@ -10,7 +10,7 @@ Nexolia currently supports inbound WhatsApp Business Cloud webhooks.
 | WABA | Configuration | Purpose |
 | --- | --- | --- |
 | **Nexolia platform** | `NEXOLIA_AUTH_WABA_*` env vars | Login/staff OTP via `POST /auth/otp/whatsapp/*` |
-| **Merchant** | `whatsapp_config` row per organization | Customer inbox inbound/outbound on `/webhooks/whatsapp` |
+| **Merchant** | `whatsapp_config` row per organization | Customer **Chats** inbound/outbound on `/webhooks/whatsapp` (owner tab label; route still `inbox`) |
 
 Inbound customer messages on `POST /webhooks/whatsapp` are mapped by merchant `phone_number_id`. Platform auth OTP traffic does not appear in the merchant inbox.
 

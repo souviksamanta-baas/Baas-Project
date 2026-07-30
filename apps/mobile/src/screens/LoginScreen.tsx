@@ -88,7 +88,7 @@ const localStyles = StyleSheet.create({
   },
   channelChipText: {
     color: colors.slate,
-    fontSize: 11,
+    fontSize: 15,
     fontWeight: '500',
   },
   channelChipTextActive: {

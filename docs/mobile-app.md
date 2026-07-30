@@ -366,23 +366,27 @@ sends can happen.
   icon (`assets/images/nexolia-icon.png`, swappable later via `setNexoliaIconUri`)
   with the page title centered. Product detail uses the **product name** as the
   sticky title (`ScreenContent` + `InventoryScreenTitle.stickyTitle`).
-- The shell supports the approved tabs: Inicio, Inbox, Copi, and Más, with a
+- The shell supports the approved tabs: Inicio, **Chats** (route `inbox`), Copi, and Más, with a
   My Account profile surface reachable from the avatar and More menu.
 - The Home greeting uses `preferred_name` when set, otherwise the first word of
   `full_name` (`lib/ownerGreeting.ts`).
 - Low-stock Home metrics open Gestionar stock filtered to low-stock products.
 - Conversation detail and Copi chat use a WhatsApp-style full-bleed thread (no
   card border); contact/Copi title appears in the collapsed app header.
-- The Inbox screen shows channel filters, status tabs, conversation rows, and a
-  selected thread state using the existing inbox provider.
+- The **Chats** screen (page title / tab label; path still `/(app)/inbox`) shows
+  channel filters, status tabs, conversation rows, and a selected thread state
+  using the existing inbox provider. Collapsed header title updates on FlatList scroll.
 - The Copi screen supports a hub state and continuous chat using
   `useOwnerCopilot`.
-- The More screen (`Más`) groups Inventarios, Operaciones, Reportes, and
-  Configuraciones. Crecimiento is removed for now; Reportes is a placeholder.
-  Inventarios wires Gestionar stock, Agregar producto, Lotes y Movimientos,
-  and Notificaciones y Tareas. Operaciones includes Facturación (presupuestos)
-  and disabled Caja. Configuraciones covers Mi cuenta, Integraciones,
-  Proveedores, and Ayuda y soporte.
+- The More screen (`Más`) uses flat card groups **without** Inventarios /
+  Operaciones / Reportes titles. Primary group: Gestionar stock, Agregar
+  producto, Lotes y Movimientos, Notificaciones y Tareas, Facturación, Caja
+  (disabled). Connections: Integraciones, Proveedores. Support (bottom):
+  Privacidad y datos, Ayuda y soporte. Profile expands account actions under the
+  avatar row. Icons use brand green; list rows use WhatsApp-style inset dividers.
+- Bottom nav is a **floating pill** with equal **16px** side/bottom insets,
+  charcoal tab icons (32px), brand-green `$` FAB, icon-only selection highlight,
+  and a frosted veil in the gutters. See `docs/mobile-design-system.md`.
 
 ### Product codes (barcode / QR)
 

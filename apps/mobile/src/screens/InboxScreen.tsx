@@ -30,6 +30,7 @@ import {
   ReplyComposer,
   ScreenContent,
   ScreenTitle,
+  useHeaderCollapseOnScroll,
 } from '../components/ui';
 import { InfoBanner, PrimaryButton, SearchActionRow } from '../design-system';
 import { FeatureGate } from '../hooks/useFeatureVisibility';
@@ -55,6 +56,7 @@ import type { OwnerDashboard } from '../types/dashboard';
 import type { InboxConversationSummary, WhatsAppMessagePreview } from '../types/messages';
 import { whatsappConnectionLabel } from '../lib/whatsappPresentation';
 import { colors } from '../theme';
+import { layout } from '../design-system';
 
 const CHANNEL_OPTIONS: Array<{ id: InboxChannelFilter; label: string }> = [
   { id: 'all', label: 'Todos' },
@@ -95,9 +97,10 @@ export function InboxScreen(props: {
     [filters, props.conversations],
   );
   const openCount = openConversationCount(props.conversations);
+  const setHeaderCollapsedFromScroll = useHeaderCollapseOnScroll();
 
   return (
-    <ScreenContent disableScroll title="Inbox">
+    <ScreenContent disableScroll title="Chats">
       <FlatList
         contentContainerStyle={styles.inboxListContent}
         data={props.isLoading ? [] : filteredConversations}
@@ -123,7 +126,7 @@ export function InboxScreen(props: {
         }
         ListHeaderComponent={
           <View style={styles.inboxListHeader}>
-            <ScreenTitle subtitle="Todas tus conversaciones en un solo lugar" title="Inbox" />
+            <ScreenTitle subtitle="Todas tus conversaciones en un solo lugar" title="Chats" />
 
             {connection.status === 'connected' && connection.displayPhoneNumber ? (
               <InfoBanner>{`Respondiendo desde ${connection.displayPhoneNumber}`}</InfoBanner>
@@ -160,17 +163,22 @@ export function InboxScreen(props: {
             </FeatureGate>
           </View>
         }
-        renderItem={({ item: conversation }) => (
+        renderItem={({ item: conversation, index }) => (
           <ConversationRow
             avatar={conversationAvatarLabel(conversation)}
             channel={conversation.channel as Channel}
             name={conversationDisplayName(conversation)}
             onPress={() => props.onOpenConversation(conversation.id)}
             preview={conversationPreview(conversation)}
+            showDivider={index < filteredConversations.length - 1}
             statusLabel={leadStatusLabel(conversation.contact.leadStatus)}
             time={formatConversationTime(conversation.lastMessageAt)}
           />
         )}
+        onScroll={(event: NativeSyntheticEvent<NativeScrollEvent>) => {
+          setHeaderCollapsedFromScroll(event.nativeEvent.contentOffset.y);
+        }}
+        scrollEventThrottle={16}
         showsVerticalScrollIndicator={false}
         style={styles.inboxList}
       />
@@ -508,7 +516,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   inboxListContent: {
-    paddingBottom: 24,
+    paddingBottom: layout.bottomNavClearance,
     paddingHorizontal: 16,
   },
   inboxListHeader: {
@@ -520,7 +528,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 2,
     color: colors.primary,
     flex: 1,
-    fontSize: 10,
+    fontSize: 13,
     fontWeight: '600',
     paddingBottom: 10,
     textAlign: 'center',
@@ -543,12 +551,12 @@ const styles = StyleSheet.create({
   },
   businessNumberText: {
     color: colors.slate,
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: '500',
   },
   channelTagText: {
     color: '#1877f2',
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: '600',
   },
   chatArea: {
@@ -593,7 +601,7 @@ const styles = StyleSheet.create({
   },
   chipText: {
     color: colors.slate,
-    fontSize: 11,
+    fontSize: 15,
   },
   chipTextActive: {
     color: colors.primary,
@@ -610,7 +618,7 @@ const styles = StyleSheet.create({
   },
   emptyBody: {
     color: colors.slate,
-    fontSize: 12,
+    fontSize: 15,
     lineHeight: 18,
     textAlign: 'center',
   },
@@ -627,7 +635,7 @@ const styles = StyleSheet.create({
   },
   errorText: {
     color: colors.danger,
-    fontSize: 12,
+    fontSize: 15,
     padding: 16,
   },
   flex: {
@@ -637,7 +645,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primarySoft,
     borderRadius: 999,
     color: colors.primary,
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: '600',
     paddingHorizontal: 8,
     paddingVertical: 3,
@@ -654,7 +662,7 @@ const styles = StyleSheet.create({
   },
   modalSection: {
     color: colors.navy,
-    fontSize: 12,
+    fontSize: 15,
     fontWeight: '600',
     marginBottom: 8,
     marginTop: 12,
@@ -678,13 +686,13 @@ const styles = StyleSheet.create({
   },
   sendErrorText: {
     color: colors.danger,
-    fontSize: 11,
+    fontSize: 15,
     paddingHorizontal: 18,
     paddingTop: 4,
   },
   windowBlockedText: {
     color: colors.slate,
-    fontSize: 12,
+    fontSize: 15,
     lineHeight: 16,
     paddingHorizontal: 18,
     paddingTop: 8,
@@ -692,7 +700,7 @@ const styles = StyleSheet.create({
   statusTab: {
     color: colors.slate,
     flex: 1,
-    fontSize: 10,
+    fontSize: 13,
     fontWeight: '300',
     paddingBottom: 10,
     textAlign: 'center',
@@ -713,7 +721,7 @@ const styles = StyleSheet.create({
   },
   threadAvatarText: {
     color: colors.surface,
-    fontSize: 10,
+    fontSize: 13,
     fontWeight: '600',
   },
   threadHeader: {

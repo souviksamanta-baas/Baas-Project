@@ -256,7 +256,7 @@ const styles = StyleSheet.create({
   },
   contactMeta: {
     color: colors.textMuted,
-    fontSize: 12,
+    fontSize: 15,
     marginTop: 2,
   },
   contactName: {
@@ -275,17 +275,17 @@ const styles = StyleSheet.create({
   },
   deleteText: {
     color: colors.danger,
-    fontSize: 12,
+    fontSize: 15,
     fontWeight: '600',
   },
   emptyText: {
     color: colors.textMuted,
-    fontSize: 12,
+    fontSize: 15,
     lineHeight: 18,
   },
   errorText: {
     color: colors.danger,
-    fontSize: 12,
+    fontSize: 15,
   },
   flex: {
     flex: 1,
@@ -304,7 +304,7 @@ const styles = StyleSheet.create({
   sectionHeader: {
     backgroundColor: colors.surfaceMint,
     color: colors.textSecondary,
-    fontSize: 12,
+    fontSize: 15,
     fontWeight: '700',
     paddingHorizontal: 12,
     paddingVertical: 6,

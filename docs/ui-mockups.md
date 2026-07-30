@@ -59,49 +59,44 @@ Apply these rules during screen-by-screen design:
 - Treat visual parity with the provided image mockups as the immediate acceptance
   criteria, while using the branding documentation for all new design decisions.
 
-## Confirmed Mobile Inicio and Inbox Baseline
+## Confirmed Mobile Inicio and Chats Baseline
 
-The current mobile `Inicio` and `Inbox` mockups are accepted as the final visual
-baseline for these pages and should be reused as the component reference for
-upcoming mobile screens.
+The current mobile `Inicio` and **Chats** (legacy mockup name: Inbox) screens are
+the visual baseline for list/card language and should be reused as the component
+reference for upcoming mobile screens.
 
 Reusable confirmed components:
 
 - Sticky iPhone-style header with status indicators, Nexolia wordmark image,
-  tagline, notification icon, shop icon, centered chevron, and 30px profile holder.
+  tagline, notification icon (**26px**, same as Más menu icons), and profile avatar.
 - Header must cover the top edge of the scroll area so content never passes behind
-  a visible gap.
+  a visible gap. Non-home screens collapse to mark + centered page title on scroll.
 - Copi assistant card with soft tinted background, subtle border, rounded radius,
   left-aligned larger robot illustration, constrained text column, and separate
   non-overlapping chat action button.
 - Copi robot includes the green antenna touching the head, black face, green eyes,
   small smile, small near-white side ears, side hands, green oval body badge with
   infinity mark, and visible soft shadow.
-- Typography utilities in the mockup intentionally map `.font-extrabold` to 600
-  and `.font-medium` to 300 for closer visual parity with the supplied images.
-- **Search rows (Inbox, Gestionar stock, Ventas):** use a single bordered shell
+- Typography follows WhatsApp / iOS Large Title conventions in
+  `design-system/tokens/typography.ts` (page titles ~34, list titles ~17,
+  section titles ~18).
+- **Search rows (Chats, Gestionar stock, Ventas):** use a single bordered shell
   (icon + input). Focus highlights the **entire shell** in primary emerald
   (`#08bd66`); the inner input has no separate focus ring. Implemented in
   `SearchField` / `SearchActionRow` — see `docs/mobile-design-system.md`.
-- `Resumen del dia` metrics use 18px icons inside soft tone-matched circular
-  backgrounds, 12px metric values, left-aligned icon/value/label groups, and
-  subtle vertical dividers.
-- Conversation rows, inventory CTA, alert rows, cards, borders, and shadows should
-  follow the accepted `Inicio` spacing, muted slate text treatment, and rounded
-  white/tinted card language.
-- The mobile bottom nav is fixed to the phone frame, not part of the scrollable
-  content. Footer SVG icons are normalized to 22px by CSS, and selected and
-  unselected icon states reuse the same SVG structure with only color/fill
-  treatment changing.
-- `Inbox` reuses the same header, footer, channel logo badges, typography weight
-  mapping, card radius, soft borders, and muted slate text treatment from
-  `Inicio`.
+- `Resumen del día` metrics use plain tone-colored icons (no heavy circular wells),
+  2×2 grid, and section title ~18px.
+- Conversation rows use **54px** avatars, channel badges, **inset separators**
+  (start after avatar), and `spacing.md` gap before text.
+- Card-to-card vertical rhythm uses **`boxGap: 20`**.
+- **Bottom nav:** floating white pill with **equal 16px** side and bottom insets;
+  tab icons **32px** charcoal; selected grey pill behind **icon only**; center
+  green `$` FAB with white ring shadow; frosted semi-transparent gutters. Not a
+  full-bleed dock glued to the phone frame.
 - Channel markers use vector-style WhatsApp, Instagram, Facebook, and purple
-  email logos. These markers are shared by `Inicio` conversation rows and
-  `Inbox` message rows.
-- The Inbox filter button uses the accepted vector slider icon style, and the
-  search/chip/tab/list components should be reused for later inbox-related
-  screens.
+  email logos. Shared by Inicio conversation rows and Chats list rows.
+- The Chats filter button uses the accepted vector slider icon style, and the
+  search/chip/tab/list components should be reused for later messaging screens.
 - Conversation detail and Copi chat use lighter, less prominent outer borders,
   sticky profile headers below the shared app header, and tighter message bubbles
   with reduced padding so each message box hugs the content more closely.
@@ -114,7 +109,8 @@ Reusable confirmed components:
   later rollout.
 
 Visual review is performed locally with `npm run dev:ui-mockups` by comparing
-each route against its source PNG in the Nexolia mocks folder.
+each route against its source PNG in the Nexolia mocks folder. Live Expo app
+polish (Jul 2026) supersedes older mockup footer sizes where noted above.
 
 ## Confirmed Mobile Inventory and POS Baseline
 

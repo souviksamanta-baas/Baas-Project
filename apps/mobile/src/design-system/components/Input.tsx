@@ -345,7 +345,7 @@ const styles = StyleSheet.create({
     borderWidth: 0,
     color: colors.textPrimary,
     flex: 1,
-    fontSize: 12,
+    fontSize: 15,
     fontWeight: '300',
     height: 36,
     margin: 0,
@@ -432,7 +432,7 @@ const styles = StyleSheet.create({
     outlineWidth: 0,
   },
   labelCompact: {
-    fontSize: 11,
+    fontSize: 15,
   },
   searchFieldFlex: {
     flex: 1,
@@ -449,7 +449,7 @@ const styles = StyleSheet.create({
     borderWidth: 0,
     color: colors.textPrimary,
     flex: 1,
-    fontSize: 12,
+    fontSize: 15,
     fontWeight: '300',
     height: '100%',
     margin: 0,

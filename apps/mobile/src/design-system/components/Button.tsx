@@ -129,7 +129,7 @@ const styles = StyleSheet.create({
 const textVariantStyles = StyleSheet.create({
   danger: {
     color: colors.danger,
-    fontSize: 11,
+    fontSize: 15,
     fontWeight: '600',
   },
   ghost: {
@@ -139,17 +139,17 @@ const textVariantStyles = StyleSheet.create({
   },
   outline: {
     color: colors.navy,
-    fontSize: 11,
+    fontSize: 15,
     fontWeight: '600',
   },
   primary: {
     color: colors.surface,
-    fontSize: 11,
+    fontSize: 15,
     fontWeight: '600',
   },
   secondary: {
     color: colors.primary,
-    fontSize: 11,
+    fontSize: 15,
     fontWeight: '600',
   },
 });

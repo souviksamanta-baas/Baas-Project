@@ -7,13 +7,13 @@ export type MoreMenuRowId =
   | 'notifications-tasks'
   | 'billing'
   | 'cash'
-  | 'reports-soon'
   | 'account'
   | 'integrations'
   | 'suppliers'
-  | 'help';
+  | 'help'
+  | 'privacy';
 
-export type MoreMenuSectionId = 'inventory' | 'operations' | 'reports' | 'settings';
+export type MoreMenuSectionId = 'main' | 'connections' | 'support';
 
 export type MoreMenuRow = {
   disabled?: boolean;
@@ -24,21 +24,16 @@ export type MoreMenuRow = {
 };
 
 export type MoreMenuSection = {
-  emptyMessage?: string;
-  feature:
-    | 'moreInventory'
-    | 'moreOperations'
-    | 'moreReports'
-    | 'moreSettings';
+  feature: 'moreInventory' | 'moreOperations' | 'moreSettings';
   id: MoreMenuSectionId;
   rows: MoreMenuRow[];
-  title: string;
 };
 
+/** Flat Más groups — no section titles. */
 export const moreMenuSections: MoreMenuSection[] = [
   {
     feature: 'moreInventory',
-    id: 'inventory',
+    id: 'main',
     rows: [
       {
         icon: 'box',
@@ -64,13 +59,6 @@ export const moreMenuSections: MoreMenuSection[] = [
         subtitle: 'Alertas, seguimientos y pendientes',
         title: 'Notificaciones y Tareas',
       },
-    ],
-    title: 'Inventarios',
-  },
-  {
-    feature: 'moreOperations',
-    id: 'operations',
-    rows: [
       {
         icon: 'bill',
         id: 'billing',
@@ -85,25 +73,11 @@ export const moreMenuSections: MoreMenuSection[] = [
         title: 'Caja',
       },
     ],
-    title: 'Operaciones',
-  },
-  {
-    emptyMessage: 'Reportes llegará pronto. Estamos armando los indicadores del negocio.',
-    feature: 'moreReports',
-    id: 'reports',
-    rows: [],
-    title: 'Reportes',
   },
   {
     feature: 'moreSettings',
-    id: 'settings',
+    id: 'connections',
     rows: [
-      {
-        icon: 'user',
-        id: 'account',
-        subtitle: 'Perfil, negocio y equipo',
-        title: 'Mi cuenta',
-      },
       {
         icon: 'puzzle',
         id: 'integrations',
@@ -116,6 +90,18 @@ export const moreMenuSections: MoreMenuSection[] = [
         subtitle: 'Contactos de proveedores',
         title: 'Proveedores',
       },
+    ],
+  },
+  {
+    feature: 'moreSettings',
+    id: 'support',
+    rows: [
+      {
+        icon: 'shield',
+        id: 'privacy',
+        subtitle: 'Datos, permisos y eliminación de cuenta',
+        title: 'Privacidad y datos',
+      },
       {
         icon: 'help',
         id: 'help',
@@ -123,6 +109,61 @@ export const moreMenuSections: MoreMenuSection[] = [
         title: 'Ayuda y soporte',
       },
     ],
-    title: 'Configuraciones',
   },
 ];
+
+export type AccountMenuActionId =
+  | 'edit-profile'
+  | 'staff-invite'
+  | 'business-settings'
+  | 'whatsapp'
+  | 'sign-out';
+
+export type AccountMenuRow = {
+  danger?: boolean;
+  disabled?: boolean;
+  icon: IconKind;
+  id: AccountMenuActionId;
+  subtitle?: string;
+  title: string;
+};
+
+/** Options under the expandable profile block on Más (Mi cuenta). */
+export function buildAccountMenuRows(options: {
+  canManageBusiness: boolean;
+  timezoneLabel: string;
+  whatsappSubtitle: string;
+  whatsappTitle: string;
+}): AccountMenuRow[] {
+  const rows: AccountMenuRow[] = [
+    { icon: 'users', id: 'staff-invite', title: 'Invitar miembro (QR)' },
+    { icon: 'user', id: 'edit-profile', title: 'Editar perfil' },
+  ];
+
+  if (options.canManageBusiness) {
+    rows.push({
+      icon: 'gear',
+      id: 'business-settings',
+      title: 'Configuracion del negocio',
+    });
+  }
+
+  rows.push(
+    {
+      icon: 'whatsapp',
+      id: 'whatsapp',
+      subtitle: options.whatsappSubtitle,
+      title: options.whatsappTitle,
+    },
+    {
+      disabled: !options.canManageBusiness,
+      icon: 'globe',
+      id: 'business-settings',
+      subtitle: options.canManageBusiness ? 'Tocá para editar' : undefined,
+      title: `Zona horaria: ${options.timezoneLabel}`,
+    },
+    { danger: true, icon: 'logout', id: 'sign-out', title: 'Cerrar sesion' },
+  );
+
+  return rows;
+}

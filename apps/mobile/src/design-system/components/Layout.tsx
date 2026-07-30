@@ -109,6 +109,8 @@ const styles = StyleSheet.create({
   headerRow: {
     flexDirection: 'row',
     gap: spacing.xs,
+    alignItems: 'flex-start',
+    marginBottom: spacing.sm,
   },
   row: {
     flexDirection: 'row',
@@ -119,8 +121,8 @@ const styles = StyleSheet.create({
   },
   sectionAction: {
     color: colors.slate,
-    fontSize: 11,
-    fontWeight: '300',
+    fontSize: 15,
+    fontWeight: '400',
   },
   sectionHeader: {
     alignItems: 'center',
