@@ -408,7 +408,12 @@ export async function addStock(
   organizationId: string,
   targetProduct: Product,
   values: AddStockFormValues,
-): Promise<void> {
+): Promise<{
+  lotId: string;
+  previousBaseUnitCode: string;
+  previousMetadata: Record<string, unknown>;
+  previousUnitPriceCents: number;
+}> {
   const validationError = validateAddStockForm(values);
 
   if (validationError) {
@@ -434,8 +439,12 @@ export async function addStock(
   const lotCode = buildNextLotCode(lotCodeBase, existingCodes);
   const unitCode = values.unitCode.trim() || targetProduct.unitCode;
   const supplier = values.supplier.trim();
+  const purchaseNumber = values.purchaseNumber?.trim() ?? '';
   const unitPriceCents = Math.round((parseMoneyInput(values.unitPrice) ?? NaN) * 100);
   const marginPercent = parsePercentInput(values.marginPercent) ?? NaN;
+  const previousMetadata = { ...targetProduct.metadata };
+  const previousUnitPriceCents = targetProduct.unitPriceCents;
+  const previousBaseUnitCode = targetProduct.baseUnitCode || targetProduct.unitCode;
 
   const parentStockDeduction =
     targetProduct.parentProductId != null
@@ -448,6 +457,10 @@ export async function addStock(
         })
       : null;
 
+  const supplierReference = [purchaseNumber || null, supplier || null]
+    .filter((part): part is string => Boolean(part))
+    .join(' • ');
+
   const { data: lot, error: lotError } = await supabase
     .from('inventory_lots')
     .insert({
@@ -458,7 +471,7 @@ export async function addStock(
       received_at: receivedAtIso,
       received_quantity: quantity,
       remaining_quantity: quantity,
-      supplier_reference: supplier.length > 0 ? supplier : null,
+      supplier_reference: supplierReference.length > 0 ? supplierReference : null,
       unit_code: unitCode,
       unit_cost_cents: costCents,
     })
@@ -507,7 +520,13 @@ export async function addStock(
     throw new Error(productError.message);
   }
 
-  const movementNote = `Ingreso de lote ${lotCode}${supplier ? ` • ${supplier}` : ''}`;
+  const movementNote = [
+    purchaseNumber ? `Compra ${purchaseNumber}` : null,
+    `Ingreso de lote ${lotCode}`,
+    supplier ? supplier : null,
+  ]
+    .filter((part): part is string => Boolean(part))
+    .join(' • ');
 
   const { error: movementError } = await supabase.from('inventory_movements').insert({
     business_center_id: businessCenterId,
@@ -538,6 +557,192 @@ export async function addStock(
       subproductUnitCode: unitCode,
       targetProduct,
     });
+  }
+
+  return {
+    lotId: lot.id,
+    previousBaseUnitCode,
+    previousMetadata,
+    previousUnitPriceCents,
+  };
+}
+
+export async function reversePurchaseLotStock(options: {
+  businessCenterId: string;
+  lotId: string;
+  organizationId: string;
+  previousBaseUnitCode?: string;
+  previousMetadata?: Record<string, unknown>;
+  previousUnitPriceCents?: number;
+  product: Product;
+  purchaseNumber?: string;
+  quantity: number;
+  restorePrices: boolean;
+}): Promise<void> {
+  const {
+    businessCenterId,
+    lotId,
+    organizationId,
+    product,
+    quantity,
+    restorePrices,
+  } = options;
+
+  const { data: lot, error: lotError } = await supabase
+    .from('inventory_lots')
+    .select('id, remaining_quantity, unit_code, lot_code')
+    .eq('id', lotId)
+    .eq('organization_id', organizationId)
+    .eq('business_center_id', businessCenterId)
+    .maybeSingle<{
+      id: string;
+      lot_code: string | null;
+      remaining_quantity: number;
+      unit_code: string;
+    }>();
+
+  if (lotError) {
+    throw new Error(lotError.message);
+  }
+
+  if (!lot) {
+    throw new Error('No se encontró el lote de la compra.');
+  }
+
+  if (Number(lot.remaining_quantity) <= 0) {
+    return;
+  }
+
+  const { data: inventoryItem, error: inventoryFetchError } = await supabase
+    .from('inventory_items')
+    .select('id, quantity_on_hand, unit_code')
+    .eq('organization_id', organizationId)
+    .eq('business_center_id', businessCenterId)
+    .eq('product_id', product.id)
+    .maybeSingle<{ id: string; quantity_on_hand: number; unit_code: string }>();
+
+  if (inventoryFetchError) {
+    throw new Error(inventoryFetchError.message);
+  }
+
+  if (!inventoryItem) {
+    throw new Error(`No se encontró stock para ${product.name}.`);
+  }
+
+  const quantityOnHand = Number(inventoryItem.quantity_on_hand);
+  if (quantityOnHand < quantity) {
+    throw new Error(
+      `No se puede revertir la compra: ${product.name} ya no tiene stock suficiente (hay ${quantityOnHand}, se necesitan ${quantity}).`,
+    );
+  }
+
+  const { error: inventoryUpdateError } = await supabase
+    .from('inventory_items')
+    .update({ quantity_on_hand: quantityOnHand - quantity })
+    .eq('id', inventoryItem.id)
+    .eq('organization_id', organizationId);
+
+  if (inventoryUpdateError) {
+    throw new Error(inventoryUpdateError.message);
+  }
+
+  const { error: lotUpdateError } = await supabase
+    .from('inventory_lots')
+    .update({ remaining_quantity: 0 })
+    .eq('id', lotId)
+    .eq('organization_id', organizationId);
+
+  if (lotUpdateError) {
+    throw new Error(lotUpdateError.message);
+  }
+
+  const movementNote = [
+    options.purchaseNumber ? `Compra ${options.purchaseNumber}` : null,
+    `Reverso de lote ${lot.lot_code ?? lotId}`,
+  ]
+    .filter((part): part is string => Boolean(part))
+    .join(' • ');
+
+  const { error: movementError } = await supabase.from('inventory_movements').insert({
+    business_center_id: businessCenterId,
+    inventory_item_id: inventoryItem.id,
+    inventory_lot_id: lotId,
+    movement_type: 'adjustment',
+    note: movementNote,
+    organization_id: organizationId,
+    product_id: product.id,
+    quantity_delta: -quantity,
+    reference_type: 'purchase_unconfirm',
+    unit_code: lot.unit_code || product.unitCode,
+  });
+
+  if (movementError) {
+    throw new Error(movementError.message);
+  }
+
+  if (product.parentProductId) {
+    const parentDeduction = computeParentStockDeduction(quantity, product);
+
+    if (parentDeduction != null && parentDeduction > 0) {
+      const { data: parentInventoryItem, error: parentFetchError } = await supabase
+        .from('inventory_items')
+        .select('id, quantity_on_hand, unit_code')
+        .eq('organization_id', organizationId)
+        .eq('business_center_id', businessCenterId)
+        .eq('product_id', product.parentProductId)
+        .maybeSingle<{ id: string; quantity_on_hand: number; unit_code: string }>();
+
+      if (parentFetchError) {
+        throw new Error(parentFetchError.message);
+      }
+
+      if (parentInventoryItem) {
+        const nextParentQuantity = Number(parentInventoryItem.quantity_on_hand) + parentDeduction;
+        const { error: parentUpdateError } = await supabase
+          .from('inventory_items')
+          .update({ quantity_on_hand: nextParentQuantity })
+          .eq('id', parentInventoryItem.id)
+          .eq('organization_id', organizationId);
+
+        if (parentUpdateError) {
+          throw new Error(parentUpdateError.message);
+        }
+
+        const { error: parentMovementError } = await supabase.from('inventory_movements').insert({
+          business_center_id: businessCenterId,
+          inventory_item_id: parentInventoryItem.id,
+          inventory_lot_id: null,
+          movement_type: 'conversion_in',
+          note: `Reverso por anulación de compra en ${product.name}`,
+          organization_id: organizationId,
+          product_id: product.parentProductId,
+          quantity_delta: parentDeduction,
+          reference_id: lotId,
+          reference_type: 'purchase_unconfirm',
+          unit_code: parentInventoryItem.unit_code,
+        });
+
+        if (parentMovementError) {
+          throw new Error(parentMovementError.message);
+        }
+      }
+    }
+  }
+
+  if (restorePrices && options.previousMetadata != null && options.previousUnitPriceCents != null) {
+    const { error: productError } = await supabase
+      .from('products')
+      .update({
+        base_unit_code: options.previousBaseUnitCode || product.baseUnitCode || product.unitCode,
+        metadata: options.previousMetadata,
+        unit_price_cents: options.previousUnitPriceCents,
+      })
+      .eq('id', product.id)
+      .eq('organization_id', organizationId);
+
+    if (productError) {
+      throw new Error(productError.message);
+    }
   }
 }
 

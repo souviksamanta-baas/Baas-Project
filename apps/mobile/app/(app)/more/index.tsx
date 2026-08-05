@@ -45,6 +45,14 @@ export default function MoreRoute(): ReactElement {
       case 'lots-movements':
         router.push(routes.inventoryLotsMovements);
         return;
+      case 'compras':
+        return;
+      case 'manage-purchases':
+        router.push(routes.inventoryManagePurchases);
+        return;
+      case 'load-purchase':
+        router.push(routes.inventoryLoadPurchase);
+        return;
       case 'notifications-tasks':
         router.push(routes.tasks);
         return;

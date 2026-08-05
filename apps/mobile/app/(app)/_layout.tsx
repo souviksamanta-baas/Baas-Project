@@ -7,6 +7,7 @@ import { AppHeader, BottomNavigation } from '../../src/components/ui';
 import type { AppTab } from '../../src/components/ui';
 import { HeaderChromeProvider } from '../../src/context/HeaderChromeProvider';
 import { InboxProvider } from '../../src/context/InboxProvider';
+import { LoadPurchaseProvider } from '../../src/context/LoadPurchaseProvider';
 import { useOwnerSessionContext } from '../../src/context/OwnerSessionProvider';
 import { ProductCatalogProvider } from '../../src/context/ProductCatalogProvider';
 import { SellCartProvider } from '../../src/context/SellCartProvider';
@@ -74,11 +75,13 @@ export default function AppLayout(): ReactElement {
         <InboxProvider>
           <ProductCatalogProvider>
             <SellCartProvider>
-              <MobileOverlayProvider>
-                <View style={styles.content}>
-                  <Slot />
-                </View>
-              </MobileOverlayProvider>
+              <LoadPurchaseProvider>
+                <MobileOverlayProvider>
+                  <View style={styles.content}>
+                    <Slot />
+                  </View>
+                </MobileOverlayProvider>
+              </LoadPurchaseProvider>
             </SellCartProvider>
           </ProductCatalogProvider>
         </InboxProvider>

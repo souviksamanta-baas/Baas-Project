@@ -16,6 +16,8 @@ export const routes = {
   notifications: '/(app)/notifications',
   inventoryManageStock: '/(app)/inventory/manage-stock',
   inventoryLotsMovements: '/(app)/inventory/lots-movements',
+  inventoryLoadPurchase: '/(app)/inventory/load-purchase',
+  inventoryManagePurchases: '/(app)/inventory/manage-purchases',
   inventoryScanCode: '/(app)/inventory/scan-code',
   inventorySell: '/(app)/inventory/sell',
   inventoryConfirmPayment: '/(app)/inventory/confirm-payment',
@@ -153,6 +155,7 @@ export function inventoryScanRoute(options?: {
 
 export type InventoryReturnTo =
   | 'manage-stock'
+  | 'load-purchase'
   | 'product-detail'
   | 'sell'
   | 'copi-chat'
@@ -167,6 +170,7 @@ export function parseInventoryReturnTo(
 
   if (
     raw === 'manage-stock' ||
+    raw === 'load-purchase' ||
     raw === 'product-detail' ||
     raw === 'sell' ||
     raw === 'copi-chat' ||
@@ -190,6 +194,10 @@ export function resolveInventoryReturnRoute(
 
   if (returnTo === 'sell') {
     return routes.inventorySell;
+  }
+
+  if (returnTo === 'load-purchase') {
+    return routes.inventoryLoadPurchase;
   }
 
   if (returnTo === 'copi-chat') {

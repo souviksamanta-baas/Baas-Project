@@ -69,8 +69,10 @@ Tab labels (Spanish): **Inicio**, **Chats**, **Copi**, **Más**. Route id for ch
 
 - No section group titles (Inventarios / Operaciones removed from UI).
 - Flat card groups: inventory + Facturación + Caja; Integraciones + Proveedores; Privacidad + Ayuda at bottom.
+- **Compras** is an expandable parent row (chevron up/down) with children Gestionar compras and Cargar compra.
 - Brand-green outline icons; privacy uses `shield`.
 - WhatsApp-style inset subdividers between rows; tighter horizontal padding (~10–14).
+- Bottom action sheets (`MobileContainedModal`) use text action lines (not Apply/Cancel) for purchase status/edit.
 
 ### Lists (Chats, home conversaciones, Copi suggestions)
 
@@ -138,3 +140,4 @@ Legacy `mobileUiStyles.ts` and duplicate styles in `inventoryUi.tsx` (e.g.
 - `docs/ui-mockups.md` — static mockup baseline and visual review workflow
 - Confluence: [React Native Design System Implementation](https://souviksamanta.atlassian.net/wiki/spaces/BaaS/pages/14221315/React+Native+Design+System+Implementation)
 - Confluence: [Owner app UI polish (Jul 2026)](https://souviksamanta.atlassian.net/wiki/spaces/BaaS/pages/28835842/Owner+app+UI+polish+Jul+2026)
+- Confluence: [Compras — Cargar y gestionar (Owner app)](https://souviksamanta.atlassian.net/wiki/spaces/BaaS/pages/30769153/Compras+Cargar+y+gestionar+Owner+app)

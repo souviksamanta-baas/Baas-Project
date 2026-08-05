@@ -14,6 +14,7 @@ export interface InventoryLot {
 export interface AddStockFormValues {
   cost: string;
   marginPercent: string;
+  purchaseNumber?: string;
   quantity: string;
   receivedDate: string;
   supplier: string;

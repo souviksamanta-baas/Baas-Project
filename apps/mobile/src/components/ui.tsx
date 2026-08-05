@@ -295,14 +295,19 @@ export function NotificationRow(props: {
 export function ActionRow(props: {
   danger?: boolean;
   disabled?: boolean;
+  expanded?: boolean;
   icon?: IconKind;
   onPress?: () => void;
+  showChevron?: boolean;
   showDivider?: boolean;
   subtitle?: string;
   title: string;
 }): ReactElement {
   const isDisabled = props.disabled === true || props.onPress == null;
   const showDivider = props.showDivider !== false;
+  const showChevron = props.showChevron !== false && !isDisabled;
+  const chevronKind =
+    props.expanded === true ? 'chevron-up' : props.expanded === false ? 'chevron-down' : 'chevron-right';
 
   return (
     <Pressable
@@ -333,9 +338,9 @@ export function ActionRow(props: {
             </Text>
           ) : null}
         </View>
-        {isDisabled ? null : (
-          <Icon color="#c7c7cc" kind="chevron-right" size={20} strokeWidth={2.4} />
-        )}
+        {showChevron ? (
+          <Icon color="#c7c7cc" kind={chevronKind} size={20} strokeWidth={2.4} />
+        ) : null}
       </View>
     </Pressable>
   );

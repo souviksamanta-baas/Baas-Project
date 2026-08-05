@@ -26,6 +26,8 @@ The Phase 0 tenant foundation defines:
 | `20260605215500_restrict_ai_draft_client_updates.sql` | Removes direct authenticated updates on `ai_drafts` so owner decisions go through API endpoints that can perform server-side WhatsApp sends. |
 | `20260605223000_add_owner_settings_dashboard_fields.sql` | Extends `get_owner_dashboard` to include tenant AI/follow-up settings already stored on `organizations`. |
 | `20260606011500_redesign_domain_model_centers_inventory.sql` | Adds `organization_verticals`, `business_centers`, `business_center_members`, center scope on operational tables, center-level settings, and measured inventory tables. |
+| `20260705120000_inventory_lots_insert_policy.sql` | Grants authenticated org members INSERT on `inventory_lots` for stock intake. |
+| `20260805210000_inventory_lots_update_policy.sql` | Grants authenticated org members UPDATE on `inventory_lots` (e.g. zero `remaining_quantity` when unconfirming a compra). |
 
 ## RLS Policy Model
 
@@ -86,7 +88,9 @@ current stock state to center-scoped `inventory_items` with decimal measured
 quantities, while `inventory_lots`, `inventory_movements`, and
 `inventory_transformations` model bulk purchases and subdivisions. Negative
 stock remains disallowed so owner inventory and AI lookup answers stay
-conservative and accurate.
+conservative and accurate. Owner **Compras** confirmation writes lots via
+member INSERT and can zero remaining quantity on unconfirm via member UPDATE
+(`inventory_lots_update_members`).
 
 Phase 2 follow-up tasks and notifications are center-scoped under the
 organization. The API service role creates follow-up tasks and low-stock

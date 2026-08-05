@@ -4,6 +4,9 @@ export type MoreMenuRowId =
   | 'manage-stock'
   | 'add-product'
   | 'lots-movements'
+  | 'compras'
+  | 'manage-purchases'
+  | 'load-purchase'
   | 'notifications-tasks'
   | 'billing'
   | 'cash'
@@ -15,7 +18,16 @@ export type MoreMenuRowId =
 
 export type MoreMenuSectionId = 'main' | 'connections' | 'support';
 
+export type MoreMenuChildRow = {
+  disabled?: boolean;
+  icon: IconKind;
+  id: MoreMenuRowId;
+  subtitle: string;
+  title: string;
+};
+
 export type MoreMenuRow = {
+  children?: MoreMenuChildRow[];
   disabled?: boolean;
   icon: IconKind;
   id: MoreMenuRowId;
@@ -52,6 +64,26 @@ export const moreMenuSections: MoreMenuSection[] = [
         id: 'lots-movements',
         subtitle: 'Ingresos, egresos y trazabilidad',
         title: 'Lotes y Movimientos',
+      },
+      {
+        children: [
+          {
+            icon: 'document',
+            id: 'manage-purchases',
+            subtitle: 'Historial de remitos por fecha',
+            title: 'Gestionar compras',
+          },
+          {
+            icon: 'cart',
+            id: 'load-purchase',
+            subtitle: 'Remito, proveedor y carga de stock',
+            title: 'Cargar compra',
+          },
+        ],
+        icon: 'cart',
+        id: 'compras',
+        subtitle: 'Remitos, proveedores y carga de stock',
+        title: 'Compras',
       },
       {
         icon: 'bell',

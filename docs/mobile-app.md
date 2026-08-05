@@ -50,7 +50,7 @@ The owner app primary entry is **Expo Router** (`expo-router/entry` in
 | --- | --- | --- |
 | `(auth)/` | `login`, `verify`, `onboarding` | Supabase OTP and org bootstrap |
 | `(app)/` | `index`, `inbox`, `copi`, `more`, … | Authenticated shell with header + bottom nav |
-| `(app)/inventory/` | `manage-stock`, `product/[id]`, `sell`, … | Inventory and POS stack |
+| `(app)/inventory/` | `manage-stock`, `load-purchase`, `manage-purchases`, `product/[id]`, `sell`, … | Inventory and POS stack |
 | `(app)/` | `account`, `edit-profile`, `business-settings`, `staff-invite`, `whatsapp-connect`, `notifications` | Account and settings destinations |
 
 Route constants and helpers: `apps/mobile/src/navigation/routes.ts` (`tabRoute`,
@@ -380,10 +380,11 @@ sends can happen.
   `useOwnerCopilot`.
 - The More screen (`Más`) uses flat card groups **without** Inventarios /
   Operaciones / Reportes titles. Primary group: Gestionar stock, Agregar
-  producto, Lotes y Movimientos, Notificaciones y Tareas, Facturación, Caja
-  (disabled). Connections: Integraciones, Proveedores. Support (bottom):
-  Privacidad y datos, Ayuda y soporte. Profile expands account actions under the
-  avatar row. Icons use brand green; list rows use WhatsApp-style inset dividers.
+  producto, Lotes y Movimientos, expandable **Compras** (Gestionar compras /
+  Cargar compra), Notificaciones y Tareas, Facturación, Caja (disabled).
+  Connections: Integraciones, Proveedores. Support (bottom): Privacidad y datos,
+  Ayuda y soporte. Profile expands account actions under the avatar row. Icons
+  use brand green; list rows use WhatsApp-style inset dividers.
 - Bottom nav is a **floating pill** with equal **16px** side/bottom insets,
   charcoal tab icons (32px), brand-green `$` FAB, icon-only selection highlight,
   and a frosted veil in the gutters. See `docs/mobile-design-system.md`.
@@ -435,6 +436,10 @@ Implementation paths:
 | Path | Purpose |
 | --- | --- |
 | `apps/mobile/src/screens/inventory/InventoryScreens.tsx` | Eight inventory/POS screen components. |
+| `apps/mobile/src/screens/inventory/LoadPurchaseScreen.tsx` | Cargar / editar compra draft UI. |
+| `apps/mobile/src/screens/ManagePurchasesScreen.tsx` | Gestionar compras by date + status actions. |
+| `apps/mobile/src/lib/purchases.ts` / `purchaseStock.ts` | Local purchase records + confirm/unconfirm stock. |
+| `apps/mobile/src/context/LoadPurchaseProvider.tsx` | In-progress compra draft across navigation. |
 | `apps/mobile/src/design-system/components/Input.tsx` | `SearchField`, `SearchActionRow`, form inputs (see `docs/mobile-design-system.md`). |
 | `apps/mobile/src/components/inventoryUi.tsx` | Shared inventory UI: product cards, form fields, cart rows, totals, and action buttons (`SearchFilterRow` wraps `SearchActionRow`). |
 | `apps/mobile/src/components/icons.tsx` | Inventory-specific icons (search, camera, barcode, QR, edit, trash, check, clock, shield, and others). |
@@ -449,6 +454,9 @@ Accepted static screens:
 | Gestionar stock | Home → Ver inventario, Más → Gestionar stock |
 | Agregar producto | Más → Agregar producto |
 | Lotes y Movimientos | Más → Lotes y Movimientos |
+| Compras | Más → Compras (submenu) |
+| Gestionar compras | Más → Compras → Gestionar compras |
+| Cargar compra | Más → Compras → Cargar compra |
 | Facturación (presupuestos) | Más → Facturación |
 | Integraciones / Proveedores / Ayuda | Más → Configuraciones |
 | Producto | Tap base product row in Gestionar stock |
@@ -459,6 +467,20 @@ Accepted static screens:
 | Vender productos | Bottom nav `$` |
 | Confirmar cobro | Vender productos → `$ Cobrar` |
 
+### Compras (purchase loading)
+
+Owner flow for remitos / bulk stock intake:
+
+| Step | Behavior |
+| --- | --- |
+| **Cargar compra** | Header: unique número de compra, fecha (calendar picker), existing proveedor only. Parent products only (+ add stock). Lines stage into a draft resumen (cost totals). **Guardar compra** persists a local purchase entity as `pending_confirmation` — **no** stock/lots yet. |
+| **Gestionar compras** | Purchases grouped by date (like Lotes y Movimientos). Status badge. ⋯ bottom sheet: **Marcar como confirmada** / **Marcar como pendiente de confirmación**, **Editar compra**. |
+| Confirm | Runs `addStock` per line (lots + movements + price updates). Stores `lotId` + prior price snapshots on the purchase. |
+| Unconfirm | Zeros lot `remaining_quantity`, reverses on-hand stock and parent conversion when needed, restores prior prices, clears lot links. |
+| Edit | Pending only (confirmed must unconfirm first). Preloads draft into Cargar compra. |
+
+Persistence is device-local AsyncStorage (`baas_purchases_v2`) with unique purchase `id` + unique número per center. Stock writes use Supabase RLS (`inventory_lots` insert/update for members — see `docs/tenant-rls.md`). Not a Nest API / webhook surface.
+
 Review locally:
 
 ```bash
@@ -468,6 +490,11 @@ cd apps/mobile && npx expo start --web --port 8153 --host localhost
 Static review uses mock data only. API wiring for catalog, stock, lots, and POS
 checkout remains future work under epic
 [KAN-201](https://souviksamanta.atlassian.net/browse/KAN-201).
+
+Compras lifecycle (local purchase entity + deferred stock on confirm) is
+documented under **Compras** above and in Confluence
+[Compras — Cargar y gestionar](https://souviksamanta.atlassian.net/wiki/spaces/BaaS/pages/30769153/Compras+Cargar+y+gestionar+Owner+app).
+No Nest API or webhook changes.
 
 ## Jul 2026 pilot UX batch (KAN-304)
 

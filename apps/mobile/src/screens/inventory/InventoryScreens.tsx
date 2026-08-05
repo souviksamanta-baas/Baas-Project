@@ -1278,6 +1278,12 @@ export function AddStockScreen(props: {
   onBack: () => void;
   onSave: (values: AddStockFormValues) => Promise<void>;
   onSaveAndGoToManageStock: (values: AddStockFormValues) => Promise<void>;
+  purchaseDefaults?: {
+    lockSupplierAndDate?: boolean;
+    purchaseNumber: string;
+    receivedDate: string;
+    supplier: string;
+  };
   selectableProducts: Product[];
   showProductSelection: boolean;
 }): ReactElement {
@@ -1286,19 +1292,35 @@ export function AddStockScreen(props: {
     props.catalogProducts.find((item) => item.id === selectedProductId) ??
     props.selectableProducts.find((item) => item.id === selectedProductId) ??
     props.selectableProducts[0];
+
+  function withPurchaseDefaults(values: AddStockFormValues): AddStockFormValues {
+    if (!props.purchaseDefaults) {
+      return values;
+    }
+
+    return {
+      ...values,
+      purchaseNumber: props.purchaseDefaults.purchaseNumber,
+      receivedDate: props.purchaseDefaults.receivedDate,
+      supplier: props.purchaseDefaults.supplier,
+    };
+  }
+
   const [formValues, setFormValues] = useState<AddStockFormValues>(() =>
-    selectedProduct
-      ? productToAddStockFormValues(selectedProduct, selectedProduct.id)
-      : {
-          cost: '0.00',
-          marginPercent: '0',
-          quantity: '',
-          receivedDate: '',
-          supplier: '',
-          targetProductId: props.defaultSelectedProductId,
-          unitCode: 'unit',
-          unitPrice: '0.00',
-        },
+    withPurchaseDefaults(
+      selectedProduct
+        ? productToAddStockFormValues(selectedProduct, selectedProduct.id)
+        : {
+            cost: '0.00',
+            marginPercent: '0',
+            quantity: '',
+            receivedDate: '',
+            supplier: '',
+            targetProductId: props.defaultSelectedProductId,
+            unitCode: 'unit',
+            unitPrice: '0.00',
+          },
+    ),
   );
   const lotPreview = useMemo(
     () => previewLotCode(formValues.receivedDate, []),
@@ -1346,15 +1368,17 @@ export function AddStockScreen(props: {
     }
 
     setFormValues(
-      productToAddStockFormValues(selectedProduct, selectedProduct.id, parentProduct),
+      withPurchaseDefaults(
+        productToAddStockFormValues(selectedProduct, selectedProduct.id, parentProduct),
+      ),
     );
   }, [parentProduct, selectedProduct]);
 
   async function handleSave(saveAndContinue: boolean): Promise<void> {
-    const payload = {
+    const payload = withPurchaseDefaults({
       ...formValues,
       targetProductId: selectedProduct?.id ?? formValues.targetProductId,
-    };
+    });
 
     try {
       if (saveAndContinue) {
@@ -1385,12 +1409,20 @@ export function AddStockScreen(props: {
 
   const productStock = formatProductStockLabel(selectedProduct);
   const isSubproduct = selectedProduct.parentProductId != null;
+  const lockPurchaseFields = props.purchaseDefaults?.lockSupplierAndDate === true;
+  const saveAnotherLabel = props.purchaseDefaults
+    ? 'Guardar y agregar otro ítem'
+    : 'Guardar y Registrar otro ingreso';
 
   return (
     <ScreenContent>
       <InventoryScreenTitle
         onBack={props.onBack}
-        subtitle="Registra ingresos para el producto base o sus subproductos"
+        subtitle={
+          props.purchaseDefaults
+            ? `Compra ${props.purchaseDefaults.purchaseNumber}`
+            : 'Registra ingresos para el producto base o sus subproductos'
+        }
         title="Agregar stock"
       />
       <ProductSummaryCard stock={productStock} title={selectedProduct.name} />
@@ -1450,6 +1482,8 @@ export function AddStockScreen(props: {
                 value={formValues.marginPercent}
               />
             </>
+          ) : lockPurchaseFields ? (
+            <InventoryReadOnlyField label="Proveedor" value={formValues.supplier || '—'} />
           ) : (
             <InventoryTextField
               label="Proveedor"
@@ -1477,13 +1511,22 @@ export function AddStockScreen(props: {
           </View>
         ) : null}
         <View style={styles.fieldRow}>
-          <InventoryDateField
-            label="Fecha de ingreso"
-            onChange={(receivedDate) => setFormValues((current) => ({ ...current, receivedDate }))}
-            value={formValues.receivedDate}
-          />
+          {lockPurchaseFields ? (
+            <InventoryReadOnlyField label="Fecha de ingreso" value={formValues.receivedDate} />
+          ) : (
+            <InventoryDateField
+              label="Fecha de ingreso"
+              onChange={(receivedDate) => setFormValues((current) => ({ ...current, receivedDate }))}
+              value={formValues.receivedDate}
+            />
+          )}
           <InventoryReadOnlyField label="Lote" value={lotPreview} />
         </View>
+        {isSubproduct && lockPurchaseFields ? (
+          <View style={styles.fieldRow}>
+            <InventoryReadOnlyField label="Proveedor" value={formValues.supplier || '—'} />
+          </View>
+        ) : null}
       </SectionCard>
       {props.showProductSelection ? (
         <InfoBanner>
@@ -1500,9 +1543,9 @@ export function AddStockScreen(props: {
         }}
         style={[styles.addStockSaveAnotherButton, props.isSaving && styles.disabledButton]}
       >
-        <Icon color={colors.primary} kind="plus" size={14} strokeWidth={2} />
+        <Icon color={colors.primary} kind="plus" size={20} strokeWidth={2.4} />
         <Text style={styles.addStockSaveAnotherButtonText}>
-          {props.isSaving ? 'Guardando...' : 'Guardar y Registrar otro ingreso'}
+          {props.isSaving ? 'Guardando...' : saveAnotherLabel}
         </Text>
       </Pressable>
       <View style={styles.buttonRow}>
@@ -2099,9 +2142,9 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     borderWidth: 1,
     flexDirection: 'row',
-    gap: 8,
+    gap: 10,
     height: 44,
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
     marginTop: 12,
     minHeight: 44,
     paddingHorizontal: 16,
@@ -2109,9 +2152,10 @@ const styles = StyleSheet.create({
   },
   addStockSaveAnotherButtonText: {
     color: colors.primary,
+    flexShrink: 1,
     fontSize: 15,
     fontWeight: '600',
-    textAlign: 'center',
+    textAlign: 'left',
   },
   disabledButton: {
     opacity: 0.5,

@@ -1,12 +1,13 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import type { ReactElement } from 'react';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { Alert, Text } from 'react-native';
 
 import { addStock } from '../../../../../src/api/inventory';
 import { ScreenContent } from '../../../../../src/components/ui';
 import { InventoryScreenTitle } from '../../../../../src/components/inventoryUi';
 import { useOwnerSessionContext } from '../../../../../src/context/OwnerSessionProvider';
+import { useOptionalLoadPurchase } from '../../../../../src/context/LoadPurchaseProvider';
 import { useAddStockContext } from '../../../../../src/hooks/useAddStockContext';
 import { useProductCatalog } from '../../../../../src/context/ProductCatalogProvider';
 import { navigateInventoryReturn } from '../../../../../src/navigation/inventoryNavigation';
@@ -24,6 +25,8 @@ export default function AddStockRoute(): ReactElement {
     returnTo?: string | string[];
   }>();
   const returnTo = parseInventoryReturnTo(rawReturnTo);
+  const loadPurchase = useOptionalLoadPurchase();
+  const isLoadPurchase = returnTo === 'load-purchase';
   const {
     businessCenterId: contextBusinessCenterId,
     defaultSelectedId,
@@ -36,8 +39,19 @@ export default function AddStockRoute(): ReactElement {
   const { products: catalogProducts } = useProductCatalog();
   const [isSaving, setIsSaving] = useState(false);
   const routeProductId = Array.isArray(rawProductId) ? rawProductId[0] : rawProductId;
+  const parentOnlyProducts = isLoadPurchase
+    ? selectableProducts.filter((product) => product.parentProductId == null)
+    : selectableProducts;
+  const loadPurchaseProducts =
+    parentOnlyProducts.length > 0
+      ? parentOnlyProducts
+      : catalogProducts.filter((product) => product.id === (defaultSelectedId ?? routeProductId));
 
   async function persistStock(values: AddStockFormValues): Promise<void> {
+    if (isSaving) {
+      return;
+    }
+
     const orgId = organizationId ?? contextOrganizationId;
     const centerId = businessCenterId ?? contextBusinessCenterId;
 
@@ -51,8 +65,30 @@ export default function AddStockRoute(): ReactElement {
       throw new Error('Producto no encontrado.');
     }
 
+    if (isLoadPurchase && loadPurchase) {
+      loadPurchase.addLine({
+        product: targetProduct,
+        values: {
+          ...values,
+          purchaseNumber: loadPurchase.purchaseNumber.trim(),
+          receivedDate: loadPurchase.date,
+          supplier: loadPurchase.supplier.trim(),
+          targetProductId: targetProduct.id,
+        },
+      });
+      return;
+    }
+
     await addStock(centerId, orgId, targetProduct, values);
     await reloadProducts();
+  }
+
+  function returnAfterSave(): void {
+    navigateInventoryReturn(router, {
+      preferBack: !isLoadPurchase,
+      productId: routeProductId ?? '',
+      returnTo,
+    });
   }
 
   if (isLoading && selectableProducts.length === 0) {
@@ -75,19 +111,21 @@ export default function AddStockRoute(): ReactElement {
       isSaving={isSaving}
       onBack={() =>
         navigateInventoryReturn(router, {
+          preferBack: !isLoadPurchase,
           productId: routeProductId ?? '',
           returnTo,
         })
       }
       onSave={async (values) => {
+        if (isSaving) {
+          return;
+        }
+
         setIsSaving(true);
 
         try {
           await persistStock(values);
-          navigateInventoryReturn(router, {
-            productId: routeProductId ?? '',
-            returnTo,
-          });
+          returnAfterSave();
         } catch (error) {
           Alert.alert(
             'No se pudo guardar',
@@ -98,10 +136,20 @@ export default function AddStockRoute(): ReactElement {
         }
       }}
       onSaveAndGoToManageStock={async (values) => {
+        if (isSaving) {
+          return;
+        }
+
         setIsSaving(true);
 
         try {
           await persistStock(values);
+
+          if (isLoadPurchase) {
+            router.replace(routes.inventoryLoadPurchase);
+            return;
+          }
+
           router.replace(routes.inventoryManageStock);
         } catch (error) {
           Alert.alert(
@@ -112,8 +160,18 @@ export default function AddStockRoute(): ReactElement {
           setIsSaving(false);
         }
       }}
-      selectableProducts={selectableProducts}
-      showProductSelection={showProductSelection}
+      purchaseDefaults={
+        isLoadPurchase && loadPurchase
+          ? {
+              lockSupplierAndDate: true,
+              purchaseNumber: loadPurchase.purchaseNumber.trim(),
+              receivedDate: loadPurchase.date,
+              supplier: loadPurchase.supplier.trim(),
+            }
+          : undefined
+      }
+      selectableProducts={isLoadPurchase ? loadPurchaseProducts : selectableProducts}
+      showProductSelection={isLoadPurchase ? false : showProductSelection}
     />
   );
 }

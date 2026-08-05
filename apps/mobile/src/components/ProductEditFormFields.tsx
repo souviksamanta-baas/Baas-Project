@@ -109,6 +109,7 @@ export function InventorySelectField<T extends string>(props: {
 }
 
 export function InventorySupplierField(props: {
+  existingOnly?: boolean;
   full?: boolean;
   label: string;
   onChangeText: (value: string) => void;
@@ -116,30 +117,65 @@ export function InventorySupplierField(props: {
   value: string;
 }): ReactElement {
   const [focused, setFocused] = useState(false);
-  const matches = useMemo(
-    () => (focused ? filterSupplierSuggestions(props.suggestions, props.value) : []),
-    [focused, props.suggestions, props.value],
-  );
+  const matches = useMemo(() => {
+    if (!focused) {
+      return [];
+    }
+
+    const filtered = filterSupplierSuggestions(props.suggestions, props.value);
+
+    if (filtered.length > 0 || props.value.trim().length > 0) {
+      return filtered;
+    }
+
+    return props.existingOnly ? props.suggestions.slice(0, 8) : [];
+  }, [focused, props.existingOnly, props.suggestions, props.value]);
 
   return (
     <View style={[styles.field, props.full && styles.fieldFull]}>
       <Text style={styles.label}>{props.label}</Text>
       <TextInput
         onBlur={() => {
-          setTimeout(() => setFocused(false), 120);
+          setTimeout(() => {
+            setFocused(false);
+
+            if (!props.existingOnly) {
+              return;
+            }
+
+            const trimmed = props.value.trim();
+
+            if (!trimmed) {
+              return;
+            }
+
+            const exact = props.suggestions.find(
+              (supplier) => supplier.toLowerCase() === trimmed.toLowerCase(),
+            );
+
+            if (exact) {
+              if (exact !== props.value) {
+                props.onChangeText(exact);
+              }
+
+              return;
+            }
+
+            props.onChangeText('');
+          }, 120);
         }}
         onChangeText={props.onChangeText}
         onFocus={() => setFocused(true)}
-        placeholder="Proveedor o marca"
+        placeholder={props.existingOnly ? 'Buscar proveedor' : 'Proveedor o marca'}
         placeholderTextColor={colors.placeholder}
         style={[styles.supplierInput, Platform.OS === 'web' && styles.inputWeb]}
         value={props.value}
       />
       {matches.length > 0 ? (
         <View style={styles.suggestionList}>
-          {matches.map((supplier) => (
+          {matches.map((supplier, index) => (
             <Pressable
-              key={supplier}
+              key={`${supplier}-${index}`}
               onPress={() => {
                 props.onChangeText(supplier);
                 setFocused(false);
@@ -206,6 +242,11 @@ export function InventoryDateField(props: {
   value: string;
 }): ReactElement {
   const [focused, setFocused] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const selectedDate = parseDateInput(props.value) ?? new Date();
+  const [visibleMonth, setVisibleMonth] = useState(
+    () => new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1),
+  );
 
   function applyIsoDate(isoValue: string): void {
     const date = new Date(`${isoValue}T12:00:00`);
@@ -215,6 +256,47 @@ export function InventoryDateField(props: {
 
     props.onChange(formatDateInput(date));
   }
+
+  function openPicker(): void {
+    const current = parseDateInput(props.value) ?? new Date();
+    setVisibleMonth(new Date(current.getFullYear(), current.getMonth(), 1));
+    setPickerOpen(true);
+  }
+
+  function selectDay(day: number): void {
+    const next = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth(), day);
+    props.onChange(formatDateInput(next));
+    setPickerOpen(false);
+  }
+
+  const monthLabel = visibleMonth.toLocaleDateString('es-AR', {
+    month: 'long',
+    year: 'numeric',
+  });
+  const firstWeekday = new Date(
+    visibleMonth.getFullYear(),
+    visibleMonth.getMonth(),
+    1,
+  ).getDay();
+  const daysInMonth = new Date(
+    visibleMonth.getFullYear(),
+    visibleMonth.getMonth() + 1,
+    0,
+  ).getDate();
+  const leadingBlanks = (firstWeekday + 6) % 7; // Monday-first
+  const calendarCells = [
+    ...Array.from({ length: leadingBlanks }, () => null),
+    ...Array.from({ length: daysInMonth }, (_, index) => index + 1),
+  ];
+  const selectedDay =
+    parseDateInput(props.value) &&
+    parseDateInput(props.value)!.getFullYear() === visibleMonth.getFullYear() &&
+    parseDateInput(props.value)!.getMonth() === visibleMonth.getMonth()
+      ? parseDateInput(props.value)!.getDate()
+      : null;
+  const isoValue = parseDateInput(props.value)
+    ? `${parseDateInput(props.value)!.getFullYear()}-${String(parseDateInput(props.value)!.getMonth() + 1).padStart(2, '0')}-${String(parseDateInput(props.value)!.getDate()).padStart(2, '0')}`
+    : '';
 
   return (
     <View style={styles.field}>
@@ -236,22 +318,88 @@ export function InventoryDateField(props: {
         />
         {Platform.OS === 'web' ? (
           <label style={styles.webDateLabel}>
-            <Icon color={colors.slate} kind="calendar" size={14} strokeWidth={1.8} />
+            <Icon color={colors.slate} kind="calendar" size={16} strokeWidth={1.8} />
             <input
               onChange={(event) => applyIsoDate(event.currentTarget.value)}
               style={styles.webDateInput}
               type="date"
-              value={
-                parseDateInput(props.value)
-                  ? `${parseDateInput(props.value)!.getFullYear()}-${String(parseDateInput(props.value)!.getMonth() + 1).padStart(2, '0')}-${String(parseDateInput(props.value)!.getDate()).padStart(2, '0')}`
-                  : ''
-              }
+              value={isoValue}
             />
           </label>
         ) : (
-          <Icon color={colors.slate} kind="calendar" size={14} strokeWidth={1.8} />
+          <Pressable
+            accessibilityLabel="Abrir calendario"
+            hitSlop={10}
+            onPress={openPicker}
+            style={styles.calendarButton}
+          >
+            <Icon color={colors.slate} kind="calendar" size={16} strokeWidth={1.8} />
+          </Pressable>
         )}
       </View>
+
+      <MobileContainedModal onClose={() => setPickerOpen(false)} visible={pickerOpen}>
+        <Text style={styles.modalTitle}>{props.label}</Text>
+        <View style={styles.calendarHeader}>
+          <Pressable
+            accessibilityLabel="Mes anterior"
+            hitSlop={8}
+            onPress={() =>
+              setVisibleMonth(
+                (current) => new Date(current.getFullYear(), current.getMonth() - 1, 1),
+              )
+            }
+            style={styles.calendarNavButton}
+          >
+            <Icon color={colors.navy} kind="arrow-left" size={16} strokeWidth={2} />
+          </Pressable>
+          <Text style={styles.calendarMonthLabel}>{monthLabel}</Text>
+          <Pressable
+            accessibilityLabel="Mes siguiente"
+            hitSlop={8}
+            onPress={() =>
+              setVisibleMonth(
+                (current) => new Date(current.getFullYear(), current.getMonth() + 1, 1),
+              )
+            }
+            style={styles.calendarNavButton}
+          >
+            <Icon color={colors.navy} kind="chevron-right" size={16} strokeWidth={2} />
+          </Pressable>
+        </View>
+        <View style={styles.calendarWeekdays}>
+          {['L', 'M', 'X', 'J', 'V', 'S', 'D'].map((day) => (
+            <Text key={day} style={styles.calendarWeekday}>
+              {day}
+            </Text>
+          ))}
+        </View>
+        <View style={styles.calendarGrid}>
+          {calendarCells.map((day, index) =>
+            day == null ? (
+              <View key={`blank-${index}`} style={styles.calendarDayCell} />
+            ) : (
+              <Pressable
+                key={`day-${day}`}
+                onPress={() => selectDay(day)}
+                style={[
+                  styles.calendarDayCell,
+                  selectedDay === day && styles.calendarDayCellSelected,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.calendarDayText,
+                    selectedDay === day && styles.calendarDayTextSelected,
+                  ]}
+                >
+                  {day}
+                </Text>
+              </Pressable>
+            ),
+          )}
+        </View>
+      </MobileContainedModal>
     </View>
   );
 }
@@ -303,6 +451,67 @@ export function InventoryPercentField(props: {
 }
 
 const styles = StyleSheet.create({
+  calendarButton: {
+    alignItems: 'center',
+    height: 28,
+    justifyContent: 'center',
+    width: 28,
+  },
+  calendarDayCell: {
+    alignItems: 'center',
+    height: 36,
+    justifyContent: 'center',
+    width: '14.28%',
+  },
+  calendarDayCellSelected: {
+    backgroundColor: colors.primarySoft,
+    borderRadius: 18,
+  },
+  calendarDayText: {
+    color: colors.navy,
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  calendarDayTextSelected: {
+    color: colors.primary,
+    fontWeight: '700',
+  },
+  calendarGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginTop: 4,
+  },
+  calendarHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  calendarMonthLabel: {
+    color: colors.navy,
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '600',
+    textAlign: 'center',
+    textTransform: 'capitalize',
+  },
+  calendarNavButton: {
+    alignItems: 'center',
+    height: 32,
+    justifyContent: 'center',
+    width: 32,
+  },
+  calendarWeekday: {
+    color: colors.slate,
+    fontSize: 12,
+    fontWeight: '600',
+    textAlign: 'center',
+    width: '14.28%',
+  },
+  calendarWeekdays: {
+    flexDirection: 'row',
+    marginBottom: 4,
+  },
   dateInput: {
     color: colors.navy,
     flex: 1,
@@ -491,14 +700,18 @@ const styles = StyleSheet.create({
   },
   webDateInput: {
     cursor: 'pointer',
-    height: 18,
+    height: 28,
     opacity: 0,
     position: 'absolute',
     right: 0,
     top: 0,
-    width: 18,
+    width: 28,
   },
   webDateLabel: {
+    alignItems: 'center',
+    height: 28,
+    justifyContent: 'center',
     position: 'relative',
+    width: 28,
   },
 });

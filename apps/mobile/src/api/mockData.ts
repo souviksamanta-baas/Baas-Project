@@ -181,6 +181,7 @@ export const menuSections: MenuSectionMock[] = [
       { icon: 'box', id: 'manage-stock', subtitle: 'Stock actual, alertas y catálogo', title: 'Gestionar stock' },
       { icon: 'plus', id: 'add-product', subtitle: 'Alta de productos y subproductos', title: 'Agregar producto' },
       { icon: 'document', id: 'lots-movements', subtitle: 'Ingresos, egresos y trazabilidad', title: 'Lotes y Movimientos' },
+      { icon: 'cart', id: 'compras', subtitle: 'Remitos, proveedores y carga de stock', title: 'Compras' },
       { icon: 'bell', id: 'notifications-tasks', subtitle: 'Alertas, seguimientos y pendientes', title: 'Notificaciones y Tareas' },
     ],
     title: 'Inventarios',

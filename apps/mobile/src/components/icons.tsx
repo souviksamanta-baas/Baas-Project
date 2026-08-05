@@ -52,6 +52,7 @@ export type IconKind =
   | 'info'
   | 'lightbulb'
   | 'document'
+  | 'dots-vertical'
   | 'x';
 
 export function Icon(props: {
@@ -248,6 +249,15 @@ function iconPath(kind: IconKind, color: string, filled?: boolean): ReactElement
     );
   }
   if (kind === 'more') return <><Path d="M5 7h14" /><Path d="M5 12h14" /><Path d="M5 17h14" /></>;
+  if (kind === 'dots-vertical') {
+    return (
+      <>
+        <Circle cx="12" cy="6" fill={color} r="1.6" stroke="none" />
+        <Circle cx="12" cy="12" fill={color} r="1.6" stroke="none" />
+        <Circle cx="12" cy="18" fill={color} r="1.6" stroke="none" />
+      </>
+    );
+  }
   if (kind === 'money') return <><Circle cx="12" cy="12" r="8.5" fill={filled ? color : 'none'} /><Path d="M12 7.5v9" stroke={filled ? '#fff' : color} /><Path d="M14.4 9.3c-.5-.6-1.3-.9-2.4-.9-1.4 0-2.3.7-2.3 1.8 0 2.6 4.8 1.2 4.8 4 0 1.1-1 1.8-2.5 1.8-1.1 0-2-.3-2.6-1" stroke={filled ? '#fff' : color} /></>;
   if (kind === 'message') return <><Path d="M5 6.5h14v9H9l-4 3v-12Z" /><Path d="M8.5 10h7" /><Path d="M8.5 13h4.5" /></>;
   if (kind === 'box') {

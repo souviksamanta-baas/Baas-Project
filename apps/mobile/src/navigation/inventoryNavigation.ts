@@ -50,6 +50,11 @@ export function navigateInventoryReturn(
     return;
   }
 
+  if (options.returnTo === 'load-purchase') {
+    router.replace(routes.inventoryLoadPurchase);
+    return;
+  }
+
   if (options.returnTo === 'sell') {
     router.replace(routes.inventorySell);
     return;
