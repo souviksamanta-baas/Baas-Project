@@ -411,6 +411,9 @@ sends can happen.
   (`expo-contacts` class API + `ContactPickerModal`), default business center
   assigned silently (sucursales UI removed for now).
 - **Configuración del negocio** (owners only): `/(app)/business-settings`
+  - Summary view for name, email, WhatsApp API phone (read-only), address, timezone, and members
+  - Pencil edit per editable field; owner can remove staff members from the members list
+  - Phone shows `dashboard.whatsappConnection.displayPhoneNumber` (not `organizations.contact_phone`)
   edits organization name, contact email/phone, address fields, and timezone
   via a UTC-offset dropdown (`lib/timezones.ts`). Migration
   `20260718010000_org_profile_and_avatars.sql`.

@@ -12,6 +12,19 @@ export function formatCopiProductLink(productId: string, name: string): string {
   return `[[product:${safeId}|${safeName}]]`;
 }
 
+/** Inline presupuesto mentions — mobile opens Facturación for that quote id. */
+export function formatCopiPresupuestoLink(quoteId: string, label?: string): string {
+  const safeId = quoteId.trim();
+  const safeLabel =
+    (label ?? `Presupuesto ${safeId}`).replace(/[\[\]|]/g, ' ').replace(/\s+/g, ' ').trim() ||
+    `Presupuesto ${safeId}`;
+  if (!safeId) {
+    return safeLabel;
+  }
+
+  return `[[presupuesto:${safeId}|${safeLabel}]]`;
+}
+
 export function collectProductsFromToolResults(
   toolResults: Array<{ payload: Record<string, unknown> }>,
 ): Array<{ id: string; name: string }> {

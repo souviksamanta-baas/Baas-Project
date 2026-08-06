@@ -34,7 +34,9 @@ export function PrivacyDataScreen(props: {
   role: 'owner' | 'staff' | null;
 }): ReactElement {
   const [confirmation, setConfirmation] = useState('');
-  const [members, setMembers] = useState<Array<{ role: string; userId: string }>>([]);
+  const [members, setMembers] = useState<
+    Array<{ displayName?: string; email?: string | null; role: string; userId: string }>
+  >([]);
   const [busy, setBusy] = useState(false);
   const isOwner = props.role === 'owner';
 
@@ -146,7 +148,7 @@ export function PrivacyDataScreen(props: {
                         });
                       }, 'Propiedad transferida');
                     }}
-                    subtitle={member.userId}
+                    subtitle={member.displayName ?? member.email ?? member.userId}
                     title="Transferir propiedad a este miembro"
                   />
                 ))}

@@ -28,6 +28,7 @@ export type CopiToolName =
 
 export type CopiActionType =
   | 'create_task'
+  | 'create_presupuesto'
   | 'assign_task'
   | 'complete_task'
   | 'snooze_task'

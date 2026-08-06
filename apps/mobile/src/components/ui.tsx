@@ -358,6 +358,7 @@ export function MessageBubble(props: {
   direction: 'inbound' | 'outbound';
   mediaStoragePath?: string | null;
   mediaUrl?: string | null;
+  onPressPresupuesto?: (quoteId: string) => void;
   onPressProduct?: (productId: string) => void;
   source?: MessageSource;
   text: string;
@@ -384,6 +385,26 @@ export function MessageBubble(props: {
             {parts.map((part, index) => {
               if (part.type === 'text') {
                 return <Text key={`t-${index}`}>{part.value}</Text>;
+              }
+
+              if (part.type === 'presupuesto') {
+                if (!props.onPressPresupuesto || !part.quoteId) {
+                  return (
+                    <Text key={`q-${index}`} style={styles.productLinkText}>
+                      {part.label}
+                    </Text>
+                  );
+                }
+
+                return (
+                  <Text
+                    key={`q-${index}`}
+                    onPress={() => props.onPressPresupuesto?.(part.quoteId)}
+                    style={styles.productLinkText}
+                  >
+                    {part.label}
+                  </Text>
+                );
               }
 
               if (!props.onPressProduct || !part.productId) {

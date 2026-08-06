@@ -62,6 +62,9 @@ export default function CopiChatRoute(): ReactElement {
       composer={composer}
       copilot={copilot}
       onBack={() => router.replace(routes.appCopi)}
+      onOpenPresupuesto={(quoteId) =>
+        router.push(`${routes.billing}?quoteId=${encodeURIComponent(quoteId)}`)
+      }
       onOpenProduct={(productId) => router.push(productDetailRoute(productId, 'copi-chat'))}
       onSend={handleSend}
     />

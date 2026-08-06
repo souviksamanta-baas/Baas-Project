@@ -115,7 +115,7 @@ export class OrganizationsController {
   async listMembers(
     @Headers('authorization') authorizationHeader: string | undefined,
     @Param('organizationId') organizationId: string,
-  ): Promise<Array<{ role: string; userId: string }>> {
+  ): Promise<Array<{ displayName: string; email: string | null; role: string; userId: string }>> {
     return this.lifecycleService.listMembers({ authorizationHeader, organizationId });
   }
 

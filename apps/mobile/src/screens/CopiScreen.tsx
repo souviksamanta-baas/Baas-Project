@@ -210,6 +210,7 @@ export function CopiChatScreen(props: {
   composer: CopiComposerActions;
   copilot: OwnerCopilotState;
   onBack: () => void;
+  onOpenPresupuesto?: (quoteId: string) => void;
   onOpenProduct?: (productId: string) => void;
   onSend: () => Promise<void> | void;
 }): ReactElement {
@@ -264,6 +265,9 @@ export function CopiChatScreen(props: {
               <View key={message.id}>
                 <MessageBubble
                   direction={message.role === 'owner' ? 'outbound' : 'inbound'}
+                  onPressPresupuesto={
+                    message.role === 'assistant' ? props.onOpenPresupuesto : undefined
+                  }
                   onPressProduct={
                     message.role === 'assistant' ? props.onOpenProduct : undefined
                   }

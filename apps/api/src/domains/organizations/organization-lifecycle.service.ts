@@ -18,7 +18,9 @@ export class OrganizationLifecycleService {
   async listMembers(params: {
     authorizationHeader: string | undefined;
     organizationId: string;
-  }): Promise<Array<{ role: string; userId: string }>> {
+  }): Promise<
+    Array<{ displayName: string; email: string | null; role: string; userId: string }>
+  > {
     const user = await resolveAuthUser(this.supabaseService, params.authorizationHeader);
     await assertOrgMembership({
       organizationId: params.organizationId,
@@ -36,10 +38,44 @@ export class OrganizationLifecycleService {
       throw new Error(`Failed to list members: ${error.message}`);
     }
 
-    return (data ?? []).map((row) => ({
-      role: row.role as string,
-      userId: row.user_id as string,
-    }));
+    const members: Array<{
+      displayName: string;
+      email: string | null;
+      role: string;
+      userId: string;
+    }> = [];
+
+    for (const row of data ?? []) {
+      const userId = row.user_id as string;
+      const role = row.role as string;
+      let displayName = 'Miembro';
+      let email: string | null = null;
+
+      const { data: userData } = await client.auth.admin.getUserById(userId);
+      if (userData?.user) {
+        const metadata = (userData.user.user_metadata ?? {}) as {
+          full_name?: unknown;
+          name?: unknown;
+        };
+        const fullName = String(metadata.full_name ?? metadata.name ?? '').trim();
+        email = userData.user.email ?? null;
+        displayName = fullName || email || 'Miembro';
+      }
+
+      members.push({ displayName, email, role, userId });
+    }
+
+    members.sort((a, b) => {
+      if (a.role === 'owner' && b.role !== 'owner') {
+        return -1;
+      }
+      if (b.role === 'owner' && a.role !== 'owner') {
+        return 1;
+      }
+      return a.displayName.localeCompare(b.displayName, 'es');
+    });
+
+    return members;
   }
 
   async archiveOrganization(params: {

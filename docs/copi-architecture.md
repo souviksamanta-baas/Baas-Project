@@ -50,23 +50,30 @@ Server env: `OPENAI_API_KEY`, optional `OPENAI_MODEL` / `OPENAI_VISION_MODEL`.
 
 ## Pro actions
 
-`create_task`, `assign_task`, `complete_task`, `snooze_task`, `cancel_task`, `reassign_task` — proposed in query response, executed only after owner confirms.
+`create_task`, `create_presupuesto`, `assign_task`, `complete_task`, `snooze_task`, `cancel_task`, `reassign_task`.
+
+`create_task` and `create_presupuesto` **auto-execute** on the query (no “¿Confirmo?”).
+Other mutations may still propose + confirm in the UI.
 
 ### Multi-task create + inline assignment
 
 `copi-task-parse.ts` splits numbered / “tarea para …” messages into one or more
-cleaned task items (titles, due dates, reminders). Confirm creates **all** items
-in one `create_task` proposal.
+cleaned task items (titles, due dates, reminders). Confirm/auto-exec creates **all**
+items in one `create_task` proposal.
 
 - Phrases like “mañana” are scheduling hints, **not** snooze. Create-task intent
   always wins over snooze when the owner asks to create tasks.
-- “asignarlo a Beto” / “asignar a …” strips the assignee from the title and
-  stores `assigneeName`. On confirm, `CopiActionService` resolves the name to an
+- “asignarlo a Beto” / “asignalo a …” strips the assignee from the title and
+  stores `assigneeName`. On execute, `CopiActionService` resolves the name to an
   org member via Auth `user_metadata` (`preferred_name` / `full_name`). If no
-  match, the task is still created and metadata notes the unresolved assignee.
+  match, the task is still created and **assigned to the task creator**.
+- “Creá un presupuesto con 500 g de X. Creá una tarea y asignalo a Juan” uses
+  `create_presupuesto`: inserts a `sell_quotes` draft (matched catalog lines when
+  possible), creates a follow-up task, and replies with a tappable
+  `[[presupuesto:ID|…]]` link (opens Facturación). Assignee fallback = creator.
 - Misclassified pending proposals (legacy snooze with `taskId: null`) are
-  recovered to `create_task` on confirm. Confirm domain errors surface as HTTP
-  400 with a Spanish message instead of an opaque 500.
+  recovered to `create_task` / `create_presupuesto` on confirm. Confirm domain
+  errors surface as HTTP 400 with a Spanish message instead of an opaque 500.
 
 Tests: `apps/api/test/copi-task-parse.spec.ts`, `apps/api/test/copi-action-confirm.spec.ts`.
 

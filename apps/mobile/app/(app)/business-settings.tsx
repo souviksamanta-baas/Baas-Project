@@ -29,6 +29,7 @@ export default function BusinessSettingsRoute(): ReactElement {
       onBack={() => router.replace(routes.account)}
       onSaved={refreshDashboard}
       organizationId={organization.id}
+      whatsappPhone={dashboard?.whatsappConnection?.displayPhoneNumber ?? null}
     />
   );
 }

@@ -6,8 +6,10 @@ import type { CopiActionProposal, CopiActionType, CopiQueryContext } from './cop
 import { detectProActionIntent, normalizeCopiQuestion } from './copi-intent-router';
 import {
   buildCreateTaskPayload,
+  parseCreatePresupuestoRequest,
   readTaskItems,
   summarizeCreateTaskPayload,
+  wantsCreatePresupuestoAction,
 } from './copi-task-parse';
 
 const DEFAULT_TIMEZONE = 'America/Argentina/Cordoba';
@@ -143,12 +145,19 @@ export class CopiActionService {
         const fallbackAssigneeId = readOptionalUuid(params.payload.assignedToUserId);
 
         for (const [index, item] of items.entries()) {
-          const assignedToUserId =
+          const resolvedAssigneeId =
             readOptionalUuid(item.assignedToUserId) ??
             (item.assigneeName
               ? await this.resolveMemberUserId(params.organizationId, item.assigneeName)
               : null) ??
             fallbackAssigneeId;
+
+          // Named assignee missing from the org → fall back to the task creator.
+          const assignedToUserId =
+            resolvedAssigneeId ?? (item.assigneeName ? params.userId : null);
+          const assigneeFellBackToCreator = Boolean(
+            item.assigneeName && !resolvedAssigneeId && assignedToUserId === params.userId,
+          );
 
           const task = await this.tasksService.createTask({
             assignedToUserId,
@@ -160,10 +169,10 @@ export class CopiActionService {
             dueAt: item.dueAt,
             metadata: {
               ...(item.assigneeName ? { assigneeName: item.assigneeName } : {}),
-              ...(item.assigneeName && !assignedToUserId
+              ...(assigneeFellBackToCreator
                 ? {
-                    assigneeUnresolved: true,
-                    clarificationQuestion: `No encontré a «${item.assigneeName}» en el equipo. ¿A quién querés asignarle «${item.title}»?`,
+                    assigneeFellBackToCreator: true,
+                    clarificationQuestion: `No encontré a «${item.assigneeName}» en el equipo. Asigné «${item.title}» a vos.`,
                   }
                 : item.clarificationQuestion
                   ? { clarificationQuestion: item.clarificationQuestion }
@@ -192,6 +201,113 @@ export class CopiActionService {
           taskId: created[0]?.taskId ?? null,
           taskIds: created.map((item) => item.taskId),
           titles: created.map((item) => item.title),
+        };
+      }
+      case 'create_presupuesto': {
+        const clientLabel =
+          typeof params.payload.clientLabel === 'string' && params.payload.clientLabel.trim()
+            ? params.payload.clientLabel.trim()
+            : 'Estandar';
+        const assigneeName =
+          typeof params.payload.assigneeName === 'string' && params.payload.assigneeName.trim()
+            ? params.payload.assigneeName.trim()
+            : null;
+        const title =
+          typeof params.payload.title === 'string' && params.payload.title.trim()
+            ? params.payload.title.trim()
+            : `Presupuesto para ${clientLabel}`;
+        const description =
+          typeof params.payload.description === 'string' && params.payload.description.trim()
+            ? params.payload.description.trim()
+            : title;
+
+        const quoteId = `PRES-${Date.now().toString(36).toUpperCase()}`;
+        const now = new Date().toISOString();
+        const cart = await this.buildPresupuestoCart(
+          params.organizationId,
+          params.payload.lines,
+        );
+        const unresolvedProducts = cart
+          .filter((line) => line.unresolved)
+          .map((line) => line.productQuery);
+        const draft = {
+          cart: cart
+            .filter((line) => !line.unresolved)
+            .map((line) => ({
+              id: line.id,
+              name: line.name,
+              productId: line.productId,
+              quantity: line.quantity,
+              soldByWeight: line.soldByWeight,
+              unitPriceCents: line.unitPriceCents,
+              weightGramsInput: line.weightGramsInput,
+            })),
+          clientLabel,
+          discountMode: 'amount' as const,
+          discountValue: 0,
+          paymentMethod: 'efectivo' as const,
+          receiptLabel: 'Estandar',
+        };
+
+        const client = this.supabaseService.getServiceRoleClient();
+        const { error: quoteError } = await client.from('sell_quotes').insert({
+          business_center_id: params.businessCenterId,
+          created_at: now,
+          created_by: params.userId,
+          draft,
+          id: quoteId,
+          organization_id: params.organizationId,
+          status: 'guardado',
+          updated_at: now,
+        });
+
+        if (quoteError) {
+          throw new Error(`No se pudo crear el presupuesto: ${quoteError.message}`);
+        }
+
+        const resolvedAssigneeId = assigneeName
+          ? await this.resolveMemberUserId(params.organizationId, assigneeName)
+          : null;
+        const assignedToUserId = resolvedAssigneeId ?? params.userId;
+        const assigneeFellBackToCreator = Boolean(assigneeName && !resolvedAssigneeId);
+
+        const taskTitle = `Trabajar sobre ${quoteId}${
+          draft.cart[0]?.name ? ` (${draft.cart.map((line) => line.name).join(', ')})` : ''
+        }`.slice(0, 120);
+        const task = await this.tasksService.createTask({
+          assignedToUserId,
+          businessCenterId: params.businessCenterId,
+          createdByUserId: params.userId,
+          description: `${description}\nPresupuesto: ${quoteId}`,
+          metadata: {
+            ...(assigneeName ? { assigneeName } : {}),
+            ...(assigneeFellBackToCreator
+              ? {
+                  assigneeFellBackToCreator: true,
+                  clarificationQuestion: `No encontré a «${assigneeName}» en el equipo. Asigné la tarea a vos.`,
+                }
+              : {}),
+            copi: true,
+            presupuestoId: quoteId,
+          },
+          organizationId: params.organizationId,
+          priority: 'normal',
+          sourceKey: `copi-presupuesto:${params.userId}:${quoteId}`,
+          taskType: 'copi',
+          title: taskTitle,
+        });
+
+        return {
+          assignedToUserId,
+          assigneeFellBackToCreator,
+          assigneeName,
+          clientLabel,
+          productCount: draft.cart.length,
+          quoteId,
+          taskId: task.id,
+          taskTitle: task.title,
+          title,
+          unresolvedProducts,
         };
       }
       case 'assign_task':
@@ -304,6 +420,164 @@ export class CopiActionService {
 
     return null;
   }
+
+  private async buildPresupuestoCart(
+    organizationId: string,
+    rawLines: unknown,
+  ): Promise<
+    Array<{
+      id: string;
+      name: string;
+      productId: string;
+      productQuery: string;
+      quantity: number;
+      soldByWeight: boolean;
+      unitPriceCents: number;
+      unresolved: boolean;
+      weightGramsInput: string | null;
+    }>
+  > {
+    if (!Array.isArray(rawLines) || rawLines.length === 0) {
+      return [];
+    }
+
+    const cart: Array<{
+      id: string;
+      name: string;
+      productId: string;
+      productQuery: string;
+      quantity: number;
+      soldByWeight: boolean;
+      unitPriceCents: number;
+      unresolved: boolean;
+      weightGramsInput: string | null;
+    }> = [];
+
+    for (const [index, raw] of rawLines.entries()) {
+      if (!raw || typeof raw !== 'object') {
+        continue;
+      }
+      const line = raw as Record<string, unknown>;
+      const productQuery = String(line.productQuery ?? '').trim();
+      if (!productQuery) {
+        continue;
+      }
+
+      const grams =
+        typeof line.grams === 'number' && Number.isFinite(line.grams) ? line.grams : null;
+      const quantity =
+        typeof line.quantity === 'number' && Number.isFinite(line.quantity) ? line.quantity : null;
+
+      const product = await this.resolveProductByName(organizationId, productQuery);
+      if (!product) {
+        cart.push({
+          id: `unresolved-${index}`,
+          name: productQuery,
+          productId: '',
+          productQuery,
+          quantity: quantity ?? 1,
+          soldByWeight: grams != null,
+          unitPriceCents: 0,
+          unresolved: true,
+          weightGramsInput: grams != null ? String(Math.round(grams)) : null,
+        });
+        continue;
+      }
+
+      const soldByWeight = product.soldByWeight || grams != null;
+      cart.push({
+        id: `${product.id}-${Date.now()}-${index}`,
+        name: product.name,
+        productId: product.id,
+        productQuery,
+        quantity: soldByWeight ? 1 : Math.max(1, Math.round(quantity ?? 1)),
+        soldByWeight,
+        unitPriceCents: product.unitPriceCents,
+        unresolved: false,
+        weightGramsInput: soldByWeight
+          ? String(Math.round(grams ?? (quantity != null && quantity < 20 ? quantity * 1000 : 1000)))
+          : null,
+      });
+    }
+
+    return cart;
+  }
+
+  private async resolveProductByName(
+    organizationId: string,
+    productQuery: string,
+  ): Promise<{ id: string; name: string; soldByWeight: boolean; unitPriceCents: number } | null> {
+    const needle = normalizePersonName(productQuery);
+    if (!needle) {
+      return null;
+    }
+
+    const client = this.supabaseService.getServiceRoleClient();
+    const { data, error } = await client
+      .from('products')
+      .select(
+        'id, name, unit_price_cents, base_unit_code, pricing_unit_code, parent_product_id, is_active',
+      )
+      .eq('organization_id', organizationId)
+      .eq('is_active', true)
+      .limit(200);
+
+    if (error) {
+      throw new Error(`Failed to resolve product: ${error.message}`);
+    }
+
+    let best: {
+      id: string;
+      name: string;
+      soldByWeight: boolean;
+      unitPriceCents: number;
+      score: number;
+    } | null = null;
+
+    for (const row of data ?? []) {
+      const name = String(row.name ?? '').trim();
+      const normalizedName = normalizePersonName(name);
+      if (!normalizedName) {
+        continue;
+      }
+
+      let score = 0;
+      if (normalizedName === needle) {
+        score = 100;
+      } else if (normalizedName.includes(needle) || needle.includes(normalizedName)) {
+        score = 80;
+      } else {
+        const tokens = needle.split(/\s+/).filter((token) => token.length > 2);
+        const hits = tokens.filter((token) => normalizedName.includes(token)).length;
+        if (hits === 0) {
+          continue;
+        }
+        score = 40 + hits * 10;
+      }
+
+      const unit = String(row.base_unit_code ?? row.pricing_unit_code ?? 'unit');
+      const candidate = {
+        id: String(row.id),
+        name,
+        soldByWeight: unit === 'kg' && row.parent_product_id == null,
+        unitPriceCents: Number(row.unit_price_cents ?? 0) || 0,
+        score,
+      };
+
+      if (!best || candidate.score > best.score) {
+        best = candidate;
+      }
+    }
+
+    return best
+      ? {
+          id: best.id,
+          name: best.name,
+          soldByWeight: best.soldByWeight,
+          unitPriceCents: best.unitPriceCents,
+        }
+      : null;
+  }
 }
 
 function normalizePersonName(value: string): string {
@@ -316,6 +590,12 @@ function normalizePersonName(value: string): string {
 
 export function inferCopiActionType(question: string): CopiActionType {
   const normalized = normalizeCopiQuestion(question);
+
+  // Standalone presupuesto creation (not “crear tarea para presupuesto”).
+  if (wantsCreatePresupuestoAction(question)) {
+    return 'create_presupuesto';
+  }
+
   const mentionsTask = /\btareas?\b/.test(normalized);
   const isCreate =
     mentionsTask &&
@@ -356,6 +636,19 @@ function buildActionPayload(
     };
   }
 
+  if (actionType === 'create_presupuesto') {
+    const parsed = parseCreatePresupuestoRequest(question);
+    return {
+      assigneeName: parsed.assigneeName,
+      clientLabel: parsed.clientLabel,
+      description: parsed.description,
+      lines: parsed.lines,
+      question,
+      timezone,
+      title: parsed.title,
+    };
+  }
+
   return {
     question,
     taskId: null,
@@ -373,6 +666,10 @@ export function recoverCreateTaskProposal(
   actionType: CopiActionType,
   payload: Record<string, unknown>,
 ): { actionType: CopiActionType; payload: Record<string, unknown> } {
+  if (actionType === 'create_presupuesto') {
+    return { actionType, payload };
+  }
+
   if (actionType === 'create_task') {
     // Ensure older single-title payloads still expose a question for auditing.
     if (typeof payload.question !== 'string' && typeof payload.description === 'string') {
@@ -390,6 +687,26 @@ export function recoverCreateTaskProposal(
   }
 
   const inferred = inferCopiActionType(question);
+  if (inferred === 'create_presupuesto') {
+    const timezone =
+      typeof payload.timezone === 'string' && payload.timezone.trim()
+        ? payload.timezone
+        : DEFAULT_TIMEZONE;
+    const parsed = parseCreatePresupuestoRequest(question);
+    return {
+      actionType: 'create_presupuesto',
+      payload: {
+        assigneeName: parsed.assigneeName,
+        clientLabel: parsed.clientLabel,
+        description: parsed.description,
+        lines: parsed.lines,
+        question,
+        timezone,
+        title: parsed.title,
+      },
+    };
+  }
+
   const missingTaskId = !isValidUuid(payload.taskId);
   const shouldRecover =
     inferred === 'create_task' ||
@@ -468,6 +785,14 @@ function summarizeProposal(actionType: CopiActionType, payload: Record<string, u
   switch (actionType) {
     case 'create_task':
       return summarizeCreateTaskPayload(payload);
+    case 'create_presupuesto': {
+      const title = String(payload.title ?? 'Nuevo presupuesto');
+      const assignee =
+        typeof payload.assigneeName === 'string' && payload.assigneeName.trim()
+          ? ` (asignado a ${payload.assigneeName.trim()})`
+          : ' (asignado a vos)';
+      return `Crear presupuesto: ${title}${assignee}`;
+    }
     case 'assign_task':
     case 'reassign_task':
       return 'Asignar tarea';

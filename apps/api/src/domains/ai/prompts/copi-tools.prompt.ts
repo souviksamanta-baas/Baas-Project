@@ -167,13 +167,11 @@ Rules:
 - Greeting + business question still selects business tools.
 - \`attention_summary\` is a last-resort overview, never a default for unknown-but-specific questions. If no live tool fits, return \`{"tools":[]}\`.
 
-## Pro write actions (confirm in UI)
+## Pro write actions
 
-Not selected in the tools JSON array. Orchestrator may attach a proposal when the owner asks to create/assign/complete/snooze/cancel a task:
+Not selected in the tools JSON array. Orchestrator executes \`create_task\` and \`create_presupuesto\` immediately (no confirm step). Other mutations (\`assign_task\`, \`reassign_task\`, \`complete_task\`, \`snooze_task\`, \`cancel_task\`) may still propose and ask for confirmation.
 
-\`create_task\`, \`assign_task\`, \`reassign_task\`, \`complete_task\`, \`snooze_task\`, \`cancel_task\`.
-
-Never say "listo, ya lo hice" until confirmation succeeds.
+When a write already ran, answer briefly with the result (and presupuesto link markup). Never say "listo, ya lo hice" for actions that still need confirmation.
 
 ## Always execute when appropriate
 

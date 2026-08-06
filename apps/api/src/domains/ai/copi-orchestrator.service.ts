@@ -1,18 +1,21 @@
 import { Injectable } from '@nestjs/common';
 
 import { SupabaseService } from '../../supabase/supabase.service';
-import type { OwnerCopilotResponse } from './copi.types';
-import { CopiActionService } from './copi-action.service';
+import type { CopiActionType, OwnerCopilotResponse } from './copi.types';
+import { CopiActionService, inferCopiActionType } from './copi-action.service';
 import { detectProActionIntent } from './copi-intent-router';
 import { CopiLlmPhraserService } from './copi-llm-phraser.service';
 import { CopiLlmToolSelectorService } from './copi-llm-tool-selector.service';
 import { CopiPolicyService } from './copi-policy.service';
+import { formatCopiPresupuestoLink } from './copi-product-link.util';
 import { CopiSessionService } from './copi-session.service';
 import { CopiToolRegistry } from './copi-tool-registry';
 
 interface MembershipRow {
   role: 'owner' | 'staff';
 }
+
+const AUTO_EXECUTE_ACTIONS = new Set<CopiActionType>(['create_task', 'create_presupuesto']);
 
 @Injectable()
 export class CopiOrchestratorService {
@@ -105,7 +108,38 @@ export class CopiOrchestratorService {
       };
     }
 
+    const inferredAction = wantsProAction ? inferCopiActionType(reasoningQuestion) : null;
+    const shouldAutoExecute =
+      inferredAction != null &&
+      AUTO_EXECUTE_ACTIONS.has(inferredAction) &&
+      this.policyService.canUseProAgent(flags);
+
+    if (shouldAutoExecute) {
+      const proposedAction = await this.actionService.proposeAction(context);
+      if (proposedAction) {
+        const executed = await this.actionService.confirmAction({
+          actionId: proposedAction.id,
+          businessCenterId,
+          organizationId: params.organizationId,
+          userId: member.userId,
+        });
+        const answer = formatAutoExecutedAnswer(proposedAction.actionType, executed.result);
+        await this.persistAssistantMessage(params.organizationId, sessionId, answer, []);
+        return {
+          answer,
+          policyDecision: 'allowed',
+          proposedAction: null,
+          responseTimeMs: Date.now() - startedAt,
+          sessionId,
+          tier: 'pro',
+          tokenUsage: this.policyService.emptyUsage(),
+          tools: [],
+        };
+      }
+    }
+
     const useLlm = this.policyService.canUseFreeformQuestions(flags);
+    const isPro = this.policyService.canUseProAgent(flags);
     const selected = await this.toolSelectorService.selectTools({
       enabled: useLlm,
       history: conversationHistory,
@@ -119,6 +153,7 @@ export class CopiOrchestratorService {
       locale: 'es-AR',
       ownerDisplayName: member.displayName,
       question: reasoningQuestion,
+      tier: isPro ? 'pro' : 'basic',
       toolResults,
     });
 
@@ -247,4 +282,61 @@ export class CopiOrchestratorService {
       userId: userData.user.id,
     };
   }
+}
+
+function formatAutoExecutedAnswer(
+  actionType: CopiActionType,
+  result: Record<string, unknown>,
+): string {
+  if (actionType === 'create_presupuesto') {
+    const quoteId = String(result.quoteId ?? '').trim();
+    const taskTitle = String(result.taskTitle ?? 'Tarea de presupuesto').trim();
+    const assigneeName =
+      typeof result.assigneeName === 'string' && result.assigneeName.trim()
+        ? result.assigneeName.trim()
+        : null;
+    const assigneeFellBack = Boolean(result.assigneeFellBackToCreator);
+    const unresolved = Array.isArray(result.unresolvedProducts)
+      ? result.unresolvedProducts.filter((item): item is string => typeof item === 'string')
+      : [];
+
+    const link = quoteId
+      ? formatCopiPresupuestoLink(quoteId, `Abrir presupuesto ${quoteId}`)
+      : 'el presupuesto';
+    const assigneeLine = assigneeName
+      ? assigneeFellBack
+        ? `Tarea creada y asignada a vos (no encontré a «${assigneeName}» en el equipo): ${taskTitle}.`
+        : `Tarea creada y asignada a ${assigneeName}: ${taskTitle}.`
+      : `Tarea creada y asignada a vos: ${taskTitle}.`;
+    const unresolvedLine =
+      unresolved.length > 0
+        ? `\nNo encontré en el catálogo: ${unresolved.join(', ')}. Podés completarlos en Facturación.`
+        : '';
+
+    return `Listo.\n${link}\n${assigneeLine}${unresolvedLine}`;
+  }
+
+  if (actionType === 'create_task') {
+    const titles = Array.isArray(result.titles)
+      ? result.titles.filter(
+          (item): item is string => typeof item === 'string' && item.trim().length > 0,
+        )
+      : [];
+    const assigneeNames = Array.isArray(result.assigneeNames) ? result.assigneeNames : [];
+
+    if (titles.length === 0) {
+      return 'Listo. Creé la tarea.';
+    }
+
+    if (titles.length === 1) {
+      const assignee = typeof assigneeNames[0] === 'string' ? assigneeNames[0] : null;
+      return assignee
+        ? `Listo. Creé la tarea «${titles[0]}» y la asigné a ${assignee}.`
+        : `Listo. Creé la tarea «${titles[0]}».`;
+    }
+
+    return `Listo. Creé ${titles.length} tareas:\n${titles.map((title) => `• ${title}`).join('\n')}`;
+  }
+
+  return 'Listo. Acción completada.';
 }

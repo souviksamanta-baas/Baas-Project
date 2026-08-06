@@ -21,6 +21,7 @@ export class CopiLlmPhraserService {
     locale: string;
     ownerDisplayName?: string | null;
     question: string;
+    tier?: 'basic' | 'pro';
     toolResults: CopiToolResult[];
   }): Promise<{ answer: string; tokenUsage: CopiTokenUsage }> {
     const alreadyGreeted = sessionAlreadyGreeted(params.history ?? []);
@@ -77,10 +78,14 @@ export class CopiLlmPhraserService {
     const budgetDecision = this.policyService.enforceTokenBudget({
       estimatedInputTokens: estimatedInput,
       estimatedOutputTokens: 500,
-      tier: 'basic',
+      // Pro orgs must not be capped by the Basic token budget (phraser used to hardcode basic).
+      tier: params.tier ?? 'basic',
     });
 
     if (budgetDecision === 'policy_denied') {
+      this.logger.warn(
+        `Copi phraser skipped OpenAI due to Basic token budget (est. input=${estimatedInput}).`,
+      );
       return {
         answer: 'Tu consulta supera el límite del plan Basic. Probá una pregunta más corta o activá Copi Pro.',
         tokenUsage: { inputTokens: estimatedInput, outputTokens: 0 },

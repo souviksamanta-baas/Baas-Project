@@ -11,7 +11,7 @@ export type ParsedTaskItem = {
 const REMINDER_LEAD_MS = 30 * 60 * 1000;
 
 const ASSIGNEE_PATTERN =
-  /\b(?:y\s+)?(?:asignarl[oa]s?|asignar(?:la|lo|las|los)?|asignada?|pasale|pasársela|pasarsela|dale)\s+a\s+([a-záéíóúñü]+)\b/gi;
+  /\b(?:y\s+)?(?:asignarl[oa]s?|as[ií]gnal[oa]s?|asignar(?:la|lo|las|los)?|asignada?|pasale|pasársela|pasarsela|dale|que\s+lo\s+haga|para\s+que\s+lo\s+haga)\s+a\s+([a-záéíóúñü]+)\b/gi;
 
 /**
  * Splits a Copi "create task(s)" message into one or more cleaned task items,
@@ -153,6 +153,161 @@ export function extractAssignee(segment: string): { assigneeName: string | null;
     .trim();
 
   return { assigneeName, text };
+}
+
+export type ParsedPresupuestoLine = {
+  grams: number | null;
+  productQuery: string;
+  quantity: number | null;
+};
+
+export type ParsedPresupuestoRequest = {
+  assigneeName: string | null;
+  clientLabel: string;
+  description: string;
+  lines: ParsedPresupuestoLine[];
+  title: string;
+};
+
+/**
+ * Parses “crear presupuesto …” requests into lines, client, and optional assignee.
+ * Explicit “creá un presupuesto …” wins even if the same message also asks for a task.
+ */
+export function parseCreatePresupuestoRequest(question: string): ParsedPresupuestoRequest {
+  const { assigneeName, text } = extractAssignee(question);
+
+  // Drop the follow-up “crea una tarea…” clause; assignment already extracted.
+  let cleaned = text
+    .replace(
+      /[.\s]*(?:y\s+)?(?:creas?|creá|crear|creame)\s+(?:una\s+)?tarea\b[\s\S]*$/i,
+      ' ',
+    )
+    .replace(/^(hola\s+copi[,!]?\s*)?/i, '')
+    .replace(/^(necesito\s+que\s+)?(creas?|creá|crear|creame)\s+(un\s+|una\s+)?/i, '')
+    .replace(/\bpresupuestos?\b/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  let clientLabel = 'Estandar';
+  const clientMatch = cleaned.match(/\bpara\s+([a-záéíóúñü][\wáéíóúñü]*)\b(?!\s+trabajar)/i);
+  if (clientMatch?.[1] && !/^(trabajar|completar|hacer|el|la|los|las)$/i.test(clientMatch[1])) {
+    clientLabel = sentenceCase(clientMatch[1]);
+    cleaned = cleaned
+      .replace(clientMatch[0], ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  const lines = extractPresupuestoLines(cleaned);
+  const detail = cleaned
+    .replace(/\bcon\b/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .replace(/^[.\-,\s]+|[.\-,\s]+$/g, '')
+    .trim();
+
+  const lineSummary =
+    lines.length > 0
+      ? lines
+          .map((line) => {
+            if (line.grams != null) {
+              return `${line.grams} g ${sentenceCase(line.productQuery)}`;
+            }
+            if (line.quantity != null) {
+              return `${line.quantity}× ${sentenceCase(line.productQuery)}`;
+            }
+            return sentenceCase(line.productQuery);
+          })
+          .join(', ')
+      : '';
+
+  const title =
+    lineSummary.length > 0
+      ? `Presupuesto: ${lineSummary}`.slice(0, 120)
+      : clientLabel !== 'Estandar'
+        ? `Presupuesto para ${clientLabel}`
+        : detail
+          ? sentenceCase(detail).slice(0, 120)
+          : 'Nuevo presupuesto';
+
+  return {
+    assigneeName,
+    clientLabel,
+    description: detail || question.trim(),
+    lines,
+    title,
+  };
+}
+
+function extractPresupuestoLines(text: string): ParsedPresupuestoLine[] {
+  const lines: ParsedPresupuestoLine[] = [];
+  const weightPattern =
+    /(\d+(?:[.,]\d+)?)\s*(?:g|gr|gramos?)\s+(?:de\s+)?([a-záéíóúñü0-9][\wáéíóúñü0-9\s-]{1,60}?)(?=(?:,|\.|$|\s+y\s+|\s+crea))/gi;
+  const qtyPattern =
+    /(\d+(?:[.,]\d+)?)\s*(?:x|×|unidades?|uds?\.?)?\s+(?:de\s+)?([a-záéíóúñü0-9][\wáéíóúñü0-9\s-]{1,60}?)(?=(?:,|\.|$|\s+y\s+|\s+crea))/gi;
+
+  for (const match of text.matchAll(weightPattern)) {
+    const grams = Number.parseFloat((match[1] ?? '').replace(',', '.'));
+    const productQuery = (match[2] ?? '').trim().replace(/\s+/g, ' ');
+    if (Number.isFinite(grams) && grams > 0 && productQuery.length > 1) {
+      lines.push({ grams, productQuery, quantity: null });
+    }
+  }
+
+  if (lines.length > 0) {
+    return lines;
+  }
+
+  for (const match of text.matchAll(qtyPattern)) {
+    const quantity = Number.parseFloat((match[1] ?? '').replace(',', '.'));
+    const productQuery = (match[2] ?? '').trim().replace(/\s+/g, ' ');
+    if (Number.isFinite(quantity) && quantity > 0 && productQuery.length > 1) {
+      lines.push({ grams: null, productQuery, quantity });
+    }
+  }
+
+  const conMatch = text.match(/\bcon\s+(.+)$/i);
+  if (lines.length === 0 && conMatch?.[1]) {
+    const productQuery = conMatch[1]
+      .replace(/\b(creas?|creá|crear|creame)\s+(?:una\s+)?tarea\b[\s\S]*$/i, '')
+      .trim();
+    if (productQuery.length > 1) {
+      lines.push({ grams: null, productQuery, quantity: 1 });
+    }
+  }
+
+  return lines;
+}
+
+export function wantsCreatePresupuestoAction(question: string): boolean {
+  const normalized = question
+    .trim()
+    .toLocaleLowerCase('es-AR')
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '');
+
+  if (!/\bpresupuestos?\b/.test(normalized)) {
+    return false;
+  }
+
+  if (!/\b(crea|crear|creas|creame|crea)\b/.test(normalized)) {
+    return false;
+  }
+
+  // Explicit “crear un/una presupuesto …” or “presupuesto con …”.
+  // Require un/una so “tarea para crear presupuesto” stays task-only.
+  if (
+    /\b(crea|crear|creas|creame|crea)\s+(un|una)\s+presupuesto\b/.test(normalized) ||
+    /\bpresupuesto\s+con\b/.test(normalized)
+  ) {
+    return true;
+  }
+
+  // “crear tarea para crear presupuesto …” stays a task-only action.
+  if (/\btareas?\b/.test(normalized)) {
+    return false;
+  }
+
+  return true;
 }
 
 function splitTaskSegments(question: string): string[] {

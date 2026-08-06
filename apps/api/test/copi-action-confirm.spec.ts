@@ -4,7 +4,12 @@ import {
   inferCopiActionType,
   recoverCreateTaskProposal,
 } from '../src/domains/ai/copi-action.service';
-import { parseCreateTaskItems, readTaskItems } from '../src/domains/ai/copi-task-parse';
+import {
+  parseCreatePresupuestoRequest,
+  parseCreateTaskItems,
+  readTaskItems,
+  wantsCreatePresupuestoAction,
+} from '../src/domains/ai/copi-task-parse';
 
 describe('inferCopiActionType', () => {
   it('prefers create_task when the message both creates tasks and mentions mañana', () => {
@@ -22,6 +27,48 @@ describe('inferCopiActionType', () => {
 
   it('still detects explicit snooze', () => {
     expect(inferCopiActionType('Posponé la tarea del seguimiento')).toBe('snooze_task');
+  });
+
+  it('detects standalone presupuesto creation', () => {
+    expect(
+      inferCopiActionType('Creá un presupuesto para Pablo y asignalo a Juli'),
+    ).toBe('create_presupuesto');
+  });
+
+  it('keeps presupuesto-inside-task requests as create_task', () => {
+    expect(
+      inferCopiActionType('Creá una tarea para crear presupuesto para Pablo'),
+    ).toBe('create_task');
+  });
+});
+
+describe('parseCreatePresupuestoRequest', () => {
+  it('extracts client and assignee', () => {
+    const parsed = parseCreatePresupuestoRequest(
+      'Creá un presupuesto para Pablo y asignalo a Juli',
+    );
+    expect(parsed.clientLabel).toBe('Pablo');
+    expect(parsed.assigneeName).toBe('Juli');
+    expect(parsed.title).toMatch(/Pablo/i);
+    expect(wantsCreatePresupuestoAction('Creá un presupuesto para Pablo')).toBe(true);
+    expect(
+      wantsCreatePresupuestoAction('Creá una tarea para crear presupuesto para Pablo'),
+    ).toBe(false);
+  });
+
+  it('creates presupuesto+task requests with product grams and assignee', () => {
+    const question =
+      'Crea un presupuesto con 500 gramos de castaña de caju. Crea una tarea y asígnalo a Juan para trabajar sobre el presupuesto que creaste';
+
+    expect(wantsCreatePresupuestoAction(question)).toBe(true);
+    expect(inferCopiActionType(question)).toBe('create_presupuesto');
+
+    const parsed = parseCreatePresupuestoRequest(question);
+    expect(parsed.assigneeName).toBe('Juan');
+    expect(parsed.lines).toHaveLength(1);
+    expect(parsed.lines[0]?.grams).toBe(500);
+    expect(parsed.lines[0]?.productQuery.toLocaleLowerCase('es-AR')).toMatch(/casta/);
+    expect(parsed.clientLabel).toBe('Estandar');
   });
 });
 
@@ -64,6 +111,17 @@ describe('recoverCreateTaskProposal', () => {
 
     expect(recovered.actionType).toBe('snooze_task');
     expect(recovered.payload.taskId).toBe('355ecade-a5a7-4942-bec4-12327abb6b22');
+  });
+
+  it('recovers misclassified presupuesto creates', () => {
+    const recovered = recoverCreateTaskProposal('snooze_task', {
+      question: 'Creá un presupuesto para María y asignalo a Beto',
+      taskId: null,
+    });
+
+    expect(recovered.actionType).toBe('create_presupuesto');
+    expect(recovered.payload.clientLabel).toBe('María');
+    expect(recovered.payload.assigneeName).toBe('Beto');
   });
 });
 

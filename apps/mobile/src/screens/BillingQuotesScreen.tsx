@@ -1,6 +1,6 @@
 import { useFocusEffect } from 'expo-router';
 import type { ReactElement } from 'react';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Icon } from '../components/icons';
@@ -69,6 +69,7 @@ function formatLineQuantity(line: SellCartLine): string {
 }
 
 export function BillingQuotesScreen(props: {
+  highlightQuoteId?: string | null;
   onBack: () => void;
   onOpenSell: () => void;
 }): ReactElement {
@@ -79,7 +80,7 @@ export function BillingQuotesScreen(props: {
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [activeFilter, setActiveFilter] = useState<SellQuoteStatus | 'all'>('all');
-  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(props.highlightQuoteId ?? null);
   const [isSaving, setIsSaving] = useState(false);
 
   const load = useCallback(async () => {
@@ -107,6 +108,13 @@ export function BillingQuotesScreen(props: {
       void load();
     }, [load]),
   );
+
+  useEffect(() => {
+    if (props.highlightQuoteId && quotes.some((quote) => quote.id === props.highlightQuoteId)) {
+      setExpandedId(props.highlightQuoteId);
+      setActiveFilter('all');
+    }
+  }, [props.highlightQuoteId, quotes]);
 
   const visibleQuotes = useMemo(() => {
     if (activeFilter === 'all') {
@@ -180,8 +188,10 @@ export function BillingQuotesScreen(props: {
           const itemCount = quote.draft.cart.length;
           const isExpanded = expandedId === quote.id;
 
+          const isHighlighted = props.highlightQuoteId === quote.id;
+
           return (
-            <Card key={quote.id} style={styles.quoteCard}>
+            <Card key={quote.id} style={[styles.quoteCard, isHighlighted && styles.quoteCardHighlight]}>
               <Pressable
                 onPress={() => setExpandedId(isExpanded ? null : quote.id)}
                 style={styles.quoteHeader}
@@ -361,6 +371,10 @@ const styles = StyleSheet.create({
   },
   quoteCard: {
     gap: 0,
+  },
+  quoteCardHighlight: {
+    borderColor: colors.primary,
+    borderWidth: 1.5,
   },
   quoteHeader: {
     alignItems: 'center',
