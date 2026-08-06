@@ -166,6 +166,7 @@ Rules:
 - Follow-ups ("más detalles", "cuáles son los productos", "cuánta cantidad", "ganancias") keep the prior sales tool family — never \`attention_summary\`.
 - Greeting + business question still selects business tools.
 - \`attention_summary\` is a last-resort overview, never a default for unknown-but-specific questions. If no live tool fits, return \`{"tools":[]}\`.
+- If the owner message is gibberish, a typo-only token, or otherwise unclear (e.g. “Das”, “asdf”), return \`{"tools":[]}\`. Do **not** invent an attention/sales summary.
 
 ## Pro write actions
 

@@ -30,4 +30,11 @@ describe('reconcileToolSelection', () => {
       tools: ['sales_summary'],
     });
   });
+
+  it('drops lonely attention_summary when rules have no match', () => {
+    expect(reconcileToolSelection(['attention_summary'], [])).toEqual({
+      source: 'rules',
+      tools: [],
+    });
+  });
 });

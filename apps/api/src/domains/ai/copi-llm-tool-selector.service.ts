@@ -111,10 +111,7 @@ export function reconcileToolSelection(
     return { source: 'rules', tools: rulesTools };
   }
 
-  if (llmTools.length > 0) {
-    return { source: 'llm', tools: llmTools };
-  }
-
+  // Never keep a lone attention_summary for unknown/gibberish messages.
   return { source: 'rules', tools: [] };
 }
 

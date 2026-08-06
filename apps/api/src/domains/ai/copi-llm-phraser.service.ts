@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 
-import { buildGreetingReply, hasGreeting } from './copi-intent-router';
+import { buildGreetingReply, hasGreeting, isUnclearCopiQuestion, unclearCopiReply } from './copi-intent-router';
 import {
   collectProductsFromToolResults,
   ensureCopiProductLinks,
@@ -194,6 +194,9 @@ function buildTemplateAnswer(
 ): string {
   const body = toolResults.map((result) => result.summary).join('\n\n');
   if (!body) {
+    if (isUnclearCopiQuestion(question)) {
+      return unclearCopiReply();
+    }
     if (alreadyGreeted || !hasGreeting(question)) {
       return 'No encontré datos para esa consulta. Podés preguntarme por atención del día, ventas, stock, vencimientos de lote, conversaciones o seguimientos.';
     }

@@ -3,7 +3,7 @@ import { Injectable } from '@nestjs/common';
 import { SupabaseService } from '../../supabase/supabase.service';
 import type { CopiActionType, OwnerCopilotResponse } from './copi.types';
 import { CopiActionService, inferCopiActionType } from './copi-action.service';
-import { detectProActionIntent } from './copi-intent-router';
+import { detectProActionIntent, isUnclearCopiQuestion, unclearCopiReply } from './copi-intent-router';
 import { CopiLlmPhraserService } from './copi-llm-phraser.service';
 import { CopiLlmToolSelectorService } from './copi-llm-tool-selector.service';
 import { CopiPolicyService } from './copi-policy.service';
@@ -103,6 +103,21 @@ export class CopiOrchestratorService {
         responseTimeMs: Date.now() - startedAt,
         sessionId,
         tier: 'basic',
+        tokenUsage: this.policyService.emptyUsage(),
+        tools: [],
+      };
+    }
+
+    if (!wantsProAction && isUnclearCopiQuestion(reasoningQuestion)) {
+      const answer = unclearCopiReply();
+      await this.persistAssistantMessage(params.organizationId, sessionId, answer, []);
+      return {
+        answer,
+        policyDecision: 'allowed',
+        proposedAction: null,
+        responseTimeMs: Date.now() - startedAt,
+        sessionId,
+        tier: this.policyService.canUseProAgent(flags) ? 'pro' : 'basic',
         tokenUsage: this.policyService.emptyUsage(),
         tools: [],
       };

@@ -172,6 +172,53 @@ export function selectCopiTools(
   return Array.from(tools);
 }
 
+/**
+ * True for empty / gibberish / tiny messages that should not trigger default
+ * business-summary tools (e.g. “Das”, “asdf”).
+ */
+export function isUnclearCopiQuestion(question: string): boolean {
+  const trimmed = question.trim();
+  if (!trimmed) {
+    return true;
+  }
+
+  const normalized = normalizeCopiQuestion(trimmed)
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!normalized) {
+    return true;
+  }
+
+  if (GREETING_PATTERN.test(normalized)) {
+    return false;
+  }
+
+  const knownShort =
+    /^(si|sí|no|ok|okay|dale|listo|gracias|copi|hola|stock|ventas?|tareas?|ayuda)$/;
+  if (knownShort.test(normalized)) {
+    return false;
+  }
+
+  const words = normalized.split(/\s+/).filter(Boolean);
+  if (words.length === 1 && (words[0]?.length ?? 0) <= 4) {
+    return true;
+  }
+
+  // Mostly non-letters or a single nonsense token without business intent cues.
+  const letters = normalized.replace(/[^a-zñ]/g, '');
+  if (letters.length > 0 && letters.length <= 3 && words.length <= 2) {
+    return true;
+  }
+
+  return false;
+}
+
+export function unclearCopiReply(): string {
+  return 'No entendí ese mensaje. ¿Podés reformularlo? Por ejemplo: ventas de hoy, stock bajo, o crear una tarea.';
+}
+
 export function isSalesRelatedQuestion(question: string): boolean {
   const normalized = normalizeCopiQuestion(question);
   return SALES_PATTERN.test(normalized) || /\bpresupuest/.test(normalized);

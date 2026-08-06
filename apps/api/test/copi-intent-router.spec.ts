@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   buildGreetingReply,
+  isUnclearCopiQuestion,
   selectCopiTools,
   wantsDetailedSalesList,
   wantsSalesCountOnly,
@@ -105,6 +106,25 @@ describe('wantsDetailedSalesList / wantsSalesCountOnly', () => {
 
     expect(wantsDetailedSalesList(followUp, history)).toBe(true);
     expect(wantsSalesCountOnly(followUp, history)).toBe(false);
+  });
+});
+
+describe('isUnclearCopiQuestion', () => {
+  it('flags tiny gibberish tokens', () => {
+    expect(isUnclearCopiQuestion('Das')).toBe(true);
+    expect(isUnclearCopiQuestion('asdf')).toBe(true);
+    expect(isUnclearCopiQuestion('??')).toBe(true);
+  });
+
+  it('allows greetings and short known replies', () => {
+    expect(isUnclearCopiQuestion('hola')).toBe(false);
+    expect(isUnclearCopiQuestion('dale')).toBe(false);
+    expect(isUnclearCopiQuestion('ok')).toBe(false);
+  });
+
+  it('allows normal business questions', () => {
+    expect(isUnclearCopiQuestion('cuánto vendí hoy?')).toBe(false);
+    expect(isUnclearCopiQuestion('qué necesita mi atención hoy?')).toBe(false);
   });
 });
 
