@@ -91,9 +91,55 @@ function toWorkQueueTask(task: OwnerTask): WorkQueueItem {
     subtitle: task.contactLabel ?? task.description,
     taskId: task.id,
     timestamp: task.dueAt ?? task.snoozedUntil ?? new Date().toISOString(),
-    title: task.title,
+    title: compactTaskTitle(task.title),
     tone: task.status === 'snoozed' ? 'blue' : 'orange',
   };
+}
+
+/** Keep list titles short — important action/product only. */
+export function compactTaskTitle(title: string): string {
+  let next = title.trim().replace(/\s+/g, ' ');
+  if (!next) {
+    return title;
+  }
+
+  const parenMatch = next.match(/\(([^)]+)\)\s*$/);
+  if (/^trabajar sobre\b/i.test(next) && parenMatch?.[1]) {
+    next = compactProductLabel(parenMatch[1]);
+  } else {
+    next = next
+      .replace(/^trabajar sobre\s+/i, '')
+      .replace(/^presupuesto\s*[:·-]?\s*/i, '')
+      .replace(/\bPRES-[A-Z0-9]+\b/gi, ' ')
+      .replace(/\(\s*\)/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    next = compactProductLabel(next);
+  }
+
+  if (!next) {
+    next = title.trim();
+  }
+
+  if (next.length > 40) {
+    return `${next.slice(0, 39).trimEnd()}…`;
+  }
+
+  return next;
+}
+
+function compactProductLabel(value: string): string {
+  let next = value
+    .replace(/\b(natural|crudo|cruda|granel|premium|extra|organico|orgánico)\b/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  const words = next.split(/\s+/).filter(Boolean);
+  if (words.length > 4) {
+    next = words.slice(0, 4).join(' ');
+  }
+
+  return next;
 }
 
 function toWorkQueueAlert(notification: OwnerNotification): WorkQueueItem {

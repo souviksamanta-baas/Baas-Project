@@ -8,7 +8,9 @@ export interface OwnerTask {
   description: string | null;
   dueAt: string | null;
   id: string;
+  metadata: Record<string, unknown>;
   priority: 'low' | 'normal' | 'high';
+  presupuestoId: string | null;
   snoozedUntil: string | null;
   status: OwnerTaskStatus;
   taskType: OwnerTaskType;

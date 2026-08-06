@@ -1,9 +1,22 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildWorkQueue, filterWorkQueue } from '../src/lib/workQueue';
+import { buildWorkQueue, compactTaskTitle, filterWorkQueue } from '../src/lib/workQueue';
 import type { OwnerNotification, OwnerTask } from '../src/types/tasks';
 
 describe('workQueue', () => {
+  it('compacts long Copi presupuesto task titles', () => {
+    expect(
+      compactTaskTitle(
+        'Trabajar sobre PRES-MSHZXECG (Castañas De Caju Natural Crudo granel)',
+      ),
+    ).toMatch(/castañ/i);
+    expect(
+      compactTaskTitle(
+        'Trabajar sobre PRES-MSHZXECG (Castañas De Caju Natural Crudo granel)',
+      ).length,
+    ).toBeLessThanOrEqual(40);
+  });
+
   it('merges tasks and alerts into one queue', () => {
     const tasks: OwnerTask[] = [
       {
@@ -12,7 +25,9 @@ describe('workQueue', () => {
         description: 'Follow up',
         dueAt: '2026-07-15T10:00:00.000Z',
         id: 'task-1',
+        metadata: {},
         priority: 'high',
+        presupuestoId: null,
         snoozedUntil: null,
         status: 'pending',
         taskType: 'follow_up',
@@ -50,7 +65,9 @@ describe('workQueue', () => {
           description: null,
           dueAt: null,
           id: 'task-1',
+          metadata: {},
           priority: 'normal',
+          presupuestoId: null,
           snoozedUntil: null,
           status: 'pending',
           taskType: 'manual',

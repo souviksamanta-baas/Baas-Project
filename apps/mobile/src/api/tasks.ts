@@ -17,6 +17,7 @@ interface OwnerTaskRow {
   description: string | null;
   due_at: string | null;
   id: string;
+  metadata: Record<string, unknown> | null;
   priority: 'low' | 'normal' | 'high' | null;
   snoozed_until: string | null;
   status: OwnerTaskStatus;
@@ -50,7 +51,7 @@ interface OwnerNotificationRow {
 }
 
 const TASK_SELECT =
-  'id, conversation_id, title, description, status, due_at, snoozed_until, task_type, priority, contacts(display_name, phone_number), conversations(external_contact_id)';
+  'id, conversation_id, title, description, status, due_at, snoozed_until, task_type, priority, metadata, contacts(display_name, phone_number), conversations(external_contact_id)';
 
 export async function getOwnerTasks(
   organizationId: string,
@@ -275,6 +276,9 @@ async function updateOwnerTaskStatus(
 function toOwnerTask(row: OwnerTaskRow): OwnerTask {
   const contact = Array.isArray(row.contacts) ? row.contacts[0] : row.contacts;
   const conversation = Array.isArray(row.conversations) ? row.conversations[0] : row.conversations;
+  const metadata = row.metadata && typeof row.metadata === 'object' ? row.metadata : {};
+  const metadataPresupuestoId =
+    typeof metadata.presupuestoId === 'string' ? metadata.presupuestoId.trim() : null;
 
   return {
     contactLabel:
@@ -283,12 +287,22 @@ function toOwnerTask(row: OwnerTaskRow): OwnerTask {
     description: row.description,
     dueAt: row.due_at,
     id: row.id,
+    metadata,
     priority: row.priority ?? 'normal',
+    presupuestoId:
+      metadataPresupuestoId ||
+      extractPresupuestoId(`${row.title}\n${row.description ?? ''}`),
     snoozedUntil: row.snoozed_until,
     status: row.status,
     taskType: row.task_type ?? 'follow_up',
     title: row.title,
   };
+}
+
+/** Match sell_quotes ids like PRES-MSHZXECG. */
+export function extractPresupuestoId(text: string): string | null {
+  const match = text.match(/\bPRES-[A-Z0-9]+\b/i);
+  return match?.[0]?.toUpperCase() ?? null;
 }
 
 function toOwnerNotification(row: OwnerNotificationRow): OwnerNotification {

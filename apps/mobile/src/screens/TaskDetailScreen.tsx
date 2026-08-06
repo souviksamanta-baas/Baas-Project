@@ -1,4 +1,4 @@
-import type { ReactElement } from 'react';
+import type { ReactElement, ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Card, ScreenContent, ScreenTitle } from '../components/ui';
@@ -10,9 +10,12 @@ export function TaskDetailScreen(props: {
   onBack: () => void;
   onCompleteTask: () => Promise<void>;
   onOpenConversation: (conversationId: string) => void;
+  onOpenPresupuesto?: (quoteId: string) => void;
   onSnoozeTask: () => Promise<void>;
   task: OwnerTask;
 }): ReactElement {
+  const presupuestoId = props.task.presupuestoId;
+
   return (
     <ScreenContent>
       <View style={styles.headerRow}>
@@ -21,16 +24,37 @@ export function TaskDetailScreen(props: {
         </Pressable>
       </View>
 
-      <ScreenTitle subtitle="Detalle del seguimiento o tarea" title={props.task.title} />
+      <ScreenTitle
+        subtitle="Detalle del seguimiento o tarea"
+        title={props.task.title}
+        titleNode={
+          props.onOpenPresupuesto
+            ? renderLinkedText(props.task.title, props.onOpenPresupuesto, styles.titleInlineLink)
+            : undefined
+        }
+      />
 
       <Card style={styles.card}>
         {props.task.contactLabel ? (
           <Text style={styles.meta}>Contacto: {props.task.contactLabel}</Text>
         ) : null}
-        {props.task.description ? <Text style={styles.body}>{props.task.description}</Text> : null}
+        {props.task.description ? (
+          <Text style={styles.body}>
+            {renderLinkedText(props.task.description, props.onOpenPresupuesto)}
+          </Text>
+        ) : null}
+        {presupuestoId && props.onOpenPresupuesto ? (
+          <Pressable onPress={() => props.onOpenPresupuesto?.(presupuestoId)}>
+            <Text style={styles.linkText}>Abrir presupuesto {presupuestoId}</Text>
+          </Pressable>
+        ) : null}
         {props.task.dueAt ? (
           <Text style={styles.meta}>
-            Vence {new Date(props.task.dueAt).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' })}
+            Vence{' '}
+            {new Date(props.task.dueAt).toLocaleString('es-AR', {
+              dateStyle: 'short',
+              timeStyle: 'short',
+            })}
           </Text>
         ) : null}
         <Text style={styles.meta}>Estado: {statusLabel(props.task.status)}</Text>
@@ -52,6 +76,53 @@ export function TaskDetailScreen(props: {
       </View>
     </ScreenContent>
   );
+}
+
+function renderLinkedText(
+  text: string,
+  onOpenPresupuesto?: (quoteId: string) => void,
+  linkStyle = styles.inlineLink,
+): ReactNode {
+  const pattern = /\bPRES-[A-Z0-9]+\b/gi;
+  const parts: ReactNode[] = [];
+  let lastIndex = 0;
+  let matchIndex = 0;
+
+  for (const match of text.matchAll(pattern)) {
+    const index = match.index ?? 0;
+    const quoteId = match[0]!.toUpperCase();
+
+    if (index > lastIndex) {
+      parts.push(text.slice(lastIndex, index));
+    }
+
+    if (onOpenPresupuesto) {
+      parts.push(
+        <Text
+          key={`pres-${matchIndex}-${quoteId}`}
+          onPress={() => onOpenPresupuesto(quoteId)}
+          style={linkStyle}
+        >
+          {quoteId}
+        </Text>,
+      );
+    } else {
+      parts.push(quoteId);
+    }
+
+    lastIndex = index + match[0]!.length;
+    matchIndex += 1;
+  }
+
+  if (parts.length === 0) {
+    return text;
+  }
+
+  if (lastIndex < text.length) {
+    parts.push(text.slice(lastIndex));
+  }
+
+  return parts;
 }
 
 function statusLabel(status: OwnerTask['status']): string {
@@ -106,7 +177,7 @@ const styles = StyleSheet.create({
   body: {
     color: colors.navy,
     fontSize: 15,
-    lineHeight: 18,
+    lineHeight: 20,
   },
   card: {
     gap: 8,
@@ -115,10 +186,21 @@ const styles = StyleSheet.create({
   headerRow: {
     marginBottom: 4,
   },
+  inlineLink: {
+    color: colors.primary,
+    fontSize: 15,
+    fontWeight: '600',
+    textDecorationLine: 'underline',
+  },
   linkText: {
     color: colors.primary,
     fontSize: 15,
     fontWeight: '600',
+  },
+  titleInlineLink: {
+    color: colors.primary,
+    fontWeight: '700',
+    textDecorationLine: 'underline',
   },
   meta: {
     color: colors.slate,

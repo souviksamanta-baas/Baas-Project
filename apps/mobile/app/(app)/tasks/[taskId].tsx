@@ -11,6 +11,7 @@ import {
   conversationRoute,
   parseTaskReturnTo,
   resolveTaskReturnRoute,
+  routes,
 } from '../../../src/navigation/routes';
 import { TaskDetailScreen } from '../../../src/screens/TaskDetailScreen';
 import type { OwnerTask } from '../../../src/types/tasks';
@@ -83,6 +84,9 @@ export default function TaskDetailRoute(): ReactElement {
         router.replace(resolveTaskReturnRoute(returnTo));
       }}
       onOpenConversation={(conversationId) => router.push(conversationRoute(conversationId))}
+      onOpenPresupuesto={(quoteId) =>
+        router.push(`${routes.billing}?quoteId=${encodeURIComponent(quoteId)}`)
+      }
       onSnoozeTask={async () => {
         await tasksState.snoozeTask(task.id);
         router.replace(resolveTaskReturnRoute(returnTo));

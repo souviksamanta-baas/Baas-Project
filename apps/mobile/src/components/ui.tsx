@@ -152,7 +152,12 @@ export function ScreenContent(props: {
   );
 }
 
-export function ScreenTitle(props: { subtitle?: string; title: string }): ReactElement {
+export function ScreenTitle(props: {
+  subtitle?: string;
+  title: string;
+  /** Optional rich title (e.g. inline links). Chrome collapse still uses `title`. */
+  titleNode?: ReactNode;
+}): ReactElement {
   const chrome = useHeaderChromeOptional();
 
   useEffect(() => {
@@ -161,7 +166,7 @@ export function ScreenTitle(props: { subtitle?: string; title: string }): ReactE
 
   return (
     <View>
-      <Text style={styles.screenTitle}>{props.title}</Text>
+      <Text style={styles.screenTitle}>{props.titleNode ?? props.title}</Text>
       {props.subtitle ? <Text style={textStyles.pageSubtitle}>{props.subtitle}</Text> : null}
     </View>
   );
@@ -268,7 +273,7 @@ export function NotificationRow(props: {
       <ToneIcon tone={props.notification.tone} />
       <View style={[styles.listRowContent, showDivider && styles.listRowContentDivider]}>
         <View style={styles.flex}>
-          <Text style={styles.listTitle}>{props.notification.title}</Text>
+          <Text numberOfLines={1} style={styles.listTitle}>{props.notification.title}</Text>
           {props.notification.subtitle ? (
             <Text numberOfLines={1} style={styles.listDescription}>{props.notification.subtitle}</Text>
           ) : null}
@@ -688,7 +693,7 @@ export function BottomNavigation(props: {
         <View pointerEvents="none" style={[styles.bottomNavEdgeGlass, styles.bottomNavEdgeGlassFallback]} />
       ) : (
         <BlurView
-          experimentalBlurMethod="dimezisBlurView"
+          blurMethod="dimezisBlurView"
           intensity={55}
           pointerEvents="none"
           style={styles.bottomNavEdgeGlass}

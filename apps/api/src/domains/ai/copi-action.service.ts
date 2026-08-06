@@ -271,9 +271,19 @@ export class CopiActionService {
         const assignedToUserId = resolvedAssigneeId ?? params.userId;
         const assigneeFellBackToCreator = Boolean(assigneeName && !resolvedAssigneeId);
 
-        const taskTitle = `Trabajar sobre ${quoteId}${
-          draft.cart[0]?.name ? ` (${draft.cart.map((line) => line.name).join(', ')})` : ''
-        }`.slice(0, 120);
+        const shortProduct = draft.cart[0]?.name
+          ? draft.cart[0].name
+              .replace(/\b(natural|crudo|cruda|granel|premium|extra|organico|orgánico)\b/gi, ' ')
+              .replace(/\s+/g, ' ')
+              .trim()
+              .split(/\s+/)
+              .slice(0, 4)
+              .join(' ')
+          : null;
+        const taskTitle = (shortProduct
+          ? `Presupuesto · ${shortProduct}`
+          : `Presupuesto ${quoteId}`
+        ).slice(0, 48);
         const task = await this.tasksService.createTask({
           assignedToUserId,
           businessCenterId: params.businessCenterId,

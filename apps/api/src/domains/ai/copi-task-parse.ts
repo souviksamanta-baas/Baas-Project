@@ -36,7 +36,7 @@ export function parseCreateTaskItems(question: string, timezone: string): Parsed
       description: text.trim() || segment.trim(),
       dueAt: due.dueAt,
       remindAt: due.remindAt,
-      title: title.length > 0 ? title.slice(0, 120) : 'Tarea de Copi',
+      title: title.length > 0 ? title.slice(0, 48) : 'Tarea de Copi',
     };
   });
 }
@@ -134,7 +134,7 @@ function normalizeTaskItem(raw: unknown, fallbackDescription: string): ParsedTas
         : fallbackDescription,
     dueAt: typeof item.dueAt === 'string' ? item.dueAt : null,
     remindAt: typeof item.remindAt === 'string' ? item.remindAt : null,
-    title: title.slice(0, 120),
+    title: title.slice(0, 48),
   };
 }
 
@@ -405,7 +405,15 @@ function cleanTaskTitle(segment: string): string {
     return 'Tarea de Copi';
   }
 
-  return sentenceCase(cleaned);
+  const titled = sentenceCase(cleaned);
+  if (titled.length <= 48) {
+    return titled;
+  }
+
+  // Prefer a short noun-phrase title; keep the rest in description.
+  const cut = titled.slice(0, 48);
+  const lastSpace = cut.lastIndexOf(' ');
+  return `${(lastSpace > 24 ? cut.slice(0, lastSpace) : cut).trimEnd()}`;
 }
 
 function sentenceCase(value: string): string {
