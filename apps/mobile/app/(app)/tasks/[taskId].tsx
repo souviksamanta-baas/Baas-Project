@@ -10,8 +10,8 @@ import { useOwnerTasks } from '../../../src/hooks/useOwnerTasks';
 import {
   conversationRoute,
   parseTaskReturnTo,
+  presupuestoDetailRoute,
   resolveTaskReturnRoute,
-  routes,
 } from '../../../src/navigation/routes';
 import { TaskDetailScreen } from '../../../src/screens/TaskDetailScreen';
 import type { OwnerTask } from '../../../src/types/tasks';
@@ -85,7 +85,7 @@ export default function TaskDetailRoute(): ReactElement {
       }}
       onOpenConversation={(conversationId) => router.push(conversationRoute(conversationId))}
       onOpenPresupuesto={(quoteId) =>
-        router.push(`${routes.billing}?quoteId=${encodeURIComponent(quoteId)}`)
+        router.push(presupuestoDetailRoute(quoteId, 'tasks-portal'))
       }
       onSnoozeTask={async () => {
         await tasksState.snoozeTask(task.id);

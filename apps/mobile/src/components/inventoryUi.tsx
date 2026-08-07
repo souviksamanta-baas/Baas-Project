@@ -36,7 +36,7 @@ export function InventoryScreenTitle(props: {
   showBack?: boolean;
   /** Title shown in the collapsed sticky app header; defaults to `title`. */
   stickyTitle?: string;
-  subtitle: string;
+  subtitle?: string;
   title: string;
 }): ReactElement {
   const chrome = useHeaderChromeOptional();
@@ -295,9 +295,12 @@ export function SolidDangerButton(props: {
   );
 }
 
-export function CobrarButton(props: { onPress?: () => void }): ReactElement {
+export function CobrarButton(props: { fullWidth?: boolean; onPress?: () => void }): ReactElement {
   return (
-    <Pressable onPress={props.onPress} style={styles.cobrarButton}>
+    <Pressable
+      onPress={props.onPress}
+      style={[styles.cobrarButton, props.fullWidth && styles.cobrarButtonFullWidth]}
+    >
       <Text style={styles.cobrarSymbol}>$</Text>
       <Text style={styles.cobrarLabel}>Cobrar</Text>
     </Pressable>
@@ -856,11 +859,18 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     gap: 6,
-    height: 40,
+    height: 44,
     justifyContent: 'center',
+    minWidth: 0,
+    paddingHorizontal: 12,
+  },
+  cobrarButtonFullWidth: {
+    flex: 0,
+    width: '100%',
   },
   cobrarLabel: {
     color: colors.surface,
+    flexShrink: 1,
     fontSize: 15,
     fontWeight: '600',
   },

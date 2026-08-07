@@ -80,7 +80,7 @@ export function StaffInviteScreen(props: {
           <Text style={styles.backText}>‹</Text>
         </Pressable>
         <View style={styles.flex}>
-          <ScreenTitle subtitle="Compartí un QR para sumar a tu equipo" title="Invitar miembro" />
+          <ScreenTitle title="Invitar miembro" />
         </View>
       </View>
 

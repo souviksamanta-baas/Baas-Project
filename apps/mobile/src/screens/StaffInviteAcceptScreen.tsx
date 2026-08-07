@@ -34,7 +34,7 @@ export function StaffInviteAcceptScreen(props: {
   if (!props.inviteToken) {
     return (
       <ScreenContent>
-        <ScreenTitle subtitle="Falta el token de invitación" title="Invitación inválida" />
+        <ScreenTitle title="Invitación inválida" />
         <View style={styles.card}>
           <Text style={styles.bodyText}>Escaneá el QR que te compartió el dueño del negocio.</Text>
         </View>
@@ -87,7 +87,7 @@ export function StaffInviteAcceptScreen(props: {
   if (phase === 'done') {
     return (
       <ScreenContent>
-        <ScreenTitle subtitle="Tu perfil quedó vinculado al negocio" title="Listo" />
+        <ScreenTitle title="Listo" />
         <View style={styles.card}>
           <Text style={styles.bodyText}>{statusMessage}</Text>
         </View>
@@ -98,10 +98,7 @@ export function StaffInviteAcceptScreen(props: {
   if (phase === 'verify') {
     return (
       <ScreenContent>
-        <ScreenTitle
-          subtitle="Verificá el mismo número que el dueño registró en la invitación"
-          title="Confirmá tu acceso"
-        />
+        <ScreenTitle title="Confirmá tu acceso" />
         <VerifyOtpScreen
           channel={channel}
           destination={identifier}
@@ -117,14 +114,7 @@ export function StaffInviteAcceptScreen(props: {
 
   return (
     <ScreenContent>
-      <ScreenTitle
-        subtitle={
-          phoneChannels.length > 1
-            ? 'Usá WhatsApp o SMS con el número que te invitaron'
-            : 'Usá SMS con el número que te invitaron'
-        }
-        title="Aceptar invitación"
-      />
+      <ScreenTitle title="Aceptar invitación" />
       <View style={styles.card}>
         <Text style={styles.bodyText}>
           Verificá el mismo teléfono que registró el dueño. Los códigos de Nexolia no vienen del

@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react';
-import { Fragment, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { ActionRow, Card, ScreenContent, ScreenTitle } from '../components/ui';
@@ -35,7 +35,6 @@ export function MoreScreen(props: {
   whatsappTitle: string;
 }): ReactElement {
   const [accountOpen, setAccountOpen] = useState(false);
-  const [expandedRowId, setExpandedRowId] = useState<MoreMenuRowId | null>(null);
   const displayName = props.fullName.trim() || 'Tu nombre';
   const initials = initialsFromName(displayName);
   const accountRows = useMemo(
@@ -56,7 +55,7 @@ export function MoreScreen(props: {
 
   return (
     <ScreenContent title="Más">
-      <ScreenTitle subtitle="Herramientas y accesos de tu negocio" title="Más" />
+      <ScreenTitle title="Más" />
 
       <FeatureGate feature="accountProfile">
         <Card flush>
@@ -103,54 +102,16 @@ export function MoreScreen(props: {
       {moreMenuSections.map((section) => (
         <FeatureGate feature={section.feature} key={section.id}>
           <Card flush>
-            {section.rows.map((row, index) => {
-              const hasChildren = (row.children?.length ?? 0) > 0;
-              const isExpanded = expandedRowId === row.id;
-              const isLastParent = index === section.rows.length - 1;
-
-              return (
-                <Fragment key={row.id}>
-                  <ActionRow
-                    disabled={row.disabled === true}
-                    expanded={hasChildren ? isExpanded : undefined}
-                    icon={row.icon}
-                    onPress={
-                      row.disabled
-                        ? undefined
-                        : () => {
-                            if (hasChildren) {
-                              setExpandedRowId((current) => (current === row.id ? null : row.id));
-                              return;
-                            }
-
-                            props.onOpenRow(row.id);
-                          }
-                    }
-                    showDivider={!isLastParent || (hasChildren && isExpanded)}
-                    subtitle={row.subtitle}
-                    title={row.title}
-                  />
-                  {hasChildren && isExpanded
-                    ? row.children!.map((child, childIndex) => (
-                        <View key={child.id} style={styles.submenuRow}>
-                          <ActionRow
-                            disabled={child.disabled === true}
-                            icon={child.icon}
-                            onPress={
-                              child.disabled ? undefined : () => props.onOpenRow(child.id)
-                            }
-                            showDivider={
-                              childIndex < row.children!.length - 1 || !isLastParent
-                            }
-                            subtitle={child.subtitle}
-                            title={child.title}
-                          />
-                        </View>
-                      ))
-                    : null}
-                </Fragment>
-              );
-            })}
+            {section.rows.map((row, index) => (
+              <ActionRow
+                disabled={row.disabled === true}
+                icon={row.icon}
+                key={row.id}
+                onPress={row.disabled ? undefined : () => props.onOpenRow(row.id)}
+                showDivider={index < section.rows.length - 1}
+                title={row.title}
+              />
+            ))}
           </Card>
         </FeatureGate>
       ))}
@@ -212,9 +173,5 @@ const styles = StyleSheet.create({
   profileText: {
     flex: 1,
     minWidth: 0,
-  },
-  submenuRow: {
-    backgroundColor: colors.background,
-    paddingLeft: 12,
   },
 });

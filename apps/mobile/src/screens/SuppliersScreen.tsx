@@ -99,7 +99,7 @@ export function SuppliersScreen(props: { onBack: () => void }): ReactElement {
           <Text style={styles.backText}>‹</Text>
         </Pressable>
         <View style={styles.flex}>
-          <ScreenTitle subtitle="Agenda de contactos de abastecimiento" title="Proveedores" />
+          <ScreenTitle title="Proveedores" />
         </View>
       </View>
 

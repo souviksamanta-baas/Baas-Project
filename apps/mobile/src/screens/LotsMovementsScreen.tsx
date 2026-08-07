@@ -142,10 +142,7 @@ export function LotsMovementsScreen(props: { onBack: () => void }): ReactElement
           <Text style={styles.backText}>‹</Text>
         </Pressable>
         <View style={styles.flex}>
-          <ScreenTitle
-            subtitle="Trazabilidad de ingresos y egresos"
-            title="Lotes y Movimientos"
-          />
+          <ScreenTitle title="Lotes y Movimientos" />
         </View>
       </View>
 

@@ -28,12 +28,73 @@ export const routes = {
   businessSettings: '/(app)/business-settings',
   tasks: '/(app)/tasks',
   billing: '/(app)/billing',
+  presupuestos: '/(app)/billing',
   integrations: '/(app)/integrations',
   suppliers: '/(app)/suppliers',
   helpSupport: '/(app)/help-support',
   privacyData: '/(app)/privacy-data',
   instagramConnect: '/(app)/instagram-connect',
 } as const;
+
+export type PresupuestoReturnTo =
+  | 'sell'
+  | 'billing'
+  | 'copi-chat'
+  | 'tasks-portal'
+  | 'home'
+  | 'more';
+
+export function parsePresupuestoReturnTo(
+  value: string | string[] | undefined,
+): PresupuestoReturnTo | undefined {
+  const raw = Array.isArray(value) ? value[0] : value;
+
+  if (
+    raw === 'sell' ||
+    raw === 'billing' ||
+    raw === 'copi-chat' ||
+    raw === 'tasks-portal' ||
+    raw === 'home' ||
+    raw === 'more'
+  ) {
+    return raw;
+  }
+
+  return undefined;
+}
+
+export function resolvePresupuestoReturnRoute(
+  returnTo: PresupuestoReturnTo | undefined,
+): string {
+  switch (returnTo) {
+    case 'sell':
+      return routes.inventorySell;
+    case 'copi-chat':
+      return routes.appCopiChat;
+    case 'tasks-portal':
+      return routes.tasks;
+    case 'home':
+      return routes.appHome;
+    case 'more':
+      return routes.appMore;
+    case 'billing':
+    default:
+      return routes.billing;
+  }
+}
+
+export function presupuestoDetailRoute(
+  quoteId: string,
+  returnTo?: PresupuestoReturnTo,
+): string {
+  const path = `/(app)/presupuestos/${encodeURIComponent(quoteId)}`;
+
+  if (!returnTo) {
+    return path;
+  }
+
+  return `${path}?returnTo=${returnTo}`;
+}
 
 export function manageStockRoute(options?: { lowStock?: boolean }): string {
   if (options?.lowStock) {
@@ -364,6 +425,7 @@ export function shouldHideBottomNav(pathname: string): boolean {
     pathname.endsWith('/business-settings') ||
     pathname.endsWith('/scan-code') ||
     /\/tasks\/[^/]+$/.test(pathname) ||
+    /\/presupuestos\/[^/]+$/.test(pathname) ||
     /\/product\/[^/]+\/code$/.test(pathname)
   );
 }

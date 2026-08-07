@@ -234,14 +234,21 @@ export function buildCheckoutDraft(
   cart: SellCartLine[],
   discountMode: SellDiscountMode,
   discountInput: string,
+  options?: {
+    clientLabel?: string;
+    receiptLabel?: string;
+  },
 ): SellCheckoutDraft {
+  const clientLabel = options?.clientLabel?.trim() || DEFAULT_CLIENT_LABEL;
+  const receiptLabel = options?.receiptLabel?.trim() || DEFAULT_RECEIPT_LABEL;
+
   return {
     cart,
-    clientLabel: DEFAULT_CLIENT_LABEL,
+    clientLabel,
     discountMode,
     discountValue: parseDiscountInput(discountInput),
     paymentMethod: DEFAULT_PAYMENT_METHOD,
-    receiptLabel: DEFAULT_RECEIPT_LABEL,
+    receiptLabel,
   };
 }
 
@@ -372,6 +379,32 @@ export async function listSellQuotes(
     .filter((quote): quote is SavedSellQuote => quote != null);
 }
 
+export async function getSellQuote(
+  organizationId: string,
+  businessCenterId: string,
+  quoteId: string,
+): Promise<SavedSellQuote | null> {
+  await migrateLocalSellQuotesIfNeeded(organizationId, businessCenterId);
+
+  const { data, error } = await supabase
+    .from('sell_quotes')
+    .select('id, status, draft, created_at, updated_at')
+    .eq('organization_id', organizationId)
+    .eq('business_center_id', businessCenterId)
+    .eq('id', quoteId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  if (!data) {
+    return null;
+  }
+
+  return mapSellQuoteRow(data as SellQuoteRow);
+}
+
 export function getSellQuoteTotalCents(quote: SavedSellQuote): number {
   const subtotalCents = computeCartSubtotalCents(quote.draft.cart);
   return computeSaleTotalCents(subtotalCents, quote.draft.discountMode, quote.draft.discountValue);
@@ -383,9 +416,33 @@ export async function updateSellQuoteStatus(
   quoteId: string,
   status: SellQuoteStatus,
 ): Promise<SavedSellQuote | null> {
+  return updateSellQuote(organizationId, businessCenterId, quoteId, { status });
+}
+
+export async function updateSellQuote(
+  organizationId: string,
+  businessCenterId: string,
+  quoteId: string,
+  updates: {
+    draft?: SellCheckoutDraft;
+    status?: SellQuoteStatus;
+  },
+): Promise<SavedSellQuote | null> {
+  const payload: Record<string, unknown> = {
+    updated_at: new Date().toISOString(),
+  };
+
+  if (updates.draft) {
+    payload.draft = updates.draft;
+  }
+
+  if (updates.status) {
+    payload.status = updates.status;
+  }
+
   const { data, error } = await supabase
     .from('sell_quotes')
-    .update({ status })
+    .update(payload)
     .eq('organization_id', organizationId)
     .eq('business_center_id', businessCenterId)
     .eq('id', quoteId)

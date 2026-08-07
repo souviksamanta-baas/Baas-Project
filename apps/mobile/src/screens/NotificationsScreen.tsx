@@ -44,7 +44,7 @@ export function NotificationsScreen(props: {
   return (
     <ScreenContent title="Notificaciones">
       <View style={styles.titleRow}>
-        <ScreenTitle subtitle="Todo lo que necesita tu atencion" title="Notificaciones" />
+        <ScreenTitle title="Notificaciones" />
         <Pressable disabled={props.isSaving} onPress={() => void props.onDismissAll()}>
           <Text style={styles.markRead}>Marcar todas como leidas</Text>
         </Pressable>

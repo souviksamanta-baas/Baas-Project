@@ -73,11 +73,7 @@ export default function AddProductRoute(): ReactElement {
   if (!organizationId || !businessCenterId) {
     return (
       <ScreenContent>
-        <InventoryScreenTitle
-          onBack={goBack}
-          subtitle="Completa los datos del producto y el stock inicial"
-          title="Nuevo producto"
-        />
+        <InventoryScreenTitle onBack={goBack} title="Nuevo producto" />
         <Text>No hay sucursal activa.</Text>
       </ScreenContent>
     );

@@ -1,7 +1,7 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import type { ReactElement } from 'react';
 
-import { routes } from '../../src/navigation/routes';
+import { presupuestoDetailRoute, routes } from '../../src/navigation/routes';
 import { BillingQuotesScreen } from '../../src/screens/BillingQuotesScreen';
 
 export default function BillingRoute(): ReactElement {
@@ -13,6 +13,7 @@ export default function BillingRoute(): ReactElement {
     <BillingQuotesScreen
       highlightQuoteId={highlightQuoteId ?? null}
       onBack={() => router.back()}
+      onOpenQuote={(quoteId) => router.push(presupuestoDetailRoute(quoteId, 'billing'))}
       onOpenSell={() => {
         // Replace billing so inventory stack mounts on sell (avoids a flash of manage-stock).
         router.replace(routes.inventorySell);

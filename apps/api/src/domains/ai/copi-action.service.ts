@@ -284,11 +284,23 @@ export class CopiActionService {
           ? `Presupuesto · ${shortProduct}`
           : `Presupuesto ${quoteId}`
         ).slice(0, 48);
+        const cartSummary = draft.cart
+          .map((line) => {
+            if (line.soldByWeight && line.weightGramsInput) {
+              return `${line.weightGramsInput} g ${line.name}`;
+            }
+            return `${line.quantity}× ${line.name}`;
+          })
+          .join(', ');
+        const taskDescription =
+          cartSummary ||
+          cleanPresupuestoTaskDescription(description) ||
+          'Seguimiento del presupuesto';
         const task = await this.tasksService.createTask({
           assignedToUserId,
           businessCenterId: params.businessCenterId,
           createdByUserId: params.userId,
-          description: `${description}\nPresupuesto: ${quoteId}`,
+          description: taskDescription,
           metadata: {
             ...(assigneeName ? { assigneeName } : {}),
             ...(assigneeFellBackToCreator
@@ -789,6 +801,17 @@ function isValidUuid(value: unknown): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
     value.trim(),
   );
+}
+
+/** Keep presupuesto task notes free of glue words and inline PRES codes. */
+function cleanPresupuestoTaskDescription(value: string): string {
+  return value
+    .replace(/\b(?:también|tambien)\b/gi, ' ')
+    .replace(/\b(?:también\s+)?presupuesto\s*[:·-]?\s*PRES-[A-Z0-9]+\b/gi, ' ')
+    .replace(/\bPRES-[A-Z0-9]+\b/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .replace(/^[\s.,;:·-]+|[\s.,;:·-]+$/g, '')
+    .trim();
 }
 
 function summarizeProposal(actionType: CopiActionType, payload: Record<string, unknown>): string {

@@ -114,10 +114,7 @@ export function ProductCodeScreen(props: {
           <Text style={styles.backText}>‹</Text>
         </Pressable>
         <View style={styles.flex}>
-          <ScreenTitle
-            subtitle={props.product.name}
-            title="Gestionar código"
-          />
+          <ScreenTitle title="Gestionar código" />
         </View>
       </View>
 

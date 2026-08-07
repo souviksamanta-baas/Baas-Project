@@ -85,7 +85,7 @@ export function EditProfileScreen(props: { onBack: () => void }): ReactElement {
           <Text style={styles.backText}>‹</Text>
         </Pressable>
         <View style={styles.flex}>
-          <ScreenTitle subtitle="Actualizá tu información personal" title="Editar perfil" />
+          <ScreenTitle title="Editar perfil" />
         </View>
       </View>
 

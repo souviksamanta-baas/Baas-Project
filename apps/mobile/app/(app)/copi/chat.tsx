@@ -7,7 +7,7 @@ import { useOwnerSessionContext } from '../../../src/context/OwnerSessionProvide
 import { useOwnerCopilotContext } from '../../../src/context/OwnerCopilotProvider';
 import { useCopiMediaActions } from '../../../src/hooks/useCopiMediaActions';
 import { useFeatureGate } from '../../../src/hooks/useFeatureVisibility';
-import { routes, productDetailRoute } from '../../../src/navigation/routes';
+import { routes, productDetailRoute, presupuestoDetailRoute } from '../../../src/navigation/routes';
 import { CopiChatScreen, type CopiComposerActions } from '../../../src/screens/CopiScreen';
 
 export default function CopiChatRoute(): ReactElement {
@@ -63,7 +63,7 @@ export default function CopiChatRoute(): ReactElement {
       copilot={copilot}
       onBack={() => router.replace(routes.appCopi)}
       onOpenPresupuesto={(quoteId) =>
-        router.push(`${routes.billing}?quoteId=${encodeURIComponent(quoteId)}`)
+        router.push(presupuestoDetailRoute(quoteId, 'copi-chat'))
       }
       onOpenProduct={(productId) => router.push(productDetailRoute(productId, 'copi-chat'))}
       onSend={handleSend}

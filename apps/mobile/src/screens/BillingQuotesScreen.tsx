@@ -71,6 +71,7 @@ function formatLineQuantity(line: SellCartLine): string {
 export function BillingQuotesScreen(props: {
   highlightQuoteId?: string | null;
   onBack: () => void;
+  onOpenQuote: (quoteId: string) => void;
   onOpenSell: () => void;
 }): ReactElement {
   const { dashboard } = useOwnerSessionContext();
@@ -141,16 +142,13 @@ export function BillingQuotesScreen(props: {
   }
 
   return (
-    <ScreenContent title="Facturación">
+    <ScreenContent title="Presupuestos">
       <View style={styles.headerRow}>
         <Pressable hitSlop={8} onPress={props.onBack} style={styles.backPressable}>
           <Text style={styles.backText}>‹</Text>
         </Pressable>
         <View style={styles.flex}>
-          <ScreenTitle
-            subtitle="Presupuestos con estado de seguimiento"
-            title="Facturación"
-          />
+          <ScreenTitle title="Presupuestos" />
         </View>
       </View>
 
@@ -192,31 +190,32 @@ export function BillingQuotesScreen(props: {
 
           return (
             <Card key={quote.id} style={[styles.quoteCard, isHighlighted && styles.quoteCardHighlight]}>
-              <Pressable
-                onPress={() => setExpandedId(isExpanded ? null : quote.id)}
-                style={styles.quoteHeader}
-              >
-                <View style={[styles.expandButton, isExpanded && styles.expandButtonOpen]}>
+              <View style={styles.quoteHeader}>
+                <Pressable
+                  onPress={() => setExpandedId(isExpanded ? null : quote.id)}
+                  style={[styles.expandButton, isExpanded && styles.expandButtonOpen]}
+                >
                   <Icon
                     color={isExpanded ? colors.surface : colors.primary}
                     kind={isExpanded ? 'chevron-up' : 'chevron-down'}
                     size={14}
                     strokeWidth={2.2}
                   />
-                </View>
-                <View style={styles.flex}>
+                </Pressable>
+                <Pressable onPress={() => props.onOpenQuote(quote.id)} style={styles.flex}>
                   <Text style={styles.quoteId}>{quote.id}</Text>
                   <Text style={styles.quoteMeta}>
                     {formatQuoteDate(quote.createdAt)} · {itemCount} ítem
                     {itemCount === 1 ? '' : 's'}
+                    {quote.draft.clientLabel ? ` · ${quote.draft.clientLabel}` : ''}
                   </Text>
-                </View>
+                </Pressable>
                 <View style={[styles.statusPill, { backgroundColor: tone.backgroundColor }]}>
                   <Text style={[styles.statusText, { color: tone.color }]}>
                     {SELL_QUOTE_STATUS_LABELS[quote.status]}
                   </Text>
                 </View>
-              </Pressable>
+              </View>
 
               {isExpanded ? (
                 <View style={styles.expandedBody}>

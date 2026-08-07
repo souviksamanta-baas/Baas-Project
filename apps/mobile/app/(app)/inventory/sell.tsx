@@ -1,12 +1,12 @@
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import type { ReactElement } from 'react';
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert } from 'react-native';
 
 import { useSellCart } from '../../../src/context/SellCartProvider';
 import { useProductCatalog } from '../../../src/context/ProductCatalogProvider';
 import { mapProductsToSellRows } from '../../../src/lib/inventoryPresentation';
-import { inventoryScanRoute } from '../../../src/navigation/routes';
+import { inventoryScanRoute, presupuestoDetailRoute } from '../../../src/navigation/routes';
 import { useSellNavigation } from '../../../src/navigation/useInventoryNavigation';
 import { SellProductsScreen } from '../../../src/screens/inventory/InventoryScreens';
 
@@ -22,6 +22,7 @@ export default function SellProductsRoute(): ReactElement {
   const sellCart = useSellCart();
   const { syncCartPrices } = sellCart;
   const handledScanRef = useRef<string | null>(null);
+  const [isOpeningCobro, setIsOpeningCobro] = useState(false);
 
   const initialSearchQuery = Array.isArray(scannedCode) ? scannedCode[0] : scannedCode;
   const scannedId = Array.isArray(scannedProductId) ? scannedProductId[0] : scannedProductId;
@@ -59,13 +60,28 @@ export default function SellProductsRoute(): ReactElement {
     sellCart.addProduct(product);
   }
 
-  function handleOpenConfirmPayment(): void {
+  async function handleOpenConfirmPayment(): Promise<void> {
     if (sellCart.cart.length === 0) {
       Alert.alert('Carrito vacio', 'Agrega productos antes de cobrar.');
       return;
     }
 
-    sellNav.onOpenConfirmPayment();
+    if (isOpeningCobro) {
+      return;
+    }
+
+    setIsOpeningCobro(true);
+    try {
+      const quoteId = await sellCart.saveQuote();
+      router.push(presupuestoDetailRoute(quoteId, 'sell'));
+    } catch (error) {
+      Alert.alert(
+        'No se pudo guardar',
+        error instanceof Error ? error.message : 'Error desconocido',
+      );
+    } finally {
+      setIsOpeningCobro(false);
+    }
   }
 
   return (
@@ -75,7 +91,7 @@ export default function SellProductsRoute(): ReactElement {
       isLoading={catalog.isLoading}
       onAddToCart={handleAddToCart}
       onEditProduct={sellNav.onEditProduct}
-      onOpenConfirmPayment={handleOpenConfirmPayment}
+      onOpenConfirmPayment={() => void handleOpenConfirmPayment()}
       onOpenProductDetail={sellNav.onOpenProductDetail}
       onScanCode={() => router.push(inventoryScanRoute({ mode: 'sell' }))}
       products={products}

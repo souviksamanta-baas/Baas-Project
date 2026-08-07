@@ -28,7 +28,7 @@ export default function ProductCodeRoute(): ReactElement {
   if (!productId) {
     return (
       <ScreenContent>
-        <InventoryScreenTitle onBack={() => router.back()} subtitle="Código" title="Producto" />
+        <InventoryScreenTitle onBack={() => router.back()} title="Producto" />
         <Text>Producto no encontrado.</Text>
       </ScreenContent>
     );
@@ -37,11 +37,7 @@ export default function ProductCodeRoute(): ReactElement {
   if (isLoading && !product) {
     return (
       <ScreenContent>
-        <InventoryScreenTitle
-          onBack={() => router.back()}
-          subtitle="Código"
-          title="Código del producto"
-        />
+        <InventoryScreenTitle onBack={() => router.back()} title="Código del producto" />
         <Text>Cargando…</Text>
       </ScreenContent>
     );
@@ -50,11 +46,7 @@ export default function ProductCodeRoute(): ReactElement {
   if (!product || !organizationId) {
     return (
       <ScreenContent>
-        <InventoryScreenTitle
-          onBack={() => router.replace(productDetailRoute(productId, returnTo))}
-          subtitle="Código"
-          title="Código del producto"
-        />
+        <InventoryScreenTitle onBack={() => router.replace(productDetailRoute(productId, returnTo))} title="Código del producto" />
         <Text>Este producto no está disponible.</Text>
       </ScreenContent>
     );

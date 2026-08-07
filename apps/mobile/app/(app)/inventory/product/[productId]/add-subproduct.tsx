@@ -71,11 +71,7 @@ export default function AddSubproductRoute(): ReactElement {
   if (!parentProductId || !businessCenterId || !organizationId) {
     return (
       <ScreenContent>
-        <InventoryScreenTitle
-          onBack={goBack}
-          subtitle="Presentacion derivada del producto base"
-          title="Nuevo subproducto"
-        />
+        <InventoryScreenTitle onBack={goBack} title="Nuevo subproducto" />
         <Text>Producto base no encontrado.</Text>
       </ScreenContent>
     );
@@ -84,11 +80,7 @@ export default function AddSubproductRoute(): ReactElement {
   if (isLoading && !product) {
     return (
       <ScreenContent>
-        <InventoryScreenTitle
-          onBack={goBack}
-          subtitle="Presentacion derivada del producto base"
-          title="Nuevo subproducto"
-        />
+        <InventoryScreenTitle onBack={goBack} title="Nuevo subproducto" />
         <Text>Cargando producto base...</Text>
       </ScreenContent>
     );
@@ -97,11 +89,7 @@ export default function AddSubproductRoute(): ReactElement {
   if (!product || product.parentProductId != null || !isGranelProduct(product)) {
     return (
       <ScreenContent>
-        <InventoryScreenTitle
-          onBack={goBack}
-          subtitle="Presentacion derivada del producto base"
-          title="Nuevo subproducto"
-        />
+        <InventoryScreenTitle onBack={goBack} title="Nuevo subproducto" />
         <Text>Solo los productos granel pueden tener subproductos.</Text>
       </ScreenContent>
     );

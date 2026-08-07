@@ -73,10 +73,7 @@ export function IntegrationsScreen(props: {
           <Text style={styles.backText}>‹</Text>
         </Pressable>
         <View style={styles.flex}>
-          <ScreenTitle
-            subtitle="Conectá los canales de tu negocio"
-            title="Integraciones"
-          />
+          <ScreenTitle title="Integraciones" />
         </View>
       </View>
 

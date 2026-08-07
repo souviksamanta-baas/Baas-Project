@@ -16,6 +16,8 @@ import {
   computeDiscountCents,
   computeSaleTotalCents,
   createCartLineFromProduct,
+  DEFAULT_CLIENT_LABEL,
+  DEFAULT_RECEIPT_LABEL,
   formatCurrency,
   formatSignedCurrency,
   formatUnitQuantity,
@@ -23,8 +25,11 @@ import {
   getEffectiveGrams,
   mergeCartLine,
   saveSellQuote,
+  updateSellQuote,
   WEIGHT_GRAMS_PLACEHOLDER,
+  type SavedSellQuote,
   type SellCartLine,
+  type SellCheckoutDraft,
   type SellDiscountMode,
 } from '../lib/sellCart';
 
@@ -33,18 +38,24 @@ type SellCartContextValue = {
   canSaveQuote: boolean;
   cart: SellCartLine[];
   clearCart: () => void;
+  clientLabel: string;
   decreaseLineQuantity: (lineId: string) => void;
   discountInput: string;
   discountMode: SellDiscountMode;
   discountTotalCents: number;
+  editingQuoteId: string | null;
   focusLineGrams: (lineId: string) => void;
   increaseLineQuantity: (lineId: string) => void;
+  loadQuoteIntoCart: (quote: SavedSellQuote) => void;
   quoteMessage: string | null;
+  receiptLabel: string;
   removeLine: (lineId: string) => void;
   saveQuote: () => Promise<string>;
+  setClientLabel: (value: string) => void;
   setDiscountInput: (value: string) => void;
   setDiscountMode: (mode: SellDiscountMode) => void;
   setLineGrams: (lineId: string, value: string) => void;
+  setReceiptLabel: (value: string) => void;
   subtotalCents: number;
   syncCartPrices: (products: Product[]) => void;
   totalCents: number;
@@ -59,6 +70,9 @@ export function SellCartProvider(props: { children: ReactNode }): ReactElement {
   const [cart, setCart] = useState<SellCartLine[]>([]);
   const [discountMode, setDiscountModeState] = useState<SellDiscountMode>('percent');
   const [discountInput, setDiscountInputState] = useState('');
+  const [clientLabel, setClientLabelState] = useState(DEFAULT_CLIENT_LABEL);
+  const [receiptLabel, setReceiptLabelState] = useState(DEFAULT_RECEIPT_LABEL);
+  const [editingQuoteId, setEditingQuoteId] = useState<string | null>(null);
   const [isCartDirty, setIsCartDirty] = useState(false);
   const [quoteMessage, setQuoteMessage] = useState<string | null>(null);
 
@@ -200,6 +214,22 @@ export function SellCartProvider(props: { children: ReactNode }): ReactElement {
     [markDirty],
   );
 
+  const setClientLabel = useCallback(
+    (value: string) => {
+      setClientLabelState(value);
+      markDirty();
+    },
+    [markDirty],
+  );
+
+  const setReceiptLabel = useCallback(
+    (value: string) => {
+      setReceiptLabelState(value);
+      markDirty();
+    },
+    [markDirty],
+  );
+
   const syncCartPrices = useCallback((products: Product[]) => {
     let changed = false;
 
@@ -234,8 +264,27 @@ export function SellCartProvider(props: { children: ReactNode }): ReactElement {
 
   const clearCart = useCallback(() => {
     setCart([]);
+    setDiscountModeState('percent');
+    setDiscountInputState('');
+    setClientLabelState(DEFAULT_CLIENT_LABEL);
+    setReceiptLabelState(DEFAULT_RECEIPT_LABEL);
+    setEditingQuoteId(null);
     setIsCartDirty(false);
     setQuoteMessage(null);
+  }, []);
+
+  const loadQuoteIntoCart = useCallback((quote: SavedSellQuote) => {
+    const draft: SellCheckoutDraft = quote.draft;
+    setCart(draft.cart.map((line) => ({ ...line })));
+    setDiscountModeState(draft.discountMode);
+    setDiscountInputState(
+      draft.discountValue > 0 ? String(draft.discountValue).replace('.', ',') : '',
+    );
+    setClientLabelState(draft.clientLabel || DEFAULT_CLIENT_LABEL);
+    setReceiptLabelState(draft.receiptLabel || DEFAULT_RECEIPT_LABEL);
+    setEditingQuoteId(quote.id);
+    setIsCartDirty(true);
+    setQuoteMessage(`Editando presupuesto ${quote.id}`);
   }, []);
 
   const saveQuote = useCallback(async () => {
@@ -243,18 +292,43 @@ export function SellCartProvider(props: { children: ReactNode }): ReactElement {
       throw new Error('No hay un negocio activo para guardar el presupuesto.');
     }
 
-    const quoteId = await saveSellQuote(
-      organizationId,
-      businessCenterId,
-      buildCheckoutDraft(cart, discountMode, discountInput),
-    );
+    const draft = buildCheckoutDraft(cart, discountMode, discountInput, {
+      clientLabel,
+      receiptLabel,
+    });
+
+    let quoteId = editingQuoteId;
+    if (quoteId) {
+      const updated = await updateSellQuote(organizationId, businessCenterId, quoteId, {
+        draft,
+      });
+      if (!updated) {
+        throw new Error('No se pudo actualizar el presupuesto.');
+      }
+      quoteId = updated.id;
+    } else {
+      quoteId = await saveSellQuote(organizationId, businessCenterId, draft);
+    }
+
     setCart([]);
     setDiscountModeState('percent');
     setDiscountInputState('');
+    setClientLabelState(DEFAULT_CLIENT_LABEL);
+    setReceiptLabelState(DEFAULT_RECEIPT_LABEL);
+    setEditingQuoteId(null);
     setIsCartDirty(false);
     setQuoteMessage(`Presupuesto guardado. ID: ${quoteId}`);
     return quoteId;
-  }, [businessCenterId, cart, discountInput, discountMode, organizationId]);
+  }, [
+    businessCenterId,
+    cart,
+    clientLabel,
+    discountInput,
+    discountMode,
+    editingQuoteId,
+    organizationId,
+    receiptLabel,
+  ]);
 
   const value = useMemo(
     (): SellCartContextValue => ({
@@ -262,18 +336,24 @@ export function SellCartProvider(props: { children: ReactNode }): ReactElement {
       canSaveQuote,
       cart,
       clearCart,
+      clientLabel,
       decreaseLineQuantity,
       discountInput,
       discountMode,
       discountTotalCents,
+      editingQuoteId,
       focusLineGrams,
       increaseLineQuantity,
+      loadQuoteIntoCart,
       quoteMessage,
+      receiptLabel,
       removeLine,
       saveQuote,
+      setClientLabel,
       setDiscountInput,
       setDiscountMode,
       setLineGrams,
+      setReceiptLabel,
       subtotalCents,
       syncCartPrices,
       totalCents,
@@ -283,18 +363,24 @@ export function SellCartProvider(props: { children: ReactNode }): ReactElement {
       canSaveQuote,
       cart,
       clearCart,
+      clientLabel,
       decreaseLineQuantity,
       discountInput,
       discountMode,
       discountTotalCents,
+      editingQuoteId,
       focusLineGrams,
       increaseLineQuantity,
+      loadQuoteIntoCart,
       quoteMessage,
+      receiptLabel,
       removeLine,
       saveQuote,
+      setClientLabel,
       setDiscountInput,
       setDiscountMode,
       setLineGrams,
+      setReceiptLabel,
       subtotalCents,
       syncCartPrices,
       totalCents,

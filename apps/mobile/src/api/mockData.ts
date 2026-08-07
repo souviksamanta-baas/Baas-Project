@@ -178,19 +178,19 @@ export const menuSections: MenuSectionMock[] = [
   {
     id: 'inventory',
     rows: [
-      { icon: 'box', id: 'manage-stock', subtitle: 'Stock actual, alertas y catálogo', title: 'Gestionar stock' },
-      { icon: 'plus', id: 'add-product', subtitle: 'Alta de productos y subproductos', title: 'Agregar producto' },
-      { icon: 'document', id: 'lots-movements', subtitle: 'Ingresos, egresos y trazabilidad', title: 'Lotes y Movimientos' },
-      { icon: 'cart', id: 'compras', subtitle: 'Remitos, proveedores y carga de stock', title: 'Compras' },
-      { icon: 'bell', id: 'notifications-tasks', subtitle: 'Alertas, seguimientos y pendientes', title: 'Notificaciones y Tareas' },
+      { icon: 'box', id: 'manage-stock', title: 'Gestionar stock' },
+      { icon: 'cart', id: 'load-purchase', title: 'Cargar compras' },
+      { icon: 'document', id: 'manage-purchases', title: 'Gestionar compras' },
+      { icon: 'plus', id: 'add-product', title: 'Agregar producto' },
+      { icon: 'document', id: 'lots-movements', title: 'Lotes y movimientos' },
     ],
     title: 'Inventarios',
   },
   {
     id: 'operations',
     rows: [
-      { icon: 'bill', id: 'billing', subtitle: 'Presupuestos, estados y cobros', title: 'Facturación' },
-      { icon: 'cash', id: 'cash', subtitle: 'Próximamente', title: 'Caja' },
+      { icon: 'bill', id: 'billing', title: 'Presupuestos' },
+      { icon: 'cash', id: 'cash', title: 'Caja' },
     ],
     title: 'Operaciones',
   },
@@ -202,10 +202,11 @@ export const menuSections: MenuSectionMock[] = [
   {
     id: 'settings',
     rows: [
-      { icon: 'user', id: 'account', subtitle: 'Perfil, negocio y equipo', title: 'Mi cuenta' },
-      { icon: 'puzzle', id: 'integrations', subtitle: 'WhatsApp, Instagram, email y SMS', title: 'Integraciones' },
-      { icon: 'users', id: 'suppliers', subtitle: 'Contactos de proveedores', title: 'Proveedores' },
-      { icon: 'help', id: 'help', subtitle: 'Ayuda personalizada por WhatsApp', title: 'Ayuda y soporte' },
+      { icon: 'bell', id: 'notifications-tasks', title: 'Notificaciones y tareas' },
+      { icon: 'users', id: 'suppliers', title: 'Proveedores' },
+      { icon: 'puzzle', id: 'integrations', title: 'Integraciones' },
+      { icon: 'shield', id: 'privacy', title: 'Privacidad y datos' },
+      { icon: 'help', id: 'help', title: 'Ayuda y soporte' },
     ],
     title: 'Configuraciones',
   },

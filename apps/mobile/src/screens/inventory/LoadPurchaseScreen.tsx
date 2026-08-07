@@ -254,15 +254,7 @@ export function LoadPurchaseScreen(props: {
 
   return (
     <ScreenContent title="Cargar compra">
-      <InventoryScreenTitle
-        onBack={props.onBack}
-        subtitle={
-          props.editingPurchaseId
-            ? 'Editá el remito pendiente y guardá los cambios'
-            : 'Armá el remito y guardalo pendiente de confirmación'
-        }
-        title={props.editingPurchaseId ? 'Editar compra' : 'Cargar compra'}
-      />
+      <InventoryScreenTitle onBack={props.onBack} title={props.editingPurchaseId ? 'Editar compra' : 'Cargar compra'} />
 
       <SectionCard title="Datos de la compra">
         <View style={styles.purchaseNumberField}>

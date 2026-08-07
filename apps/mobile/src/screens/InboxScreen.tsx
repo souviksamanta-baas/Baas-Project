@@ -126,7 +126,7 @@ export function InboxScreen(props: {
         }
         ListHeaderComponent={
           <View style={styles.inboxListHeader}>
-            <ScreenTitle subtitle="Todas tus conversaciones en un solo lugar" title="Chats" />
+            <ScreenTitle title="Chats" />
 
             {connection.status === 'connected' && connection.displayPhoneNumber ? (
               <InfoBanner>{`Respondiendo desde ${connection.displayPhoneNumber}`}</InfoBanner>

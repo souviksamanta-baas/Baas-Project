@@ -83,7 +83,7 @@ export function AccountScreen(props: {
 
   return (
     <ScreenContent title="Mi cuenta">
-      <ScreenTitle subtitle="Gestiona tu perfil y tu negocio" title="Mi cuenta" />
+      <ScreenTitle title="Mi cuenta" />
 
       <FeatureGate feature="accountProfile">
         <View style={styles.profileCard}>

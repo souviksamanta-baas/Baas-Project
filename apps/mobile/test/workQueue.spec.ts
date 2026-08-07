@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { prepareTaskBody } from '../src/lib/taskDetail';
 import { buildWorkQueue, compactTaskTitle, filterWorkQueue } from '../src/lib/workQueue';
 import type { OwnerNotification, OwnerTask } from '../src/types/tasks';
 
@@ -93,5 +94,20 @@ describe('workQueue', () => {
 
     expect(filterWorkQueue(queue, 'stock')).toHaveLength(1);
     expect(filterWorkQueue(queue, 'stock')[0]?.kind).toBe('alert');
+  });
+});
+
+describe('prepareTaskBody', () => {
+  it('cleans messy Copi presupuesto descriptions', () => {
+    expect(
+      prepareTaskBody(
+        '55 gramos de castaña de caju. También Presupuesto: PRES-MSHZXECG',
+        'PRES-MSHZXECG',
+      ),
+    ).toBe('55 gramos de castaña de caju');
+  });
+
+  it('returns null when only the presupuesto code remains', () => {
+    expect(prepareTaskBody('Presupuesto: PRES-MSHZXECG', 'PRES-MSHZXECG')).toBeNull();
   });
 });

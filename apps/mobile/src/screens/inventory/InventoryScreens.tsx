@@ -179,11 +179,7 @@ export function ManageStockScreen(
 
   return (
     <ScreenContent title="Gestionar stock">
-      <InventoryScreenTitle
-        showBack={false}
-        subtitle="Busca, escanea y actualiza tu inventario"
-        title="Gestionar stock"
-      />
+      <InventoryScreenTitle showBack={false} title="Gestionar stock" />
       <SearchFilterRow
         onChangeText={setSearchQuery}
         onPressCamera={props.onScanCode}
@@ -312,11 +308,7 @@ export function AddProductScreen(props: {
 
   return (
     <ScreenContent>
-      <InventoryScreenTitle
-        onBack={props.onBack}
-        subtitle="Completa los datos del producto y el stock inicial"
-        title="Nuevo producto"
-      />
+      <InventoryScreenTitle onBack={props.onBack} title="Nuevo producto" />
       <ProductSummaryCard changePhoto title={formValues.name || 'Nuevo producto'} />
       <SectionCard>
         <InventoryTextField
@@ -538,11 +530,7 @@ export function AddSubproductScreen(props: {
 
   return (
     <ScreenContent>
-      <InventoryScreenTitle
-        onBack={props.onBack}
-        subtitle="Presentacion derivada del producto base"
-        title="Nuevo subproducto"
-      />
+      <InventoryScreenTitle onBack={props.onBack} title="Nuevo subproducto" />
       <ProductSummaryCard
         changePhoto
         linkedTo={props.parentProduct.name}
@@ -726,12 +714,7 @@ export function ProductDetailScreen(
 
   return (
     <ScreenContent title={productName}>
-      <InventoryScreenTitle
-        onBack={props.onBack}
-        stickyTitle={productName}
-        subtitle="Detalle y gestion del producto"
-        title="Producto"
-      />
+      <InventoryScreenTitle onBack={props.onBack} stickyTitle={productName} title="Producto" />
       <ProductSummaryCard
         category={productCategory}
         meta={summaryMeta}
@@ -930,15 +913,7 @@ export function EditProductScreen(
 
   return (
     <ScreenContent>
-      <InventoryScreenTitle
-        onBack={props.onBack}
-        subtitle={
-          readOnly
-            ? 'Revisa la informacion antes de archivar el producto'
-            : 'Actualiza la informacion del producto'
-        }
-        title={props.title ?? (readOnly ? 'Archivar producto' : 'Editar producto')}
-      />
+      <InventoryScreenTitle onBack={props.onBack} title={props.title ?? (readOnly ? 'Archivar producto' : 'Editar producto')} />
       <ProductSummaryCard
         badge={childProducts.length > 0 ? 'Producto con subproductos' : undefined}
         changePhoto={!readOnly}
@@ -1163,11 +1138,7 @@ export function EditSubproductScreen(
 
   return (
     <ScreenContent>
-      <InventoryScreenTitle
-        onBack={props.onBack}
-        subtitle="Actualiza la informacion del subproducto"
-        title="Editar subproducto"
-      />
+      <InventoryScreenTitle onBack={props.onBack} title="Editar subproducto" />
       <ProductSummaryCard changePhoto linkedTo={parentName} title={formValues.name} />
       <InfoBanner>
         Este subproducto pertenece a {parentName}. La categoria y el costo se obtienen del producto
@@ -1397,11 +1368,7 @@ export function AddStockScreen(props: {
   if (!selectedProduct) {
     return (
       <ScreenContent>
-        <InventoryScreenTitle
-          onBack={props.onBack}
-          subtitle="Registra ingresos para el producto base o sus subproductos"
-          title="Agregar stock"
-        />
+        <InventoryScreenTitle onBack={props.onBack} title="Agregar stock" />
         <Text>Producto no encontrado.</Text>
       </ScreenContent>
     );
@@ -1416,15 +1383,7 @@ export function AddStockScreen(props: {
 
   return (
     <ScreenContent>
-      <InventoryScreenTitle
-        onBack={props.onBack}
-        subtitle={
-          props.purchaseDefaults
-            ? `Compra ${props.purchaseDefaults.purchaseNumber}`
-            : 'Registra ingresos para el producto base o sus subproductos'
-        }
-        title="Agregar stock"
-      />
+      <InventoryScreenTitle onBack={props.onBack} title="Agregar stock" />
       <ProductSummaryCard stock={productStock} title={selectedProduct.name} />
       {props.showProductSelection ? (
         <>
@@ -1580,7 +1539,7 @@ export function DeleteProductScreen(props: {
 
   return (
     <ScreenContent>
-      <InventoryScreenTitle onBack={props.onBack} subtitle="Confirma si queres eliminar este producto" title="Eliminar producto" />
+      <InventoryScreenTitle onBack={props.onBack} title="Eliminar producto" />
       <ProductSummaryCard showBarcode stock={productStock} title={productName} />
       <View style={styles.deleteWarningCard}>
         <View style={styles.deleteWarningHeader}>
@@ -1724,11 +1683,7 @@ export function SellProductsScreen(
 
   return (
     <ScreenContent>
-      <InventoryScreenTitle
-        showBack={false}
-        subtitle="Busca, agrega y cobra tus productos"
-        title="Ventas"
-      />
+      <InventoryScreenTitle showBack={false} title="Ventas" />
       <SearchFilterRow
         onChangeText={setSearchQuery}
         onPressCamera={props.onScanCode}
@@ -1785,8 +1740,22 @@ export function SellProductsScreen(
           withDiscountControls
         />
         <View style={styles.fieldRow}>
-          <FormField compactLabel label="Cliente" select value={DEFAULT_CLIENT_LABEL} />
-          <FormField compactLabel label="Comprobante" select value={DEFAULT_RECEIPT_LABEL} />
+          <View style={styles.flex}>
+            <TextField
+              label="Cliente"
+              onChangeText={sellCart.setClientLabel}
+              placeholder="Estandar"
+              value={sellCart.clientLabel}
+            />
+          </View>
+          <View style={styles.flex}>
+            <TextField
+              label="Comprobante"
+              onChangeText={sellCart.setReceiptLabel}
+              placeholder="Estandar"
+              value={sellCart.receiptLabel}
+            />
+          </View>
         </View>
         <Text style={styles.paymentLabel}>Forma de pago</Text>
         <View style={styles.chipRow}>
@@ -1795,15 +1764,16 @@ export function SellProductsScreen(
           <PaymentChip disabled label="Transferencia" small />
           <PaymentChip disabled label="QR" small />
         </View>
-        <View style={styles.sellButtonRow}>
+        <View style={styles.sellButtonColumn}>
           <OutlineButton
             compact
             disabled={!sellCart.canSaveQuote}
+            fullWidth
             icon="bill"
             label="Guardar presupuesto"
             onPress={() => void handleSaveQuote()}
           />
-          <CobrarButton onPress={props.onOpenConfirmPayment} />
+          <CobrarButton fullWidth onPress={props.onOpenConfirmPayment} />
         </View>
       </SectionCard>
     </ScreenContent>
@@ -1890,7 +1860,7 @@ export function ConfirmPaymentScreen(props: {
 
   return (
     <ScreenContent>
-      <InventoryScreenTitle onBack={props.onBack} subtitle="Revisa los productos antes de confirmar el pago" title="Confirmar cobro" />
+      <InventoryScreenTitle onBack={props.onBack} title="Confirmar cobro" />
       {sellCart.quoteMessage ? <InfoBanner>{sellCart.quoteMessage}</InfoBanner> : null}
       <View style={styles.paymentStatusCard}>
         <Icon color={colors.warning} kind="clock" size={18} strokeWidth={1.8} />
@@ -2799,6 +2769,10 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     marginTop: 14,
+  },
+  sellButtonColumn: {
+    gap: 10,
+    marginTop: 12,
   },
   sellButtonRow: {
     flexDirection: 'row',

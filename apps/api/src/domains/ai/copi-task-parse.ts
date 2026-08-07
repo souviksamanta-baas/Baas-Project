@@ -232,10 +232,19 @@ export function parseCreatePresupuestoRequest(question: string): ParsedPresupues
   return {
     assigneeName,
     clientLabel,
-    description: detail || question.trim(),
+    description: lineSummary || cleanPresupuestoDetail(detail) || question.trim(),
     lines,
     title,
   };
+}
+
+/** Drop leftover glue words from presupuesto request leftovers. */
+function cleanPresupuestoDetail(detail: string): string {
+  return detail
+    .replace(/\b(?:también|tambien|y)\b/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .replace(/^[\s.,;:·-]+|[\s.,;:·-]+$/g, '')
+    .trim();
 }
 
 function extractPresupuestoLines(text: string): ParsedPresupuestoLine[] {

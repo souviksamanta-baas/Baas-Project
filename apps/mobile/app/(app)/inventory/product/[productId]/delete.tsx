@@ -35,11 +35,7 @@ export default function DeleteProductRoute(): ReactElement {
   if (isLoading && !product) {
     return (
       <ScreenContent>
-        <InventoryScreenTitle
-          onBack={goBack}
-          subtitle="Confirma si queres eliminar este producto"
-          title="Eliminar producto"
-        />
+        <InventoryScreenTitle onBack={goBack} title="Eliminar producto" />
         <Text>Cargando producto...</Text>
       </ScreenContent>
     );

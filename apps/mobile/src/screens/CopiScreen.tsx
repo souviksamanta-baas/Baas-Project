@@ -75,7 +75,7 @@ export function CopiScreen(props: {
 
   return (
     <ScreenContent>
-      <ScreenTitle subtitle="Tu asistente IA para el negocio" title="Copi" />
+      <ScreenTitle title="Copi" />
 
       <FeatureGate feature="copiQuickSummary" visibility={visibility}>
         <Pressable onPress={props.onOpenChat} style={styles.copiCard}>

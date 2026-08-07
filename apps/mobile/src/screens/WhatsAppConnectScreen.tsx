@@ -34,7 +34,6 @@ export function WhatsAppConnectScreen(props: {
       <ScreenHeader
         onBack={props.onBack}
         showBack
-        subtitle="Conectá tu número de WhatsApp Business con Meta Cloud API"
         title="WhatsApp Business"
       />
 

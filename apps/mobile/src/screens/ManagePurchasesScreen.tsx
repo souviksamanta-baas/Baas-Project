@@ -191,11 +191,7 @@ export function ManagePurchasesScreen(props: { onBack: () => void }): ReactEleme
 
   return (
     <ScreenContent title="Gestionar compras">
-      <InventoryScreenTitle
-        onBack={props.onBack}
-        subtitle="Compras registradas agrupadas por fecha"
-        title="Gestionar compras"
-      />
+      <InventoryScreenTitle onBack={props.onBack} title="Gestionar compras" />
 
       {isLoading ? <ActivityIndicator color={colors.primary} /> : null}
       {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}

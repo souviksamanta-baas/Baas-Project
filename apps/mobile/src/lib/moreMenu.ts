@@ -16,22 +16,12 @@ export type MoreMenuRowId =
   | 'help'
   | 'privacy';
 
-export type MoreMenuSectionId = 'main' | 'connections' | 'support';
-
-export type MoreMenuChildRow = {
-  disabled?: boolean;
-  icon: IconKind;
-  id: MoreMenuRowId;
-  subtitle: string;
-  title: string;
-};
+export type MoreMenuSectionId = 'inventory' | 'operations' | 'settings';
 
 export type MoreMenuRow = {
-  children?: MoreMenuChildRow[];
   disabled?: boolean;
   icon: IconKind;
   id: MoreMenuRowId;
-  subtitle: string;
   title: string;
 };
 
@@ -41,105 +31,36 @@ export type MoreMenuSection = {
   rows: MoreMenuRow[];
 };
 
-/** Flat Más groups — no section titles. */
+/** Flat Más groups — title only, no section headers or submenus. */
 export const moreMenuSections: MoreMenuSection[] = [
   {
     feature: 'moreInventory',
-    id: 'main',
+    id: 'inventory',
     rows: [
-      {
-        icon: 'box',
-        id: 'manage-stock',
-        subtitle: 'Stock actual, alertas y catálogo',
-        title: 'Gestionar stock',
-      },
-      {
-        icon: 'plus',
-        id: 'add-product',
-        subtitle: 'Alta de productos y subproductos',
-        title: 'Agregar producto',
-      },
-      {
-        icon: 'document',
-        id: 'lots-movements',
-        subtitle: 'Ingresos, egresos y trazabilidad',
-        title: 'Lotes y Movimientos',
-      },
-      {
-        children: [
-          {
-            icon: 'document',
-            id: 'manage-purchases',
-            subtitle: 'Historial de remitos por fecha',
-            title: 'Gestionar compras',
-          },
-          {
-            icon: 'cart',
-            id: 'load-purchase',
-            subtitle: 'Remito, proveedor y carga de stock',
-            title: 'Cargar compra',
-          },
-        ],
-        icon: 'cart',
-        id: 'compras',
-        subtitle: 'Remitos, proveedores y carga de stock',
-        title: 'Compras',
-      },
-      {
-        icon: 'bell',
-        id: 'notifications-tasks',
-        subtitle: 'Alertas, seguimientos y pendientes',
-        title: 'Notificaciones y Tareas',
-      },
-      {
-        icon: 'bill',
-        id: 'billing',
-        subtitle: 'Presupuestos, estados y cobros',
-        title: 'Facturación',
-      },
-      {
-        disabled: true,
-        icon: 'cash',
-        id: 'cash',
-        subtitle: 'Próximamente',
-        title: 'Caja',
-      },
+      { icon: 'box', id: 'manage-stock', title: 'Gestionar stock' },
+      { icon: 'cart', id: 'load-purchase', title: 'Cargar compras' },
+      { icon: 'document', id: 'manage-purchases', title: 'Gestionar compras' },
+      { icon: 'plus', id: 'add-product', title: 'Agregar producto' },
+      { icon: 'document', id: 'lots-movements', title: 'Lotes y movimientos' },
+    ],
+  },
+  {
+    feature: 'moreOperations',
+    id: 'operations',
+    rows: [
+      { icon: 'bill', id: 'billing', title: 'Presupuestos' },
+      { disabled: true, icon: 'cash', id: 'cash', title: 'Caja' },
     ],
   },
   {
     feature: 'moreSettings',
-    id: 'connections',
+    id: 'settings',
     rows: [
-      {
-        icon: 'puzzle',
-        id: 'integrations',
-        subtitle: 'WhatsApp, Instagram, email y SMS',
-        title: 'Integraciones',
-      },
-      {
-        icon: 'users',
-        id: 'suppliers',
-        subtitle: 'Contactos de proveedores',
-        title: 'Proveedores',
-      },
-    ],
-  },
-  {
-    feature: 'moreSettings',
-    id: 'support',
-    rows: [
-      {
-        icon: 'shield',
-        id: 'privacy',
-        subtitle: 'Datos, permisos y eliminación de cuenta',
-        title: 'Privacidad y datos',
-      },
-      {
-        icon: 'help',
-        id: 'help',
-        subtitle: 'Ayuda personalizada por WhatsApp',
-        title: 'Ayuda y soporte',
-      },
+      { icon: 'bell', id: 'notifications-tasks', title: 'Notificaciones y tareas' },
+      { icon: 'users', id: 'suppliers', title: 'Proveedores' },
+      { icon: 'puzzle', id: 'integrations', title: 'Integraciones' },
+      { icon: 'shield', id: 'privacy', title: 'Privacidad y datos' },
+      { icon: 'help', id: 'help', title: 'Ayuda y soporte' },
     ],
   },
 ];

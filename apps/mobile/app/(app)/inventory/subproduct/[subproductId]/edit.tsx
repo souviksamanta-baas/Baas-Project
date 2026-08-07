@@ -54,11 +54,7 @@ export default function EditSubproductRoute(): ReactElement {
   if (!subproductId || !businessCenterId || !organizationId) {
     return (
       <ScreenContent>
-        <InventoryScreenTitle
-          onBack={goBack}
-          subtitle="Actualiza la informacion del subproducto"
-          title="Editar subproducto"
-        />
+        <InventoryScreenTitle onBack={goBack} title="Editar subproducto" />
         <Text>Subproducto no encontrado.</Text>
       </ScreenContent>
     );
@@ -67,11 +63,7 @@ export default function EditSubproductRoute(): ReactElement {
   if (isLoading && !subproduct) {
     return (
       <ScreenContent>
-        <InventoryScreenTitle
-          onBack={goBack}
-          subtitle="Actualiza la informacion del subproducto"
-          title="Editar subproducto"
-        />
+        <InventoryScreenTitle onBack={goBack} title="Editar subproducto" />
         <Text>Cargando subproducto...</Text>
       </ScreenContent>
     );
@@ -80,11 +72,7 @@ export default function EditSubproductRoute(): ReactElement {
   if (!subproduct || !parentProductId) {
     return (
       <ScreenContent>
-        <InventoryScreenTitle
-          onBack={goBack}
-          subtitle="Actualiza la informacion del subproducto"
-          title="Editar subproducto"
-        />
+        <InventoryScreenTitle onBack={goBack} title="Editar subproducto" />
         <Text>Subproducto no encontrado.</Text>
       </ScreenContent>
     );

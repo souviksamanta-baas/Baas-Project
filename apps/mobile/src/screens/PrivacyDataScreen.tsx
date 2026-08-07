@@ -68,10 +68,7 @@ export function PrivacyDataScreen(props: {
           <Text style={styles.backText}>‹</Text>
         </Pressable>
         <View style={styles.flex}>
-          <ScreenTitle
-            subtitle="Exportá, salí del negocio o eliminá datos"
-            title="Privacidad y datos"
-          />
+          <ScreenTitle title="Privacidad y datos" />
         </View>
       </View>
 

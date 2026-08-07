@@ -102,10 +102,7 @@ export function InstagramConnectScreen(props: {
           <Text style={styles.backText}>‹</Text>
         </Pressable>
         <View style={styles.flex}>
-          <ScreenTitle
-            subtitle="Conectá tu cuenta profesional con Instagram Business Login"
-            title="Conectar Instagram"
-          />
+          <ScreenTitle title="Conectar Instagram" />
         </View>
       </View>
 

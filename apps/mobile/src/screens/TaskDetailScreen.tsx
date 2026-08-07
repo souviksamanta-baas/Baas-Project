@@ -1,7 +1,9 @@
-import type { ReactElement, ReactNode } from 'react';
+import type { ReactElement } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Card, ScreenContent, ScreenTitle } from '../components/ui';
+import { prepareTaskBody } from '../lib/taskDetail';
+import { compactTaskTitle } from '../lib/workQueue';
 import type { OwnerTask } from '../types/tasks';
 import { colors } from '../theme';
 
@@ -15,37 +17,32 @@ export function TaskDetailScreen(props: {
   task: OwnerTask;
 }): ReactElement {
   const presupuestoId = props.task.presupuestoId;
+  const displayTitle = compactTaskTitle(props.task.title);
+  const body = prepareTaskBody(props.task.description, presupuestoId);
 
   return (
     <ScreenContent>
       <View style={styles.headerRow}>
-        <Pressable onPress={props.onBack}>
-          <Text style={styles.backText}>‹ Volver</Text>
+        <Pressable hitSlop={8} onPress={props.onBack} style={styles.backPressable}>
+          <Text style={styles.backText}>‹</Text>
         </Pressable>
+        <View style={styles.flex}>
+          <ScreenTitle title={displayTitle} />
+        </View>
       </View>
-
-      <ScreenTitle
-        subtitle="Detalle del seguimiento o tarea"
-        title={props.task.title}
-        titleNode={
-          props.onOpenPresupuesto
-            ? renderLinkedText(props.task.title, props.onOpenPresupuesto, styles.titleInlineLink)
-            : undefined
-        }
-      />
 
       <Card style={styles.card}>
         {props.task.contactLabel ? (
           <Text style={styles.meta}>Contacto: {props.task.contactLabel}</Text>
         ) : null}
-        {props.task.description ? (
-          <Text style={styles.body}>
-            {renderLinkedText(props.task.description, props.onOpenPresupuesto)}
-          </Text>
-        ) : null}
+        {body ? <Text style={styles.body}>{body}</Text> : null}
         {presupuestoId && props.onOpenPresupuesto ? (
-          <Pressable onPress={() => props.onOpenPresupuesto?.(presupuestoId)}>
-            <Text style={styles.linkText}>Abrir presupuesto {presupuestoId}</Text>
+          <Pressable
+            onPress={() => props.onOpenPresupuesto?.(presupuestoId)}
+            style={styles.presupuestoRow}
+          >
+            <Text style={styles.meta}>Presupuesto</Text>
+            <Text style={styles.linkText}>{presupuestoId}</Text>
           </Pressable>
         ) : null}
         {props.task.dueAt ? (
@@ -76,53 +73,6 @@ export function TaskDetailScreen(props: {
       </View>
     </ScreenContent>
   );
-}
-
-function renderLinkedText(
-  text: string,
-  onOpenPresupuesto?: (quoteId: string) => void,
-  linkStyle = styles.inlineLink,
-): ReactNode {
-  const pattern = /\bPRES-[A-Z0-9]+\b/gi;
-  const parts: ReactNode[] = [];
-  let lastIndex = 0;
-  let matchIndex = 0;
-
-  for (const match of text.matchAll(pattern)) {
-    const index = match.index ?? 0;
-    const quoteId = match[0]!.toUpperCase();
-
-    if (index > lastIndex) {
-      parts.push(text.slice(lastIndex, index));
-    }
-
-    if (onOpenPresupuesto) {
-      parts.push(
-        <Text
-          key={`pres-${matchIndex}-${quoteId}`}
-          onPress={() => onOpenPresupuesto(quoteId)}
-          style={linkStyle}
-        >
-          {quoteId}
-        </Text>,
-      );
-    } else {
-      parts.push(quoteId);
-    }
-
-    lastIndex = index + match[0]!.length;
-    matchIndex += 1;
-  }
-
-  if (parts.length === 0) {
-    return text;
-  }
-
-  if (lastIndex < text.length) {
-    parts.push(text.slice(lastIndex));
-  }
-
-  return parts;
 }
 
 function statusLabel(status: OwnerTask['status']): string {
@@ -169,10 +119,15 @@ const styles = StyleSheet.create({
     gap: 16,
     paddingHorizontal: 4,
   },
+  backPressable: {
+    paddingRight: 4,
+    paddingVertical: 2,
+  },
   backText: {
-    color: colors.primary,
-    fontSize: 15,
-    fontWeight: '600',
+    color: colors.navy,
+    fontSize: 28,
+    fontWeight: '300',
+    lineHeight: 30,
   },
   body: {
     color: colors.navy,
@@ -183,27 +138,27 @@ const styles = StyleSheet.create({
     gap: 8,
     padding: 16,
   },
-  headerRow: {
-    marginBottom: 4,
+  flex: {
+    flex: 1,
   },
-  inlineLink: {
-    color: colors.primary,
-    fontSize: 15,
-    fontWeight: '600',
-    textDecorationLine: 'underline',
+  headerRow: {
+    alignItems: 'flex-start',
+    flexDirection: 'row',
+    gap: 4,
+    marginBottom: 4,
   },
   linkText: {
     color: colors.primary,
     fontSize: 15,
     fontWeight: '600',
   },
-  titleInlineLink: {
-    color: colors.primary,
-    fontWeight: '700',
-    textDecorationLine: 'underline',
-  },
   meta: {
     color: colors.slate,
     fontSize: 15,
+  },
+  presupuestoRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 8,
   },
 });

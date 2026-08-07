@@ -43,7 +43,7 @@ export function TasksScreen(props: {
 
   return (
     <ScreenContent title="Todas las tareas">
-      <ScreenTitle subtitle="Centro de tareas: seguimientos y alertas del negocio" title="Todas las tareas" />
+      <ScreenTitle title="Todas las tareas" />
 
       {props.isLoading ? <ActivityIndicator color={colors.primary} /> : null}
 

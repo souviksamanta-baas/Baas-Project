@@ -35,11 +35,7 @@ export default function ProductDetailRoute(): ReactElement {
   if (!productId) {
     return (
       <ScreenContent>
-        <InventoryScreenTitle
-          onBack={() => router.back()}
-          subtitle="Detalle y gestion del producto"
-          title="Producto"
-        />
+        <InventoryScreenTitle onBack={() => router.back()} title="Producto" />
         <Text>Producto no encontrado.</Text>
       </ScreenContent>
     );
@@ -52,12 +48,7 @@ export default function ProductDetailRoute(): ReactElement {
   if (isLoading && !product) {
     return (
       <ScreenContent title="Producto">
-        <InventoryScreenTitle
-          onBack={goBack}
-          stickyTitle="Producto"
-          subtitle="Detalle y gestion del producto"
-          title="Producto"
-        />
+        <InventoryScreenTitle onBack={goBack} stickyTitle="Producto" title="Producto" />
         <Text>Cargando producto...</Text>
       </ScreenContent>
     );
@@ -66,12 +57,7 @@ export default function ProductDetailRoute(): ReactElement {
   if (!product) {
     return (
       <ScreenContent title="Producto">
-        <InventoryScreenTitle
-          onBack={() => router.replace(routes.inventoryManageStock)}
-          stickyTitle="Producto"
-          subtitle="Detalle y gestion del producto"
-          title="Producto"
-        />
+        <InventoryScreenTitle onBack={() => router.replace(routes.inventoryManageStock)} stickyTitle="Producto" title="Producto" />
         <Text>Este producto fue archivado o ya no esta disponible.</Text>
       </ScreenContent>
     );

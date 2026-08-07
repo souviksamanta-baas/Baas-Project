@@ -94,11 +94,7 @@ export default function AddStockRoute(): ReactElement {
   if (isLoading && selectableProducts.length === 0) {
     return (
       <ScreenContent>
-        <InventoryScreenTitle
-          onBack={() => router.back()}
-          subtitle="Registra ingresos para el producto base o sus subproductos"
-          title="Agregar stock"
-        />
+        <InventoryScreenTitle onBack={() => router.back()} title="Agregar stock" />
         <Text>Cargando producto...</Text>
       </ScreenContent>
     );

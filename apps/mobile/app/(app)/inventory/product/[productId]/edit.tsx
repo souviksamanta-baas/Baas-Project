@@ -48,11 +48,7 @@ export default function EditProductRoute(): ReactElement {
   if (!productId || !businessCenterId || !organizationId) {
     return (
       <ScreenContent>
-        <InventoryScreenTitle
-          onBack={goBack}
-          subtitle="Actualiza la informacion del producto"
-          title="Editar producto"
-        />
+        <InventoryScreenTitle onBack={goBack} title="Editar producto" />
         <Text>Producto no encontrado.</Text>
       </ScreenContent>
     );
@@ -61,11 +57,7 @@ export default function EditProductRoute(): ReactElement {
   if (isLoading && !product) {
     return (
       <ScreenContent>
-        <InventoryScreenTitle
-          onBack={goBack}
-          subtitle="Actualiza la informacion del producto"
-          title="Editar producto"
-        />
+        <InventoryScreenTitle onBack={goBack} title="Editar producto" />
         <Text>Cargando producto...</Text>
       </ScreenContent>
     );
@@ -74,11 +66,7 @@ export default function EditProductRoute(): ReactElement {
   if (!product) {
     return (
       <ScreenContent>
-        <InventoryScreenTitle
-          onBack={goBack}
-          subtitle="Actualiza la informacion del producto"
-          title="Editar producto"
-        />
+        <InventoryScreenTitle onBack={goBack} title="Editar producto" />
         <Text>Producto no encontrado.</Text>
       </ScreenContent>
     );
