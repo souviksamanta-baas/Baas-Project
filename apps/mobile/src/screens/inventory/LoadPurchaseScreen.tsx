@@ -103,6 +103,7 @@ export function LoadPurchaseScreen(props: {
   onPurchaseNumberChange: (value: string) => void;
   onRemoveLine?: (lineId: string) => void;
   onSavePurchase: () => Promise<void>;
+  onScanCode?: () => void;
   onSupplierChange: (value: string) => void;
   organizationId: string | null;
   products?: InventoryProductMock[];
@@ -322,7 +323,11 @@ export function LoadPurchaseScreen(props: {
 
       {props.errorMessage ? <InfoBanner>{props.errorMessage}</InfoBanner> : null}
 
-      <SearchFilterRow onChangeText={setSearchQuery} searchValue={searchQuery} />
+      <SearchFilterRow
+        onChangeText={setSearchQuery}
+        onPressCamera={props.onScanCode}
+        searchValue={searchQuery}
+      />
 
       <ListBox headerMeta={productCountLabel} title="Productos en inventario">
         {props.isLoading ? (

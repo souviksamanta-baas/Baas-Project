@@ -73,7 +73,7 @@ export function useOwnerTasks(
       .catch((error) => {
         const message = error instanceof Error ? error.message : 'Unknown error';
         setErrorMessage(message);
-        Alert.alert('Could not load follow-ups', message);
+        Alert.alert('No se pudieron cargar los seguimientos', message);
       })
       .finally(() => {
         if (mounted) {
@@ -102,9 +102,16 @@ export function useOwnerTasks(
         return;
       }
 
+      let previousTasks: OwnerTask[] = [];
+      setTasks((current) => {
+        previousTasks = current;
+        return current.filter((task) => task.id !== taskId);
+      });
+
       await runTaskAction({
         action: () => completeOwnerTask(organizationId, businessCenterId, taskId),
-        failureTitle: 'Could not complete task',
+        failureTitle: 'No se pudo completar',
+        onFailure: () => setTasks(previousTasks),
         refresh: loadTasks,
         setErrorMessage,
         setIsSaving,
@@ -120,9 +127,25 @@ export function useOwnerTasks(
       }
 
       const snoozedUntil = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      let previousTasks: OwnerTask[] = [];
+      setTasks((current) => {
+        previousTasks = current;
+        return current.map((task) =>
+          task.id === taskId
+            ? {
+                ...task,
+                dueAt: snoozedUntil.toISOString(),
+                snoozedUntil: snoozedUntil.toISOString(),
+                status: 'snoozed' as const,
+              }
+            : task,
+        );
+      });
+
       await runTaskAction({
         action: () => snoozeOwnerTask(organizationId, businessCenterId, taskId, snoozedUntil),
-        failureTitle: 'Could not snooze task',
+        failureTitle: 'No se pudo posponer',
+        onFailure: () => setTasks(previousTasks),
         refresh: loadTasks,
         setErrorMessage,
         setIsSaving,
@@ -137,9 +160,16 @@ export function useOwnerTasks(
         return;
       }
 
+      let previousNotifications: OwnerNotification[] = [];
+      setNotifications((current) => {
+        previousNotifications = current;
+        return current.filter((item) => item.id !== notificationId);
+      });
+
       await runTaskAction({
         action: () => dismissOwnerNotification(organizationId, businessCenterId, notificationId),
-        failureTitle: 'Could not dismiss alert',
+        failureTitle: 'No se pudo descartar',
+        onFailure: () => setNotifications(previousNotifications),
         refresh: loadTasks,
         setErrorMessage,
         setIsSaving,
@@ -153,9 +183,16 @@ export function useOwnerTasks(
       return;
     }
 
+    let previousNotifications: OwnerNotification[] = [];
+    setNotifications((current) => {
+      previousNotifications = current;
+      return [];
+    });
+
     await runTaskAction({
       action: () => dismissAllOwnerNotifications(organizationId, businessCenterId),
-      failureTitle: 'Could not dismiss alerts',
+      failureTitle: 'No se pudieron descartar las alertas',
+      onFailure: () => setNotifications(previousNotifications),
       refresh: loadTasks,
       setErrorMessage,
       setIsSaving,
@@ -220,6 +257,7 @@ export function useOwnerTasks(
 async function runTaskAction(params: {
   action: () => Promise<void>;
   failureTitle: string;
+  onFailure?: () => void;
   refresh: () => Promise<void>;
   setErrorMessage: (message: string | null) => void;
   setIsSaving: (isSaving: boolean) => void;
@@ -231,7 +269,8 @@ async function runTaskAction(params: {
     await params.action();
     await params.refresh();
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error';
+    params.onFailure?.();
+    const message = error instanceof Error ? error.message : 'Error desconocido';
     params.setErrorMessage(message);
     Alert.alert(params.failureTitle, message);
   } finally {

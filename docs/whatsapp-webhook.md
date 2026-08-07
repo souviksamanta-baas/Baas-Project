@@ -217,9 +217,12 @@ errors without failing the webhook acknowledgement.
 
 ## Media (images)
 
-Inbound and outbound **image** messages are supported for the owner inbox
-([KAN-346](https://souviksamanta.atlassian.net/browse/KAN-346) Android clients
-consume the same API/schema as iOS).
+Inbound and outbound **image** messages are supported for the owner inbox.
+Android and iOS share this contract unchanged
+([KAN-346](https://souviksamanta.atlassian.net/browse/KAN-346) / [KAN-350](https://souviksamanta.atlassian.net/browse/KAN-350)):
+same webhook parse → Storage hydrate → signed `media_url`, and the same
+owner `POST /whatsapp/messages/send-image` path. No Android-specific webhook
+payload or endpoint.
 
 ### Inbound images
 

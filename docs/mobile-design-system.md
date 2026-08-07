@@ -46,19 +46,42 @@ Confluence (e.g. primary green `#08bd66` in app vs `#0A9E56` in early brand docs
 
 ### Bottom navigation
 
-Floating pill dock (not edge-to-edge). Implementation: `BottomNavigation` in `components/ui.tsx`.
+Implementation: `BottomNavigation` in `components/ui.tsx`.
+
+**iOS / web — floating pill dock**
 
 | Rule | Value |
 | --- | --- |
 | Side + bottom edge inset | **16px equal** (matches WhatsApp floating tab bar) |
 | Dock height | ~66 |
-| Tab icons | **32px**, stroke ~1.55, charcoal grey (not brand green) |
-| Selected state | Darker charcoal + grey pill **behind icon only** (label sits below with ~4px gap) |
-| Center `$` | Brand green FAB, white ring + shadow, protrudes above dock |
-| Edge veil | Frosted blur + light tint in the 16px gutters so scrolled content shows faintly (`expo-blur`) |
-| Overlay | Absolute over content; screens reserve `layout.bottomNavClearance` |
+| Edge veil | Frosted blur + light tint in the 16px gutters (`expo-blur`) |
+| Overlay | Absolute over content; screens reserve `layout.bottomNavClearance` (~100) |
 
-Tab labels (Spanish): **Inicio**, **Chats**, **Copi**, **Más**. Route id for chats remains `inbox` / `/(app)/inbox`.
+**Android only — edge-to-edge tab bar** (Instagram / Facebook style)
+
+| Rule | Value |
+| --- | --- |
+| Width | Full bleed (no side insets, square corners) |
+| Height | `layout.tabBarHeight` (56) + `SafeAreaInsets.bottom` |
+| System nav | Bar sits **above** gesture / 3-button nav via safe-area padding |
+| Chrome | Top hairline + elevation; no floating pill / gutter blur |
+| Center Copi | Flush with other tabs (no protruding FAB) |
+| Content clearance | `getBottomNavClearance(insets.bottom)` |
+
+Shared tab rules: icons **32px**, stroke ~1.55; selected grey pill behind icon; labels **Inicio**, **Chats**, **Copi**, **Más**. Route id for chats remains `inbox` / `/(app)/inbox`.
+
+### Status bar (Android-only)
+
+Light app chrome (`colors.background` / `#fbfcfb`) requires **dark** status icons on Android:
+
+| Setting | Value |
+| --- | --- |
+| `app.json` → `androidStatusBar.barStyle` | `dark-content` |
+| `androidStatusBar.backgroundColor` | `#fbfcfb` |
+| `androidStatusBar.translucent` | `true` |
+| Root `app/_layout.tsx` | `StatusBar` `dark-content` + matching background (iOS stays default / unchanged) |
+
+Do not use `light-content` with a dark status bar background — icons become invisible on the light header.
 
 ### Header
 

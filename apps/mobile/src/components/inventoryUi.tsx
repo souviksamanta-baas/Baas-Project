@@ -67,7 +67,7 @@ export function SearchFilterRow(props: {
       onPressCamera={props.onPressCamera}
       placeholder="Buscar por producto, categoria o codigo"
       searchValue={props.searchValue}
-      showCamera
+      showCamera={props.onPressCamera != null}
       showFilter
     />
   );
@@ -658,19 +658,23 @@ export function CartLineRow(props: {
           ) : null}
         </View>
         {props.item.weight ? (
-          <View style={styles.cartWeightInputBox}>
-            <TextInput
-              keyboardType="number-pad"
-              onChangeText={props.onGramsChange}
-              onFocus={props.onGramsFocus}
-              placeholder="1000"
-              placeholderTextColor={colors.placeholder}
-              style={[styles.cartWeightInput, Platform.OS === 'web' && styles.inputWebNoOutline]}
-              value={props.gramsShowPlaceholder ? '' : (props.gramsValue ?? '')}
-            />
-            <Text style={styles.cartWeightSuffix}>g</Text>
-          </View>
-        ) : (
+          props.onGramsChange ? (
+            <View style={styles.cartWeightInputBox}>
+              <TextInput
+                keyboardType="number-pad"
+                onChangeText={props.onGramsChange}
+                onFocus={props.onGramsFocus}
+                placeholder="1000"
+                placeholderTextColor={colors.placeholder}
+                style={[styles.cartWeightInput, Platform.OS === 'web' && styles.inputWebNoOutline]}
+                value={props.gramsShowPlaceholder ? '' : (props.gramsValue ?? '')}
+              />
+              <Text style={styles.cartWeightSuffix}>g</Text>
+            </View>
+          ) : (
+            <Text style={styles.qtyValue}>{props.item.qty}</Text>
+          )
+        ) : props.onIncrease || props.onDecrease ? (
           <View style={styles.qtyControls}>
             <Pressable onPress={props.onDecrease} style={styles.qtyButton}>
               <Text style={styles.qtyButtonText}>-</Text>
@@ -680,12 +684,16 @@ export function CartLineRow(props: {
               <Text style={styles.qtyButtonText}>+</Text>
             </Pressable>
           </View>
+        ) : (
+          <Text style={styles.qtyValue}>{props.item.qty}</Text>
         )}
       </View>
       <Text style={styles.cartPrice}>{props.item.price}</Text>
-      <Pressable accessibilityLabel="Quitar del carrito" hitSlop={8} onPress={props.onRemove}>
-        <Icon color={colors.danger} kind="trash" size={14} strokeWidth={1.8} />
-      </Pressable>
+      {props.onRemove ? (
+        <Pressable accessibilityLabel="Quitar del carrito" hitSlop={8} onPress={props.onRemove}>
+          <Icon color={colors.danger} kind="trash" size={14} strokeWidth={1.8} />
+        </Pressable>
+      ) : null}
     </View>
   );
 }

@@ -6,7 +6,11 @@ import { useOwnerSessionContext } from '../../../src/context/OwnerSessionProvide
 import { useLoadPurchase } from '../../../src/context/LoadPurchaseProvider';
 import { useProducts } from '../../../src/hooks/useProducts';
 import { mapProductToInventoryRow } from '../../../src/lib/inventoryPresentation';
-import { productAddStockRoute, routes } from '../../../src/navigation/routes';
+import {
+  inventoryScanRoute,
+  productAddStockRoute,
+  routes,
+} from '../../../src/navigation/routes';
 import { LoadPurchaseScreen } from '../../../src/screens/inventory/LoadPurchaseScreen';
 
 export default function LoadPurchaseRoute(): ReactElement {
@@ -49,6 +53,7 @@ export default function LoadPurchaseRoute(): ReactElement {
       onPurchaseNumberChange={purchase.setPurchaseNumber}
       onRemoveLine={purchase.removeLine}
       onSavePurchase={purchase.savePurchase}
+      onScanCode={() => router.push(inventoryScanRoute({ mode: 'load-purchase' }))}
       onSupplierChange={purchase.setSupplier}
       organizationId={organizationId}
       products={products}

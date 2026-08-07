@@ -22,6 +22,7 @@ import {
   SectionHeader as DsSectionHeader,
   StatusDot,
   colors,
+  getBottomNavClearance,
   layout,
   radius,
   shadows,
@@ -104,7 +105,9 @@ export function ScreenContent(props: {
   title?: string;
 }): ReactElement {
   const chrome = useHeaderChromeOptional();
+  const insets = useSafeAreaInsets();
   const collapseHeaderOnScroll = props.collapseHeaderOnScroll !== false;
+  const bottomClearance = getBottomNavClearance(insets.bottom);
 
   useEffect(() => {
     if (!collapseHeaderOnScroll) {
@@ -134,7 +137,7 @@ export function ScreenContent(props: {
 
   return (
     <ScrollView
-      contentContainerStyle={styles.content}
+      contentContainerStyle={[styles.content, { paddingBottom: bottomClearance }]}
       keyboardShouldPersistTaps="handled"
       onScroll={(event) => {
         if (!collapseHeaderOnScroll) {
@@ -687,14 +690,17 @@ export function BottomNavigation(props: {
   shortcutIsCash?: boolean;
   shortcutLabel: string;
 }): ReactElement {
-  // WhatsApp floating dock: equal inset on left/right/bottom (~16pt from screen edges).
-  const edgeInset = 16;
+  const insets = useSafeAreaInsets();
+  const isAndroidTabBar = Platform.OS === 'android';
+  // iOS/web: WhatsApp-style floating pill. Android: Instagram/Facebook edge-to-edge bar.
+  const edgeInset = isAndroidTabBar ? 0 : 16;
+  const bottomInset = isAndroidTabBar ? Math.max(insets.bottom, 0) : edgeInset;
   const copiActive = props.activeTab === 'copi';
 
   return (
     <View pointerEvents="box-none" style={styles.bottomNavOverlay}>
-      {/* Frosted veil in the side/bottom gaps so scrolled content shows through faintly. */}
-      {Platform.OS === 'web' ? (
+      {/* Frosted veil only for floating dock gutters (iOS / web). */}
+      {isAndroidTabBar ? null : Platform.OS === 'web' ? (
         <View pointerEvents="none" style={[styles.bottomNavEdgeGlass, styles.bottomNavEdgeGlassFallback]} />
       ) : (
         <BlurView
@@ -705,14 +711,18 @@ export function BottomNavigation(props: {
           tint="systemThinMaterialLight"
         />
       )}
-      <View pointerEvents="none" style={styles.bottomNavEdgeTint} />
+      {isAndroidTabBar ? null : <View pointerEvents="none" style={styles.bottomNavEdgeTint} />}
       <View
         style={[
           styles.bottomNavSafe,
-          { paddingBottom: edgeInset, paddingHorizontal: edgeInset },
+          isAndroidTabBar && styles.bottomNavSafeAndroid,
+          {
+            paddingBottom: bottomInset,
+            paddingHorizontal: edgeInset,
+          },
         ]}
       >
-        <View style={styles.bottomNav}>
+        <View style={[styles.bottomNav, isAndroidTabBar && styles.bottomNavAndroid]}>
           <TabButton
             active={props.activeTab === 'home' && !props.shortcutActive}
             icon="home"
@@ -729,9 +739,13 @@ export function BottomNavigation(props: {
             accessibilityLabel="Copi"
             hitSlop={8}
             onPress={() => props.onSelectTab('copi')}
-            style={[styles.centerAction, copiActive && styles.centerActionActive]}
+            style={[
+              styles.centerAction,
+              isAndroidTabBar && styles.centerActionAndroid,
+              copiActive && styles.centerActionActive,
+            ]}
           >
-            <CopiRobotIcon shadowed size={52} />
+            <CopiRobotIcon shadowed={!isAndroidTabBar} size={isAndroidTabBar ? 44 : 52} />
           </Pressable>
           <TabButton
             active={Boolean(props.shortcutActive)}
@@ -994,6 +1008,13 @@ const styles = StyleSheet.create({
   bottomNavSafe: {
     paddingTop: 8,
   },
+  bottomNavSafeAndroid: {
+    backgroundColor: colors.surface,
+    borderTopColor: colors.border,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    elevation: 12,
+    paddingTop: 4,
+  },
   bottomNav: {
     ...shadows.dock,
     alignItems: 'center',
@@ -1006,6 +1027,15 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     overflow: 'visible',
     paddingHorizontal: 4,
+  },
+  bottomNavAndroid: {
+    backgroundColor: 'transparent',
+    borderRadius: 0,
+    borderWidth: 0,
+    elevation: 0,
+    height: layout.tabBarHeight,
+    overflow: 'hidden',
+    shadowOpacity: 0,
   },
   tabGlassHighlight: {
     backgroundColor: 'rgba(60, 60, 67, 0.12)',
@@ -1064,6 +1094,15 @@ const styles = StyleSheet.create({
     width: 66,
     zIndex: 2,
   },
+  centerActionAndroid: {
+    backgroundColor: 'transparent',
+    borderWidth: 0,
+    elevation: 0,
+    height: layout.tabBarHeight,
+    marginTop: 0,
+    shadowOpacity: 0,
+    width: 56,
+  },
   centerActionActive: {
     borderColor: colors.primarySoft,
     shadowOpacity: 0.36,
@@ -1104,7 +1143,6 @@ const styles = StyleSheet.create({
   },
   content: {
     gap: spacing.boxGap,
-    paddingBottom: layout.bottomNavClearance,
     paddingHorizontal: spacing.xl,
     paddingTop: spacing.sm,
   },

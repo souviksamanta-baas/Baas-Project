@@ -259,17 +259,23 @@ async function updateOwnerTaskStatus(
   organizationId: string,
   businessCenterId: string,
   taskId: string,
-  updates: Record<string, string>,
+  updates: Record<string, string | null>,
 ): Promise<void> {
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('owner_tasks')
     .update(updates)
     .eq('organization_id', organizationId)
     .eq('business_center_id', businessCenterId)
-    .eq('id', taskId);
+    .eq('id', taskId)
+    .select('id')
+    .maybeSingle();
 
   if (error) {
     throw new Error(error.message);
+  }
+
+  if (!data) {
+    throw new Error('No se pudo actualizar la tarea. Probá de nuevo.');
   }
 }
 

@@ -31,9 +31,11 @@ export function PresupuestoDetailScreen(props: {
   isIssuingInvoice?: boolean;
   isLoading?: boolean;
   isSaving?: boolean;
+  linkedInvoiceId?: string | null;
   onAddMoreProducts: () => void;
   onBack: () => void;
   onConfirmPayment: () => Promise<void>;
+  onConsultInvoice?: () => void;
   onDecreaseLine: (lineId: string) => void;
   onFocusLineGrams: (lineId: string) => void;
   onIncreaseLine: (lineId: string) => void;
@@ -49,6 +51,7 @@ export function PresupuestoDetailScreen(props: {
   const canEdit = quote != null && quote.status !== 'cobrado' && quote.status !== 'cancelado';
   const dirty =
     quote != null && JSON.stringify(props.cart) !== JSON.stringify(quote.draft.cart);
+  const hasLinkedInvoice = Boolean(props.linkedInvoiceId);
 
   if (props.isLoading) {
     return (
@@ -190,7 +193,25 @@ export function PresupuestoDetailScreen(props: {
         </>
       ) : null}
 
-      {quote.status === 'cobrado' && props.arcaConnected && props.onIssueInvoice ? (
+      {quote.status === 'cobrado' && hasLinkedInvoice && props.onConsultInvoice ? (
+        <>
+          <ConfirmPrimaryButton
+            label="Consultar factura"
+            onPress={() => props.onConsultInvoice?.()}
+          />
+          <View style={styles.footerNote}>
+            <Icon color={colors.primary} kind="shield" size={14} strokeWidth={1.8} />
+            <Text style={styles.footerText}>
+              Este presupuesto ya tiene factura electrónica emitida.
+            </Text>
+          </View>
+        </>
+      ) : null}
+
+      {quote.status === 'cobrado' &&
+      !hasLinkedInvoice &&
+      props.arcaConnected &&
+      props.onIssueInvoice ? (
         <>
           <ConfirmPrimaryButton
             disabled={props.isIssuingInvoice || props.cart.length === 0}

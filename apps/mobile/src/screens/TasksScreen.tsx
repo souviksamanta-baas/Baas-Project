@@ -116,6 +116,9 @@ function WorkQueueRow(props: {
     }
   };
 
+  const taskId = props.item.taskId;
+  const notificationId = props.item.notificationId;
+
   return (
     <View style={styles.row}>
       <Pressable disabled={props.isSaving} onPress={openItem} style={styles.rowBody}>
@@ -128,22 +131,56 @@ function WorkQueueRow(props: {
             tone: props.item.tone,
             unread: props.item.isUnread,
           }}
+          showDivider={false}
         />
       </Pressable>
       <View style={styles.actions}>
-        {props.item.kind === 'task' && props.item.taskId ? (
+        {props.item.kind === 'task' && taskId ? (
           <>
-            <Pressable disabled={props.isSaving} onPress={() => void props.onSnoozeTask(props.item.taskId!)}>
+            <Pressable
+              accessibilityRole="button"
+              disabled={props.isSaving}
+              hitSlop={6}
+              onPress={() => {
+                void props.onSnoozeTask(taskId);
+              }}
+              style={({ pressed }) => [
+                styles.actionButton,
+                pressed && styles.actionButtonPressed,
+                props.isSaving && styles.actionButtonDisabled,
+              ]}
+            >
               <Text style={styles.actionText}>Posponer</Text>
             </Pressable>
-            <Pressable disabled={props.isSaving} onPress={() => void props.onCompleteTask(props.item.taskId!)}>
+            <Pressable
+              accessibilityRole="button"
+              disabled={props.isSaving}
+              hitSlop={6}
+              onPress={() => {
+                void props.onCompleteTask(taskId);
+              }}
+              style={({ pressed }) => [
+                styles.actionButtonPrimary,
+                pressed && styles.actionButtonPressed,
+                props.isSaving && styles.actionButtonDisabled,
+              ]}
+            >
               <Text style={styles.actionTextPrimary}>Hecho</Text>
             </Pressable>
           </>
-        ) : props.item.notificationId ? (
+        ) : notificationId ? (
           <Pressable
+            accessibilityRole="button"
             disabled={props.isSaving}
-            onPress={() => void props.onDismissAlert(props.item.notificationId!)}
+            hitSlop={6}
+            onPress={() => {
+              void props.onDismissAlert(notificationId);
+            }}
+            style={({ pressed }) => [
+              styles.actionButtonPrimary,
+              pressed && styles.actionButtonPressed,
+              props.isSaving && styles.actionButtonDisabled,
+            ]}
           >
             <Text style={styles.actionTextPrimary}>Descartar</Text>
           </Pressable>
@@ -154,6 +191,25 @@ function WorkQueueRow(props: {
 }
 
 const styles = StyleSheet.create({
+  actionButton: {
+    borderColor: colors.border,
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  actionButtonDisabled: {
+    opacity: 0.5,
+  },
+  actionButtonPressed: {
+    opacity: 0.7,
+  },
+  actionButtonPrimary: {
+    backgroundColor: colors.primarySoft,
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
   actionText: {
     color: colors.slate,
     fontSize: 15,
@@ -166,9 +222,11 @@ const styles = StyleSheet.create({
   },
   actions: {
     flexDirection: 'row',
-    gap: 12,
-    paddingBottom: 12,
+    flexWrap: 'wrap',
+    gap: 10,
+    paddingBottom: 14,
     paddingHorizontal: 14,
+    zIndex: 2,
   },
   activeFilterPill: {
     borderColor: colors.primary,

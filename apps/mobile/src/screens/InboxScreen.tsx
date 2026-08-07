@@ -32,7 +32,7 @@ import {
   ScreenTitle,
   useHeaderCollapseOnScroll,
 } from '../components/ui';
-import { InfoBanner, PrimaryButton, SearchActionRow } from '../design-system';
+import { getBottomNavClearance, InfoBanner, PrimaryButton, SearchActionRow } from '../design-system';
 import { FeatureGate } from '../hooks/useFeatureVisibility';
 import { useHeaderScreenOptions } from '../hooks/useHeaderScreenOptions';
 import {
@@ -56,7 +56,7 @@ import type { OwnerDashboard } from '../types/dashboard';
 import type { InboxConversationSummary, WhatsAppMessagePreview } from '../types/messages';
 import { whatsappConnectionLabel } from '../lib/whatsappPresentation';
 import { colors } from '../theme';
-import { layout } from '../design-system';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const CHANNEL_OPTIONS: Array<{ id: InboxChannelFilter; label: string }> = [
   { id: 'all', label: 'Todos' },
@@ -98,11 +98,13 @@ export function InboxScreen(props: {
   );
   const openCount = openConversationCount(props.conversations);
   const setHeaderCollapsedFromScroll = useHeaderCollapseOnScroll();
+  const insets = useSafeAreaInsets();
+  const bottomClearance = getBottomNavClearance(insets.bottom);
 
   return (
     <ScreenContent disableScroll title="Chats">
       <FlatList
-        contentContainerStyle={styles.inboxListContent}
+        contentContainerStyle={[styles.inboxListContent, { paddingBottom: bottomClearance }]}
         data={props.isLoading ? [] : filteredConversations}
         keyExtractor={(item) => item.id}
         keyboardShouldPersistTaps="handled"
@@ -516,7 +518,6 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   inboxListContent: {
-    paddingBottom: layout.bottomNavClearance,
     paddingHorizontal: 16,
   },
   inboxListHeader: {

@@ -19,6 +19,8 @@ features expand the API surface.
 | `inventory/` | Product catalog lookup plus center-scoped measured stock, reorder thresholds, lots, movements, and transformations. |
 | `ai/` | AI orchestration, tool calls, prompt policy, and draft/auto-send decisions. |
 | `whatsapp/` | WhatsApp Business connection status, channel configuration reads, message persistence, outbound sends, and server-only channel metadata. |
+| `arca/` | ARCA (ex-AFIP) WSAA/WSFEv1 adapter, connection/representation state, QR + AFIP-style invoice PDF. SOAP stays server-only. |
+| `billing/` | Fiscal invoice issuance orchestration (`issueInvoice`), list/detail, lock + FECompConsultar recovery. |
 
 `apps/api/src/domains/domain.module.ts` imports and exports these domain modules
 so new Phase 2 work has an explicit home.
@@ -108,6 +110,15 @@ Pro actions behind `copi_pro_agent`. It does not expose raw SQL or arbitrary LLM
 tool calls; reports use predefined `report_key` values only.
 
 See `docs/copi-architecture.md` for the full Copi flow and licensing flags.
+
+`ArcaModule` + `BillingModule` (KAN-377) expose owner-authenticated fiscal APIs:
+
+- `GET/POST /arca/connection`, `POST /arca/connection/confirm-delegation`
+- `POST /billing/invoices`, `GET /billing/invoices`, `GET /billing/invoices/:invoiceId`
+
+See `docs/arca-invoicing.md` and `docs/environment.md` (ARCA section). Expo never talks SOAP.
+
+**Android / EAS clients (KAN-349):** same REST surface as iOS. Bake `EXPO_PUBLIC_*` into native builds before `eas build` (`docs/mobile-android-install.md`). Sessions use SecureStore on native; WhatsApp image send is `POST /whatsapp/messages/send-image` (see `docs/whatsapp-webhook.md`).
 
 Existing Phase 0 behavior is unchanged.
 

@@ -4,9 +4,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { Alert } from 'react-native';
 
 import { getArcaConnection } from '../../../src/api/arca';
-import { issueInvoice } from '../../../src/api/billing';
+import { issueInvoice, listInvoices, type InvoiceListItem } from '../../../src/api/billing';
 import { confirmSale } from '../../../src/api/inventory';
-import { BrandSuccessModal } from '../../../src/components/BrandSuccessModal';
 import { useOwnerSessionContext } from '../../../src/context/OwnerSessionProvider';
 import { useSellCart } from '../../../src/context/SellCartProvider';
 import {
@@ -26,6 +25,20 @@ import {
   routes,
 } from '../../../src/navigation/routes';
 import { PresupuestoDetailScreen } from '../../../src/screens/PresupuestoDetailScreen';
+
+function pickAuthorizedInvoiceForQuote(
+  invoices: InvoiceListItem[],
+  quoteId: string,
+): InvoiceListItem | null {
+  return (
+    invoices.find(
+      (invoice) =>
+        invoice.sell_quote_id === quoteId &&
+        invoice.arca_status === 'authorized' &&
+        Boolean(invoice.cae),
+    ) ?? null
+  );
+}
 
 export default function PresupuestoDetailRoute(): ReactElement {
   const router = useRouter();
@@ -47,24 +60,30 @@ export default function PresupuestoDetailRoute(): ReactElement {
   const [isConfirming, setIsConfirming] = useState(false);
   const [isIssuingInvoice, setIsIssuingInvoice] = useState(false);
   const [arcaConnected, setArcaConnected] = useState(false);
-  const [successVisible, setSuccessVisible] = useState(false);
+  const [linkedInvoice, setLinkedInvoice] = useState<InvoiceListItem | null>(null);
 
   const loadQuote = useCallback(async () => {
     if (!organizationId || !businessCenterId || !quoteId) {
       setQuote(null);
       setCart([]);
+      setLinkedInvoice(null);
       setIsLoading(false);
       return;
     }
 
     setIsLoading(true);
     try {
-      const next = await getSellQuote(organizationId, businessCenterId, quoteId);
+      const [next, invoices] = await Promise.all([
+        getSellQuote(organizationId, businessCenterId, quoteId),
+        listInvoices(organizationId).catch(() => [] as InvoiceListItem[]),
+      ]);
       setQuote(next);
       if (next) {
         setCart(next.draft.cart.map((line) => ({ ...line })));
+        setLinkedInvoice(pickAuthorizedInvoiceForQuote(invoices, next.id));
       } else {
         setCart([]);
+        setLinkedInvoice(null);
       }
     } catch (error) {
       Alert.alert(
@@ -73,6 +92,7 @@ export default function PresupuestoDetailRoute(): ReactElement {
       );
       setQuote(null);
       setCart([]);
+      setLinkedInvoice(null);
     } finally {
       setIsLoading(false);
     }
@@ -165,7 +185,6 @@ export default function PresupuestoDetailRoute(): ReactElement {
         setQuote(updated);
         setCart(updated.draft.cart.map((line) => ({ ...line })));
       }
-      setSuccessVisible(true);
     } catch (error) {
       Alert.alert(
         'No se pudo confirmar',
@@ -193,19 +212,7 @@ export default function PresupuestoDetailRoute(): ReactElement {
           unitPriceCents: line.unitPriceCents,
         })),
       });
-      Alert.alert(
-        'Factura emitida',
-        issued.cae
-          ? `CAE ${issued.cae}. Ya podés verla en Facturas.`
-          : 'La factura se registró. Revisá el detalle en Facturas.',
-        [
-          {
-            text: 'Ver factura',
-            onPress: () => router.push(invoiceDetailRoute(issued.id)),
-          },
-          { text: 'Cerrar', style: 'cancel' },
-        ],
-      );
+      router.replace(invoiceDetailRoute(issued.id));
     } catch (error) {
       Alert.alert(
         'No se pudo emitir',
@@ -216,12 +223,11 @@ export default function PresupuestoDetailRoute(): ReactElement {
     }
   }
 
-  function handleSuccessClose(): void {
-    setSuccessVisible(false);
-    if (arcaConnected) {
+  function handleConsultInvoice(): void {
+    if (!linkedInvoice) {
       return;
     }
-    router.replace(resolvePresupuestoReturnRoute(returnTo));
+    router.push(invoiceDetailRoute(linkedInvoice.id));
   }
 
   function handleAddMoreProducts(): void {
@@ -312,40 +318,27 @@ export default function PresupuestoDetailRoute(): ReactElement {
   }
 
   return (
-    <>
-      <PresupuestoDetailScreen
-        arcaConnected={arcaConnected}
-        cart={cart}
-        isConfirming={isConfirming}
-        isIssuingInvoice={isIssuingInvoice}
-        isLoading={isLoading}
-        isSaving={isSaving}
-        onAddMoreProducts={handleAddMoreProducts}
-        onBack={handleBack}
-        onConfirmPayment={handleConfirmPayment}
-        onDecreaseLine={handleDecreaseLine}
-        onFocusLineGrams={handleFocusLineGrams}
-        onIncreaseLine={handleIncreaseLine}
-        onIssueInvoice={handleIssueInvoice}
-        onRemoveLine={handleRemoveLine}
-        onSaveChanges={handleSaveChanges}
-        onSetLineGrams={handleSetLineGrams}
-        quote={quote}
-        quoteId={quoteId}
-      />
-      <BrandSuccessModal
-        body={
-          arcaConnected
-            ? 'La venta quedó cobrada. Podés emitir la factura electrónica ARCA desde esta pantalla.'
-            : quote
-              ? `La venta quedó registrada como cobrada (${quote.id}). Ya la ves en Presupuestos.`
-              : 'La venta quedó registrada como cobrada.'
-        }
-        buttonLabel="Entendido"
-        onClose={handleSuccessClose}
-        title="Pago confirmado"
-        visible={successVisible}
-      />
-    </>
+    <PresupuestoDetailScreen
+      arcaConnected={arcaConnected}
+      cart={cart}
+      isConfirming={isConfirming}
+      isIssuingInvoice={isIssuingInvoice}
+      isLoading={isLoading}
+      isSaving={isSaving}
+      linkedInvoiceId={linkedInvoice?.id ?? null}
+      onAddMoreProducts={handleAddMoreProducts}
+      onBack={handleBack}
+      onConfirmPayment={handleConfirmPayment}
+      onConsultInvoice={handleConsultInvoice}
+      onDecreaseLine={handleDecreaseLine}
+      onFocusLineGrams={handleFocusLineGrams}
+      onIncreaseLine={handleIncreaseLine}
+      onIssueInvoice={handleIssueInvoice}
+      onRemoveLine={handleRemoveLine}
+      onSaveChanges={handleSaveChanges}
+      onSetLineGrams={handleSetLineGrams}
+      quote={quote}
+      quoteId={quoteId}
+    />
   );
 }

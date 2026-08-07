@@ -3,6 +3,7 @@ import type { ReactElement } from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { listInvoices, type InvoiceListItem } from '../api/billing';
 import { Icon } from '../components/icons';
 import { Card, ScreenContent, ScreenTitle } from '../components/ui';
 import { useOwnerSessionContext } from '../context/OwnerSessionProvider';
@@ -68,9 +69,35 @@ function formatLineQuantity(line: SellCartLine): string {
   return `${line.quantity} u`;
 }
 
+function formatInvoiceLabel(invoice: InvoiceListItem): string {
+  if (invoice.voucher_number != null) {
+    const pv = String(invoice.point_of_sale).padStart(5, '0');
+    const num = String(invoice.voucher_number).padStart(8, '0');
+    return `${pv}-${num}`;
+  }
+  return invoice.id.slice(0, 8).toUpperCase();
+}
+
+function buildInvoiceByQuoteId(invoices: InvoiceListItem[]): Map<string, InvoiceListItem> {
+  const map = new Map<string, InvoiceListItem>();
+  for (const invoice of invoices) {
+    if (
+      !invoice.sell_quote_id ||
+      invoice.arca_status !== 'authorized' ||
+      !invoice.cae ||
+      map.has(invoice.sell_quote_id)
+    ) {
+      continue;
+    }
+    map.set(invoice.sell_quote_id, invoice);
+  }
+  return map;
+}
+
 export function BillingQuotesScreen(props: {
   highlightQuoteId?: string | null;
   onBack: () => void;
+  onOpenInvoice: (invoiceId: string) => void;
   onOpenQuote: (quoteId: string) => void;
   onOpenSell: () => void;
 }): ReactElement {
@@ -78,6 +105,9 @@ export function BillingQuotesScreen(props: {
   const organizationId = dashboard?.organization?.id ?? null;
   const businessCenterId = dashboard?.businessCenter?.id ?? null;
   const [quotes, setQuotes] = useState<SavedSellQuote[]>([]);
+  const [invoiceByQuoteId, setInvoiceByQuoteId] = useState<Map<string, InvoiceListItem>>(
+    () => new Map(),
+  );
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [activeFilter, setActiveFilter] = useState<SellQuoteStatus | 'all'>('all');
@@ -87,6 +117,7 @@ export function BillingQuotesScreen(props: {
   const load = useCallback(async () => {
     if (!organizationId || !businessCenterId) {
       setQuotes([]);
+      setInvoiceByQuoteId(new Map());
       setErrorMessage(null);
       setIsLoading(false);
       return;
@@ -95,10 +126,18 @@ export function BillingQuotesScreen(props: {
     setIsLoading(true);
     setErrorMessage(null);
     try {
-      setQuotes(await listSellQuotes(organizationId, businessCenterId));
+      const [nextQuotes, invoices] = await Promise.all([
+        listSellQuotes(organizationId, businessCenterId),
+        listInvoices(organizationId).catch(() => [] as InvoiceListItem[]),
+      ]);
+      setQuotes(nextQuotes);
+      setInvoiceByQuoteId(buildInvoiceByQuoteId(invoices));
     } catch (error) {
       setQuotes([]);
-      setErrorMessage(error instanceof Error ? error.message : 'No se pudieron cargar los presupuestos.');
+      setInvoiceByQuoteId(new Map());
+      setErrorMessage(
+        error instanceof Error ? error.message : 'No se pudieron cargar los presupuestos.',
+      );
     } finally {
       setIsLoading(false);
     }
@@ -185,11 +224,14 @@ export function BillingQuotesScreen(props: {
           const tone = statusTone(quote.status);
           const itemCount = quote.draft.cart.length;
           const isExpanded = expandedId === quote.id;
-
+          const linkedInvoice = invoiceByQuoteId.get(quote.id) ?? null;
           const isHighlighted = props.highlightQuoteId === quote.id;
 
           return (
-            <Card key={quote.id} style={[styles.quoteCard, isHighlighted && styles.quoteCardHighlight]}>
+            <Card
+              key={quote.id}
+              style={[styles.quoteCard, isHighlighted && styles.quoteCardHighlight]}
+            >
               <View style={styles.quoteHeader}>
                 <Pressable
                   onPress={() => setExpandedId(isExpanded ? null : quote.id)}
@@ -204,11 +246,21 @@ export function BillingQuotesScreen(props: {
                 </Pressable>
                 <Pressable onPress={() => props.onOpenQuote(quote.id)} style={styles.flex}>
                   <Text style={styles.quoteId}>{quote.id}</Text>
-                  <Text style={styles.quoteMeta}>
-                    {formatQuoteDate(quote.createdAt)} · {itemCount} ítem
-                    {itemCount === 1 ? '' : 's'}
-                    {quote.draft.clientLabel ? ` · ${quote.draft.clientLabel}` : ''}
-                  </Text>
+                  <View style={styles.quoteMetaRow}>
+                    <Text style={styles.quoteMeta}>
+                      {formatQuoteDate(quote.createdAt)} · {itemCount} ítem
+                      {itemCount === 1 ? '' : 's'} ·{' '}
+                    </Text>
+                    {linkedInvoice ? (
+                      <Pressable onPress={() => props.onOpenInvoice(linkedInvoice.id)}>
+                        <Text style={styles.facturaLink}>
+                          Factura: {formatInvoiceLabel(linkedInvoice)}
+                        </Text>
+                      </Pressable>
+                    ) : (
+                      <Text style={styles.sinFactura}>Sin factura</Text>
+                    )}
+                  </View>
                 </Pressable>
                 <View style={[styles.statusPill, { backgroundColor: tone.backgroundColor }]}>
                   <Text style={[styles.statusText, { color: tone.color }]}>
@@ -312,6 +364,12 @@ const styles = StyleSheet.create({
     marginTop: 10,
     paddingTop: 10,
   },
+  facturaLink: {
+    color: colors.primary,
+    fontSize: 15,
+    fontWeight: '600',
+    textDecorationLine: 'underline',
+  },
   filterPill: {
     backgroundColor: colors.surface,
     borderColor: colors.border,
@@ -388,6 +446,11 @@ const styles = StyleSheet.create({
   quoteMeta: {
     color: colors.textMuted,
     fontSize: 15,
+  },
+  quoteMetaRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     marginTop: 2,
   },
   sellLink: {
@@ -398,6 +461,10 @@ const styles = StyleSheet.create({
     color: colors.primary,
     fontSize: 13,
     fontWeight: '600',
+  },
+  sinFactura: {
+    color: colors.textMuted,
+    fontSize: 15,
   },
   statusChip: {
     backgroundColor: colors.surface,

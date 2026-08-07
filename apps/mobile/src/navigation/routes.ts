@@ -211,7 +211,7 @@ export function productCodeRoute(productId: string, returnTo?: InventoryReturnTo
 }
 
 export function inventoryScanRoute(options?: {
-  mode?: 'manage-stock' | 'sell';
+  mode?: 'manage-stock' | 'sell' | 'load-purchase';
 }): string {
   if (!options?.mode) {
     return routes.inventoryScanCode;

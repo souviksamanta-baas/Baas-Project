@@ -397,8 +397,9 @@ sends can happen.
   with the camera (`BarcodeScannerScreen` + `expo-camera`) or pasting manually.
 - Codes persist on `products.metadata` (`codigo`, `codigo_barras`, `tipo_codigo`)
   via `updateProductAssociatedCode`.
-- Camera scan is also available from Gestionar stock and Vender search
-  (`/(app)/inventory/scan-code`) to jump to a matching product.
+- Camera scan is available from Gestionar stock, Ventas, and Cargar compras
+  (`/(app)/inventory/scan-code?mode=…`) to find a matching product, and from
+  Gestionar código to associate a pack barcode/QR with the product.
 
 ### Mi cuenta and settings
 
@@ -463,8 +464,8 @@ Accepted static screens:
 | Facturación (presupuestos) | Más → Facturación |
 | Integraciones / Proveedores / Ayuda | Más → Configuraciones |
 | Producto | Tap base product row in Gestionar stock |
+| Escanear código | Gestionar stock / Ventas / Cargar compras → camera |
 | Gestionar codigo | Producto → Gestionar codigo (view / scan / regenerate) |
-| Escanear código | Gestionar stock / Vender → camera |
 | Editar producto / Editar subproducto | Producto action bar or linked subproduct rows |
 | Agregar stock / Eliminar producto | Producto action bar |
 | Vender productos | Bottom nav `$` |
@@ -516,7 +517,8 @@ Jira epic [KAN-304](https://souviksamanta.atlassian.net/browse/KAN-304). Conflue
 | iPhone install | KAN-312 | `docs/mobile-iphone-install.md`, `apps/mobile/eas.json` |
 | Account lifecycle / GDPR | [KAN-363](https://souviksamanta.atlassian.net/browse/KAN-363) | Privacidad y datos, archive/delete org, delete account |
 | Instagram messaging | [KAN-365](https://souviksamanta.atlassian.net/browse/KAN-365) | Business Login OAuth, webhook ack-then-process, 24h window, text send (`docs/instagram-messaging.md`, [Confluence integration](https://souviksamanta.atlassian.net/wiki/spaces/BaaS/pages/26247169/Instagram+Messaging+Owner+inbox), [client onboarding](https://souviksamanta.atlassian.net/wiki/spaces/BaaS/pages/27230209/Onboarding+de+clientes)) |
-| Android compatibility | [KAN-346](https://souviksamanta.atlassian.net/browse/KAN-346) | Adaptation (not rebuild): `docs/mobile-android-install.md`, Confluence [Android adaptation](https://souviksamanta.atlassian.net/wiki/spaces/BaaS/pages/26083329/Android+compatibility+and+adaptation) |
+| Android compatibility | [KAN-346](https://souviksamanta.atlassian.net/browse/KAN-346) | Adaptation (not rebuild): `docs/mobile-android-install.md`, Confluence [Android adaptation](https://souviksamanta.atlassian.net/wiki/spaces/BaaS/pages/26083329/Android+compatibility+and+adaptation) — Android-only edge-to-edge tab bar + dark status icons |
+| ARCA facturación | [KAN-377](https://souviksamanta.atlassian.net/browse/KAN-377) | Settings + emit from cobrado presupuesto + Facturas; Nest `/arca` + `/billing`; `docs/arca-invoicing.md`, [Confluence ARCA](https://souviksamanta.atlassian.net/wiki/spaces/BaaS/pages/31490049/ARCA+Facturaci+n+electr+nica+Nexolia) |
 
 **Ops before production QA:** apply migration
 `supabase/migrations/20260703163000_jul_pilot_dashboard_channels_invites.sql` and

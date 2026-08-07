@@ -5,25 +5,42 @@ import { Alert } from 'react-native';
 import { useProductCatalog } from '../../../src/context/ProductCatalogProvider';
 import { findProductByScannedCode } from '../../../src/lib/productCodes';
 import {
+  productAddStockRoute,
   productDetailRoute,
   routes,
 } from '../../../src/navigation/routes';
 import { BarcodeScannerScreen } from '../../../src/screens/BarcodeScannerScreen';
 
+type ScanMode = 'manage-stock' | 'sell' | 'load-purchase';
+
+function parseScanMode(value: string | string[] | undefined): ScanMode {
+  const raw = Array.isArray(value) ? value[0] : value;
+  if (raw === 'sell' || raw === 'load-purchase' || raw === 'manage-stock') {
+    return raw;
+  }
+  return 'manage-stock';
+}
+
 export default function InventoryScanCodeRoute(): ReactElement {
   const router = useRouter();
   const { mode } = useLocalSearchParams<{ mode?: string | string[] }>();
-  const scanMode = (Array.isArray(mode) ? mode[0] : mode) === 'sell' ? 'sell' : 'manage-stock';
+  const scanMode = parseScanMode(mode);
   const catalog = useProductCatalog();
 
-  function handleScanned(value: string): void {
-    const product = findProductByScannedCode(catalog.products, value);
+  function handleScanned(payload: {
+    unlock: () => void;
+    value: string;
+  }): void {
+    const product = findProductByScannedCode(catalog.products, payload.value);
 
     if (!product) {
       Alert.alert(
         'Sin coincidencias',
-        `No encontramos un producto con el código «${value}».`,
-        [{ onPress: () => router.back(), text: 'OK' }],
+        `No encontramos un producto con el código «${payload.value}».\n\nPodés asociarlo desde el producto → Gestionar código.`,
+        [
+          { onPress: payload.unlock, text: 'Reintentar' },
+          { onPress: () => router.back(), style: 'cancel', text: 'Cerrar' },
+        ],
       );
       return;
     }
@@ -31,13 +48,30 @@ export default function InventoryScanCodeRoute(): ReactElement {
     if (scanMode === 'sell') {
       router.replace({
         pathname: routes.inventorySell,
-        params: { scannedProductId: product.id, scannedCode: value },
+        params: { scannedCode: payload.value, scannedProductId: product.id },
       });
+      return;
+    }
+
+    if (scanMode === 'load-purchase') {
+      router.replace(productAddStockRoute(product.id, 'load-purchase'));
       return;
     }
 
     router.replace(productDetailRoute(product.id, 'manage-stock'));
   }
 
-  return <BarcodeScannerScreen onBack={() => router.back()} onScanned={handleScanned} />;
+  return (
+    <BarcodeScannerScreen
+      hint={
+        scanMode === 'sell'
+          ? 'Escaneá para agregar el producto al carrito'
+          : scanMode === 'load-purchase'
+            ? 'Escaneá para cargar stock de compra'
+            : 'Escaneá para abrir el producto'
+      }
+      onBack={() => router.back()}
+      onScanned={handleScanned}
+    />
+  );
 }

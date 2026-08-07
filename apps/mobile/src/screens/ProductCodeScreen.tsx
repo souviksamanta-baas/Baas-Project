@@ -98,11 +98,13 @@ export function ProductCodeScreen(props: {
   if (scanning) {
     return (
       <BarcodeScannerScreen
+        hint="Escaneá el código del envase para asociarlo a este producto"
         onBack={() => setScanning(false)}
-        onScanned={(value, kind) => {
-          applyExternalCode(value, kind ?? 'codigo_de_barras');
+        onScanned={({ kind, value }) => {
+          applyExternalCode(value, kind);
           setScanning(false);
         }}
+        title="Asociar código"
       />
     );
   }

@@ -9,7 +9,7 @@ Check every Owner surface on a physical Android device (gesture + 3-button nav):
 | Area | What to verify |
 | --- | --- |
 | Auth | Login / OTP / onboarding; keyboard does not cover fields; Spanish labels wrap |
-| Chrome | Header under status bar; bottom tabs above gesture/nav bar |
+| Chrome | Header under status bar with **dark** status icons on light `#fbfcfb` (`androidStatusBar` + root `StatusBar`); bottom tabs above gesture/nav bar |
 | Home / Inbox / Copi / Más | No clipped FABs or fixed footers |
 | Chat composers | Keyboard resize + stick-to-bottom after images |
 | Inventory / sell / payment | Forms scroll; long Spanish copy; decimal inputs |

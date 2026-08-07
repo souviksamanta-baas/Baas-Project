@@ -4,13 +4,33 @@ import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { showPermissionDeniedAlert } from '../lib/androidPermissions';
-
 import type { ProductCodeTypeSlug } from '../lib/productCatalog';
 import { colors } from '../theme';
 
+export type BarcodeScannedPayload = {
+  kind: ProductCodeTypeSlug;
+  /** Call to allow another scan without leaving the screen. */
+  unlock: () => void;
+  value: string;
+};
+
+const BARCODE_TYPES = [
+  'qr',
+  'ean13',
+  'ean8',
+  'code128',
+  'code39',
+  'upc_a',
+  'upc_e',
+  'itf14',
+  'codabar',
+] as const;
+
 export function BarcodeScannerScreen(props: {
+  hint?: string;
   onBack: () => void;
-  onScanned: (value: string, kind?: ProductCodeTypeSlug) => void;
+  onScanned: (payload: BarcodeScannedPayload) => void;
+  title?: string;
 }): ReactElement {
   const [permission, requestPermission] = useCameraPermissions();
   const [ready, setReady] = useState(false);
@@ -21,6 +41,10 @@ export function BarcodeScannerScreen(props: {
       void requestPermission();
     }
   }, [permission?.granted, requestPermission]);
+
+  function unlock(): void {
+    lockedRef.current = false;
+  }
 
   function handleScanned(result: BarcodeScanningResult): void {
     if (lockedRef.current) {
@@ -34,7 +58,7 @@ export function BarcodeScannerScreen(props: {
 
     lockedRef.current = true;
     const kind: ProductCodeTypeSlug = result.type === 'qr' ? 'qr' : 'codigo_de_barras';
-    props.onScanned(value, kind);
+    props.onScanned({ kind, unlock, value });
   }
 
   return (
@@ -43,7 +67,7 @@ export function BarcodeScannerScreen(props: {
         <Pressable hitSlop={8} onPress={props.onBack}>
           <Text style={styles.backText}>‹ Cerrar</Text>
         </Pressable>
-        <Text style={styles.title}>Escanear código</Text>
+        <Text style={styles.title}>{props.title ?? 'Escanear código'}</Text>
         <View style={styles.spacer} />
       </View>
 
@@ -73,14 +97,16 @@ export function BarcodeScannerScreen(props: {
         <View style={styles.cameraWrap}>
           <CameraView
             barcodeScannerSettings={{
-              barcodeTypes: ['qr', 'ean13', 'ean8', 'code128', 'code39', 'upc_a', 'upc_e'],
+              barcodeTypes: [...BARCODE_TYPES],
             }}
             onBarcodeScanned={ready ? handleScanned : undefined}
             onCameraReady={() => setReady(true)}
             style={StyleSheet.absoluteFill}
           />
-          <View style={styles.frame} />
-          <Text style={styles.hint}>Apuntá al código de barras o QR del producto</Text>
+          <View pointerEvents="none" style={styles.frame} />
+          <Text style={styles.hint}>
+            {props.hint ?? 'Apuntá al código de barras o QR del producto'}
+          </Text>
         </View>
       )}
     </View>
@@ -132,6 +158,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     paddingHorizontal: 14,
     paddingVertical: 8,
+    textAlign: 'center',
   },
   message: {
     color: colors.textSecondary,
