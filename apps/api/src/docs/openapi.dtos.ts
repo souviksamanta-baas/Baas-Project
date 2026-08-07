@@ -1,5 +1,16 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsObject, IsOptional, IsString, MinLength } from 'class-validator';
+import { Type } from 'class-transformer';
+import {
+  IsArray,
+  IsInt,
+  IsNumber,
+  IsObject,
+  IsOptional,
+  IsString,
+  Min,
+  MinLength,
+  ValidateNested,
+} from 'class-validator';
 
 export class HealthResponseDto {
   @ApiProperty({ enum: ['ok'], example: 'ok' })
@@ -471,6 +482,8 @@ export class ArcaUpsertConnectionDto {
   organizationId!: string;
 
   @ApiProperty({ example: 3 })
+  @IsInt()
+  @Min(1)
   pointOfSale!: number;
 
   @ApiPropertyOptional()
@@ -503,12 +516,17 @@ export class IssueInvoiceLineDto {
   description!: string;
 
   @ApiPropertyOptional({ example: 21 })
+  @IsOptional()
+  @IsNumber()
   ivaRate?: number;
 
   @ApiProperty({ example: 1 })
+  @IsNumber()
+  @Min(0.0001)
   quantity!: number;
 
   @ApiProperty({ example: 150000, description: 'Unit price in cents (tax-included)' })
+  @IsInt()
   unitPriceCents!: number;
 }
 
@@ -539,6 +557,9 @@ export class IssueInvoiceDto {
   customerTaxCondition?: string;
 
   @ApiProperty({ type: [IssueInvoiceLineDto] })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => IssueInvoiceLineDto)
   lines!: IssueInvoiceLineDto[];
 
   @ApiProperty({ format: 'uuid' })
