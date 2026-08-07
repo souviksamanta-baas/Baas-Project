@@ -17,6 +17,7 @@ import { ArcaWsfeService } from '../arca/arca-wsfe.service';
 import {
   AFIP_DOC_TYPE_CODES,
   AFIP_VOUCHER_TYPE_CODES,
+  type ArcaAccountRow,
   type IssuedInvoiceResult,
   type IssueInvoiceInput,
   type VoucherTypeCode,
@@ -34,6 +35,21 @@ const VOUCHER_LABELS: Record<VoucherTypeCode, string> = {
   NDA: 'Nota de Débito A',
   NDB: 'Nota de Débito B',
   NDC: 'Nota de Débito C',
+};
+
+type InvoiceRow = {
+  arca_response?: { mock?: boolean; raw?: string } | null;
+  arca_status: string;
+  cae: string | null;
+  cae_expiration?: string | null;
+  customer_name?: string | null;
+  id: string;
+  pdf_storage_path?: string | null;
+  qr_url?: string | null;
+  sell_quote_id?: string | null;
+  total_amount_cents?: number | null;
+  voucher_number: number | null;
+  voucher_type?: string | null;
 };
 
 @Injectable()
@@ -81,174 +97,132 @@ export class InvoiceService {
 
     try {
       const ticket = await this.auth.getTicket(account);
-      let lastNumber = await this.wsfe.getLastAuthorizedNumber({
+      const client = this.supabaseService.getServiceRoleClient();
+
+      // Idempotent: do not double-issue for the same presupuesto.
+      if (params.input.sellQuoteId) {
+        const existingForQuote = await this.findInvoiceForQuote({
+          client,
+          organizationId: account.organization_id,
+          sellQuoteId: params.input.sellQuoteId,
+        });
+        if (existingForQuote?.arca_status === 'authorized' && existingForQuote.cae) {
+          return this.toIssuedResult(existingForQuote, voucherType);
+        }
+        if (
+          existingForQuote &&
+          (existingForQuote.arca_status === 'pending' || existingForQuote.arca_status === 'error')
+        ) {
+          return this.completePendingInvoice({
+            account,
+            client,
+            existing: existingForQuote,
+            input: params.input,
+            ticket,
+            userId: user.id,
+            voucherType,
+            voucherTypeCode,
+          });
+        }
+      }
+
+      const arcaLast = await this.wsfe.getLastAuthorizedNumber({
         account,
         ticket,
         voucherTypeCode,
       });
-      let nextNumber = lastNumber + 1;
+      const allocated = await this.allocateVoucherNumber({
+        account,
+        arcaLast,
+        client,
+        ticket,
+        voucherTypeCode,
+      });
+      let nextNumber = allocated.voucherNumber;
 
       const totals = computeTotals(params.input.lines);
       const issueDate = new Date().toISOString().slice(0, 10);
-      const client = this.supabaseService.getServiceRoleClient();
 
-      const { data: draft, error: insertError } = await client
-        .from('invoices')
-        .insert({
-          organization_id: account.organization_id,
-          sell_quote_id: params.input.sellQuoteId ?? null,
-          contact_id: params.input.contactId ?? null,
-          created_by: user.id,
-          voucher_type: voucherType,
-          voucher_type_code: voucherTypeCode,
-          point_of_sale: account.point_of_sale,
-          voucher_number: nextNumber,
-          issue_date: issueDate,
-          net_amount_cents: totals.netCents,
-          vat_amount_cents: totals.vatCents,
-          exempt_amount_cents: 0,
-          total_amount_cents: totals.totalCents,
-          customer_document_type: params.input.customerDocumentType ?? 'CF',
-          customer_document_number: params.input.customerDocumentNumber ?? '0',
-          customer_tax_condition: params.input.customerTaxCondition ?? 'consumidor_final',
-          customer_name: params.input.customerName ?? 'Consumidor final',
-          line_items: params.input.lines,
-          related_invoice_id: params.input.relatedInvoiceId ?? null,
-          arca_status: 'pending',
-        })
-        .select('id')
-        .single();
-
-      if (insertError || !draft) {
-        throw new BadRequestException(insertError?.message ?? 'No se pudo crear el borrador de factura.');
-      }
-
-      const invoiceId = draft.id as string;
-      let caeResult;
-
-      try {
-        caeResult = await this.wsfe.requestCae({
-          account,
-          ticket,
-          voucherTypeCode,
-          voucherNumber: nextNumber,
-          issueDate,
-          lines: params.input.lines,
-          totalCents: totals.totalCents,
-          customerDocumentType: params.input.customerDocumentType ?? 'CF',
-          customerDocumentNumber: params.input.customerDocumentNumber ?? '0',
-        });
-      } catch (error) {
-        // Ambiguous failure — consult before deciding.
-        this.logger.warn(
-          `FECAESolicitar uncertain: ${error instanceof Error ? error.message : String(error)}`,
-        );
-        const consulted = await this.wsfe.consultComprobante({
-          account,
-          ticket,
-          voucherTypeCode,
-          voucherNumber: nextNumber,
-        });
-        if (consulted.exists && consulted.cae) {
-          caeResult = {
-            cae: consulted.cae,
-            caeExpiration: consulted.caeExpiration ?? issueDate,
-            raw: consulted.raw,
-            rejected: false,
-            voucherNumber: nextNumber,
-          };
-        } else {
-          await client
-            .from('invoices')
-            .update({
-              arca_status: 'error',
-              last_error: error instanceof Error ? error.message : 'Error al solicitar CAE',
-              arca_response: { error: String(error) },
-            })
-            .eq('id', invoiceId);
-          throw error instanceof Error ? error : new BadRequestException(String(error));
-        }
-      }
-
-      if (caeResult.rejected) {
-        await client
+      let invoiceId = allocated.reuseInvoiceId;
+      if (invoiceId) {
+        const { error: reuseError } = await client
           .from('invoices')
           .update({
-            arca_status: 'rejected',
-            last_error: caeResult.rejectionReason ?? 'Rechazada por ARCA',
-            arca_response: { raw: caeResult.raw },
+            sell_quote_id: params.input.sellQuoteId ?? null,
+            contact_id: params.input.contactId ?? null,
+            created_by: user.id,
+            voucher_type: voucherType,
+            issue_date: issueDate,
+            net_amount_cents: totals.netCents,
+            vat_amount_cents: totals.vatCents,
+            exempt_amount_cents: 0,
+            total_amount_cents: totals.totalCents,
+            customer_document_type: params.input.customerDocumentType ?? 'CF',
+            customer_document_number: params.input.customerDocumentNumber ?? '0',
+            customer_tax_condition: params.input.customerTaxCondition ?? 'consumidor_final',
+            customer_name: params.input.customerName ?? 'Consumidor final',
+            line_items: params.input.lines,
+            related_invoice_id: params.input.relatedInvoiceId ?? null,
+            arca_status: 'pending',
+            last_error: null,
+            cae: null,
+            cae_expiration: null,
+            qr_url: null,
+            pdf_storage_path: null,
+            arca_response: {},
           })
           .eq('id', invoiceId);
-        throw new BadRequestException(caeResult.rejectionReason ?? 'ARCA rechazó la factura.');
+        if (reuseError) {
+          throw new BadRequestException(reuseError.message);
+        }
+      } else {
+        const { data: draft, error: insertError } = await client
+          .from('invoices')
+          .insert({
+            organization_id: account.organization_id,
+            sell_quote_id: params.input.sellQuoteId ?? null,
+            contact_id: params.input.contactId ?? null,
+            created_by: user.id,
+            voucher_type: voucherType,
+            voucher_type_code: voucherTypeCode,
+            point_of_sale: account.point_of_sale,
+            voucher_number: nextNumber,
+            issue_date: issueDate,
+            net_amount_cents: totals.netCents,
+            vat_amount_cents: totals.vatCents,
+            exempt_amount_cents: 0,
+            total_amount_cents: totals.totalCents,
+            customer_document_type: params.input.customerDocumentType ?? 'CF',
+            customer_document_number: params.input.customerDocumentNumber ?? '0',
+            customer_tax_condition: params.input.customerTaxCondition ?? 'consumidor_final',
+            customer_name: params.input.customerName ?? 'Consumidor final',
+            line_items: params.input.lines,
+            related_invoice_id: params.input.relatedInvoiceId ?? null,
+            arca_status: 'pending',
+          })
+          .select('id')
+          .single();
+
+        if (insertError || !draft) {
+          throw new BadRequestException(
+            insertError?.message ?? 'No se pudo crear el borrador de factura.',
+          );
+        }
+        invoiceId = draft.id as string;
       }
 
-      const docTypeCode =
-        AFIP_DOC_TYPE_CODES[params.input.customerDocumentType ?? 'CF'] ?? AFIP_DOC_TYPE_CODES.CF;
-      const qrUrl = this.qr.buildQrUrl({
-        cae: caeResult.cae,
-        cuit: account.cuit,
-        currency: 'ARS',
-        customerDocumentNumber: params.input.customerDocumentNumber ?? '0',
-        customerDocumentTypeCode: docTypeCode,
+      return this.authorizeDraftInvoice({
+        account,
+        client,
+        input: params.input,
+        invoiceId,
         issueDate,
-        pointOfSale: account.point_of_sale,
-        totalAmount: totals.totalCents / 100,
-        voucherNumber: nextNumber,
+        nextNumber,
+        ticket,
+        totals,
+        voucherType,
         voucherTypeCode,
       });
-
-      const orgName = await this.loadOrgName(account.organization_id);
-      const pdfBuffer = this.pdf.buildPdf({
-        businessName: orgName,
-        cae: caeResult.cae,
-        caeExpiration: caeResult.caeExpiration,
-        cuit: account.cuit,
-        customerName: params.input.customerName ?? 'Consumidor final',
-        issueDate,
-        lines: params.input.lines.map((line) => ({
-          description: line.description,
-          quantity: line.quantity,
-          totalCents: Math.round(line.unitPriceCents * line.quantity),
-        })),
-        pointOfSale: account.point_of_sale,
-        qrUrl,
-        totalAmountCents: totals.totalCents,
-        voucherNumber: nextNumber,
-        voucherTypeLabel: VOUCHER_LABELS[voucherType],
-      });
-
-      const pdfPath = `invoices/${account.organization_id}/${this.qr.invoiceFileKey(invoiceId)}.pdf`;
-      // Store PDF as base64 in response metadata when storage bucket is unavailable.
-      const pdfBase64 = pdfBuffer.toString('base64');
-
-      const { error: updateError } = await client
-        .from('invoices')
-        .update({
-          arca_status: 'authorized',
-          cae: caeResult.cae,
-          cae_expiration: caeResult.caeExpiration,
-          qr_url: qrUrl,
-          pdf_storage_path: pdfPath,
-          arca_response: { raw: caeResult.raw, pdfBase64 },
-          last_error: null,
-        })
-        .eq('id', invoiceId);
-
-      if (updateError) {
-        throw new BadRequestException(updateError.message);
-      }
-
-      return {
-        cae: caeResult.cae,
-        caeExpiration: caeResult.caeExpiration,
-        id: invoiceId,
-        pdfStoragePath: pdfPath,
-        qrUrl,
-        status: 'authorized',
-        totalAmountCents: totals.totalCents,
-        voucherNumber: nextNumber,
-        voucherType,
-      };
     } finally {
       await this.releaseLock({
         organizationId: account.organization_id,
@@ -257,6 +231,310 @@ export class InvoiceService {
         lockedBy: lockId,
       });
     }
+  }
+
+  private async authorizeDraftInvoice(params: {
+    account: ArcaAccountRow;
+    client: ReturnType<SupabaseService['getServiceRoleClient']>;
+    input: IssueInvoiceInput;
+    invoiceId: string;
+    issueDate: string;
+    nextNumber: number;
+    ticket: Awaited<ReturnType<ArcaAuthService['getTicket']>>;
+    totals: { netCents: number; totalCents: number; vatCents: number };
+    voucherType: VoucherTypeCode;
+    voucherTypeCode: number;
+  }): Promise<IssuedInvoiceResult> {
+    const {
+      account,
+      client,
+      input,
+      invoiceId,
+      issueDate,
+      nextNumber,
+      ticket,
+      totals,
+      voucherType,
+      voucherTypeCode,
+    } = params;
+
+    let caeResult;
+
+    try {
+      caeResult = await this.wsfe.requestCae({
+        account,
+        ticket,
+        voucherTypeCode,
+        voucherNumber: nextNumber,
+        issueDate,
+        lines: input.lines,
+        totalCents: totals.totalCents,
+        customerDocumentType: input.customerDocumentType ?? 'CF',
+        customerDocumentNumber: input.customerDocumentNumber ?? '0',
+      });
+    } catch (error) {
+      // Ambiguous failure — consult before deciding.
+      this.logger.warn(
+        `FECAESolicitar uncertain: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      const consulted = await this.wsfe.consultComprobante({
+        account,
+        ticket,
+        voucherTypeCode,
+        voucherNumber: nextNumber,
+      });
+      if (consulted.exists && consulted.cae) {
+        caeResult = {
+          cae: consulted.cae,
+          caeExpiration: consulted.caeExpiration ?? issueDate,
+          raw: consulted.raw,
+          rejected: false,
+          voucherNumber: nextNumber,
+        };
+      } else {
+        await client
+          .from('invoices')
+          .update({
+            arca_status: 'error',
+            last_error: error instanceof Error ? error.message : 'Error al solicitar CAE',
+            arca_response: { error: String(error) },
+          })
+          .eq('id', invoiceId);
+        throw error instanceof Error ? error : new BadRequestException(String(error));
+      }
+    }
+
+    if (caeResult.rejected) {
+      await client
+        .from('invoices')
+        .update({
+          arca_status: 'rejected',
+          last_error: caeResult.rejectionReason ?? 'Rechazada por ARCA',
+          arca_response: { raw: caeResult.raw },
+        })
+        .eq('id', invoiceId);
+      throw new BadRequestException(caeResult.rejectionReason ?? 'ARCA rechazó la factura.');
+    }
+
+    const docTypeCode =
+      AFIP_DOC_TYPE_CODES[input.customerDocumentType ?? 'CF'] ?? AFIP_DOC_TYPE_CODES.CF;
+    const qrUrl = this.qr.buildQrUrl({
+      cae: caeResult.cae,
+      cuit: account.cuit,
+      currency: 'ARS',
+      customerDocumentNumber: input.customerDocumentNumber ?? '0',
+      customerDocumentTypeCode: docTypeCode,
+      issueDate,
+      pointOfSale: account.point_of_sale,
+      totalAmount: totals.totalCents / 100,
+      voucherNumber: nextNumber,
+      voucherTypeCode,
+    });
+
+    const orgName = await this.loadOrgName(account.organization_id);
+    const pdfBuffer = this.pdf.buildPdf({
+      businessName: orgName,
+      cae: caeResult.cae,
+      caeExpiration: caeResult.caeExpiration,
+      cuit: account.cuit,
+      customerName: input.customerName ?? 'Consumidor final',
+      issueDate,
+      lines: input.lines.map((line) => ({
+        description: line.description,
+        quantity: line.quantity,
+        totalCents: Math.round(line.unitPriceCents * line.quantity),
+      })),
+      pointOfSale: account.point_of_sale,
+      qrUrl,
+      totalAmountCents: totals.totalCents,
+      voucherNumber: nextNumber,
+      voucherTypeLabel: VOUCHER_LABELS[voucherType],
+    });
+
+    const pdfPath = `invoices/${account.organization_id}/${this.qr.invoiceFileKey(invoiceId)}.pdf`;
+    const pdfBase64 = pdfBuffer.toString('base64');
+
+    const { error: updateError } = await client
+      .from('invoices')
+      .update({
+        arca_status: 'authorized',
+        cae: caeResult.cae,
+        cae_expiration: caeResult.caeExpiration,
+        qr_url: qrUrl,
+        pdf_storage_path: pdfPath,
+        arca_response: { raw: caeResult.raw, pdfBase64 },
+        last_error: null,
+      })
+      .eq('id', invoiceId);
+
+    if (updateError) {
+      throw new BadRequestException(updateError.message);
+    }
+
+    return {
+      cae: caeResult.cae,
+      caeExpiration: caeResult.caeExpiration,
+      id: invoiceId,
+      pdfStoragePath: pdfPath,
+      qrUrl,
+      status: 'authorized',
+      totalAmountCents: totals.totalCents,
+      voucherNumber: nextNumber,
+      voucherType,
+    };
+  }
+
+  private async completePendingInvoice(params: {
+    account: ArcaAccountRow;
+    client: ReturnType<SupabaseService['getServiceRoleClient']>;
+    existing: InvoiceRow;
+    input: IssueInvoiceInput;
+    ticket: Awaited<ReturnType<ArcaAuthService['getTicket']>>;
+    userId: string;
+    voucherType: VoucherTypeCode;
+    voucherTypeCode: number;
+  }): Promise<IssuedInvoiceResult> {
+    const totals = computeTotals(params.input.lines);
+    const issueDate = new Date().toISOString().slice(0, 10);
+    const nextNumber = params.existing.voucher_number;
+    if (!nextNumber) {
+      throw new BadRequestException('La factura pendiente no tiene número de comprobante.');
+    }
+
+    await params.client
+      .from('invoices')
+      .update({
+        created_by: params.userId,
+        issue_date: issueDate,
+        net_amount_cents: totals.netCents,
+        vat_amount_cents: totals.vatCents,
+        total_amount_cents: totals.totalCents,
+        line_items: params.input.lines,
+        customer_name: params.input.customerName ?? params.existing.customer_name,
+        arca_status: 'pending',
+        last_error: null,
+      })
+      .eq('id', params.existing.id);
+
+    return this.authorizeDraftInvoice({
+      account: params.account,
+      client: params.client,
+      input: params.input,
+      invoiceId: params.existing.id,
+      issueDate,
+      nextNumber,
+      ticket: params.ticket,
+      totals,
+      voucherType: params.voucherType,
+      voucherTypeCode: params.voucherTypeCode,
+    });
+  }
+
+  private async allocateVoucherNumber(params: {
+    account: ArcaAccountRow;
+    arcaLast: number;
+    client: ReturnType<SupabaseService['getServiceRoleClient']>;
+    ticket: Awaited<ReturnType<ArcaAuthService['getTicket']>>;
+    voucherTypeCode: number;
+  }): Promise<{ reuseInvoiceId?: string; voucherNumber: number }> {
+    let nextNumber = params.arcaLast + 1;
+
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      const { data, error } = await params.client
+        .from('invoices')
+        .select(
+          'id, voucher_number, arca_status, sell_quote_id, cae, arca_response, customer_name',
+        )
+        .eq('organization_id', params.account.organization_id)
+        .eq('point_of_sale', params.account.point_of_sale)
+        .eq('voucher_type_code', params.voucherTypeCode)
+        .eq('voucher_number', nextNumber)
+        .maybeSingle();
+
+      if (error) {
+        throw new BadRequestException(error.message);
+      }
+
+      if (!data) {
+        return { voucherNumber: nextNumber };
+      }
+
+      const existing = data as InvoiceRow;
+      if (existing.arca_status === 'pending' || existing.arca_status === 'error') {
+        return { reuseInvoiceId: existing.id, voucherNumber: nextNumber };
+      }
+
+      const mockLocal = isMockArcaResponse(existing.arca_response);
+
+      // Local row claims this number. Confirm against ARCA before skipping.
+      const consulted = await this.wsfe.consultComprobante({
+        account: params.account,
+        ticket: params.ticket,
+        voucherTypeCode: params.voucherTypeCode,
+        voucherNumber: nextNumber,
+      });
+
+      if (consulted.exists) {
+        nextNumber += 1;
+        continue;
+      }
+
+      // Stale mock/local-only row — free the ARCA sequence number.
+      if (mockLocal || existing.arca_status !== 'authorized') {
+        this.logger.warn(
+          `Removing stale local invoice ${existing.id} for PV ${params.account.point_of_sale} #${nextNumber}`,
+        );
+        await params.client.from('invoices').delete().eq('id', existing.id);
+        return { voucherNumber: nextNumber };
+      }
+
+      // Authorized locally but ARCA does not confirm — do not delete; advance locally.
+      // (Can happen if consult failed transiently; AFIP may still reject a skipped number.)
+      this.logger.warn(
+        `Local authorized invoice ${existing.id} #${nextNumber} not found in ARCA; trying next number`,
+      );
+      nextNumber += 1;
+    }
+
+    throw new BadRequestException(
+      'No se pudo asignar un número de comprobante libre. Revisá facturas pendientes.',
+    );
+  }
+
+  private async findInvoiceForQuote(params: {
+    client: ReturnType<SupabaseService['getServiceRoleClient']>;
+    organizationId: string;
+    sellQuoteId: string;
+  }): Promise<InvoiceRow | null> {
+    const { data, error } = await params.client
+      .from('invoices')
+      .select(
+        'id, voucher_number, voucher_type, arca_status, sell_quote_id, cae, cae_expiration, qr_url, pdf_storage_path, total_amount_cents, customer_name, arca_response',
+      )
+      .eq('organization_id', params.organizationId)
+      .eq('sell_quote_id', params.sellQuoteId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error) {
+      throw new BadRequestException(error.message);
+    }
+    return (data as InvoiceRow | null) ?? null;
+  }
+
+  private toIssuedResult(row: InvoiceRow, voucherType: VoucherTypeCode): IssuedInvoiceResult {
+    return {
+      cae: row.cae ?? null,
+      caeExpiration: row.cae_expiration ?? null,
+      id: row.id,
+      pdfStoragePath: row.pdf_storage_path ?? null,
+      qrUrl: row.qr_url ?? null,
+      status: row.arca_status,
+      totalAmountCents: row.total_amount_cents ?? 0,
+      voucherNumber: row.voucher_number,
+      voucherType: (row.voucher_type as VoucherTypeCode | undefined) ?? voucherType,
+    };
   }
 
   async listInvoices(params: {
@@ -408,4 +686,20 @@ function computeTotals(lines: IssueInvoiceInput['lines']): {
     vatCents += lineTotal - net;
   }
   return { netCents, totalCents, vatCents };
+}
+
+function isMockArcaResponse(
+  response: InvoiceRow['arca_response'] | Record<string, unknown> | null | undefined,
+): boolean {
+  if (!response || typeof response !== 'object') {
+    return false;
+  }
+  if ((response as { mock?: boolean }).mock === true) {
+    return true;
+  }
+  const raw = (response as { raw?: unknown }).raw;
+  if (typeof raw === 'string' && raw.includes('"mock":true')) {
+    return true;
+  }
+  return false;
 }

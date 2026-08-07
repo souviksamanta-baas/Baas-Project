@@ -16,5 +16,8 @@ supabase/.temp/
 # Firebase / Android push (real file; keep example in repo)
 apps/mobile/google-services.json
 
+# Local secrets (ARCA private keys, CSRs, PEMs) — never commit
+secrets/
+
 # Local Expo prebuild / Xcode (do not commit)
 apps/mobile/ios/

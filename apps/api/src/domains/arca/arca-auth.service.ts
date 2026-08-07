@@ -23,6 +23,7 @@ export class ArcaAuthService {
 
   async getTicket(account: ArcaAccountRow): Promise<WsaaTicket> {
     const encryptionKey = this.configService.get<string>('BAAS_TOKEN_ENCRYPTION_KEY');
+    const mockMode = this.soap.isMockMode();
 
     if (
       account.wsaa_token_encrypted &&
@@ -31,16 +32,30 @@ export class ArcaAuthService {
     ) {
       const expiresAt = new Date(account.wsaa_token_expires_at);
       if (expiresAt.getTime() - Date.now() > 5 * 60 * 1000) {
-        return {
-          expiresAt,
-          sign: decryptSecret(account.wsaa_sign_encrypted, encryptionKey),
-          token: decryptSecret(account.wsaa_token_encrypted, encryptionKey),
-        };
+        const token = decryptSecret(account.wsaa_token_encrypted, encryptionKey);
+        const sign = decryptSecret(account.wsaa_sign_encrypted, encryptionKey);
+        // Drop cached mock tickets once real certs are configured.
+        if (!mockMode && isMockWsaaCredential(token, sign)) {
+          this.logger.warn(
+            `Discarding cached mock WSAA ticket for org ${account.organization_id}`,
+          );
+        } else if (mockMode || isPlausibleWsaaCredential(token, sign)) {
+          return { expiresAt, sign, token };
+        } else {
+          this.logger.warn(
+            `Discarding malformed cached WSAA ticket for org ${account.organization_id}`,
+          );
+        }
       }
     }
 
     const ticket = await this.loginCms(account);
-    await this.persistTicket(account.organization_id, ticket, encryptionKey);
+    // Never persist mock tickets — they break WSFE once real mode is enabled.
+    if (!mockMode) {
+      await this.persistTicket(account.organization_id, ticket, encryptionKey);
+    } else {
+      await this.clearTicket(account.organization_id);
+    }
     return ticket;
   }
 
@@ -77,12 +92,15 @@ export class ArcaAuthService {
     }
 
     const credentialsXml = this.soap.decodeXmlEntities(loginReturn);
-    const token = this.soap.extractTag(credentialsXml, 'token');
-    const sign = this.soap.extractTag(credentialsXml, 'sign');
+    const token = this.soap.extractTag(credentialsXml, 'token')?.replace(/\s+/g, '') ?? null;
+    const sign = this.soap.extractTag(credentialsXml, 'sign')?.replace(/\s+/g, '') ?? null;
     const expirationTime = this.soap.extractTag(credentialsXml, 'expirationTime');
 
     if (!token || !sign) {
       throw new Error('WSAA credentials missing token/sign');
+    }
+    if (!isPlausibleWsaaCredential(token, sign)) {
+      throw new Error('WSAA returned a token/sign that is not valid Base64');
     }
 
     return {
@@ -101,15 +119,15 @@ export class ArcaAuthService {
       ? decryptSecret(account.private_key_encrypted, encryptionKey)
       : '';
 
-    const platformCert = (this.configService.get<string>('ARCA_PLATFORM_CERT_PEM') ?? '')
-      .trim()
-      .replace(/\\n/g, '\n');
-    const platformKey = (this.configService.get<string>('ARCA_PLATFORM_KEY_PEM') ?? '')
-      .trim()
-      .replace(/\\n/g, '\n');
+    const platformCert = normalizePem(
+      this.configService.get<string>('ARCA_PLATFORM_CERT_PEM') ?? '',
+    );
+    const platformKey = normalizePem(
+      this.configService.get<string>('ARCA_PLATFORM_KEY_PEM') ?? '',
+    );
 
-    const certPem = orgCert || platformCert;
-    const keyPem = orgKey || platformKey;
+    const certPem = normalizePem(orgCert) || platformCert;
+    const keyPem = normalizePem(orgKey) || platformKey;
 
     if (!certPem || !keyPem) {
       throw new Error('ARCA certificate/private key not configured');
@@ -191,8 +209,49 @@ export class ArcaAuthService {
     }
   }
 
+  private async clearTicket(organizationId: string): Promise<void> {
+    const client = this.supabaseService.getServiceRoleClient();
+    await client
+      .from('arca_accounts')
+      .update({
+        wsaa_token_encrypted: null,
+        wsaa_sign_encrypted: null,
+        wsaa_token_expires_at: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('organization_id', organizationId);
+  }
+
   /** Fingerprint for logging without exposing PEM. */
   certFingerprint(pem: string): string {
     return createHash('sha256').update(pem).digest('hex').slice(0, 16);
   }
+}
+
+function isMockWsaaCredential(token: string, sign: string): boolean {
+  return token.startsWith('mock-token-') || sign.startsWith('mock-sign-');
+}
+
+function isPlausibleWsaaCredential(token: string, sign: string): boolean {
+  if (!token || !sign || isMockWsaaCredential(token, sign)) {
+    return false;
+  }
+  // AFIP tokens/signs are Base64; reject obvious garbage early.
+  return isBase64Like(token) && isBase64Like(sign);
+}
+
+function isBase64Like(value: string): boolean {
+  return /^[A-Za-z0-9+/]+=*$/.test(value) && value.length >= 32;
+}
+
+/** Normalize PEM from Railway/env (literal \\n, wrapping quotes, stray CR). */
+function normalizePem(value: string): string {
+  let pem = value.trim();
+  if (
+    (pem.startsWith('"') && pem.endsWith('"')) ||
+    (pem.startsWith("'") && pem.endsWith("'"))
+  ) {
+    pem = pem.slice(1, -1);
+  }
+  return pem.replace(/\\n/g, '\n').replace(/\r\n/g, '\n').trim();
 }
