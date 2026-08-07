@@ -20,22 +20,12 @@ import {
   type ArcaAccountRow,
   type IssuedInvoiceResult,
   type IssueInvoiceInput,
+  type TaxCondition,
   type VoucherTypeCode,
   resolveVoucherType,
 } from '../arca/arca.types';
 
 const LOCK_TTL_MS = 60_000;
-const VOUCHER_LABELS: Record<VoucherTypeCode, string> = {
-  FA: 'Factura A',
-  FB: 'Factura B',
-  FC: 'Factura C',
-  NCA: 'Nota de Crédito A',
-  NCB: 'Nota de Crédito B',
-  NCC: 'Nota de Crédito C',
-  NDA: 'Nota de Débito A',
-  NDB: 'Nota de Débito B',
-  NDC: 'Nota de Débito C',
-};
 
 type InvoiceRow = {
   arca_response?: { mock?: boolean; raw?: string } | null;
@@ -371,24 +361,32 @@ export class InvoiceService {
       voucherTypeCode,
     });
 
-    const orgName = await this.loadOrgName(account.organization_id);
-    const pdfBuffer = this.pdf.buildPdf({
-      businessName: orgName,
+    const org = await this.loadOrgFiscalProfile(account.organization_id);
+    const pdfBuffer = await this.pdf.buildPdf({
+      businessName: org.legalName,
       cae: caeResult.cae,
       caeExpiration: caeResult.caeExpiration,
       cuit: account.cuit,
+      customerDocumentNumber: input.customerDocumentNumber,
+      customerDocumentType: input.customerDocumentType,
       customerName: input.customerName ?? 'Consumidor final',
+      customerTaxCondition: input.customerTaxCondition ?? 'consumidor_final',
+      emitterAddress: org.address,
+      emitterTaxCondition: account.tax_condition,
+      fantasyName: org.fantasyName,
       issueDate,
       lines: input.lines.map((line) => ({
         description: line.description,
         quantity: line.quantity,
         totalCents: Math.round(line.unitPriceCents * line.quantity),
+        unitPriceCents: line.unitPriceCents,
       })),
       pointOfSale: account.point_of_sale,
       qrUrl,
       totalAmountCents: totals.totalCents,
       voucherNumber: nextNumber,
-      voucherTypeLabel: VOUCHER_LABELS[voucherType],
+      voucherType,
+      voucherTypeCode,
     });
 
     const pdfPath = `invoices/${account.organization_id}/${this.qr.invoiceFileKey(invoiceId)}.pdf`;
@@ -402,7 +400,7 @@ export class InvoiceService {
         cae_expiration: caeResult.caeExpiration,
         qr_url: qrUrl,
         pdf_storage_path: pdfPath,
-        arca_response: { raw: caeResult.raw, pdfBase64 },
+        arca_response: { raw: caeResult.raw, pdfBase64, pdfTemplate: 'afip_v1' },
         last_error: null,
       })
       .eq('id', invoiceId);
@@ -631,29 +629,140 @@ export class InvoiceService {
       throw new NotFoundException('Factura no encontrada.');
     }
 
-    // Strip bulky pdf base64 from default payload unless needed — keep qr/cae.
-    const { arca_response, ...rest } = data as Record<string, unknown> & {
+    const invoice = data as Record<string, unknown> & {
       arca_response?: { pdfBase64?: string; raw?: string };
+      arca_status?: string;
+      cae?: string | null;
+      cae_expiration?: string | null;
+      customer_document_number?: string | null;
+      customer_document_type?: string | null;
+      customer_name?: string | null;
+      customer_tax_condition?: string | null;
+      issue_date?: string;
+      line_items?: Array<{
+        description: string;
+        quantity: number;
+        unitPriceCents: number;
+      }>;
+      point_of_sale?: number;
+      qr_url?: string | null;
+      total_amount_cents?: number;
+      voucher_number?: number | null;
+      voucher_type?: VoucherTypeCode;
+      voucher_type_code?: number;
     };
+
+    let pdfBase64 = invoice.arca_response?.pdfBase64 ?? null;
+    const storedTemplate = (invoice.arca_response as { pdfTemplate?: string } | undefined)
+      ?.pdfTemplate;
+
+    // Rebuild AFIP-style PDF for authorized invoices (also refreshes older stub PDFs).
+    if (
+      storedTemplate !== 'afip_v1' &&
+      invoice.arca_status === 'authorized' &&
+      invoice.cae &&
+      invoice.qr_url &&
+      invoice.voucher_number &&
+      invoice.voucher_type &&
+      invoice.voucher_type_code
+    ) {
+      try {
+        const account = await this.connection.findAccount(params.organizationId);
+        if (!account?.cuit) {
+          throw new Error('Cuenta ARCA no encontrada para regenerar PDF.');
+        }
+        const org = await this.loadOrgFiscalProfile(params.organizationId);
+        const lines = Array.isArray(invoice.line_items) ? invoice.line_items : [];
+        const rebuilt = await this.pdf.buildPdf({
+          businessName: org.legalName,
+          cae: invoice.cae,
+          caeExpiration: invoice.cae_expiration ?? String(invoice.issue_date ?? ''),
+          cuit: account.cuit,
+          customerDocumentNumber: invoice.customer_document_number,
+          customerDocumentType: invoice.customer_document_type,
+          customerName: invoice.customer_name ?? 'Consumidor final',
+          customerTaxCondition:
+            (invoice.customer_tax_condition as TaxCondition | null | undefined) ??
+            'consumidor_final',
+          emitterAddress: org.address,
+          emitterTaxCondition: account.tax_condition,
+          fantasyName: org.fantasyName,
+          issueDate: String(invoice.issue_date ?? '').slice(0, 10),
+          lines: lines.map((line) => ({
+            description: line.description,
+            quantity: line.quantity,
+            totalCents: Math.round(line.unitPriceCents * line.quantity),
+            unitPriceCents: line.unitPriceCents,
+          })),
+          pointOfSale: Number(invoice.point_of_sale),
+          qrUrl: invoice.qr_url,
+          totalAmountCents: Number(invoice.total_amount_cents ?? 0),
+          voucherNumber: invoice.voucher_number,
+          voucherType: invoice.voucher_type,
+          voucherTypeCode: invoice.voucher_type_code,
+        });
+        pdfBase64 = rebuilt.toString('base64');
+        await client
+          .from('invoices')
+          .update({
+            arca_response: {
+              ...(invoice.arca_response ?? {}),
+              pdfBase64,
+              pdfTemplate: 'afip_v1',
+            },
+          })
+          .eq('id', params.invoiceId);
+      } catch (error) {
+        this.logger.warn(
+          `No se pudo regenerar PDF AFIP de ${params.invoiceId}: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
+    }
+
+    const { arca_response: _arcaResponse, ...rest } = invoice;
     return {
       ...rest,
-      hasPdf: Boolean(arca_response?.pdfBase64),
-      pdfBase64: arca_response?.pdfBase64 ?? null,
+      hasPdf: Boolean(pdfBase64),
+      pdfBase64,
     };
   }
 
-  private async loadOrgName(organizationId: string): Promise<string> {
+  private async loadOrgFiscalProfile(organizationId: string): Promise<{
+    address: string | null;
+    fantasyName: string | null;
+    legalName: string;
+  }> {
     const client = this.supabaseService.getServiceRoleClient();
     const { data } = await client
       .from('organizations')
-      .select('name, legal_name')
+      .select(
+        'name, legal_name, fiscal_address_line1, fiscal_city, fiscal_province, fiscal_postal_code',
+      )
       .eq('id', organizationId)
       .maybeSingle();
-    return (
-      (data as { legal_name?: string | null; name?: string } | null)?.legal_name?.trim() ||
-      (data as { name?: string } | null)?.name ||
-      'Negocio'
-    );
+
+    const org = data as {
+      fiscal_address_line1?: string | null;
+      fiscal_city?: string | null;
+      fiscal_postal_code?: string | null;
+      fiscal_province?: string | null;
+      legal_name?: string | null;
+      name?: string | null;
+    } | null;
+
+    const addressParts = [
+      org?.fiscal_address_line1,
+      [org?.fiscal_postal_code, org?.fiscal_city].filter(Boolean).join(' '),
+      org?.fiscal_province,
+    ].filter((part) => Boolean(part && String(part).trim()));
+
+    return {
+      address: addressParts.length > 0 ? addressParts.join(', ') : null,
+      fantasyName: org?.name?.trim() || null,
+      legalName: org?.legal_name?.trim() || org?.name?.trim() || 'Negocio',
+    };
   }
 
   private async acquireLock(params: {

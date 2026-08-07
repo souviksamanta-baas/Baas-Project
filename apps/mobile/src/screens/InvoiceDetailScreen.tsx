@@ -4,15 +4,18 @@ import {
   ActivityIndicator,
   Alert,
   Linking,
+  Platform,
   Pressable,
+  Share,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import * as FileSystem from 'expo-file-system/legacy';
 
 import { getInvoice, type InvoiceDetail } from '../api/billing';
 import { Card, ScreenContent, ScreenTitle } from '../components/ui';
-import { PrimaryButton } from '../design-system';
+import { OutlineButton, PrimaryButton } from '../design-system';
 import { formatCurrency } from '../lib/sellCart';
 import { colors } from '../theme';
 
@@ -46,6 +49,24 @@ function formatDate(value: string): string {
   });
 }
 
+async function writeInvoicePdfFile(params: {
+  invoiceId: string;
+  pdfBase64: string;
+  voucherLabel: string;
+}): Promise<string> {
+  const cacheDir = FileSystem.cacheDirectory;
+  if (!cacheDir) {
+    throw new Error('No hay carpeta temporal disponible en este dispositivo.');
+  }
+
+  const safeName = params.voucherLabel.replace(/[^\w.-]+/g, '_');
+  const path = `${cacheDir}factura-${safeName}-${params.invoiceId.slice(0, 8)}.pdf`;
+  await FileSystem.writeAsStringAsync(path, params.pdfBase64, {
+    encoding: FileSystem.EncodingType.Base64,
+  });
+  return path;
+}
+
 export function InvoiceDetailScreen(props: {
   invoiceId: string;
   onBack: () => void;
@@ -53,6 +74,7 @@ export function InvoiceDetailScreen(props: {
 }): ReactElement {
   const [invoice, setInvoice] = useState<InvoiceDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSharingPdf, setIsSharingPdf] = useState(false);
 
   const load = useCallback(async () => {
     setIsLoading(true);
@@ -78,16 +100,69 @@ export function InvoiceDetailScreen(props: {
     void load();
   }, [load]);
 
+  async function sharePdf(): Promise<void> {
+    if (!invoice?.pdfBase64) {
+      Alert.alert('PDF no disponible', 'Esta factura todavía no tiene un PDF generado.');
+      return;
+    }
+
+    setIsSharingPdf(true);
+    try {
+      const voucherLabel = formatInvoiceNumber(invoice);
+      const path = await writeInvoicePdfFile({
+        invoiceId: invoice.id,
+        pdfBase64: invoice.pdfBase64,
+        voucherLabel,
+      });
+
+      if (Platform.OS === 'web') {
+        const link = document.createElement('a');
+        link.href = `data:application/pdf;base64,${invoice.pdfBase64}`;
+        link.download = `factura-${voucherLabel}.pdf`;
+        link.click();
+        return;
+      }
+
+      await Share.share({
+        title: `Factura ${voucherLabel}`,
+        url: path,
+        message:
+          Platform.OS === 'android'
+            ? `Factura ${voucherLabel} — CAE ${invoice.cae ?? ''}`
+            : undefined,
+      });
+    } catch (error) {
+      Alert.alert(
+        'No se pudo compartir el PDF',
+        error instanceof Error ? error.message : 'Error desconocido',
+      );
+    } finally {
+      setIsSharingPdf(false);
+    }
+  }
+
   async function openQr(): Promise<void> {
     if (!invoice?.qr_url) {
       return;
     }
-    try {
-      await Linking.openURL(invoice.qr_url);
-    } catch {
-      Alert.alert('No se pudo abrir el QR', invoice.qr_url);
-    }
+    Alert.alert(
+      'Constancia ARCA',
+      'La página de ARCA pide captcha y valida el CAE en sus sistemas. En homologación a veces falla. Para la factura usá Descargar / compartir PDF.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Abrir ARCA',
+          onPress: () => {
+            void Linking.openURL(invoice.qr_url!).catch(() => {
+              Alert.alert('No se pudo abrir el QR', invoice.qr_url ?? '');
+            });
+          },
+        },
+      ],
+    );
   }
+
+  const hasPdf = Boolean(invoice?.pdfBase64 || invoice?.hasPdf);
 
   return (
     <ScreenContent title="Factura">
@@ -136,14 +211,29 @@ export function InvoiceDetailScreen(props: {
             ) : null}
           </Card>
 
+          {hasPdf ? (
+            <PrimaryButton
+              disabled={isSharingPdf || !invoice.pdfBase64}
+              fullWidth
+              label={isSharingPdf ? 'Preparando PDF…' : 'Descargar / compartir PDF'}
+              onPress={() => void sharePdf()}
+            />
+          ) : (
+            <Text style={styles.pdfHint}>Esta factura no tiene PDF generado.</Text>
+          )}
+
           {invoice.qr_url ? (
-            <PrimaryButton fullWidth label="Ver QR ARCA" onPress={() => void openQr()} />
+            <OutlineButton
+              fullWidth
+              label="Abrir constancia ARCA (QR)"
+              onPress={() => void openQr()}
+            />
           ) : null}
-          {invoice.hasPdf || invoice.pdfBase64 ? (
-            <Text style={styles.pdfHint}>
-              PDF generado y guardado con la factura (disponible vía API).
-            </Text>
-          ) : null}
+
+          <Text style={styles.pdfHint}>
+            El PDF es el comprobante para guardar o enviar. La página de ARCA es solo para
+            constatar el CAE (puede pedir captcha).
+          </Text>
         </>
       )}
     </ScreenContent>
@@ -195,7 +285,8 @@ const styles = StyleSheet.create({
   pdfHint: {
     color: colors.slate,
     fontSize: 13,
-    marginTop: 8,
+    lineHeight: 18,
+    marginTop: 10,
     textAlign: 'center',
   },
   total: {
