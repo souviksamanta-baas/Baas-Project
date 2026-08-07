@@ -85,6 +85,8 @@ eas submit --platform android --profile production
 
 Create the Play app with application id `ar.com.nexolia.app`, complete data-safety, then use **internal** then **closed** testing tracks (KAN-361).
 
+Release AABs use R8 (`expo-build-properties`). After the build finishes, download `mapping.txt` from EAS artifacts and upload it in Play Console with the AAB so crash/ANR stacks deobfuscate — see [mobile-android-play.md](./mobile-android-play.md).
+
 ## OTA updates (JS-only)
 
 ```bash
