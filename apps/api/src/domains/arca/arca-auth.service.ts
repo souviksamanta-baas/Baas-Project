@@ -1,6 +1,10 @@
 import { createHash, randomUUID } from 'node:crypto';
+import { spawn } from 'node:child_process';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 import { decryptSecret, encryptSecret } from '../../lib/token-crypto';
@@ -10,6 +14,7 @@ import type { ArcaAccountRow, ArcaEnvironment, WsaaTicket } from './arca.types';
 
 const WSAA_SERVICE = 'wsfe';
 const TICKET_TTL_MS = 11 * 60 * 60 * 1000; // ~11h (ARCA tickets ~12h)
+const AR_OFFSET = '-03:00';
 
 @Injectable()
 export class ArcaAuthService {
@@ -82,13 +87,22 @@ export class ArcaAuthService {
       </loginCms>`,
     });
 
+    const fault = this.soap.extractTag(result.body, 'faultstring');
+    if (fault) {
+      throw new BadRequestException(formatWsaaFault(fault));
+    }
+
     if (!result.ok) {
-      throw new Error(`WSAA loginCms HTTP ${result.status}`);
+      throw new BadRequestException(
+        `ARCA WSAA respondió HTTP ${result.status}. Revisá el certificado y el servicio wsfe.`,
+      );
     }
 
     const loginReturn = this.soap.extractTag(result.body, 'loginCmsReturn');
     if (!loginReturn) {
-      throw new Error('WSAA response missing loginCmsReturn');
+      throw new BadRequestException(
+        'ARCA WSAA no devolvió credenciales. ¿El certificado está autorizado para Facturación Electrónica (wsfe)?',
+      );
     }
 
     const credentialsXml = this.soap.decodeXmlEntities(loginReturn);
@@ -97,10 +111,10 @@ export class ArcaAuthService {
     const expirationTime = this.soap.extractTag(credentialsXml, 'expirationTime');
 
     if (!token || !sign) {
-      throw new Error('WSAA credentials missing token/sign');
+      throw new BadRequestException('ARCA WSAA no devolvió token/sign válidos.');
     }
     if (!isPlausibleWsaaCredential(token, sign)) {
-      throw new Error('WSAA returned a token/sign that is not valid Base64');
+      throw new BadRequestException('ARCA WSAA devolvió un token/sign inválido.');
     }
 
     return {
@@ -130,16 +144,19 @@ export class ArcaAuthService {
     const keyPem = normalizePem(orgKey) || platformKey;
 
     if (!certPem || !keyPem) {
-      throw new Error('ARCA certificate/private key not configured');
+      throw new BadRequestException(
+        'Falta el certificado/clave ARCA (ARCA_PLATFORM_CERT_PEM / ARCA_PLATFORM_KEY_PEM).',
+      );
     }
 
     return { certPem, keyPem };
   }
 
-  private buildTraXml(environment: ArcaEnvironment): string {
+  private buildTraXml(_environment: ArcaEnvironment): string {
     const uniqueId = Math.floor(Date.now() / 1000);
-    const generation = new Date(Date.now() - 60_000).toISOString().replace(/\.\d{3}Z$/, '');
-    const expiration = new Date(Date.now() + TICKET_TTL_MS).toISOString().replace(/\.\d{3}Z$/, '');
+    // AFIP/ARCA expects local Argentina offset, not bare UTC.
+    const generation = formatArcaDateTime(new Date(Date.now() - 10 * 60_000));
+    const expiration = formatArcaDateTime(new Date(Date.now() + TICKET_TTL_MS));
 
     return `<?xml version="1.0" encoding="UTF-8"?>
 <loginTicketRequest version="1.0">
@@ -153,11 +170,18 @@ export class ArcaAuthService {
   }
 
   /**
-   * Sign TRA as CMS/PKCS#7. Uses node-forge when available; otherwise OpenSSL CLI.
+   * Sign TRA as CMS/PKCS#7. Prefer OpenSSL (AFIP-compatible); fall back to node-forge.
    */
   private async signTra(traXml: string, certPem: string, keyPem: string): Promise<string> {
     try {
-      // Dynamic require keeps typecheck green if node-forge is optional in some envs.
+      return await this.signTraWithOpenSsl(traXml, certPem, keyPem);
+    } catch (opensslError) {
+      this.logger.warn(
+        `OpenSSL CMS sign failed (${opensslError instanceof Error ? opensslError.message : String(opensslError)}); trying node-forge`,
+      );
+    }
+
+    try {
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       const forge = require('node-forge') as typeof import('node-forge');
       const p7 = forge.pkcs7.createSignedData();
@@ -172,7 +196,7 @@ export class ArcaAuthService {
         authenticatedAttributes: [
           { type: forge.pki.oids.contentType, value: forge.pki.oids.data },
           { type: forge.pki.oids.messageDigest },
-          { type: forge.pki.oids.signingTime, value: new Date().toISOString() },
+          { type: forge.pki.oids.signingTime, value: new Date() as unknown as string },
         ],
       });
       p7.sign({ detached: false });
@@ -180,11 +204,49 @@ export class ArcaAuthService {
       return forge.util.encode64(asn1);
     } catch (error) {
       this.logger.warn(
-        `node-forge CMS sign failed (${error instanceof Error ? error.message : String(error)}); falling back to hash stub is not allowed for production.`,
+        `node-forge CMS sign failed (${error instanceof Error ? error.message : String(error)})`,
       );
-      throw new Error(
-        'Unable to sign WSAA TRA. Install node-forge and configure ARCA_PLATFORM_CERT_PEM / ARCA_PLATFORM_KEY_PEM.',
+      throw new BadRequestException(
+        'No se pudo firmar el pedido WSAA. Verificá ARCA_PLATFORM_CERT_PEM / ARCA_PLATFORM_KEY_PEM.',
       );
+    }
+  }
+
+  private async signTraWithOpenSsl(
+    traXml: string,
+    certPem: string,
+    keyPem: string,
+  ): Promise<string> {
+    const dir = await mkdtemp(join(tmpdir(), 'arca-wsaa-'));
+    try {
+      const traPath = join(dir, 'tra.xml');
+      const certPath = join(dir, 'cert.pem');
+      const keyPath = join(dir, 'key.pem');
+      const derPath = join(dir, 'tra.cms');
+      await writeFile(traPath, traXml, 'utf8');
+      await writeFile(certPath, certPem, 'utf8');
+      await writeFile(keyPath, keyPem, 'utf8');
+
+      await runCommand('openssl', [
+        'cms',
+        '-sign',
+        '-in',
+        traPath,
+        '-signer',
+        certPath,
+        '-inkey',
+        keyPath,
+        '-nodetach',
+        '-outform',
+        'DER',
+        '-out',
+        derPath,
+      ]);
+
+      const der = await readFile(derPath);
+      return der.toString('base64');
+    } finally {
+      await rm(dir, { force: true, recursive: true });
     }
   }
 
@@ -236,7 +298,6 @@ function isPlausibleWsaaCredential(token: string, sign: string): boolean {
   if (!token || !sign || isMockWsaaCredential(token, sign)) {
     return false;
   }
-  // AFIP tokens/signs are Base64; reject obvious garbage early.
   return isBase64Like(token) && isBase64Like(sign);
 }
 
@@ -244,7 +305,6 @@ function isBase64Like(value: string): boolean {
   return /^[A-Za-z0-9+/]+=*$/.test(value) && value.length >= 32;
 }
 
-/** Normalize PEM from Railway/env (literal \\n, wrapping quotes, stray CR). */
 function normalizePem(value: string): string {
   let pem = value.trim();
   if (
@@ -254,4 +314,61 @@ function normalizePem(value: string): string {
     pem = pem.slice(1, -1);
   }
   return pem.replace(/\\n/g, '\n').replace(/\r\n/g, '\n').trim();
+}
+
+/** AFIP-style local datetime with fixed Argentina offset. */
+function formatArcaDateTime(date: Date): string {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Argentina/Buenos_Aires',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(date);
+  const get = (type: Intl.DateTimeFormatPartTypes): string =>
+    parts.find((part) => part.type === type)?.value ?? '00';
+  return `${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}:${get('second')}${AR_OFFSET}`;
+}
+
+function formatWsaaFault(fault: string): string {
+  const decoded = fault
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, hex: string) =>
+      String.fromCharCode(Number.parseInt(hex, 16)),
+    )
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&')
+    .trim();
+
+  if (/computador no autorizado/i.test(decoded)) {
+    return (
+      'ARCA: el certificado no está autorizado para el servicio wsfe. ' +
+      'En ARCA (homologación), asociá el certificado al servicio Facturación Electrónica / wsfe y reintentá.'
+    );
+  }
+  if (/generationTime/i.test(decoded)) {
+    return `ARCA WSAA: fecha de generación inválida (${decoded}).`;
+  }
+  return `ARCA WSAA: ${decoded}`;
+}
+
+function runCommand(command: string, args: string[]): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, { stdio: ['ignore', 'ignore', 'pipe'] });
+    let stderr = '';
+    child.stderr.on('data', (chunk: Buffer) => {
+      stderr += chunk.toString('utf8');
+    });
+    child.on('error', reject);
+    child.on('close', (code) => {
+      if (code === 0) {
+        resolve();
+        return;
+      }
+      reject(new Error(stderr.trim() || `${command} exited with code ${code}`));
+    });
+  });
 }

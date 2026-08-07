@@ -69,6 +69,26 @@ export class InvoiceService {
     authorizationHeader?: string;
     input: IssueInvoiceInput;
   }): Promise<IssuedInvoiceResult> {
+    try {
+      return await this.issueInvoiceInner(params);
+    } catch (error) {
+      if (error instanceof BadRequestException || error instanceof NotFoundException) {
+        throw error;
+      }
+      this.logger.error(
+        `issueInvoice failed: ${error instanceof Error ? error.message : String(error)}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      throw new BadRequestException(
+        error instanceof Error ? error.message : 'No se pudo emitir la factura en ARCA.',
+      );
+    }
+  }
+
+  private async issueInvoiceInner(params: {
+    authorizationHeader?: string;
+    input: IssueInvoiceInput;
+  }): Promise<IssuedInvoiceResult> {
     const user = await resolveAuthUser(this.supabaseService, params.authorizationHeader);
     await assertOrgMembership({
       organizationId: params.input.organizationId,
@@ -96,15 +116,42 @@ export class InvoiceService {
     });
 
     try {
-      const ticket = await this.auth.getTicket(account);
+      return await this.issueInvoiceWithLock({
+        account,
+        input: params.input,
+        lockId,
+        userId: user.id,
+        voucherType,
+        voucherTypeCode,
+      });
+    } finally {
+      await this.releaseLock({
+        organizationId: account.organization_id,
+        pointOfSale: account.point_of_sale,
+        voucherTypeCode,
+        lockedBy: lockId,
+      });
+    }
+  }
+
+  private async issueInvoiceWithLock(params: {
+    account: ArcaAccountRow;
+    input: IssueInvoiceInput;
+    lockId: string;
+    userId: string;
+    voucherType: VoucherTypeCode;
+    voucherTypeCode: number;
+  }): Promise<IssuedInvoiceResult> {
+    const { account, input, userId, voucherType, voucherTypeCode } = params;
+    const ticket = await this.auth.getTicket(account);
       const client = this.supabaseService.getServiceRoleClient();
 
       // Idempotent: do not double-issue for the same presupuesto.
-      if (params.input.sellQuoteId) {
+      if (input.sellQuoteId) {
         const existingForQuote = await this.findInvoiceForQuote({
           client,
           organizationId: account.organization_id,
-          sellQuoteId: params.input.sellQuoteId,
+          sellQuoteId: input.sellQuoteId,
         });
         if (existingForQuote?.arca_status === 'authorized' && existingForQuote.cae) {
           return this.toIssuedResult(existingForQuote, voucherType);
@@ -117,9 +164,9 @@ export class InvoiceService {
             account,
             client,
             existing: existingForQuote,
-            input: params.input,
+            input,
             ticket,
-            userId: user.id,
+            userId,
             voucherType,
             voucherTypeCode,
           });
@@ -138,9 +185,9 @@ export class InvoiceService {
         ticket,
         voucherTypeCode,
       });
-      let nextNumber = allocated.voucherNumber;
+      const nextNumber = allocated.voucherNumber;
 
-      const totals = computeTotals(params.input.lines);
+      const totals = computeTotals(input.lines);
       const issueDate = new Date().toISOString().slice(0, 10);
 
       let invoiceId = allocated.reuseInvoiceId;
@@ -148,21 +195,21 @@ export class InvoiceService {
         const { error: reuseError } = await client
           .from('invoices')
           .update({
-            sell_quote_id: params.input.sellQuoteId ?? null,
-            contact_id: params.input.contactId ?? null,
-            created_by: user.id,
+            sell_quote_id: input.sellQuoteId ?? null,
+            contact_id: input.contactId ?? null,
+            created_by: userId,
             voucher_type: voucherType,
             issue_date: issueDate,
             net_amount_cents: totals.netCents,
             vat_amount_cents: totals.vatCents,
             exempt_amount_cents: 0,
             total_amount_cents: totals.totalCents,
-            customer_document_type: params.input.customerDocumentType ?? 'CF',
-            customer_document_number: params.input.customerDocumentNumber ?? '0',
-            customer_tax_condition: params.input.customerTaxCondition ?? 'consumidor_final',
-            customer_name: params.input.customerName ?? 'Consumidor final',
-            line_items: params.input.lines,
-            related_invoice_id: params.input.relatedInvoiceId ?? null,
+            customer_document_type: input.customerDocumentType ?? 'CF',
+            customer_document_number: input.customerDocumentNumber ?? '0',
+            customer_tax_condition: input.customerTaxCondition ?? 'consumidor_final',
+            customer_name: input.customerName ?? 'Consumidor final',
+            line_items: input.lines,
+            related_invoice_id: input.relatedInvoiceId ?? null,
             arca_status: 'pending',
             last_error: null,
             cae: null,
@@ -180,9 +227,9 @@ export class InvoiceService {
           .from('invoices')
           .insert({
             organization_id: account.organization_id,
-            sell_quote_id: params.input.sellQuoteId ?? null,
-            contact_id: params.input.contactId ?? null,
-            created_by: user.id,
+            sell_quote_id: input.sellQuoteId ?? null,
+            contact_id: input.contactId ?? null,
+            created_by: userId,
             voucher_type: voucherType,
             voucher_type_code: voucherTypeCode,
             point_of_sale: account.point_of_sale,
@@ -192,12 +239,12 @@ export class InvoiceService {
             vat_amount_cents: totals.vatCents,
             exempt_amount_cents: 0,
             total_amount_cents: totals.totalCents,
-            customer_document_type: params.input.customerDocumentType ?? 'CF',
-            customer_document_number: params.input.customerDocumentNumber ?? '0',
-            customer_tax_condition: params.input.customerTaxCondition ?? 'consumidor_final',
-            customer_name: params.input.customerName ?? 'Consumidor final',
-            line_items: params.input.lines,
-            related_invoice_id: params.input.relatedInvoiceId ?? null,
+            customer_document_type: input.customerDocumentType ?? 'CF',
+            customer_document_number: input.customerDocumentNumber ?? '0',
+            customer_tax_condition: input.customerTaxCondition ?? 'consumidor_final',
+            customer_name: input.customerName ?? 'Consumidor final',
+            line_items: input.lines,
+            related_invoice_id: input.relatedInvoiceId ?? null,
             arca_status: 'pending',
           })
           .select('id')
@@ -214,7 +261,7 @@ export class InvoiceService {
       return this.authorizeDraftInvoice({
         account,
         client,
-        input: params.input,
+        input,
         invoiceId,
         issueDate,
         nextNumber,
@@ -223,14 +270,6 @@ export class InvoiceService {
         voucherType,
         voucherTypeCode,
       });
-    } finally {
-      await this.releaseLock({
-        organizationId: account.organization_id,
-        pointOfSale: account.point_of_sale,
-        voucherTypeCode,
-        lockedBy: lockId,
-      });
-    }
   }
 
   private async authorizeDraftInvoice(params: {
