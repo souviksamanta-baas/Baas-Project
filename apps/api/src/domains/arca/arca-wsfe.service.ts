@@ -1,8 +1,13 @@
 import { Injectable, Logger } from '@nestjs/common';
 
 import { ArcaSoapClient, escapeXml } from './arca-soap.client';
-import type { ArcaAccountRow, InvoiceLineInput, WsaaTicket } from './arca.types';
-import { AFIP_DOC_TYPE_CODES } from './arca.types';
+import type {
+  ArcaAccountRow,
+  InvoiceLineInput,
+  TaxCondition,
+  WsaaTicket,
+} from './arca.types';
+import { AFIP_DOC_TYPE_CODES, resolveCondicionIvaReceptorId } from './arca.types';
 
 export type FeCaeResult = {
   cae: string;
@@ -62,6 +67,7 @@ export class ArcaWsfeService {
     account: ArcaAccountRow;
     customerDocumentNumber: string | null;
     customerDocumentType: string | null;
+    customerTaxCondition?: TaxCondition | null;
     issueDate: string;
     lines: InvoiceLineInput[];
     ticket: WsaaTicket;
@@ -87,11 +93,19 @@ export class ArcaWsfeService {
       AFIP_DOC_TYPE_CODES[params.customerDocumentType ?? 'CF'] ?? AFIP_DOC_TYPE_CODES.CF;
     const docNro = (params.customerDocumentNumber ?? '0').replace(/\D/g, '') || '0';
     const impTotal = (params.totalCents / 100).toFixed(2);
-    const { net, iva, ivaDetails } = summarizeIva(params.lines);
+    const isTipoC = [11, 12, 13].includes(params.voucherTypeCode);
+    const { net, iva, ivaDetails } = isTipoC
+      ? {
+          net: impTotal,
+          iva: '0.00',
+          ivaDetails: [] as Array<{ base: string; id: number; importe: string }>,
+        }
+      : summarizeIva(params.lines);
     const cbteFch = params.issueDate.replace(/-/g, '');
+    const condicionIvaReceptorId = resolveCondicionIvaReceptorId(params.customerTaxCondition);
 
     const ivaXml =
-      ivaDetails.length > 0
+      !isTipoC && ivaDetails.length > 0
         ? `<Iva>${ivaDetails
             .map(
               (row) => `<AlicIva>
@@ -127,6 +141,7 @@ export class ArcaWsfeService {
             <ImpTrib>0</ImpTrib>
             <MonId>PES</MonId>
             <MonCotiz>1</MonCotiz>
+            <CondicionIVAReceptorId>${condicionIvaReceptorId}</CondicionIVAReceptorId>
             ${ivaXml}
           </FECAEDetRequest>
         </FeDetReq>

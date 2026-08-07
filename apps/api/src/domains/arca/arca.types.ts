@@ -52,6 +52,24 @@ export const AFIP_DOC_TYPE_CODES: Record<string, number> = {
   CF: 99,
 };
 
+/** AFIP CondicionIVAReceptorId (FEParamGetCondicionIvaReceptor / RG 5616). */
+export const AFIP_IVA_RECEPTOR_CODES: Record<TaxCondition, number> = {
+  responsable_inscripto: 1,
+  exento: 4,
+  consumidor_final: 5,
+  monotributo: 6,
+  no_responsable: 7,
+};
+
+export function resolveCondicionIvaReceptorId(
+  customerTaxCondition: TaxCondition | null | undefined,
+): number {
+  if (!customerTaxCondition) {
+    return AFIP_IVA_RECEPTOR_CODES.consumidor_final;
+  }
+  return AFIP_IVA_RECEPTOR_CODES[customerTaxCondition] ?? AFIP_IVA_RECEPTOR_CODES.consumidor_final;
+}
+
 export type ArcaAccountRow = {
   id: string;
   organization_id: string;

@@ -310,6 +310,7 @@ export class InvoiceService {
         totalCents: totals.totalCents,
         customerDocumentType: input.customerDocumentType ?? 'CF',
         customerDocumentNumber: input.customerDocumentNumber ?? '0',
+        customerTaxCondition: input.customerTaxCondition ?? 'consumidor_final',
       });
     } catch (error) {
       // Ambiguous failure — consult before deciding.
