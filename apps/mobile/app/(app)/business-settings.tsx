@@ -28,6 +28,7 @@ export default function BusinessSettingsRoute(): ReactElement {
       fallbackNavShortcut={organization.navShortcut}
       fallbackTimezone={organization.timezone}
       onBack={() => router.replace(routes.account)}
+      onOpenArcaSettings={() => router.push(routes.arcaSettings)}
       onSaved={refreshDashboard}
       organizationId={organization.id}
       whatsappPhone={dashboard?.whatsappConnection?.displayPhoneNumber ?? null}

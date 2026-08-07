@@ -86,6 +86,7 @@ export function BusinessSettingsScreen(props: {
   fallbackNavShortcut?: string | null;
   fallbackTimezone: string;
   onBack: () => void;
+  onOpenArcaSettings: () => void;
   onSaved: () => Promise<void>;
   organizationId: string;
   whatsappPhone: string | null;
@@ -323,6 +324,18 @@ export function BusinessSettingsScreen(props: {
           label="Atajo del menú"
           onEdit={() => openEdit('navShortcut')}
           value={shortcutOption.title}
+        />
+      </Card>
+
+      <Card style={styles.summaryCard}>
+        <Text style={styles.sectionCardTitle}>Facturación ARCA</Text>
+        <Text style={styles.sectionCardHint}>
+          Configurá CUIT, punto de venta y autorizá a Nexolia para emitir facturas electrónicas.
+        </Text>
+        <SummaryRow
+          label="Facturación electrónica"
+          onEdit={props.onOpenArcaSettings}
+          value="CUIT, PV y conexión"
         />
       </Card>
 

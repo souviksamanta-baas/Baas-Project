@@ -10,6 +10,7 @@ export type MoreMenuRowId =
   | 'load-purchase'
   | 'notifications-tasks'
   | 'billing'
+  | 'invoices'
   | 'cash'
   | 'account'
   | 'integrations'
@@ -51,6 +52,7 @@ export const moreMenuSections: MoreMenuSection[] = [
     rows: [
       { icon: 'document', id: 'manage-purchases', title: 'Gestionar compras' },
       { icon: 'bill', id: 'billing', title: 'Presupuestos' },
+      { icon: 'bill', id: 'invoices', title: 'Facturas' },
       { disabled: true, icon: 'cash', id: 'cash', title: 'Caja' },
     ],
   },

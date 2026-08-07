@@ -2,6 +2,8 @@ import { Module } from '@nestjs/common';
 
 import { AuthModule } from './auth/auth.module';
 import { AiModule } from './ai/ai.module';
+import { ArcaModule } from './arca/arca.module';
+import { BillingModule } from './billing/billing.module';
 import { ConversationsModule } from './conversations/conversations.module';
 import { CustomersModule } from './customers/customers.module';
 import { InventoryModule } from './inventory/inventory.module';
@@ -21,6 +23,8 @@ import { WhatsAppModule } from './whatsapp/whatsapp.module';
     AiModule,
     WhatsAppModule,
     InstagramModule,
+    ArcaModule,
+    BillingModule,
   ],
   exports: [
     AuthModule,
@@ -32,6 +36,8 @@ import { WhatsAppModule } from './whatsapp/whatsapp.module';
     AiModule,
     WhatsAppModule,
     InstagramModule,
+    ArcaModule,
+    BillingModule,
   ],
 })
 export class DomainModule {}

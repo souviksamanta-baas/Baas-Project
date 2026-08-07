@@ -421,3 +421,174 @@ export class InstagramSendMessageResponseDto {
   @ApiProperty({ enum: ['sent'] })
   status!: 'sent';
 }
+
+export class ArcaConnectionSummaryDto {
+  @ApiProperty({
+    enum: ['pending', 'connected', 'error', 'disabled', 'awaiting_delegation'],
+  })
+  authorizationStatus!: string;
+
+  @ApiPropertyOptional({ nullable: true })
+  connectedAt!: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  cuit!: string | null;
+
+  @ApiProperty({ enum: ['homologacion', 'production'] })
+  environment!: string;
+
+  @ApiProperty()
+  hasCredentials!: boolean;
+
+  @ApiPropertyOptional({ nullable: true })
+  lastError!: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  pointOfSale!: number | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  taxCondition!: string | null;
+}
+
+export class ArcaUpsertConnectionDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  certificatePem?: string;
+
+  @ApiProperty({ example: '20123456789' })
+  @IsString()
+  @MinLength(11)
+  cuit!: string;
+
+  @ApiPropertyOptional({ enum: ['homologacion', 'production'] })
+  @IsOptional()
+  @IsString()
+  environment?: 'homologacion' | 'production';
+
+  @ApiProperty({ format: 'uuid' })
+  @IsString()
+  organizationId!: string;
+
+  @ApiProperty({ example: 3 })
+  pointOfSale!: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  privateKeyPem?: string;
+
+  @ApiProperty({
+    enum: [
+      'monotributo',
+      'responsable_inscripto',
+      'exento',
+      'no_responsable',
+      'consumidor_final',
+    ],
+  })
+  @IsString()
+  taxCondition!: string;
+}
+
+export class ArcaMarkConnectedDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsString()
+  organizationId!: string;
+}
+
+export class IssueInvoiceLineDto {
+  @ApiProperty()
+  @IsString()
+  description!: string;
+
+  @ApiPropertyOptional({ example: 21 })
+  ivaRate?: number;
+
+  @ApiProperty({ example: 1 })
+  quantity!: number;
+
+  @ApiProperty({ example: 150000, description: 'Unit price in cents (tax-included)' })
+  unitPriceCents!: number;
+}
+
+export class IssueInvoiceDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  contactId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  customerDocumentNumber?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  customerDocumentType?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  customerName?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  customerTaxCondition?: string;
+
+  @ApiProperty({ type: [IssueInvoiceLineDto] })
+  lines!: IssueInvoiceLineDto[];
+
+  @ApiProperty({ format: 'uuid' })
+  @IsString()
+  organizationId!: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  relatedInvoiceId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  sellQuoteId?: string;
+
+  @ApiPropertyOptional({
+    enum: ['FA', 'FB', 'FC', 'NCA', 'NCB', 'NCC', 'NDA', 'NDB', 'NDC'],
+    example: 'FC',
+  })
+  @IsOptional()
+  @IsString()
+  voucherType?: 'FA' | 'FB' | 'FC' | 'NCA' | 'NCB' | 'NCC' | 'NDA' | 'NDB' | 'NDC';
+}
+
+export class IssuedInvoiceResponseDto {
+  @ApiPropertyOptional({ nullable: true })
+  cae!: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  caeExpiration!: string | null;
+
+  @ApiProperty({ format: 'uuid' })
+  id!: string;
+
+  @ApiPropertyOptional({ nullable: true })
+  pdfStoragePath!: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  qrUrl!: string | null;
+
+  @ApiProperty()
+  status!: string;
+
+  @ApiProperty()
+  totalAmountCents!: number;
+
+  @ApiPropertyOptional({ nullable: true })
+  voucherNumber!: number | null;
+
+  @ApiProperty()
+  voucherType!: string;
+}

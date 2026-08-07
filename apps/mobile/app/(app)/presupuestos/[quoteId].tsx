@@ -3,6 +3,8 @@ import type { ReactElement } from 'react';
 import { useCallback, useEffect, useState } from 'react';
 import { Alert } from 'react-native';
 
+import { getArcaConnection } from '../../../src/api/arca';
+import { issueInvoice } from '../../../src/api/billing';
 import { confirmSale } from '../../../src/api/inventory';
 import { BrandSuccessModal } from '../../../src/components/BrandSuccessModal';
 import { useOwnerSessionContext } from '../../../src/context/OwnerSessionProvider';
@@ -10,6 +12,7 @@ import { useSellCart } from '../../../src/context/SellCartProvider';
 import {
   DEFAULT_CLIENT_LABEL,
   DEFAULT_RECEIPT_LABEL,
+  getCartLineSoldQuantity,
   getEffectiveGrams,
   getSellQuote,
   updateSellQuote,
@@ -17,6 +20,7 @@ import {
   type SellCartLine,
 } from '../../../src/lib/sellCart';
 import {
+  invoiceDetailRoute,
   parsePresupuestoReturnTo,
   resolvePresupuestoReturnRoute,
   routes,
@@ -38,11 +42,11 @@ export default function PresupuestoDetailRoute(): ReactElement {
 
   const [quote, setQuote] = useState<SavedSellQuote | null>(null);
   const [cart, setCart] = useState<SellCartLine[]>([]);
-  const [clientLabel, setClientLabel] = useState(DEFAULT_CLIENT_LABEL);
-  const [receiptLabel, setReceiptLabel] = useState(DEFAULT_RECEIPT_LABEL);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isConfirming, setIsConfirming] = useState(false);
+  const [isIssuingInvoice, setIsIssuingInvoice] = useState(false);
+  const [arcaConnected, setArcaConnected] = useState(false);
   const [successVisible, setSuccessVisible] = useState(false);
 
   const loadQuote = useCallback(async () => {
@@ -59,8 +63,6 @@ export default function PresupuestoDetailRoute(): ReactElement {
       setQuote(next);
       if (next) {
         setCart(next.draft.cart.map((line) => ({ ...line })));
-        setClientLabel(next.draft.clientLabel || DEFAULT_CLIENT_LABEL);
-        setReceiptLabel(next.draft.receiptLabel || DEFAULT_RECEIPT_LABEL);
       } else {
         setCart([]);
       }
@@ -76,9 +78,27 @@ export default function PresupuestoDetailRoute(): ReactElement {
     }
   }, [businessCenterId, organizationId, quoteId]);
 
+  const loadArca = useCallback(async () => {
+    if (!organizationId) {
+      setArcaConnected(false);
+      return;
+    }
+
+    try {
+      const connection = await getArcaConnection(organizationId);
+      setArcaConnected(connection.authorizationStatus === 'connected');
+    } catch {
+      setArcaConnected(false);
+    }
+  }, [organizationId]);
+
   useEffect(() => {
     void loadQuote();
   }, [loadQuote]);
+
+  useEffect(() => {
+    void loadArca();
+  }, [loadArca]);
 
   function handleBack(): void {
     router.replace(resolvePresupuestoReturnRoute(returnTo));
@@ -92,8 +112,8 @@ export default function PresupuestoDetailRoute(): ReactElement {
     return {
       ...quote.draft,
       cart,
-      clientLabel: clientLabel.trim() || DEFAULT_CLIENT_LABEL,
-      receiptLabel: receiptLabel.trim() || DEFAULT_RECEIPT_LABEL,
+      clientLabel: quote.draft.clientLabel?.trim() || DEFAULT_CLIENT_LABEL,
+      receiptLabel: quote.draft.receiptLabel?.trim() || DEFAULT_RECEIPT_LABEL,
     };
   }
 
@@ -113,8 +133,6 @@ export default function PresupuestoDetailRoute(): ReactElement {
       if (updated) {
         setQuote(updated);
         setCart(updated.draft.cart.map((line) => ({ ...line })));
-        setClientLabel(updated.draft.clientLabel);
-        setReceiptLabel(updated.draft.receiptLabel);
       }
     } catch (error) {
       Alert.alert(
@@ -158,8 +176,51 @@ export default function PresupuestoDetailRoute(): ReactElement {
     }
   }
 
+  async function handleIssueInvoice(): Promise<void> {
+    if (!organizationId || !quote || cart.length === 0) {
+      return;
+    }
+
+    setIsIssuingInvoice(true);
+    try {
+      const issued = await issueInvoice({
+        organizationId,
+        sellQuoteId: quote.id,
+        customerName: quote.draft.clientLabel?.trim() || undefined,
+        lines: cart.map((line) => ({
+          description: line.name,
+          quantity: getCartLineSoldQuantity(line),
+          unitPriceCents: line.unitPriceCents,
+        })),
+      });
+      Alert.alert(
+        'Factura emitida',
+        issued.cae
+          ? `CAE ${issued.cae}. Ya podés verla en Facturas.`
+          : 'La factura se registró. Revisá el detalle en Facturas.',
+        [
+          {
+            text: 'Ver factura',
+            onPress: () => router.push(invoiceDetailRoute(issued.id)),
+          },
+          { text: 'Cerrar', style: 'cancel' },
+        ],
+      );
+    } catch (error) {
+      Alert.alert(
+        'No se pudo emitir',
+        error instanceof Error ? error.message : 'Error desconocido',
+      );
+    } finally {
+      setIsIssuingInvoice(false);
+    }
+  }
+
   function handleSuccessClose(): void {
     setSuccessVisible(false);
+    if (arcaConnected) {
+      return;
+    }
     router.replace(resolvePresupuestoReturnRoute(returnTo));
   }
 
@@ -253,31 +314,32 @@ export default function PresupuestoDetailRoute(): ReactElement {
   return (
     <>
       <PresupuestoDetailScreen
+        arcaConnected={arcaConnected}
         cart={cart}
-        clientLabel={clientLabel}
         isConfirming={isConfirming}
+        isIssuingInvoice={isIssuingInvoice}
         isLoading={isLoading}
         isSaving={isSaving}
         onAddMoreProducts={handleAddMoreProducts}
         onBack={handleBack}
-        onClientLabelChange={setClientLabel}
         onConfirmPayment={handleConfirmPayment}
         onDecreaseLine={handleDecreaseLine}
         onFocusLineGrams={handleFocusLineGrams}
         onIncreaseLine={handleIncreaseLine}
-        onReceiptLabelChange={setReceiptLabel}
+        onIssueInvoice={handleIssueInvoice}
         onRemoveLine={handleRemoveLine}
         onSaveChanges={handleSaveChanges}
         onSetLineGrams={handleSetLineGrams}
         quote={quote}
         quoteId={quoteId}
-        receiptLabel={receiptLabel}
       />
       <BrandSuccessModal
         body={
-          quote
-            ? `La venta quedó registrada como cobrada (${quote.id}). Ya la ves en Presupuestos.`
-            : 'La venta quedó registrada como cobrada.'
+          arcaConnected
+            ? 'La venta quedó cobrada. Podés emitir la factura electrónica ARCA desde esta pantalla.'
+            : quote
+              ? `La venta quedó registrada como cobrada (${quote.id}). Ya la ves en Presupuestos.`
+              : 'La venta quedó registrada como cobrada.'
         }
         buttonLabel="Entendido"
         onClose={handleSuccessClose}

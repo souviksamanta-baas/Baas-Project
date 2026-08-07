@@ -62,6 +62,9 @@ export default function MoreRoute(): ReactElement {
       case 'billing':
         router.push(routes.billing);
         return;
+      case 'invoices':
+        router.push(routes.invoices);
+        return;
       case 'account':
         router.push(routes.account);
         return;

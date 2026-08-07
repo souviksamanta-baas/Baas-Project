@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Icon } from '../components/icons';
 import {
@@ -25,36 +25,30 @@ import {
 import { colors } from '../theme';
 
 export function PresupuestoDetailScreen(props: {
+  arcaConnected?: boolean;
   cart: SellCartLine[];
-  clientLabel: string;
   isConfirming?: boolean;
+  isIssuingInvoice?: boolean;
   isLoading?: boolean;
   isSaving?: boolean;
   onAddMoreProducts: () => void;
   onBack: () => void;
-  onClientLabelChange: (value: string) => void;
   onConfirmPayment: () => Promise<void>;
   onDecreaseLine: (lineId: string) => void;
   onFocusLineGrams: (lineId: string) => void;
   onIncreaseLine: (lineId: string) => void;
-  onReceiptLabelChange: (value: string) => void;
+  onIssueInvoice?: () => Promise<void>;
   onRemoveLine: (lineId: string) => void;
   onSaveChanges: () => Promise<void>;
   onSetLineGrams: (lineId: string, value: string) => void;
   quote: SavedSellQuote | null;
   quoteId?: string | null;
-  receiptLabel: string;
 }): ReactElement {
   const quote = props.quote;
   const pageTitle = quote?.id ?? props.quoteId ?? 'Presupuesto';
   const canEdit = quote != null && quote.status !== 'cobrado' && quote.status !== 'cancelado';
-  const cartDirty =
-    quote != null && JSON.stringify(props.cart) !== JSON.stringify(quote.draft.cart);
   const dirty =
-    quote != null &&
-    (cartDirty ||
-      props.clientLabel.trim() !== quote.draft.clientLabel.trim() ||
-      props.receiptLabel.trim() !== quote.draft.receiptLabel.trim());
+    quote != null && JSON.stringify(props.cart) !== JSON.stringify(quote.draft.cart);
 
   if (props.isLoading) {
     return (
@@ -172,21 +166,6 @@ export function PresupuestoDetailScreen(props: {
         </View>
       </View>
 
-      <View style={styles.fieldsCard}>
-        <EditableField
-          editable={canEdit}
-          label="Cliente"
-          onChangeText={props.onClientLabelChange}
-          value={props.clientLabel}
-        />
-        <EditableField
-          editable={canEdit}
-          label="Comprobante"
-          onChangeText={props.onReceiptLabelChange}
-          value={props.receiptLabel}
-        />
-      </View>
-
       {canEdit ? (
         <>
           <ConfirmEditButton
@@ -210,31 +189,23 @@ export function PresupuestoDetailScreen(props: {
           </View>
         </>
       ) : null}
-    </ScreenContent>
-  );
-}
 
-function EditableField(props: {
-  editable: boolean;
-  label: string;
-  onChangeText: (value: string) => void;
-  value: string;
-}): ReactElement {
-  return (
-    <View style={styles.field}>
-      <Text style={styles.fieldLabel}>{props.label}</Text>
-      {props.editable ? (
-        <TextInput
-          onChangeText={props.onChangeText}
-          placeholder="Estandar"
-          placeholderTextColor={colors.slate}
-          style={styles.fieldInput}
-          value={props.value}
-        />
-      ) : (
-        <Text style={styles.fieldValue}>{props.value}</Text>
-      )}
-    </View>
+      {quote.status === 'cobrado' && props.arcaConnected && props.onIssueInvoice ? (
+        <>
+          <ConfirmPrimaryButton
+            disabled={props.isIssuingInvoice || props.cart.length === 0}
+            label={props.isIssuingInvoice ? 'Emitiendo factura…' : 'Emitir factura ARCA'}
+            onPress={() => void props.onIssueInvoice?.()}
+          />
+          <View style={styles.footerNote}>
+            <Icon color={colors.primary} kind="shield" size={14} strokeWidth={1.8} />
+            <Text style={styles.footerText}>
+              Se solicita CAE a ARCA y se genera el comprobante fiscal.
+            </Text>
+          </View>
+        </>
+      ) : null}
+    </ScreenContent>
   );
 }
 
@@ -260,36 +231,6 @@ const styles = StyleSheet.create({
   emptyText: {
     color: colors.slate,
     fontSize: 15,
-  },
-  field: {
-    flex: 1,
-    gap: 6,
-  },
-  fieldInput: {
-    backgroundColor: colors.surface,
-    borderColor: '#dfe7ec',
-    borderRadius: 10,
-    borderWidth: 1,
-    color: colors.navy,
-    fontSize: 15,
-    fontWeight: '600',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-  },
-  fieldLabel: {
-    color: colors.slate,
-    fontSize: 13,
-    fontWeight: '500',
-  },
-  fieldValue: {
-    color: colors.navy,
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  fieldsCard: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 12,
   },
   flex: {
     flex: 1,
@@ -331,7 +272,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     flexDirection: 'row',
     gap: 12,
-    marginTop: 8,
+    marginTop: 4,
     paddingHorizontal: 14,
     paddingVertical: 12,
   },
@@ -344,16 +285,15 @@ const styles = StyleSheet.create({
   statusSubtitle: {
     color: colors.navy,
     fontSize: 15,
-    fontWeight: '600',
-    marginTop: 2,
+    fontWeight: '700',
   },
   statusTitle: {
     color: colors.slate,
-    fontSize: 13,
-    fontWeight: '500',
+    fontSize: 12,
+    fontWeight: '600',
   },
   totalsWrap: {
     paddingHorizontal: 14,
-    paddingVertical: 10,
+    paddingVertical: 12,
   },
 });

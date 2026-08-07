@@ -26,9 +26,11 @@ export const routes = {
   staffInviteAccept: '/(auth)/invite-accept',
   editProfile: '/(app)/edit-profile',
   businessSettings: '/(app)/business-settings',
+  arcaSettings: '/(app)/arca-settings',
   tasks: '/(app)/tasks',
   billing: '/(app)/billing',
   presupuestos: '/(app)/billing',
+  invoices: '/(app)/invoices',
   integrations: '/(app)/integrations',
   suppliers: '/(app)/suppliers',
   helpSupport: '/(app)/help-support',
@@ -94,6 +96,10 @@ export function presupuestoDetailRoute(
   }
 
   return `${path}?returnTo=${returnTo}`;
+}
+
+export function invoiceDetailRoute(invoiceId: string): string {
+  return `/(app)/invoices/${encodeURIComponent(invoiceId)}`;
 }
 
 export function manageStockRoute(options?: { lowStock?: boolean }): string {
@@ -423,9 +429,11 @@ export function shouldHideBottomNav(pathname: string): boolean {
     pathname.endsWith('/staff-invite') ||
     pathname.endsWith('/edit-profile') ||
     pathname.endsWith('/business-settings') ||
+    pathname.endsWith('/arca-settings') ||
     pathname.endsWith('/scan-code') ||
     /\/tasks\/[^/]+$/.test(pathname) ||
     /\/presupuestos\/[^/]+$/.test(pathname) ||
+    /\/invoices\/[^/]+$/.test(pathname) ||
     /\/product\/[^/]+\/code$/.test(pathname)
   );
 }

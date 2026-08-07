@@ -226,3 +226,19 @@ If Meta shows **Invalid request: Request parameters are invalid** after the logi
 Primary webhook path: `/integrations/meta/instagram/webhook` (alias `/webhooks/instagram`).
 
 See `docs/instagram-messaging.md`, `docs/instagram-webhook.md`, and Confluence [Onboarding de clientes](https://souviksamanta.atlassian.net/wiki/spaces/BaaS/pages/27230209/Onboarding+de+clientes).
+
+### ARCA Facturación electrónica
+
+Platform secrets for Nexolia as ARCA Web Services representative. Merchants authorize Nexolia in Administrador de Relaciones; they never paste Clave Fiscal into the app.
+
+| Variable | Purpose |
+| --- | --- |
+| `ARCA_ENV` | Default environment (`homologacion` \| `production`). Per-org override is stored on `arca_accounts`. |
+| `ARCA_MOCK` | Force mock CAE (`true`/`false`). Default mock when platform cert is empty. |
+| `ARCA_PLATFORM_CERT_PEM` | Nexolia platform certificate (PEM) for WSAA LoginCms |
+| `ARCA_PLATFORM_KEY_PEM` | Matching private key (PEM) |
+| `ARCA_WSAA_URL` / `ARCA_WSFE_URL` | Optional endpoint overrides |
+| `ARCA_QR_BASE_URL` | Base URL for ARCA invoice QR payload (default AFIP QR) |
+| `BAAS_TOKEN_ENCRYPTION_KEY` | Encrypts optional org-owned certs and WSAA ticket cache |
+
+Homologación can connect without production delegation. Production via representation stays `awaiting_delegation` until the owner confirms authorization in the app.

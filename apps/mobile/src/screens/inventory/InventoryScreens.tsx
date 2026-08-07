@@ -14,8 +14,6 @@ import {
   type SubproductMock,
 } from '../../api/inventoryMockData';
 import {
-  DEFAULT_CLIENT_LABEL,
-  DEFAULT_RECEIPT_LABEL,
   formatCurrency,
 } from '../../lib/sellCart';
 import {
@@ -1721,7 +1719,7 @@ export function SellProductsScreen(
           </>
         )}
       </View>
-      <SectionCard title="Cobrar y emitir factura">
+      <SectionCard title="Cobrar">
         {sellCart.quoteMessage ? <InfoBanner>{sellCart.quoteMessage}</InfoBanner> : null}
         {sellCart.cart.length === 0 ? (
           <Text style={styles.rowMeta}>Agrega productos con + para iniciar una venta.</Text>
@@ -1739,24 +1737,6 @@ export function SellProductsScreen(
           total={formatCurrency(sellCart.totalCents)}
           withDiscountControls
         />
-        <View style={styles.fieldRow}>
-          <View style={styles.flex}>
-            <TextField
-              label="Cliente"
-              onChangeText={sellCart.setClientLabel}
-              placeholder="Estandar"
-              value={sellCart.clientLabel}
-            />
-          </View>
-          <View style={styles.flex}>
-            <TextField
-              label="Comprobante"
-              onChangeText={sellCart.setReceiptLabel}
-              placeholder="Estandar"
-              value={sellCart.receiptLabel}
-            />
-          </View>
-        </View>
         <Text style={styles.paymentLabel}>Forma de pago</Text>
         <View style={styles.chipRow}>
           <PaymentChip active label="Efectivo" small />
@@ -1886,19 +1866,6 @@ export function ConfirmPaymentScreen(props: {
             total={formatCurrency(sellCart.totalCents)}
             totalLabel="Total a cobrar"
           />
-        </View>
-      </View>
-      <View style={styles.clientComprobanteCard}>
-        <View style={styles.clientComprobanteCol}>
-          <Icon color={colors.info} kind="user" size={18} strokeWidth={1.8} />
-          <Text style={styles.clientComprobanteLabel}>Cliente</Text>
-          <Text style={styles.clientComprobanteValue}>{DEFAULT_CLIENT_LABEL}</Text>
-        </View>
-        <View style={styles.clientComprobanteDivider} />
-        <View style={styles.clientComprobanteCol}>
-          <Icon color={colors.info} kind="document" size={18} strokeWidth={1.8} />
-          <Text style={styles.clientComprobanteLabel}>Comprobante</Text>
-          <Text style={styles.clientComprobanteValue}>{DEFAULT_RECEIPT_LABEL}</Text>
         </View>
       </View>
       <ConfirmEditButton
@@ -2318,36 +2285,6 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 6,
     marginTop: 8,
-  },
-  clientComprobanteCard: {
-    ...shadows.card,
-    backgroundColor: colors.surface,
-    borderColor: colors.border,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    flexDirection: 'row',
-    marginTop: 12,
-    overflow: 'hidden',
-  },
-  clientComprobanteCol: {
-    flex: 1,
-    padding: 14,
-  },
-  clientComprobanteDivider: {
-    backgroundColor: '#edf2f4',
-    width: 1,
-  },
-  clientComprobanteLabel: {
-    color: colors.slate,
-    fontSize: 13,
-    fontWeight: '300',
-    marginTop: 8,
-  },
-  clientComprobanteValue: {
-    color: colors.navy,
-    fontSize: 15,
-    fontWeight: '600',
-    marginTop: 2,
   },
   codeRow: {
     alignItems: 'center',
