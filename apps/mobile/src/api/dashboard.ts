@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { normalizeNavShortcutId } from '../lib/navShortcut';
 import type { OwnerDashboard } from '../types/dashboard';
 
 export async function getOwnerDashboard(): Promise<OwnerDashboard> {
@@ -8,7 +9,12 @@ export async function getOwnerDashboard(): Promise<OwnerDashboard> {
     throw new Error(error.message);
   }
 
-  return data as OwnerDashboard;
+  const dashboard = data as OwnerDashboard;
+  if (dashboard.organization) {
+    dashboard.organization.navShortcut = normalizeNavShortcutId(dashboard.organization.navShortcut);
+  }
+
+  return dashboard;
 }
 
 export async function listBusinessCenters(
@@ -28,7 +34,10 @@ export async function listBusinessCenters(
   return (data ?? []) as Array<{ id: string; name: string }>;
 }
 
-export async function createOrganizationWithOwner(name: string): Promise<string> {
+export async function createOrganizationWithOwner(
+  name: string,
+  options?: { navShortcut?: string },
+): Promise<string> {
   const { data, error } = await supabase.rpc('create_organization_with_owner', {
     org_name: name,
     org_timezone: Intl.DateTimeFormat().resolvedOptions().timeZone ?? 'UTC',
@@ -38,5 +47,17 @@ export async function createOrganizationWithOwner(name: string): Promise<string>
     throw new Error(error.message);
   }
 
-  return data as string;
+  const organizationId = data as string;
+  if (options?.navShortcut) {
+    const { error: shortcutError } = await supabase
+      .from('organizations')
+      .update({ nav_shortcut: normalizeNavShortcutId(options.navShortcut) })
+      .eq('id', organizationId);
+
+    if (shortcutError) {
+      throw new Error(shortcutError.message);
+    }
+  }
+
+  return organizationId;
 }

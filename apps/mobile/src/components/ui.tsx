@@ -680,11 +680,16 @@ export function RobotAvatar(props: { small?: boolean } = {}): ReactElement {
 
 export function BottomNavigation(props: {
   activeTab: AppTab;
-  onOpenSell: () => void;
+  onOpenShortcut: () => void;
   onSelectTab: (tab: AppTab) => void;
+  shortcutActive?: boolean;
+  shortcutIcon: IconKind;
+  shortcutIsCash?: boolean;
+  shortcutLabel: string;
 }): ReactElement {
   // WhatsApp floating dock: equal inset on left/right/bottom (~16pt from screen edges).
   const edgeInset = 16;
+  const copiActive = props.activeTab === 'copi';
 
   return (
     <View pointerEvents="box-none" style={styles.bottomNavOverlay}>
@@ -709,7 +714,7 @@ export function BottomNavigation(props: {
       >
         <View style={styles.bottomNav}>
           <TabButton
-            active={props.activeTab === 'home'}
+            active={props.activeTab === 'home' && !props.shortcutActive}
             icon="home"
             label="Inicio"
             onPress={() => props.onSelectTab('home')}
@@ -720,17 +725,23 @@ export function BottomNavigation(props: {
             label="Chats"
             onPress={() => props.onSelectTab('inbox')}
           />
-          <Pressable hitSlop={8} onPress={props.onOpenSell} style={styles.centerAction}>
-            <Text style={styles.centerActionText}>$</Text>
+          <Pressable
+            accessibilityLabel="Copi"
+            hitSlop={8}
+            onPress={() => props.onSelectTab('copi')}
+            style={[styles.centerAction, copiActive && styles.centerActionActive]}
+          >
+            <CopiRobotIcon shadowed size={52} />
           </Pressable>
           <TabButton
-            active={props.activeTab === 'copi'}
-            icon="bot"
-            label="Copi"
-            onPress={() => props.onSelectTab('copi')}
+            active={Boolean(props.shortcutActive)}
+            cashSymbol={props.shortcutIsCash}
+            icon={props.shortcutIcon}
+            label={props.shortcutLabel}
+            onPress={props.onOpenShortcut}
           />
           <TabButton
-            active={props.activeTab === 'more'}
+            active={props.activeTab === 'more' && !props.shortcutActive}
             icon="more"
             label="Más"
             onPress={() => props.onSelectTab('more')}
@@ -741,9 +752,16 @@ export function BottomNavigation(props: {
   );
 }
 
-function TabButton(props: { active: boolean; icon: IconKind; label: string; onPress: () => void }): ReactElement {
+function TabButton(props: {
+  active: boolean;
+  cashSymbol?: boolean;
+  icon: IconKind;
+  label: string;
+  onPress: () => void;
+}): ReactElement {
   const scale = useRef(new Animated.Value(props.active ? 1 : 0.94)).current;
   const glassOpacity = useRef(new Animated.Value(props.active ? 1 : 0)).current;
+  const iconColor = props.active ? colors.tabActive : colors.tabInactive;
 
   useEffect(() => {
     Animated.parallel([
@@ -761,20 +779,16 @@ function TabButton(props: { active: boolean; icon: IconKind; label: string; onPr
     ]).start();
   }, [glassOpacity, props.active, scale]);
 
-  const useFilled = props.active && (props.icon === 'home' || props.icon === 'inbox' || props.icon === 'bot');
-
   return (
     <Pressable onPress={props.onPress} style={styles.tabButton}>
       <Animated.View style={{ alignItems: 'center', transform: [{ scale }] }}>
         <View style={styles.tabIconWrap}>
           <Animated.View style={[styles.tabGlassHighlight, { opacity: glassOpacity }]} />
-          <Icon
-            color={props.active ? colors.tabActive : colors.tabInactive}
-            filled={useFilled}
-            kind={props.icon}
-            size={32}
-            strokeWidth={1.55}
-          />
+          {props.cashSymbol ? (
+            <Text style={[styles.shortcutCashSymbol, { color: iconColor }]}>$</Text>
+          ) : (
+            <Icon color={iconColor} filled={false} kind={props.icon} size={32} strokeWidth={1.55} />
+          )}
         </View>
         <Text style={[styles.tabLabel, props.active && styles.activeTabText]}>{props.label}</Text>
       </Animated.View>
@@ -1035,25 +1049,35 @@ const styles = StyleSheet.create({
   },
   centerAction: {
     alignItems: 'center',
-    backgroundColor: colors.primary,
+    backgroundColor: colors.surface,
     borderColor: colors.surface,
     borderRadius: radius.pill,
-    borderWidth: 6,
-    elevation: 10,
+    borderWidth: 3,
+    elevation: 16,
     height: 66,
     justifyContent: 'center',
     marginTop: -28,
-    shadowColor: '#000000',
-    shadowOffset: { height: 2, width: 0 },
-    shadowOpacity: 0.22,
-    shadowRadius: 6,
+    shadowColor: '#101935',
+    shadowOffset: { height: 6, width: 0 },
+    shadowOpacity: 0.28,
+    shadowRadius: 10,
     width: 66,
+    zIndex: 2,
+  },
+  centerActionActive: {
+    borderColor: colors.primarySoft,
+    shadowOpacity: 0.36,
   },
   centerActionText: {
     color: colors.surface,
     fontSize: 30,
     fontWeight: '500',
     lineHeight: 36,
+  },
+  shortcutCashSymbol: {
+    fontSize: 28,
+    fontWeight: '600',
+    lineHeight: 32,
   },
   channelBadge: {
     alignItems: 'center',

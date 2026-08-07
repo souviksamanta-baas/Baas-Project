@@ -9,6 +9,7 @@ export interface OwnerDashboard {
     businessHours: BusinessHoursSettings | null;
     id: string;
     name: string;
+    navShortcut?: string | null;
     role: 'owner' | 'staff';
     timezone: string;
     verticalId: string | null;

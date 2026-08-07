@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { normalizeNavShortcutId, type NavShortcutId } from '../lib/navShortcut';
 
 export type OrganizationProfile = {
   addressLine1: string;
@@ -9,6 +10,7 @@ export type OrganizationProfile = {
   country: string;
   id: string;
   name: string;
+  navShortcut: NavShortcutId;
   postalCode: string;
   province: string;
   timezone: string;
@@ -23,6 +25,7 @@ type OrganizationProfileRow = {
   country: string | null;
   id: string;
   name: string;
+  nav_shortcut: string | null;
   postal_code: string | null;
   province: string | null;
   timezone: string;
@@ -38,6 +41,7 @@ function mapOrganizationProfile(row: OrganizationProfileRow): OrganizationProfil
     country: row.country ?? 'AR',
     id: row.id,
     name: row.name,
+    navShortcut: normalizeNavShortcutId(row.nav_shortcut),
     postalCode: row.postal_code ?? '',
     province: row.province ?? '',
     timezone: row.timezone,
@@ -48,7 +52,7 @@ export async function getOrganizationProfile(organizationId: string): Promise<Or
   const { data, error } = await supabase
     .from('organizations')
     .select(
-      'id, name, timezone, contact_email, contact_phone, address_line1, address_line2, city, province, postal_code, country',
+      'id, name, timezone, contact_email, contact_phone, address_line1, address_line2, city, province, postal_code, country, nav_shortcut',
     )
     .eq('id', organizationId)
     .single();
@@ -79,10 +83,25 @@ export async function updateOrganizationProfile(params: {
       contact_phone: params.profile.contactPhone.trim() || null,
       country: params.profile.country.trim() || 'AR',
       name,
+      nav_shortcut: normalizeNavShortcutId(params.profile.navShortcut),
       postal_code: params.profile.postalCode.trim() || null,
       province: params.profile.province.trim() || null,
       timezone: params.profile.timezone.trim() || 'America/Argentina/Cordoba',
     })
+    .eq('id', params.organizationId);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
+export async function updateOrganizationNavShortcut(params: {
+  organizationId: string;
+  navShortcut: NavShortcutId;
+}): Promise<void> {
+  const { error } = await supabase
+    .from('organizations')
+    .update({ nav_shortcut: normalizeNavShortcutId(params.navShortcut) })
     .eq('id', params.organizationId);
 
   if (error) {

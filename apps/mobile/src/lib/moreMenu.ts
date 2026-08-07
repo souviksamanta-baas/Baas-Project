@@ -1,6 +1,7 @@
 import type { IconKind } from '../components/icons';
 
 export type MoreMenuRowId =
+  | 'ventas'
   | 'manage-stock'
   | 'add-product'
   | 'lots-movements'
@@ -37,9 +38,9 @@ export const moreMenuSections: MoreMenuSection[] = [
     feature: 'moreInventory',
     id: 'inventory',
     rows: [
+      { icon: 'money', id: 'ventas', title: 'Ventas' },
       { icon: 'box', id: 'manage-stock', title: 'Gestionar stock' },
       { icon: 'cart', id: 'load-purchase', title: 'Cargar compras' },
-      { icon: 'document', id: 'manage-purchases', title: 'Gestionar compras' },
       { icon: 'plus', id: 'add-product', title: 'Agregar producto' },
       { icon: 'document', id: 'lots-movements', title: 'Lotes y movimientos' },
     ],
@@ -48,6 +49,7 @@ export const moreMenuSections: MoreMenuSection[] = [
     feature: 'moreOperations',
     id: 'operations',
     rows: [
+      { icon: 'document', id: 'manage-purchases', title: 'Gestionar compras' },
       { icon: 'bill', id: 'billing', title: 'Presupuestos' },
       { disabled: true, icon: 'cash', id: 'cash', title: 'Caja' },
     ],

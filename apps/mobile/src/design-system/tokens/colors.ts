@@ -24,9 +24,9 @@ export const colors = {
   /** WhatsApp/iOS-style inset list separator */
   separator: 'rgba(60, 60, 67, 0.18)',
 
-  // Tab bar (WhatsApp-like neutrals; $ FAB keeps brand green)
+  // Tab bar — inactive grey, active brand green (outline icons)
   tabInactive: '#3a3a3c',
-  tabActive: '#1c1c1e',
+  tabActive: '#08bd66',
 
   // Semantic
   success: '#08bd66',

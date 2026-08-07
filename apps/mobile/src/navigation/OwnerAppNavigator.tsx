@@ -406,6 +406,11 @@ export function OwnerAppNavigator(props: { onSignOut: () => void }): ReactElemen
                     return;
                   }
 
+                  if (rowId === 'ventas') {
+                    openSellProducts();
+                    return;
+                  }
+
                   if (rowId === 'manage-stock' || rowId === 'add-product') {
                     openManageStock();
                   }
@@ -418,7 +423,15 @@ export function OwnerAppNavigator(props: { onSignOut: () => void }): ReactElemen
         </ScrollView>
       )}
       {hideBottomNav ? null : (
-        <BottomNavigation activeTab={activeTab} onOpenSell={openSellProducts} onSelectTab={selectTab} />
+        <BottomNavigation
+          activeTab={activeTab}
+          onOpenShortcut={openSellProducts}
+          onSelectTab={selectTab}
+          shortcutActive={route === 'sell-products' || route === 'confirm-payment'}
+          shortcutIcon="money"
+          shortcutIsCash
+          shortcutLabel="Ventas"
+        />
       )}
     </View>
   );

@@ -36,6 +36,9 @@ export default function MoreRoute(): ReactElement {
 
   function openRow(rowId: MoreMenuRowId): void {
     switch (rowId) {
+      case 'ventas':
+        router.push(routes.inventorySell);
+        return;
       case 'manage-stock':
         router.push(routes.inventoryManageStock);
         return;

@@ -25,6 +25,7 @@ export default function BusinessSettingsRoute(): ReactElement {
   return (
     <BusinessSettingsScreen
       fallbackName={organization.name}
+      fallbackNavShortcut={organization.navShortcut}
       fallbackTimezone={organization.timezone}
       onBack={() => router.replace(routes.account)}
       onSaved={refreshDashboard}

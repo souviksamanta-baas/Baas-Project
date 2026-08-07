@@ -25,7 +25,9 @@ export default function OnboardingRoute(): ReactElement {
     <OnboardingScreen
       businessName={session.businessName}
       isSubmitting={session.isSubmitting}
+      navShortcut={session.navShortcut}
       onChangeBusinessName={session.setBusinessName}
+      onChangeNavShortcut={session.setNavShortcut}
       onCreateOrganization={session.createOrganization}
     />
   );

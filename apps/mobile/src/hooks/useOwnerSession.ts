@@ -4,6 +4,7 @@ import type { Session } from '@supabase/supabase-js';
 
 import { createOrganizationWithOwner, getOwnerDashboard } from '../api/dashboard';
 import { requestLoginOtp, signOutOwner, verifyLoginOtp } from '../api/auth';
+import { normalizeNavShortcutId, type NavShortcutId } from '../lib/navShortcut';
 import { supabase } from '../lib/supabase';
 import { formatAuthError } from '../services/authErrors';
 import {
@@ -25,11 +26,13 @@ export interface OwnerSessionState {
   dashboard: OwnerDashboard | null;
   isSubmitting: boolean;
   loginIdentifier: string;
+  navShortcut: NavShortcutId;
   otpChannel: AuthOtpChannel;
   otpCode: string;
   requestOtp: () => Promise<boolean>;
   setBusinessName: (businessName: string) => void;
   setLoginIdentifier: (loginIdentifier: string) => void;
+  setNavShortcut: (navShortcut: NavShortcutId) => void;
   setOtpChannel: (channel: AuthOtpChannel) => void;
   setOtpCode: (otpCode: string) => void;
   createOrganization: () => Promise<void>;
@@ -45,6 +48,7 @@ export function useOwnerSession(): OwnerSessionState {
   const [loginIdentifier, setLoginIdentifier] = useState('');
   const [otpCode, setOtpCode] = useState('');
   const [businessName, setBusinessName] = useState('');
+  const [navShortcut, setNavShortcut] = useState<NavShortcutId>('ventas');
   const [dashboard, setDashboard] = useState<OwnerDashboard | null>(null);
   const [isResolvingDashboard, setIsResolvingDashboard] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -199,7 +203,7 @@ export function useOwnerSession(): OwnerSessionState {
     setIsSubmitting(true);
 
     try {
-      await createOrganizationWithOwner(businessName.trim());
+      await createOrganizationWithOwner(businessName.trim(), { navShortcut });
       await bootstrapRoute(session);
     } catch (error) {
       Alert.alert(
@@ -209,7 +213,7 @@ export function useOwnerSession(): OwnerSessionState {
     } finally {
       setIsSubmitting(false);
     }
-  }, [bootstrapRoute, businessName, session]);
+  }, [bootstrapRoute, businessName, navShortcut, session]);
 
   const refreshDashboard = useCallback(async (): Promise<void> => {
     const { data } = await supabase.auth.getSession();
@@ -221,6 +225,7 @@ export function useOwnerSession(): OwnerSessionState {
     setOtpCode('');
     setOtpSent(false);
     setBusinessName('');
+    setNavShortcut('ventas');
     await signOutOwner();
   }, []);
 
@@ -234,6 +239,10 @@ export function useOwnerSession(): OwnerSessionState {
     setOtpChannel(channel);
   }, []);
 
+  const handleSetNavShortcut = useCallback((value: NavShortcutId): void => {
+    setNavShortcut(normalizeNavShortcutId(value));
+  }, []);
+
   return useMemo(
     (): OwnerSessionState => ({
       authError,
@@ -244,12 +253,14 @@ export function useOwnerSession(): OwnerSessionState {
       dashboard,
       isSubmitting,
       loginIdentifier,
+      navShortcut,
       otpChannel,
       otpCode,
       refreshDashboard,
       requestOtp,
       setBusinessName,
       setLoginIdentifier: handleSetLoginIdentifier,
+      setNavShortcut: handleSetNavShortcut,
       setOtpChannel: handleSetOtpChannel,
       setOtpCode,
       signOut,
@@ -263,9 +274,11 @@ export function useOwnerSession(): OwnerSessionState {
       createOrganization,
       dashboard,
       handleSetLoginIdentifier,
+      handleSetNavShortcut,
       handleSetOtpChannel,
       isSubmitting,
       loginIdentifier,
+      navShortcut,
       otpChannel,
       otpCode,
       refreshDashboard,

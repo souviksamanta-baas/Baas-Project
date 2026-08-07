@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react';
-import { Platform } from 'react-native';
+import { Platform, View } from 'react-native';
 import Svg, { Circle, G, Path, Rect, Text as SvgText } from 'react-native-svg';
 
 import { colors } from '../theme';
@@ -127,11 +127,23 @@ export function IphoneStatusIcons(props: { color?: string }): ReactElement {
   );
 }
 
-export function CopiRobotIcon(props: { size?: number }): ReactElement {
+export function CopiRobotIcon(props: { shadowed?: boolean; size?: number }): ReactElement {
   const size = props.size ?? 76;
+  const shadowed = props.shadowed === true;
 
-  return (
-    <Svg height={size} style={robotDropShadowStyle} viewBox="0 0 96 96" width={size}>
+  const icon = (
+    <Svg
+      height={size}
+      style={
+        Platform.OS === 'web'
+          ? shadowed
+            ? robotWebStrongDropShadowStyle
+            : robotWebDropShadowStyle
+          : undefined
+      }
+      viewBox="0 0 96 96"
+      width={size}
+    >
       <Circle cx={48} cy={9} fill="#12d47a" opacity={0.5} r={8} />
       <Rect fill="#12d47a" height={8} rx={1} width={2} x={47} y={11} />
       <Circle cx={48} cy={9} fill="#12d47a" r={5} />
@@ -153,18 +165,59 @@ export function CopiRobotIcon(props: { size?: number }): ReactElement {
       </G>
     </Svg>
   );
+
+  if (!shadowed || Platform.OS === 'web') {
+    return icon;
+  }
+
+  // Soft contact shadow so the robot lifts off a white circular plate.
+  return (
+    <View style={{ alignItems: 'center', height: size, justifyContent: 'center', width: size }}>
+      <View
+        style={[
+          robotNativeContactShadowStyle,
+          {
+            bottom: size * 0.08,
+            height: size * 0.22,
+            width: size * 0.72,
+          },
+        ]}
+      />
+      <View style={robotNativeLiftStyle}>{icon}</View>
+    </View>
+  );
 }
 
-const robotDropShadowStyle =
-  Platform.OS === 'web'
-    ? ({ filter: 'drop-shadow(0px 12px 16px rgba(16, 25, 53, 0.26))' } as never)
-    : undefined;
+const robotWebDropShadowStyle = {
+  filter: 'drop-shadow(0px 12px 16px rgba(16, 25, 53, 0.26))',
+} as never;
+
+const robotWebStrongDropShadowStyle = {
+  filter: 'drop-shadow(0px 4px 6px rgba(16, 25, 53, 0.35)) drop-shadow(0px 10px 14px rgba(16, 25, 53, 0.22))',
+} as never;
+
+const robotNativeContactShadowStyle = {
+  backgroundColor: 'rgba(16, 25, 53, 0.22)',
+  borderRadius: 999,
+  position: 'absolute' as const,
+};
+
+const robotNativeLiftStyle = {
+  elevation: 8,
+  shadowColor: '#101935',
+  shadowOffset: { height: 3, width: 0 },
+  shadowOpacity: 0.28,
+  shadowRadius: 5,
+};
 
 function iconPath(kind: IconKind, color: string, filled?: boolean): ReactElement {
   if (kind === 'bell') {
     return (
       <>
-        <Path d="M17.5 10.5c0-3.4-2.2-5.8-5.5-5.8s-5.5 2.4-5.5 5.8c0 3.9-1.9 4.9-2.8 6.1h16.6c-.9-1.2-2.8-2.2-2.8-6.1Z" />
+        <Path
+          d="M17.5 10.5c0-3.4-2.2-5.8-5.5-5.8s-5.5 2.4-5.5 5.8c0 3.9-1.9 4.9-2.8 6.1h16.6c-.9-1.2-2.8-2.2-2.8-6.1Z"
+          fill={filled ? color : 'none'}
+        />
         <Path d="M9.8 20.1c.5.5 1.2.8 2.2.8s1.7-.3 2.2-.8" />
         <Path d="M12 3.2V2.1" />
       </>
@@ -225,10 +278,26 @@ function iconPath(kind: IconKind, color: string, filled?: boolean): ReactElement
   }
   if (kind === 'check') return <Path d="m5 12 4 4 10-10" />;
   if (kind === 'clock') return <><Circle cx="12" cy="12" r="9" /><Path d="M12 7v5l3 2" /></>;
-  if (kind === 'shield') return <><Path d="M12 3 4 6v6c0 5 3.5 8.5 8 9 4.5-.5 8-4 8-9V6l-8-3Z" /><Path d="m9.5 12.5 1.8 1.8L16 9.5" /></>;
+  if (kind === 'shield') {
+    return (
+      <>
+        <Path d="M12 3 4 6v6c0 5 3.5 8.5 8 9 4.5-.5 8-4 8-9V6l-8-3Z" fill={filled ? color : 'none'} />
+        <Path d="m9.5 12.5 1.8 1.8L16 9.5" stroke={filled ? '#fff' : color} />
+      </>
+    );
+  }
   if (kind === 'info') return <><Circle cx="12" cy="12" r="9" /><Path d="M12 10v6" /><Path d="M12 7h.01" /></>;
   if (kind === 'lightbulb') return <><Path d="M9 18h6" /><Path d="M10 22h4" /><Path d="M12 3a6 6 0 0 0-3 11v2h6v-2a6 6 0 0 0-3-11Z" /></>;
-  if (kind === 'document') return <><Path d="M8 4h8l4 4v12H8V4Z" /><Path d="M16 4v4h4" /><Path d="M11 13h6" /><Path d="M11 17h6" /></>;
+  if (kind === 'document') {
+    return (
+      <>
+        <Path d="M8 4h8l4 4v12H8V4Z" fill={filled ? color : 'none'} />
+        <Path d="M16 4v4h4" />
+        <Path d="M11 13h6" />
+        <Path d="M11 17h6" />
+      </>
+    );
+  }
   if (kind === 'x') return <><Path d="M6 6l12 12" /><Path d="M18 6 6 18" /></>;
   if (kind === 'mic') return <><Rect height="10" rx="3" width="6" x="9" y="3" /><Path d="M5.5 11.5a6.5 6.5 0 0 0 13 0" /><Path d="M12 18v3" /></>;
   if (kind === 'image') return <><Rect height="10" rx="1.5" width="13" x="5.5" y="5" /><Circle cx="9" cy="9" r="1.2" /><Path d="M5.5 15 9.5 11.5 12 13.5 15 10.5 18.5 15" /></>;
@@ -258,42 +327,144 @@ function iconPath(kind: IconKind, color: string, filled?: boolean): ReactElement
       </>
     );
   }
-  if (kind === 'money') return <><Circle cx="12" cy="12" r="8.5" fill={filled ? color : 'none'} /><Path d="M12 7.5v9" stroke={filled ? '#fff' : color} /><Path d="M14.4 9.3c-.5-.6-1.3-.9-2.4-.9-1.4 0-2.3.7-2.3 1.8 0 2.6 4.8 1.2 4.8 4 0 1.1-1 1.8-2.5 1.8-1.1 0-2-.3-2.6-1" stroke={filled ? '#fff' : color} /></>;
-  if (kind === 'message') return <><Path d="M5 6.5h14v9H9l-4 3v-12Z" /><Path d="M8.5 10h7" /><Path d="M8.5 13h4.5" /></>;
+  if (kind === 'money') {
+    return (
+      <>
+        <Circle cx="12" cy="12" fill={filled ? color : 'none'} r="8.5" />
+        <Path d="M12 7.5v9" stroke={filled ? '#fff' : color} />
+        <Path
+          d="M14.4 9.3c-.5-.6-1.3-.9-2.4-.9-1.4 0-2.3.7-2.3 1.8 0 2.6 4.8 1.2 4.8 4 0 1.1-1 1.8-2.5 1.8-1.1 0-2-.3-2.6-1"
+          stroke={filled ? '#fff' : color}
+        />
+      </>
+    );
+  }
+  if (kind === 'message') {
+    return (
+      <>
+        <Path d="M5 6.5h14v9H9l-4 3v-12Z" fill={filled ? color : 'none'} />
+        <Path d="M8.5 10h7" />
+        <Path d="M8.5 13h4.5" />
+      </>
+    );
+  }
   if (kind === 'box') {
     return (
       <>
-        <Path d="M4 8.5 12 4l8 4.5v7L12 20l-8-4.5v-7Z" />
+        <Path d="M4 8.5 12 4l8 4.5v7L12 20l-8-4.5v-7Z" fill={filled ? color : 'none'} />
         <Path d="M12 12v8" />
         <Path d="m20 8.5-8 4.5-8-4.5" />
       </>
     );
   }
-  if (kind === 'bill') return <><Path d="M7 4h10v16l-2-1.2-2 1.2-2-1.2-2 1.2-2-1.2V4Z" /><Path d="M9.5 9h5" /><Path d="M9.5 13h4" /></>;
-  if (kind === 'cart') return <><Path d="M4 5h2l2 10h9l2-7H7" /><Circle cx="10" cy="20" r="1" /><Circle cx="17" cy="20" r="1" /></>;
-  if (kind === 'cash') return <><Rect height="9" rx="2" width="16" x="4" y="8" /><Path d="M7 8V5h10v3" /><Path d="M8 13h3" /></>;
-  if (kind === 'megaphone') return <><Path d="M4 13V9l11-4v12L4 13Z" /><Path d="M8 14v4" /><Path d="M18 9.5v3" /></>;
-  if (kind === 'puzzle') return <Path d="M8 3h8v5h3v8h-5v3H6v-8h2V8H5V5h3V3Z" />;
-  if (kind === 'user') return <><Circle cx="12" cy="8" r="3.2" /><Path d="M5.5 19c.8-3.2 3-5 6.5-5s5.7 1.8 6.5 5" /></>;
-  if (kind === 'users') return <><Path d="M8 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" /><Path d="M3 20c.6-3.5 2.3-5.2 5-5.2s4.4 1.7 5 5.2" /><Path d="M16 11a2.5 2.5 0 1 0 0-5" /><Path d="M14.5 15c2 .2 3.3 1.8 3.8 5" /></>;
-  if (kind === 'gear') return <><Path d="M9.6 3.2 9 5.6a7.5 7.5 0 0 0-1.6.9L5 5.8 3.2 8.9l1.8 1.7a7.9 7.9 0 0 0 0 1.8l-1.8 1.7L5 17.2l2.4-.7a7.5 7.5 0 0 0 1.6.9l.6 2.4h4.8l.6-2.4a7.5 7.5 0 0 0 1.6-.9l2.4.7 1.8-3.1-1.8-1.7a7.9 7.9 0 0 0 0-1.8l1.8-1.7L19 5.8l-2.4.7a7.5 7.5 0 0 0-1.6-.9l-.6-2.4H9.6Z" /><Circle cx="12" cy="12" r="3" /></>;
-  if (kind === 'globe') return <><Circle cx="12" cy="12" r="9" /><Path d="M3 12h18" /><Path d="M12 3c2.2 2.5 3.2 5.5 3.2 9S14.2 18.5 12 21" /><Path d="M12 3c-2.2 2.5-3.2 5.5-3.2 9s1 6.5 3.2 9" /></>;
-  if (kind === 'report') return <><Rect height="15" rx="2" width="14" x="5" y="4" /><Path d="M9 15V9" /><Path d="M12 15v-4" /><Path d="M15 15V7" /></>;
-  if (kind === 'help') return <><Circle cx="12" cy="12" r="9" /><Path d="M9.5 9a2.7 2.7 0 1 1 4.2 2.2c-1 .7-1.4 1.2-1.4 2.3" /><Path d="M12 17h.01" /></>;
+  if (kind === 'bill') {
+    return (
+      <>
+        <Path d="M7 4h10v16l-2-1.2-2 1.2-2-1.2-2 1.2-2-1.2V4Z" fill={filled ? color : 'none'} />
+        <Path d="M9.5 9h5" />
+        <Path d="M9.5 13h4" />
+      </>
+    );
+  }
+  if (kind === 'cart') {
+    return (
+      <>
+        <Path d="M4 5h2l2 10h9l2-7H7" />
+        <Circle cx="10" cy="20" fill={color} r="1.35" stroke="none" />
+        <Circle cx="17" cy="20" fill={color} r="1.35" stroke="none" />
+      </>
+    );
+  }
+  if (kind === 'cash') {
+    return (
+      <>
+        <Rect fill={filled ? color : 'none'} height="9" rx="2" width="16" x="4" y="8" />
+        <Path d="M7 8V5h10v3" />
+        <Path d="M8 13h3" stroke={filled ? '#fff' : color} />
+      </>
+    );
+  }
+  if (kind === 'megaphone') return <><Path d="M4 13V9l11-4v12L4 13Z" fill={filled ? color : 'none'} /><Path d="M8 14v4" /><Path d="M18 9.5v3" /></>;
+  if (kind === 'puzzle') {
+    return <Path d="M8 3h8v5h3v8h-5v3H6v-8h2V8H5V5h3V3Z" fill={filled ? color : 'none'} />;
+  }
+  if (kind === 'user') {
+    return (
+      <>
+        <Circle cx="12" cy="8" fill={filled ? color : 'none'} r="3.2" />
+        <Path d="M5.5 19c.8-3.2 3-5 6.5-5s5.7 1.8 6.5 5" />
+      </>
+    );
+  }
+  if (kind === 'users') {
+    return (
+      <>
+        <Path d="M8 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" fill={filled ? color : 'none'} />
+        <Path d="M3 20c.6-3.5 2.3-5.2 5-5.2s4.4 1.7 5 5.2" />
+        <Path d="M16 11a2.5 2.5 0 1 0 0-5" />
+        <Path d="M14.5 15c2 .2 3.3 1.8 3.8 5" />
+      </>
+    );
+  }
+  if (kind === 'gear') {
+    return (
+      <>
+        <Path d="M9.6 3.2 9 5.6a7.5 7.5 0 0 0-1.6.9L5 5.8 3.2 8.9l1.8 1.7a7.9 7.9 0 0 0 0 1.8l-1.8 1.7L5 17.2l2.4-.7a7.5 7.5 0 0 0 1.6.9l.6 2.4h4.8l.6-2.4a7.5 7.5 0 0 0 1.6-.9l2.4.7 1.8-3.1-1.8-1.7a7.9 7.9 0 0 0 0-1.8l1.8-1.7L19 5.8l-2.4.7a7.5 7.5 0 0 0-1.6-.9l-.6-2.4H9.6Z" fill={filled ? color : 'none'} />
+        <Circle cx="12" cy="12" fill={filled ? '#fff' : 'none'} r="3" />
+      </>
+    );
+  }
+  if (kind === 'globe') {
+    return (
+      <>
+        <Circle cx="12" cy="12" fill={filled ? color : 'none'} r="9" />
+        <Path d="M3 12h18" stroke={filled ? '#fff' : color} />
+        <Path d="M12 3c2.2 2.5 3.2 5.5 3.2 9S14.2 18.5 12 21" stroke={filled ? '#fff' : color} />
+        <Path d="M12 3c-2.2 2.5-3.2 5.5-3.2 9s1 6.5 3.2 9" stroke={filled ? '#fff' : color} />
+      </>
+    );
+  }
+  if (kind === 'report') {
+    return (
+      <>
+        <Rect fill={filled ? color : 'none'} height="15" rx="2" width="14" x="5" y="4" />
+        <Path d="M9 15V9" stroke={filled ? '#fff' : color} />
+        <Path d="M12 15v-4" stroke={filled ? '#fff' : color} />
+        <Path d="M15 15V7" stroke={filled ? '#fff' : color} />
+      </>
+    );
+  }
+  if (kind === 'help') {
+    return (
+      <>
+        <Circle cx="12" cy="12" fill={filled ? color : 'none'} r="9" />
+        <Path d="M9.5 9a2.7 2.7 0 1 1 4.2 2.2c-1 .7-1.4 1.2-1.4 2.3" stroke={filled ? '#fff' : color} />
+        <Path d="M12 17h.01" stroke={filled ? '#fff' : color} />
+      </>
+    );
+  }
   if (kind === 'logout') return <><Path d="M10 5H5v14h5" /><Path d="M14 8l4 4-4 4" /><Path d="M18 12H9" /></>;
   if (kind === 'bot') {
     return (
       <>
         <Path d="M12 4.2v3" />
         <Circle cx="12" cy="3.4" fill={filled ? color : 'none'} r="1.1" />
-        <Rect height="11.1" rx="3.7" stroke={color} width="14.5" x="4.75" y="7.9" />
-        <Circle cx="9.2" cy="13.1" fill={filled ? color : 'none'} r="1.15" />
-        <Circle cx="14.8" cy="13.1" fill={filled ? color : 'none'} r="1.15" />
-        <Path d="M9.6 16.1c1.4.8 3.4.8 4.8 0" />
+        <Rect fill={filled ? color : 'none'} height="11.1" rx="3.7" stroke={color} width="14.5" x="4.75" y="7.9" />
+        <Circle cx="9.2" cy="13.1" fill={filled ? '#fff' : color} r="1.15" stroke="none" />
+        <Circle cx="14.8" cy="13.1" fill={filled ? '#fff' : color} r="1.15" stroke="none" />
+        <Path d="M9.6 16.1c1.4.8 3.4.8 4.8 0" stroke={filled ? '#fff' : color} />
       </>
     );
   }
-  if (kind === 'alert') return <><Path d="M12 8v5" /><Path d="M12 17h.01" /><Path d="M10.4 4.2 3.2 17a2 2 0 0 0 1.8 3h14a2 2 0 0 0 1.8-3L13.6 4.2a1.8 1.8 0 0 0-3.2 0Z" /></>;
+  if (kind === 'alert') {
+    return (
+      <>
+        <Path d="M10.4 4.2 3.2 17a2 2 0 0 0 1.8 3h14a2 2 0 0 0 1.8-3L13.6 4.2a1.8 1.8 0 0 0-3.2 0Z" fill={filled ? color : 'none'} />
+        <Path d="M12 8v5" stroke={filled ? '#fff' : color} />
+        <Path d="M12 17h.01" stroke={filled ? '#fff' : color} />
+      </>
+    );
+  }
   if (kind === 'whatsapp' || kind === 'instagram' || kind === 'facebook' || kind === 'email') {
     return <ChannelIcon channel={kind} size={24} />;
   }

@@ -13,6 +13,11 @@ import { ProductCatalogProvider } from '../../src/context/ProductCatalogProvider
 import { SellCartProvider } from '../../src/context/SellCartProvider';
 import { hasSupabaseConfig } from '../../src/lib/supabase';
 import {
+  getNavShortcutOption,
+  isNavShortcutActive,
+  resolveNavShortcutRoute,
+} from '../../src/lib/navShortcut';
+import {
   getActiveTab,
   routes,
   shouldHideBottomNav,
@@ -25,7 +30,7 @@ import { colors } from '../../src/theme';
 export default function AppLayout(): ReactElement {
   const router = useRouter();
   const pathname = usePathname();
-  const { authPhase } = useOwnerSessionContext();
+  const { authPhase, dashboard } = useOwnerSessionContext();
 
   useEffect(() => {
     if (!hasSupabaseConfig || authPhase === 'authenticated' || authPhase === 'loading') {
@@ -53,12 +58,19 @@ export default function AppLayout(): ReactElement {
   const hideBottomNav = shouldHideBottomNav(pathname);
   useAndroidRootExitBack(!hideBottomNav);
 
+  const shortcut = getNavShortcutOption(dashboard?.organization?.navShortcut);
+  const shortcutActive = isNavShortcutActive(pathname, shortcut.id);
+
   function selectTab(tab: AppTab): void {
     router.replace(tabRoute(tab));
   }
 
-  function openSellProducts(): void {
-    router.push(routes.inventorySell);
+  function openShortcut(): void {
+    const route = resolveNavShortcutRoute(shortcut.id);
+    if (!route) {
+      return;
+    }
+    router.push(route);
   }
 
   return (
@@ -86,7 +98,15 @@ export default function AppLayout(): ReactElement {
           </ProductCatalogProvider>
         </InboxProvider>
         {hideBottomNav ? null : (
-          <BottomNavigation activeTab={activeTab} onOpenSell={openSellProducts} onSelectTab={selectTab} />
+          <BottomNavigation
+            activeTab={activeTab}
+            onOpenShortcut={openShortcut}
+            onSelectTab={selectTab}
+            shortcutActive={shortcutActive}
+            shortcutIcon={shortcut.icon}
+            shortcutIsCash={shortcut.id === 'ventas'}
+            shortcutLabel={shortcut.label}
+          />
         )}
       </View>
     </HeaderChromeProvider>

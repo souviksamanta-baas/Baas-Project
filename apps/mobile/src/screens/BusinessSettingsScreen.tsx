@@ -5,6 +5,7 @@ import {
   FlatList,
   Modal,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -18,6 +19,7 @@ import {
 } from '../api/accountLifecycle';
 import {
   getOrganizationProfile,
+  updateOrganizationNavShortcut,
   updateOrganizationProfile,
   type OrganizationProfile,
 } from '../api/organizationProfile';
@@ -25,15 +27,21 @@ import { Icon } from '../components/icons';
 import { Card, ScreenContent, ScreenTitle } from '../components/ui';
 import { PrimaryButton, TextField, colors as dsColors, spacing } from '../design-system';
 import { useAndroidBackHandler } from '../hooks/useAndroidBackHandler';
+import {
+  getNavShortcutOption,
+  listNavShortcutOptions,
+  type NavShortcutId,
+} from '../lib/navShortcut';
 import { buildTimezoneOptions, formatTimezoneOptionLabel } from '../lib/timezones';
 import { colors } from '../theme';
 
-type EditSection = 'name' | 'email' | 'address' | 'timezone' | null;
+type EditSection = 'name' | 'email' | 'address' | 'timezone' | 'navShortcut' | null;
 
 function emptyProfile(
   organizationId: string,
   fallbackName: string,
   fallbackTimezone: string,
+  fallbackNavShortcut?: string | null,
 ): OrganizationProfile {
   return {
     addressLine1: '',
@@ -44,6 +52,7 @@ function emptyProfile(
     country: 'AR',
     id: organizationId,
     name: fallbackName,
+    navShortcut: getNavShortcutOption(fallbackNavShortcut).id,
     postalCode: '',
     province: '',
     timezone:
@@ -74,6 +83,7 @@ function memberRoleLabel(role: string): string {
 
 export function BusinessSettingsScreen(props: {
   fallbackName: string;
+  fallbackNavShortcut?: string | null;
   fallbackTimezone: string;
   onBack: () => void;
   onSaved: () => Promise<void>;
@@ -82,11 +92,17 @@ export function BusinessSettingsScreen(props: {
 }): ReactElement {
   const insets = useSafeAreaInsets();
   const timezoneOptions = useMemo(() => buildTimezoneOptions(), []);
+  const navShortcutOptions = useMemo(() => listNavShortcutOptions(), []);
   const [profile, setProfile] = useState<OrganizationProfile>(() =>
-    emptyProfile(props.organizationId, props.fallbackName, props.fallbackTimezone),
+    emptyProfile(
+      props.organizationId,
+      props.fallbackName,
+      props.fallbackTimezone,
+      props.fallbackNavShortcut,
+    ),
   );
   const [members, setMembers] = useState<OrganizationMember[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingMembers, setIsLoadingMembers] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [removingUserId, setRemovingUserId] = useState<string | null>(null);
   const [editSection, setEditSection] = useState<EditSection>(null);
@@ -94,8 +110,13 @@ export function BusinessSettingsScreen(props: {
   const [timezonePickerOpen, setTimezonePickerOpen] = useState(false);
 
   const loadMembers = useCallback(async (): Promise<void> => {
-    const next = await listOrganizationMembers(props.organizationId);
-    setMembers(next);
+    setIsLoadingMembers(true);
+    try {
+      const next = await listOrganizationMembers(props.organizationId);
+      setMembers(next);
+    } finally {
+      setIsLoadingMembers(false);
+    }
   }, [props.organizationId]);
 
   useAndroidBackHandler(Boolean(editSection) || timezonePickerOpen, () => {
@@ -114,8 +135,8 @@ export function BusinessSettingsScreen(props: {
   useEffect(() => {
     let cancelled = false;
 
-    void Promise.all([getOrganizationProfile(props.organizationId), loadMembers()])
-      .then(([nextProfile]) => {
+    void getOrganizationProfile(props.organizationId)
+      .then((nextProfile) => {
         if (!cancelled) {
           setProfile(nextProfile);
         }
@@ -127,12 +148,16 @@ export function BusinessSettingsScreen(props: {
             error instanceof Error ? error.message : 'Error desconocido',
           );
         }
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setIsLoading(false);
-        }
       });
+
+    void loadMembers().catch((error: unknown) => {
+      if (!cancelled) {
+        Alert.alert(
+          'No se pudieron cargar los miembros',
+          error instanceof Error ? error.message : 'Error desconocido',
+        );
+      }
+    });
 
     return () => {
       cancelled = true;
@@ -164,21 +189,29 @@ export function BusinessSettingsScreen(props: {
 
     setIsSaving(true);
     try {
-      await updateOrganizationProfile({
-        organizationId: props.organizationId,
-        profile: {
-          addressLine1: draft.addressLine1,
-          addressLine2: draft.addressLine2,
-          city: draft.city,
-          contactEmail: draft.contactEmail,
-          contactPhone: profile.contactPhone,
-          country: draft.country,
-          name: draft.name,
-          postalCode: draft.postalCode,
-          province: draft.province,
-          timezone: draft.timezone,
-        },
-      });
+      if (editSection === 'navShortcut') {
+        await updateOrganizationNavShortcut({
+          organizationId: props.organizationId,
+          navShortcut: draft.navShortcut,
+        });
+      } else {
+        await updateOrganizationProfile({
+          organizationId: props.organizationId,
+          profile: {
+            addressLine1: draft.addressLine1,
+            addressLine2: draft.addressLine2,
+            city: draft.city,
+            contactEmail: draft.contactEmail,
+            contactPhone: profile.contactPhone,
+            country: draft.country,
+            name: draft.name,
+            navShortcut: draft.navShortcut,
+            postalCode: draft.postalCode,
+            province: draft.province,
+            timezone: draft.timezone,
+          },
+        });
+      }
       setProfile(draft);
       await props.onSaved();
       closeEdit();
@@ -236,8 +269,11 @@ export function BusinessSettingsScreen(props: {
           ? 'Editar dirección'
           : editSection === 'timezone'
             ? 'Editar zona horaria'
-            : '';
+            : editSection === 'navShortcut'
+              ? 'Atajo del menú'
+              : '';
 
+  const shortcutOption = getNavShortcutOption(profile.navShortcut);
   return (
     <ScreenContent title="Configuracion del negocio">
       <View style={styles.headerRow}>
@@ -250,38 +286,44 @@ export function BusinessSettingsScreen(props: {
       </View>
 
       <Card style={styles.summaryCard}>
-        {isLoading ? (
-          <Text style={styles.loadingText}>Cargando…</Text>
-        ) : (
-          <>
-            <SummaryRow
-              label="Nombre"
-              onEdit={() => openEdit('name')}
-              value={profile.name || 'Sin nombre'}
-            />
-            <SummaryRow
-              label="Email"
-              onEdit={() => openEdit('email')}
-              value={profile.contactEmail.trim() || 'Sin email'}
-            />
-            <SummaryRow
-              editable={false}
-              hint="Número de WhatsApp Business"
-              label="Teléfono"
-              value={phoneDisplay}
-            />
-            <SummaryRow
-              label="Dirección"
-              onEdit={() => openEdit('address')}
-              value={formatAddress(profile)}
-            />
-            <SummaryRow
-              label="Zona horaria"
-              onEdit={() => openEdit('timezone')}
-              value={formatTimezoneOptionLabel(profile.timezone)}
-            />
-          </>
-        )}
+        <SummaryRow
+          label="Nombre"
+          onEdit={() => openEdit('name')}
+          value={profile.name || 'Sin nombre'}
+        />
+        <SummaryRow
+          label="Email"
+          onEdit={() => openEdit('email')}
+          value={profile.contactEmail.trim() || 'Sin email'}
+        />
+        <SummaryRow
+          editable={false}
+          hint="Número de WhatsApp Business"
+          label="Teléfono"
+          value={phoneDisplay}
+        />
+        <SummaryRow
+          label="Dirección"
+          onEdit={() => openEdit('address')}
+          value={formatAddress(profile)}
+        />
+        <SummaryRow
+          label="Zona horaria"
+          onEdit={() => openEdit('timezone')}
+          value={formatTimezoneOptionLabel(profile.timezone)}
+        />
+      </Card>
+
+      <Card style={styles.summaryCard}>
+        <Text style={styles.sectionCardTitle}>Menú personalizado</Text>
+        <Text style={styles.sectionCardHint}>
+          Elegí el atajo a la derecha de Copi en la barra inferior.
+        </Text>
+        <SummaryRow
+          label="Atajo del menú"
+          onEdit={() => openEdit('navShortcut')}
+          value={shortcutOption.title}
+        />
       </Card>
 
       <Card style={styles.membersCard}>
@@ -292,7 +334,7 @@ export function BusinessSettingsScreen(props: {
           </Text>
         </View>
 
-        {isLoading ? (
+        {isLoadingMembers ? (
           <Text style={styles.loadingText}>Cargando…</Text>
         ) : members.length === 0 ? (
           <Text style={styles.loadingText}>No hay miembros cargados.</Text>
@@ -367,7 +409,11 @@ export function BusinessSettingsScreen(props: {
             <View style={styles.pickerHeaderSpacer} />
           </View>
 
-          <View style={styles.editBody}>
+          <ScrollView
+            contentContainerStyle={styles.editBody}
+            keyboardShouldPersistTaps="handled"
+            style={styles.editScroll}
+          >
             {editSection === 'name' && draft ? (
               <TextField
                 label="Nombre del negocio *"
@@ -435,6 +481,61 @@ export function BusinessSettingsScreen(props: {
               </>
             ) : null}
 
+            {editSection === 'navShortcut' && draft ? (
+              <View style={styles.shortcutList}>
+                {navShortcutOptions.map((option) => {
+                  const selected = option.id === draft.navShortcut;
+                  return (
+                    <Pressable
+                      disabled={option.disabled}
+                      key={option.id}
+                      onPress={() => {
+                        if (!option.disabled) {
+                          patchDraft('navShortcut', option.id as NavShortcutId);
+                        }
+                      }}
+                      style={[
+                        styles.shortcutRow,
+                        selected && styles.shortcutRowSelected,
+                        option.disabled && styles.shortcutRowDisabled,
+                      ]}
+                    >
+                      <View style={styles.shortcutRowIcon}>
+                        {option.id === 'ventas' ? (
+                          <Text style={styles.shortcutCash}>$</Text>
+                        ) : (
+                          <Icon
+                            color={option.disabled ? colors.slate : colors.primary}
+                            kind={option.icon}
+                            size={20}
+                            strokeWidth={2}
+                          />
+                        )}
+                      </View>
+                      <Text
+                        style={[
+                          styles.shortcutRowLabel,
+                          selected && styles.shortcutRowLabelSelected,
+                          option.disabled && styles.shortcutRowLabelDisabled,
+                        ]}
+                      >
+                        {option.title}
+                        {option.disabled ? ' (próximamente)' : ''}
+                      </Text>
+                      {selected ? <Text style={styles.shortcutCheck}>✓</Text> : null}
+                    </Pressable>
+                  );
+                })}
+              </View>
+            ) : null}
+          </ScrollView>
+
+          <View
+            style={[
+              styles.editFooter,
+              { paddingBottom: Math.max(insets.bottom, spacing.md) },
+            ]}
+          >
             <PrimaryButton
               disabled={isSaving}
               fullWidth
@@ -565,8 +666,18 @@ const styles = StyleSheet.create({
   },
   editBody: {
     gap: 14,
+    paddingBottom: spacing.lg,
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,
+  },
+  editFooter: {
+    borderTopColor: dsColors.borderSoft,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+  },
+  editScroll: {
+    flex: 1,
   },
   flex: {
     flex: 1,
@@ -681,10 +792,72 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '700',
   },
+  sectionCardHint: {
+    color: colors.slate,
+    fontSize: 13,
+    lineHeight: 18,
+    marginBottom: 4,
+    marginTop: 2,
+  },
+  sectionCardTitle: {
+    color: colors.navy,
+    fontSize: 16,
+    fontWeight: '700',
+    marginTop: 10,
+  },
   sectionLabel: {
     color: colors.navy,
     fontSize: 15,
     fontWeight: '600',
+  },
+  shortcutCash: {
+    color: colors.primary,
+    fontSize: 20,
+    fontWeight: '700',
+  },
+  shortcutCheck: {
+    color: colors.primary,
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  shortcutList: {
+    gap: 8,
+  },
+  shortcutRow: {
+    alignItems: 'center',
+    backgroundColor: dsColors.surface,
+    borderColor: dsColors.borderInput,
+    borderRadius: 12,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+  },
+  shortcutRowDisabled: {
+    opacity: 0.5,
+  },
+  shortcutRowIcon: {
+    alignItems: 'center',
+    height: 28,
+    justifyContent: 'center',
+    width: 28,
+  },
+  shortcutRowLabel: {
+    color: colors.navy,
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '500',
+  },
+  shortcutRowLabelDisabled: {
+    color: colors.slate,
+  },
+  shortcutRowLabelSelected: {
+    fontWeight: '700',
+  },
+  shortcutRowSelected: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primarySoft,
   },
   summaryCard: {
     gap: 0,
