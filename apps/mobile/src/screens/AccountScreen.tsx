@@ -17,6 +17,10 @@ function roleLabel(role: OwnerDashboard['organization'] extends infer T
     return 'Dueño';
   }
 
+  if (role === 'manager' || role === 'co_owner') {
+    return 'Administrador';
+  }
+
   return 'Equipo';
 }
 

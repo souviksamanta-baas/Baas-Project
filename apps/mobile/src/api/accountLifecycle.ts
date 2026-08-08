@@ -40,6 +40,7 @@ export async function transferOwnership(params: {
 export type OrganizationMember = {
   displayName: string;
   email: string | null;
+  phoneE164: string | null;
   role: string;
   userId: string;
 };
@@ -48,6 +49,8 @@ type OrganizationMemberApiRow = {
   display_name?: string | null;
   displayName?: string | null;
   email?: string | null;
+  phone_e164?: string | null;
+  phoneE164?: string | null;
   role?: string;
   user_id?: string;
   userId?: string;
@@ -80,6 +83,12 @@ export async function listOrganizationMembers(
   return rows.map((row) => {
     const userId = String(row.userId ?? row.user_id ?? '').trim();
     const email = typeof row.email === 'string' && row.email.trim() ? row.email.trim() : null;
+    const phoneE164 =
+      typeof row.phoneE164 === 'string' && row.phoneE164.trim()
+        ? row.phoneE164.trim()
+        : typeof row.phone_e164 === 'string' && row.phone_e164.trim()
+          ? row.phone_e164.trim()
+          : null;
     let displayName = String(row.displayName ?? row.display_name ?? '').trim();
 
     // Prefer the signed-in user's full_name when the API row is incomplete.
@@ -88,13 +97,18 @@ export async function listOrganizationMembers(
     }
 
     if (!displayName) {
-      displayName = email || 'Miembro';
+      displayName = email || phoneE164 || 'Miembro';
     }
+
+    const rawRole = String(row.role ?? 'staff');
+    const role =
+      rawRole === 'owner' || rawRole === 'manager' || rawRole === 'co_owner' ? rawRole : 'staff';
 
     return {
       displayName,
       email,
-      role: row.role === 'owner' ? 'owner' : String(row.role ?? 'staff'),
+      phoneE164,
+      role,
       userId,
     };
   });

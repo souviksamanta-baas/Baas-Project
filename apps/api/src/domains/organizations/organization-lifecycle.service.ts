@@ -19,7 +19,13 @@ export class OrganizationLifecycleService {
     authorizationHeader: string | undefined;
     organizationId: string;
   }): Promise<
-    Array<{ displayName: string; email: string | null; role: string; userId: string }>
+    Array<{
+      displayName: string;
+      email: string | null;
+      phoneE164: string | null;
+      role: string;
+      userId: string;
+    }>
   > {
     const user = await resolveAuthUser(this.supabaseService, params.authorizationHeader);
     await assertOrgMembership({
@@ -31,46 +37,103 @@ export class OrganizationLifecycleService {
     const client = this.supabaseService.getServiceRoleClient();
     const { data, error } = await client
       .from('organization_members')
-      .select('user_id, role')
+      .select('id, user_id, role')
       .eq('organization_id', params.organizationId);
 
     if (error) {
       throw new Error(`Failed to list members: ${error.message}`);
     }
 
+    const memberRows = data ?? [];
+    const memberIds = memberRows.map((row) => row.id as string);
+
+    const centerRoleByMemberId = new Map<string, 'manager' | 'staff'>();
+    if (memberIds.length > 0) {
+      const { data: centerRows, error: centerError } = await client
+        .from('business_center_members')
+        .select('organization_member_id, role')
+        .eq('organization_id', params.organizationId)
+        .in('organization_member_id', memberIds);
+
+      if (centerError) {
+        throw new Error(`Failed to list center roles: ${centerError.message}`);
+      }
+
+      for (const centerRow of centerRows ?? []) {
+        const memberId = centerRow.organization_member_id as string;
+        const centerRole = centerRow.role === 'manager' ? 'manager' : 'staff';
+        const current = centerRoleByMemberId.get(memberId);
+        if (!current || (centerRole === 'manager' && current !== 'manager')) {
+          centerRoleByMemberId.set(memberId, centerRole);
+        }
+      }
+    }
+
+    const inviteNameByPhone = new Map<string, string>();
+    const { data: invites } = await client
+      .from('organization_invites')
+      .select('invited_phone_e164, invited_display_name')
+      .eq('organization_id', params.organizationId)
+      .not('accepted_at', 'is', null);
+
+    for (const invite of invites ?? []) {
+      const phone = String(invite.invited_phone_e164 ?? '').trim();
+      const name = String(invite.invited_display_name ?? '').trim();
+      if (phone && name && !inviteNameByPhone.has(phone)) {
+        inviteNameByPhone.set(phone, name);
+      }
+    }
+
     const members: Array<{
       displayName: string;
       email: string | null;
+      phoneE164: string | null;
       role: string;
       userId: string;
     }> = [];
 
-    for (const row of data ?? []) {
+    for (const row of memberRows) {
+      const memberId = row.id as string;
       const userId = row.user_id as string;
-      const role = row.role as string;
+      const orgRole = row.role as string;
+      const centerRole = centerRoleByMemberId.get(memberId);
+      const role =
+        orgRole === 'owner' ? 'owner' : centerRole === 'manager' ? 'manager' : 'staff';
+
       let displayName = 'Miembro';
       let email: string | null = null;
+      let phoneE164: string | null = null;
 
       const { data: userData } = await client.auth.admin.getUserById(userId);
       if (userData?.user) {
         const metadata = (userData.user.user_metadata ?? {}) as {
+          auth_phone?: unknown;
           full_name?: unknown;
           name?: unknown;
         };
         const fullName = String(metadata.full_name ?? metadata.name ?? '').trim();
-        email = userData.user.email ?? null;
-        displayName = fullName || email || 'Miembro';
+        const rawEmail = userData.user.email?.trim() || null;
+        email = rawEmail && !isSyntheticAuthEmail(rawEmail) ? rawEmail : null;
+        phoneE164 =
+          normalizeMemberPhone(userData.user.phone) ??
+          normalizeMemberPhone(metadata.auth_phone) ??
+          null;
+        const inviteName = phoneE164 ? inviteNameByPhone.get(phoneE164) : undefined;
+        displayName = fullName || inviteName || email || phoneE164 || 'Miembro';
       }
 
-      members.push({ displayName, email, role, userId });
+      members.push({ displayName, email, phoneE164, role, userId });
     }
 
     members.sort((a, b) => {
-      if (a.role === 'owner' && b.role !== 'owner') {
-        return -1;
-      }
-      if (b.role === 'owner' && a.role !== 'owner') {
-        return 1;
+      const rank = (role: string): number => {
+        if (role === 'owner') return 0;
+        if (role === 'manager') return 1;
+        return 2;
+      };
+      const rankDiff = rank(a.role) - rank(b.role);
+      if (rankDiff !== 0) {
+        return rankDiff;
       }
       return a.displayName.localeCompare(b.displayName, 'es');
     });
@@ -434,4 +497,26 @@ export class OrganizationLifecycleService {
       // Best-effort; cascade delete still removes DB rows.
     }
   }
+}
+
+function isSyntheticAuthEmail(email: string): boolean {
+  return /@auth\.nexolia\.app$/i.test(email.trim());
+}
+
+function normalizeMemberPhone(value: unknown): string | null {
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  if (trimmed.startsWith('+')) {
+    return trimmed;
+  }
+
+  const digits = trimmed.replace(/\D/g, '');
+  return digits ? `+${digits}` : null;
 }

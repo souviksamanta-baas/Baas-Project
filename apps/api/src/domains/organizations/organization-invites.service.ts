@@ -113,6 +113,13 @@ export class OrganizationInvitesService {
 
     const tokenHash = createHash('sha256').update(params.inviteToken.trim()).digest('hex');
     const client = this.supabaseService.getServiceRoleClient();
+
+    const { data: inviteRow } = await client
+      .from('organization_invites')
+      .select('invited_display_name')
+      .eq('token_hash', tokenHash)
+      .maybeSingle<{ invited_display_name: string | null }>();
+
     const { data: organizationId, error } = await client.rpc('accept_organization_invite', {
       p_token_hash: tokenHash,
       p_user_id: user.id,
@@ -125,6 +132,20 @@ export class OrganizationInvitesService {
 
     if (!organizationId || typeof organizationId !== 'string') {
       throw new Error('La invitación no es válida.');
+    }
+
+    const invitedDisplayName = inviteRow?.invited_display_name?.trim();
+    if (invitedDisplayName) {
+      const existingMetadata = (user.user_metadata ?? {}) as Record<string, unknown>;
+      const existingName = String(existingMetadata.full_name ?? existingMetadata.name ?? '').trim();
+      if (!existingName) {
+        await client.auth.admin.updateUserById(user.id, {
+          user_metadata: {
+            ...existingMetadata,
+            full_name: invitedDisplayName,
+          },
+        });
+      }
     }
 
     return { organizationId };

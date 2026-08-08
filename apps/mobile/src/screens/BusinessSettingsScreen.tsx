@@ -78,6 +78,9 @@ function memberRoleLabel(role: string): string {
   if (role === 'owner') {
     return 'Dueño';
   }
+  if (role === 'manager' || role === 'co_owner') {
+    return 'Administrador';
+  }
   return 'Equipo';
 }
 
@@ -355,7 +358,14 @@ export function BusinessSettingsScreen(props: {
           <>
             {members.map((member, index) => {
               const canDelete = member.role !== 'owner';
-              const fullName = member.displayName.trim() || member.email || 'Miembro';
+              const fullName =
+                member.displayName.trim() || member.email || member.phoneE164 || 'Miembro';
+              const secondaryContact =
+                member.email && member.email !== fullName
+                  ? member.email
+                  : member.phoneE164 && member.phoneE164 !== fullName
+                    ? member.phoneE164
+                    : null;
               return (
                 <View
                   key={member.userId}
@@ -364,8 +374,8 @@ export function BusinessSettingsScreen(props: {
                   <View style={styles.flex}>
                     <Text style={styles.memberName}>{fullName}</Text>
                     <Text style={styles.memberMeta}>{memberRoleLabel(member.role)}</Text>
-                    {member.email && member.email !== fullName ? (
-                      <Text style={styles.memberEmail}>{member.email}</Text>
+                    {secondaryContact ? (
+                      <Text style={styles.memberEmail}>{secondaryContact}</Text>
                     ) : null}
                   </View>
                   {canDelete ? (
