@@ -37,7 +37,7 @@ export default function OnboardingRoute(): ReactElement {
         void session.createOrganization();
       }}
       onJoinWithInviteToken={(inviteToken) => {
-        router.push({
+        router.replace({
           pathname: routes.staffInviteAccept,
           params: { token: inviteToken },
         });

@@ -74,7 +74,7 @@ export function OnboardingScreen(props: {
                 unlock();
                 return;
               }
-              setStep('choice');
+              // Navigate away; do not bounce back to the choice step first.
               props.onJoinWithInviteToken(token);
             }}
             title="Escanear invitación"

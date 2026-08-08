@@ -36,7 +36,7 @@ export default function WelcomeRoute(): ReactElement {
         router.push(routes.authLogin);
       }}
       onJoinWithInviteToken={(inviteToken) => {
-        router.push({
+        router.replace({
           pathname: routes.staffInviteAccept,
           params: { token: inviteToken },
         });

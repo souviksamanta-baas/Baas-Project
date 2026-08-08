@@ -6,7 +6,7 @@ Nexolia reads device contacts only when the owner explicitly opens the contact p
 
 - Permission is requested on first use via `expo-contacts` (`requestPermissionsAsync`)
 - Contacts are loaded with the class API: `Contact.getAllDetails([FULL_NAME, PHONES])`
-  (do not call deprecated `getContactsAsync` from the root package — it throws)
+  (no hard limit; do not call deprecated `getContactsAsync` from the root package — it throws)
 - If denied, the user can still type a phone number manually
 - Only the **selected** contact name and phone are sent to the API
 - The full address book is never uploaded to Nexolia servers

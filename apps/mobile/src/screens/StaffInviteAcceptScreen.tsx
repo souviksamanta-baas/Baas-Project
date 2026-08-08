@@ -18,7 +18,8 @@ import { styles } from '../styles';
 
 export function StaffInviteAcceptScreen(props: {
   inviteToken: string;
-  onAccepted: () => void;
+  onAccepted: () => void | Promise<void>;
+  onRefreshSession?: () => Promise<void>;
 }): ReactElement {
   const phoneChannels = getStaffPhoneAuthChannels();
   const [phase, setPhase] = useState<'login' | 'verify' | 'done'>('login');
@@ -74,9 +75,13 @@ export function StaffInviteAcceptScreen(props: {
         verifiedPhoneE164,
       });
 
+      // Dashboard still has shouldOnboard until refresh; without this, app layout
+      // bounces back to onboarding instead of home.
+      await props.onRefreshSession?.();
+
       setPhase('done');
       setStatusMessage('Invitación aceptada. Ya tenés acceso al negocio.');
-      props.onAccepted();
+      await props.onAccepted();
     } catch (error) {
       setAuthError(error instanceof Error ? error.message : 'No se pudo aceptar la invitación.');
     } finally {

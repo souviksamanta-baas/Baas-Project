@@ -23,7 +23,6 @@ export async function loadDeviceContacts(): Promise<DeviceContactOption[]> {
   }
 
   const contacts = await Contact.getAllDetails([ContactField.FULL_NAME, ContactField.PHONES], {
-    limit: 500,
     sortOrder: ContactsSortOrder.GivenName,
   });
 
