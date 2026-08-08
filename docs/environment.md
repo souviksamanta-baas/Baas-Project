@@ -46,7 +46,9 @@ These values must never be bundled into mobile/client code.
 | `BAAS_RATE_LIMIT_TTL_MS` | Global API rate-limit window in milliseconds | API server, deployment config |
 | `BAAS_WEBHOOK_RATE_LIMIT_MAX` | WhatsApp webhook request limit per TTL window | API server, deployment config |
 | `BAAS_WEBHOOK_RATE_LIMIT_TTL_MS` | WhatsApp webhook rate-limit window in milliseconds | API server, deployment config |
-| `BAAS_OTP_PEPPER` | HMAC pepper for WhatsApp login OTP hashes (falls back to service role key) | API server, deployment secret store |
+| `BAAS_OTP_PEPPER` | HMAC pepper for WhatsApp/email login OTP hashes (falls back to service role key) | API server, deployment secret store |
+| `RESEND_API_KEY` | Resend API key for platform email login OTP | API server, deployment secret store |
+| `NEXOLIA_AUTH_EMAIL_FROM` | From header for login OTP email (default `Nexolia <noreply@nexolia.com.ar>`) | API server, deployment config |
 | `BAAS_ENABLE_OPENAPI_DOCS` | Set `true` to expose `/docs` (default off in production) | API server, deployment config |
 | `SUPABASE_URL` | Supabase API URL for server processes | API server, jobs, CI |
 | `SUPABASE_PROJECT_REF` | Project reference for Supabase CLI workflows | Local dev, CI |

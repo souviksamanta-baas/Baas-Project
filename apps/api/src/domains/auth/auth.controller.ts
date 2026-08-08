@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   HttpCode,
@@ -14,14 +15,17 @@ import {
 } from '@nestjs/swagger';
 
 import {
+  EmailOtpRequestDto,
+  EmailOtpVerifyDto,
   ErrorResponseDto,
   WhatsAppOtpRequestDto,
   WhatsAppOtpVerifyDto,
 } from '../../docs/openapi.dtos';
 import { AuthSessionService } from './auth-session.service';
+import { PlatformEmailAuthService } from './platform-email-auth.service';
 import { PlatformWhatsAppAuthService } from './platform-whatsapp-auth.service';
 
-interface WhatsAppOtpVerifyResponse {
+interface OtpVerifyResponse {
   tokenHash: string;
 }
 
@@ -30,6 +34,7 @@ interface WhatsAppOtpVerifyResponse {
 export class AuthController {
   constructor(
     private readonly platformWhatsAppAuthService: PlatformWhatsAppAuthService,
+    private readonly platformEmailAuthService: PlatformEmailAuthService,
     private readonly authSessionService: AuthSessionService,
   ) {}
 
@@ -63,7 +68,7 @@ export class AuthController {
   })
   async verifyWhatsAppOtp(
     @Body() body: WhatsAppOtpVerifyDto,
-  ): Promise<WhatsAppOtpVerifyResponse> {
+  ): Promise<OtpVerifyResponse> {
     const phoneE164 = normalizePhone(body.phone);
     const isValid = await this.platformWhatsAppAuthService.verifyOtp({
       code: body.code,
@@ -75,6 +80,60 @@ export class AuthController {
     }
 
     const tokenHash = await this.authSessionService.createSessionTokenHashForPhone(phoneE164);
+    return { tokenHash };
+  }
+
+  @Post('otp/email/request')
+  @HttpCode(200)
+  @ApiOperation({
+    summary: 'Request email OTP for login',
+    description:
+      'Sends a 6-digit login code via Resend from the Nexolia platform mailer. Does not use Supabase Auth SMTP.',
+  })
+  @ApiBody({ type: EmailOtpRequestDto })
+  @ApiOkResponse({ description: 'OTP requested.' })
+  async requestEmailOtp(@Body() body: EmailOtpRequestDto): Promise<{ ok: true }> {
+    try {
+      await this.platformEmailAuthService.requestOtp(body.email);
+      return { ok: true };
+    } catch (error) {
+      throw new BadRequestException(
+        error instanceof Error ? error.message : 'No se pudo enviar el código.',
+      );
+    }
+  }
+
+  @Post('otp/email/verify')
+  @HttpCode(200)
+  @ApiOperation({
+    summary: 'Verify email OTP and mint Supabase session token',
+    description:
+      'Validates the Nest-owned email OTP challenge and returns a Supabase token hash the mobile client can exchange for a session.',
+  })
+  @ApiBody({ type: EmailOtpVerifyDto })
+  @ApiOkResponse({ description: 'OTP verified; session token hash returned.' })
+  @ApiUnauthorizedResponse({
+    description: 'Invalid or expired OTP.',
+    type: ErrorResponseDto,
+  })
+  async verifyEmailOtp(@Body() body: EmailOtpVerifyDto): Promise<OtpVerifyResponse> {
+    let isValid: boolean;
+    try {
+      isValid = await this.platformEmailAuthService.verifyOtp({
+        code: body.code,
+        email: body.email,
+      });
+    } catch (error) {
+      throw new BadRequestException(
+        error instanceof Error ? error.message : 'No se pudo verificar el código.',
+      );
+    }
+
+    if (!isValid) {
+      throw new UnauthorizedException('Código inválido.');
+    }
+
+    const tokenHash = await this.authSessionService.createSessionTokenHashForEmail(body.email);
     return { tokenHash };
   }
 }

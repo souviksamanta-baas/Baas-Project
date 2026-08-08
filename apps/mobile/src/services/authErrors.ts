@@ -2,11 +2,28 @@ export function formatAuthError(error: unknown): string {
   const message = error instanceof Error ? error.message : 'Ocurrió un error inesperado.';
 
   if (/email rate limit exceeded|over_email_send_rate_limit/i.test(message)) {
-    return 'Supabase bloqueó el envío: el SMTP integrado permite solo 2 correos por hora en este proyecto. Configurá SMTP propio (ver docs/supabase-smtp-setup.md) o esperá hasta la próxima hora en punto.';
+    return 'Pediste demasiados códigos de correo. Esperá un momento e intentá de nuevo.';
   }
 
-  if (/rate limit|too many requests|429/i.test(message)) {
-    return 'Pediste demasiados códigos seguidos. Esperá al menos 60 segundos antes de intentar de nuevo.';
+  if (
+    /Error sending confirmation email|unexpected_failure/i.test(message) ||
+    /only send testing emails to your own email address/i.test(message) ||
+    /verify a domain at resend\.com|SMTP aún en modo prueba|Platform email auth is not configured/i.test(
+      message,
+    )
+  ) {
+    return [
+      'No se pudo enviar el correo (Resend).',
+      'Hace falta una API key en el servidor y el dominio nexolia.com.ar verificado en Resend.',
+    ].join(' ');
+  }
+
+  if (/Invalid Refresh Token|Refresh Token Not Found/i.test(message)) {
+    return 'La sesión anterior ya no es válida. Cerrá sesión o borrá la app y volvé a pedir un código.';
+  }
+
+  if (/rate limit|too many requests|429|Esperá \d+s antes de pedir/i.test(message)) {
+    return 'Pediste demasiados códigos seguidos. Esperá unos segundos antes de intentar de nuevo.';
   }
 
   if (/unverified/i.test(message) || /21608/.test(message)) {

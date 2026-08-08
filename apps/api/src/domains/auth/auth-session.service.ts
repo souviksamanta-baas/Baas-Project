@@ -25,6 +25,30 @@ export class AuthSessionService {
       throw new Error(`Failed to create auth user: ${createError.message}`);
     }
 
+    return this.mintMagicLinkTokenHash(email);
+  }
+
+  async createSessionTokenHashForEmail(email: string): Promise<string> {
+    const normalizedEmail = email.trim().toLowerCase();
+    const client = this.supabaseService.getServiceRoleClient();
+
+    const { error: createError } = await client.auth.admin.createUser({
+      email: normalizedEmail,
+      email_confirm: true,
+      user_metadata: {
+        auth_email: normalizedEmail,
+      },
+    });
+
+    if (createError && !/already|registered|exists/i.test(createError.message)) {
+      throw new Error(`Failed to create auth user: ${createError.message}`);
+    }
+
+    return this.mintMagicLinkTokenHash(normalizedEmail);
+  }
+
+  private async mintMagicLinkTokenHash(email: string): Promise<string> {
+    const client = this.supabaseService.getServiceRoleClient();
     const { data, error } = await client.auth.admin.generateLink({
       email,
       type: 'magiclink',

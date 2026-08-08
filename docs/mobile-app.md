@@ -75,7 +75,7 @@ stay open until Tasks UI exists.
 Phase 0 originally used state-based routing in `App.tsx`:
 
 1. `loading`: checks the current Supabase session.
-2. `login`: requests an email OTP with `supabase.auth.signInWithOtp`.
+2. `login`: requests an email OTP via Nest `POST /auth/otp/email/request` (Resend).
 3. `verify`: verifies the OTP with `supabase.auth.verifyOtp`.
 4. `onboarding`: calls `create_organization_with_owner` when no org exists.
 5. `dashboard`: calls `get_owner_dashboard` and renders the empty owner state.
@@ -108,7 +108,7 @@ Screen polish for Inbox, inventory, and Copi uses shared components in
 
 **Production pilot:** set `EXPO_PUBLIC_AUTH_LOGIN_CHANNELS=email` (email-only login). WhatsApp and SMS channels remain in code for local/dev testing.
 
-Phone OTP is available as an optional **SMS** channel via **Twilio only** (Supabase Auth → Phone provider). **Email** uses Supabase email OTP. **WhatsApp** uses Meta platform WABA via the NestJS API — not Twilio. See [auth-onboarding.md](./auth-onboarding.md) and **KAN-272**.
+Phone OTP is available as an optional **SMS** channel via **Twilio only** (Supabase Auth → Phone provider). **Email** and **WhatsApp** use NestJS platform OTP (Resend / Meta WABA). See [auth-onboarding.md](./auth-onboarding.md) and **KAN-272**.
 
 Argentina phone input accepts `011…`, `+5411…`, `+54911…`, and `5411…`. The client
 normalizes to E.164 (`+549…`) in `apps/mobile/src/services/phone.ts` before
@@ -423,7 +423,7 @@ sends can happen.
   código**. Profile/business saves use silent dashboard refresh so navigation
   stays on Mi cuenta.
 
-Auth email QA requires custom SMTP — see [supabase-smtp-setup.md](./supabase-smtp-setup.md).
+Auth email QA requires a verified Resend domain + `RESEND_API_KEY` on the API — see [supabase-smtp-setup.md](./supabase-smtp-setup.md).
 
 The static React/Tailwind reference prototype is documented in
 `docs/ui-mockups.md`.

@@ -1,35 +1,63 @@
-# Supabase custom SMTP (Nexolia)
+# Platform email OTP (Resend)
 
-Supabase’s **built-in email** allows only **2 auth emails per hour** per project. During login QA you will hit `email rate limit exceeded` / `over_email_send_rate_limit` until you configure custom SMTP.
+Login email codes are sent by the **NestJS API** via Resend HTTP API — **not** Supabase Auth SMTP.
 
-## Quick fix: Resend + Supabase
+## Why not Supabase SMTP?
 
-1. Create a [Resend](https://resend.com) account and verify a sending domain (or use Resend’s onboarding domain for early tests).
-2. Create an API key in Resend.
-3. Open [Authentication → SMTP](https://supabase.com/dashboard/project/efcyejbvcskbnipwdfge/auth/smtp) for project `efcyejbvcskbnipwdfge`.
-4. Enable custom SMTP and set:
+Supabase Auth SMTP (built-in or custom) was brittle for Nexolia:
 
-| Field | Value |
+- Built-in: **2 emails/hour** project-wide
+- Custom Resend SMTP in **test mode**: only delivers to the Resend account owner until a domain is verified
+- Auth templates and rate limits lived in the hosted dashboard, separate from the platform OTP path used for WhatsApp
+
+Email login now mirrors WhatsApp: Nest owns the challenge (`auth_otp_challenges`, `channel=email`), sends the code, then mints a Supabase session via admin `generateLink` + mobile `verifyOtp({ token_hash })`.
+
+## Required setup (production)
+
+### 1. Verify `nexolia.com.ar` in Resend
+
+1. Open [resend.com/domains](https://resend.com/domains)
+2. Add `nexolia.com.ar`
+3. Paste the DNS records Resend shows into Cloudflare (DNS for `nexolia.com.ar`)
+4. Wait until Resend marks the domain **Verified**
+
+Until the domain is verified, Resend stays in testing mode and will only send to the Resend account owner mailbox.
+
+### 2. Railway (API) env
+
+| Variable | Value |
 | --- | --- |
-| Host | `smtp.resend.com` |
-| Port | `465` |
-| Username | `resend` |
-| Password | Your Resend API key |
-| Sender email | Verified address, e.g. `noreply@yourdomain.com`. For early tests use Resend’s onboarding sender `beth.t@example.com`. |
-| Sender name | `Nexolia` |
+| `RESEND_API_KEY` | Resend API key (server secret) |
+| `NEXOLIA_AUTH_EMAIL_FROM` | `Nexolia <noreply@nexolia.com.ar>` (optional; this is the default) |
+| `BAAS_OTP_PEPPER` | Shared HMAC pepper for OTP hashes (same as WhatsApp) |
 
-5. Save.
-6. Open [Authentication → Rate Limits](https://supabase.com/dashboard/project/efcyejbvcskbnipwdfge/auth/rate-limits) and raise **Email sent** if needed (default 30/hour with custom SMTP).
-7. Confirm the Spanish Nexolia template under [Email Templates → Magic Link](https://supabase.com/dashboard/project/efcyejbvcskbnipwdfge/auth/templates).
+Redeploy the API after setting secrets.
 
-Request a new login code — it should send immediately through Resend.
+### 3. Database
 
-## Other providers
+Migration `supabase/migrations/20260807210000_auth_otp_email_channel.sql` allows `channel=email` and a nullable `phone_e164` with an `email` column. Apply on hosted Supabase if not already applied.
 
-Any SMTP provider works (SendGrid, AWS SES, Postmark, Brevo). See [Supabase SMTP guide](https://supabase.com/docs/guides/auth/auth-smtp).
+## API
 
-## Built-in SMTP restrictions (why QA breaks)
+```http
+POST /auth/otp/email/request
+{ "email": "dueño@negocio.com" }
 
-- **2 emails/hour** project-wide — not configurable without custom SMTP
-- **60 seconds** cooldown per email address between OTP requests
-- Intended for template setup only, not production or repeated testing
+POST /auth/otp/email/verify
+{ "email": "dueño@negocio.com", "code": "123456" }
+→ { "tokenHash": "…" }
+```
+
+Mobile exchanges `tokenHash` with:
+
+```typescript
+await supabase.auth.verifyOtp({ token_hash: tokenHash, type: 'email' });
+```
+
+Codes are **6 digits**, TTL 10 minutes, ~45s resend cooldown, max 5 verify attempts.
+
+## Legacy: Supabase Auth SMTP
+
+Supabase SMTP is **no longer required for login OTP**. You can leave it configured for other Auth emails (password recovery, etc.) if you use those features, but owner/staff login email codes do not go through it.
+
+If Auth logs still show Resend testing errors on `/auth/v1/otp`, the mobile app is still calling Supabase `signInWithOtp` — update to the Nest routes above.

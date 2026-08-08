@@ -304,6 +304,25 @@ export class WhatsAppOtpVerifyDto {
   code!: string;
 }
 
+export class EmailOtpRequestDto {
+  @ApiProperty({ example: 'dueño@negocio.com' })
+  @IsString()
+  @MinLength(5)
+  email!: string;
+}
+
+export class EmailOtpVerifyDto {
+  @ApiProperty({ example: 'dueño@negocio.com' })
+  @IsString()
+  @MinLength(5)
+  email!: string;
+
+  @ApiProperty({ example: '123456' })
+  @IsString()
+  @MinLength(4)
+  code!: string;
+}
+
 export class AcceptOrganizationInviteDto {
   @ApiProperty()
   @IsString()

@@ -8,59 +8,42 @@ Owners and staff choose how to receive a one-time code at login:
 
 | Channel | Delivery | Cost profile |
 | --- | --- | --- |
-| **Email** (recommended) | Supabase Auth email OTP | ~ARS 0 |
+| **Email** (recommended) | NestJS → Resend from `noreply@nexolia.com.ar` | ~ARS 0 |
 | **WhatsApp** | Meta AUTHENTICATION template from **Nexolia platform WABA** via NestJS | ~ARS 29 / OTP |
 | **SMS** (optional) | Supabase phone OTP → **Twilio SMS only** (hosted dashboard) | ~ARS 114+ / OTP |
 
-**Provider rule:** Twilio is used **only** for the SMS login channel. Email stays on Supabase Auth. WhatsApp login uses Meta Cloud API (platform WABA) via NestJS — never Twilio.
+**Provider rule:** Twilio is used **only** for the SMS login channel. Email and WhatsApp login both go through NestJS (Resend / Meta). Never use Supabase Auth SMTP or Twilio WhatsApp for login.
 
 **Important:** The phone used for login does **not** need to be the merchant business WhatsApp number. Customer messaging uses each merchant's own WABA (`whatsapp_config`) after login.
 
 ## Email OTP
 
 ```typescript
-await supabase.auth.signInWithOtp({ email: normalizedEmail });
-await supabase.auth.verifyOtp({ email: normalizedEmail, token: otpCode, type: 'email' });
+await fetch(`${API}/auth/otp/email/request`, {
+  method: 'POST',
+  body: JSON.stringify({ email: normalizedEmail }),
+});
+
+const { tokenHash } = await fetch(`${API}/auth/otp/email/verify`, {
+  method: 'POST',
+  body: JSON.stringify({ email: normalizedEmail, code: otpCode }),
+}).then((r) => r.json());
+
+await supabase.auth.verifyOtp({ token_hash: tokenHash, type: 'email' });
 ```
 
-Hosted Supabase sends an **8-digit** code. The mobile app accepts 8 digits for email OTP.
+Nest sends a **6-digit** code (same length as WhatsApp/SMS). Requires `RESEND_API_KEY` and a verified sending domain — see [supabase-smtp-setup.md](./supabase-smtp-setup.md) (platform mailer).
 
-### Spanish Nexolia email template (hosted dashboard)
+### Ops / rate limits
 
-Repo source of truth: `supabase/templates/magic_link.html` and `supabase/config.toml` (`[auth.email.template.magic_link]`).
-
-**Apply on hosted Supabase** (project `efcyejbvcskbnipwdfge`):
-
-1. [Supabase Dashboard](https://supabase.com/dashboard/project/efcyejbvcskbnipwdfge/auth/templates) → **Authentication** → **Email Templates** → **Magic Link**
-2. **Subject:** `Tu código para ingresar a Nexolia`
-3. **Body** (must include `{{ .Token }}` for OTP, not only a link):
-
-```html
-<h2>Tu código para ingresar a Nexolia</h2>
-
-<p>Tu código de acceso es:</p>
-
-<p style="font-size: 28px; font-weight: 700; letter-spacing: 4px; margin: 16px 0;">{{ .Token }}</p>
-
-<p>Ingresá este código en la app para continuar.</p>
-
-<p style="color: #56627b; font-size: 14px;">Si no pediste este código, podés ignorar este correo.</p>
-```
-
-4. Save. Request a new login code to verify the Spanish Nexolia copy.
-
-### Email rate limits (testing)
-
-Supabase throttles OTP emails on the hosted project:
-
-| Limit | Default (built-in email) |
+| Limit | Behavior |
 | --- | --- |
-| Emails per hour (project-wide) | **2** — only raised with [custom SMTP](https://supabase.com/docs/guides/auth/auth-smtp) |
-| Cooldown per email address | **60 seconds** between requests |
+| Resend domain | Must be verified to send to any recipient |
+| Cooldown per email | ~45 seconds between Nest OTP sends |
+| Code TTL | 10 minutes |
+| Verify attempts | 5 per challenge |
 
-If login shows a rate-limit error during QA, wait 60s for the per-user cooldown or up to an hour for the project email cap. Reuse the last code if it has not expired. Adjust OTP cooldowns in [Authentication → Rate Limits](https://supabase.com/dashboard/project/efcyejbvcskbnipwdfge/auth/rate-limits).
-
-Replace any legacy **BaaS** subject/body in the dashboard — hosted templates are **not** deployed from git.
+Supabase Auth email rate limits **do not** apply to this path.
 
 ## WhatsApp OTP (platform WABA)
 
@@ -107,7 +90,7 @@ Do **not** enable Supabase WhatsApp OTP via Twilio — Nexolia WhatsApp login us
    `businessCenterId` (sucursales multi-select UI is deferred; the invite still
    attaches the default center server-side).
 5. App shows QR encoding `baas-owner://invite-accept?token=…`
-6. Staff verifies **the same phone** via email/WhatsApp/SMS login OTP.
+6. Staff verifies **the same phone** via WhatsApp/SMS login OTP (not email).
 7. API accepts invite → `organization_members` + `business_center_members` for
    the assigned center.
 
@@ -115,13 +98,31 @@ Contact picker uses the Expo Contacts class API (`Contact.getAllDetails`) and a
 branded in-app list (`ContactPickerModal`). See
 [contacts-permissions.md](./contacts-permissions.md).
 
+### When is the phone verified?
+
+| Path | Email OTP | Phone OTP |
+| --- | --- | --- |
+| Owner creates a new business after **email** login | At login | **Not required** for creating the org |
+| Staff joins via invite QR | Optional / not used on accept | **At invite accept** — after scanning the QR, the app asks for the invited phone and sends a WhatsApp/SMS code; that verified E.164 must match the invite |
+
+So: scanning the member QR does **not** verify the phone by itself. Phone verification happens on the **Aceptar invitación** screen that opens after a valid QR (or deep link), before `POST /organizations/invites/accept`.
+
+### Post-login choice (no org yet)
+
+If `get_owner_dashboard` says the user should onboard, the app shows a choice first:
+
+1. **Unirme con invitación (QR)** → camera → invite-accept (phone OTP as above)
+2. **Crear un negocio nuevo** → name + nav shortcut + **Crear negocio** (sticky footer)
+3. **Cerrar sesión** / **‹ Volver** from the create form
+
 ## Onboarding RPCs
 
 After any channel login:
 
 1. App calls `get_owner_dashboard`
-2. If `shouldOnboard`, owner creates business via `create_organization_with_owner`
-3. Owner may connect merchant WABA later (independent of login phone)
+2. If `shouldOnboard`, show create-vs-join choice (above)
+3. Owner creating a business calls `create_organization_with_owner`
+4. Owner may connect merchant WABA later (independent of login phone)
 
 ## Architecture notes
 

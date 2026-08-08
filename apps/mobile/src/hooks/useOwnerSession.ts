@@ -92,8 +92,17 @@ export function useOwnerSession(): OwnerSessionState {
   useEffect(() => {
     let mounted = true;
 
-    supabase.auth.getSession().then(({ data }) => {
+    void (async () => {
+      const { data, error } = await supabase.auth.getSession();
       if (!mounted) {
+        return;
+      }
+
+      if (error) {
+        await signOutOwner();
+        setSession(null);
+        setDashboard(null);
+        setBootstrapped(true);
         return;
       }
 
@@ -103,7 +112,7 @@ export function useOwnerSession(): OwnerSessionState {
           setBootstrapped(true);
         }
       });
-    });
+    })();
 
     const {
       data: { subscription },
@@ -159,6 +168,12 @@ export function useOwnerSession(): OwnerSessionState {
       const normalizedIdentifier = isPhoneAuthChannel(otpChannel)
         ? (normalizePhoneNumber(loginIdentifier) ?? loginIdentifier)
         : (normalizeEmail(loginIdentifier) ?? loginIdentifier);
+
+      // Ensure a stale SecureStore session on device does not interfere with a new login.
+      const { data: existing } = await supabase.auth.getSession();
+      if (existing.session) {
+        await signOutOwner();
+      }
 
       await requestLoginOtp({ channel: otpChannel, identifier: loginIdentifier });
       setLoginIdentifier(normalizedIdentifier);

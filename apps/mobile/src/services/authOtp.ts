@@ -1,8 +1,8 @@
 import type { AuthOtpChannel } from './authChannel';
 
-/** Supabase email OTP on hosted projects uses 8 digits; phone/WhatsApp OTP use 6. */
-export function getOtpCodeLength(channel: AuthOtpChannel): number {
-  return channel === 'email' ? 8 : 6;
+/** Nest platform email/WhatsApp OTP and Supabase SMS OTP all use 6 digits. */
+export function getOtpCodeLength(_channel: AuthOtpChannel): number {
+  return 6;
 }
 
 export function normalizeOtpInput(value: string, channel: AuthOtpChannel): string {
