@@ -2,11 +2,13 @@ import { describe, expect, it } from 'vitest';
 
 import {
   buildGreetingReply,
+  detectProActionIntent,
   isUnclearCopiQuestion,
   selectCopiTools,
   wantsDetailedSalesList,
   wantsSalesCountOnly,
 } from '../src/domains/ai/copi-intent-router';
+import { inferCopiActionType } from '../src/domains/ai/copi-action.service';
 
 describe('selectCopiTools', () => {
   it('routes today sales without pulling messages_today', () => {
@@ -106,6 +108,41 @@ describe('wantsDetailedSalesList / wantsSalesCountOnly', () => {
 
     expect(wantsDetailedSalesList(followUp, history)).toBe(true);
     expect(wantsSalesCountOnly(followUp, history)).toBe(false);
+  });
+});
+
+describe('detectProActionIntent / create-task vs stock', () => {
+  it('detects Spanish “creas una tarea” conjugations', () => {
+    expect(
+      detectProActionIntent(
+        'Hola Copi, buen día. Necesitaría que creas una tarea para SOW para agregar más stock. Gracias.',
+      ),
+    ).toBe(true);
+    expect(detectProActionIntent('creame una tarea para revisar stock')).toBe(true);
+    expect(detectProActionIntent('¿Qué productos tienen bajo stock?')).toBe(false);
+  });
+
+  it('does not route create-task-about-stock to low_stock tools', () => {
+    expect(
+      selectCopiTools(
+        'Hola Copi, buen día. Necesitaría que creas una tarea para SOW para agregar más stock. Gracias.',
+      ),
+    ).toEqual([]);
+  });
+
+  it('still routes true low-stock questions', () => {
+    expect(selectCopiTools('¿Qué productos tienen bajo stock?')).toEqual([
+      'low_stock',
+      'products_overview',
+    ]);
+  });
+
+  it('infers create_task for the SOW stock request', () => {
+    expect(
+      inferCopiActionType(
+        'Hola Copi, buen día. Necesitaría que creas una tarea para SOW para agregar más stock. Gracias.',
+      ),
+    ).toBe('create_task');
   });
 });
 

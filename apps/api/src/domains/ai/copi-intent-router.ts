@@ -58,6 +58,12 @@ export function normalizeCopiQuestion(question: string): string {
     .replace(/\p{M}/gu, '');
 }
 
+function mentionsTaskIntent(normalizedQuestion: string): boolean {
+  return /\b(task|tasks|follow|follow-up|followup|seguimiento|seguimientos|tarea|tareas)\b/.test(
+    normalizedQuestion,
+  );
+}
+
 export function getPriorOwnerQuestion(history: CopiConversationTurn[] = []): string | undefined {
   for (let index = history.length - 1; index >= 0; index -= 1) {
     if (history[index]?.role === 'owner') {
@@ -115,7 +121,12 @@ export function selectCopiTools(
     tools.add('messages_today');
   }
 
-  if (/\b(low stock|stock|inventory|reorder|bajo stock|inventario)\b/.test(normalized)) {
+  const wantsMutation = detectProActionIntent(question);
+  // "creas una tarea … para agregar stock" is a task mutation, not an inventory query.
+  if (
+    /\b(low stock|stock|inventory|reorder|bajo stock|inventario)\b/.test(normalized) &&
+    !(wantsMutation && mentionsTaskIntent(normalized))
+  ) {
     tools.add('low_stock');
     tools.add('products_overview');
   }
@@ -132,8 +143,7 @@ export function selectCopiTools(
     tools.add('attention_summary');
   }
 
-  const mentionsTask =
-    /\b(task|tasks|follow|follow-up|followup|seguimiento|seguimientos|tarea|tareas)\b/.test(normalized);
+  const mentionsTask = mentionsTaskIntent(normalized);
   const asksProductExpiry =
     PRODUCT_EXPIRY_PATTERN.test(normalized) ||
     (/\b(vence|vencen|vencer)\b/.test(normalized) && !mentionsTask);
@@ -142,7 +152,7 @@ export function selectCopiTools(
     tools.add('expiring_lots');
   }
 
-  if (mentionsTask) {
+  if (mentionsTask && !wantsMutation) {
     tools.add('tasks_overview');
   }
 
@@ -230,8 +240,14 @@ export function isSalesFollowUpDetail(question: string): boolean {
 
 export function detectProActionIntent(question: string): boolean {
   const normalized = normalizeCopiQuestion(question);
-  return /\b(crea|crear|crea|asign|assign|marca|marcar|complet|cancel|pospon|snooze|recorda|recordar)\b/.test(
-    normalized,
+  // Keep conjugations in sync with inferCopiActionType / copi-task-parse
+  // ("creas una tarea", "necesito que crees…", "creame…", "anotá…").
+  return (
+    /\b(creas?|crear|creame|crees?|asign|assign|marca|marcar|complet|cancel|pospon|snooze|recorda|recordar|anota|anotar)\b/.test(
+      normalized,
+    ) ||
+    /\bnecesito\s+que\s+creas?\b/.test(normalized) ||
+    /\b(haceme|haga|hagan)\s+(una\s+)?tarea\b/.test(normalized)
   );
 }
 
