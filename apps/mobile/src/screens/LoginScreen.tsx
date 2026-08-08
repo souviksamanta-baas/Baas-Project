@@ -9,27 +9,45 @@ import {
   DEFAULT_AUTH_OTP_CHANNEL,
   getLoginAuthChannels,
 } from '../services/authChannel';
+import type { AuthEntryIntent } from '../services/authIntent';
 import { colors, PrimaryButton, spacing, TextField, textStyles } from '../design-system';
 
 export function LoginScreen(props: {
   authError: string | null;
   canSubmitLogin: boolean;
   channel: AuthOtpChannel;
+  intent?: AuthEntryIntent | null;
   isSubmitting: boolean;
   loginIdentifier: string;
+  onBack?: () => void;
   onChangeChannel: (channel: AuthOtpChannel) => void;
   onChangeLoginIdentifier: (value: string) => void;
   onRequestOtp: () => void;
 }): ReactElement {
   const channels = getLoginAuthChannels();
   const isPhone = props.channel === 'sms' || props.channel === 'whatsapp';
-  const showChannelPicker = channels.length > 1;
-  const subtitle = showChannelPicker
-    ? 'Elegí cómo querés recibir el código. El número de ingreso no tiene que ser el WhatsApp de tu negocio.'
-    : authChannelDeliveryHint(props.channel);
+  const showChannelPicker = channels.length > 1 && props.intent !== 'create';
+  const title =
+    props.intent === 'create'
+      ? 'Creá tu cuenta'
+      : props.intent === 'signin'
+        ? 'Iniciá sesión'
+        : 'Ingresá a Nexolia';
+  const subtitle =
+    props.intent === 'create'
+      ? 'Te enviamos un código a tu correo para verificar tu identidad y crear el negocio.'
+      : showChannelPicker
+        ? 'Elegí cómo querés recibir el código. El número de ingreso no tiene que ser el WhatsApp de tu negocio.'
+        : authChannelDeliveryHint(props.channel);
 
   return (
-    <AuthScreenShell subtitle={subtitle} title="Ingresá a Nexolia">
+    <AuthScreenShell subtitle={subtitle} title={title}>
+      {props.onBack ? (
+        <Pressable hitSlop={8} onPress={props.onBack} style={localStyles.back}>
+          <Text style={localStyles.backText}>‹ Volver</Text>
+        </Pressable>
+      ) : null}
+
       {showChannelPicker ? (
         <View style={localStyles.channelRow}>
           {channels.map((channel) => {
@@ -74,6 +92,15 @@ export function LoginScreen(props: {
 }
 
 const localStyles = StyleSheet.create({
+  back: {
+    alignSelf: 'flex-start',
+    marginBottom: -4,
+  },
+  backText: {
+    color: colors.primary,
+    fontSize: 16,
+    fontWeight: '600',
+  },
   channelChip: {
     backgroundColor: colors.surfaceMint,
     borderColor: colors.borderSoft,

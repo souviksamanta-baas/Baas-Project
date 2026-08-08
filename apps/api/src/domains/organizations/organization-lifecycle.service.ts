@@ -204,6 +204,18 @@ export class OrganizationLifecycleService {
     await this.assertOwner(params);
 
     const client = this.supabaseService.getServiceRoleClient();
+    const { data: members, error: membersError } = await client
+      .from('organization_members')
+      .select('user_id')
+      .eq('organization_id', params.organizationId);
+
+    if (membersError) {
+      throw new Error(`Failed to list members before delete: ${membersError.message}`);
+    }
+
+    const memberUserIds = [
+      ...new Set((members ?? []).map((row) => String(row.user_id)).filter(Boolean)),
+    ];
 
     // Cascade from organizations covers DB tenants; storage objects cleaned best-effort.
     await this.purgeOrgStorage(params.organizationId);
@@ -212,6 +224,10 @@ export class OrganizationLifecycleService {
     if (error) {
       throw new Error(`Failed to delete organization: ${error.message}`);
     }
+
+    // Ley 25.326 art. 4.7 / 16: destroy personal login data when no longer necessary
+    // (no remaining org membership). Skip users who still belong to another negocio.
+    await this.purgeOrphanAuthUsers(memberUserIds);
 
     return { deleted: true };
   }
@@ -385,7 +401,7 @@ export class OrganizationLifecycleService {
       contacts: contacts.data,
       conversations: conversations.data,
       products: products.data,
-      note: 'Exportación GDPR preliminar (KAN-363). Mensajes y medios se pueden ampliar en una versión posterior.',
+      note: 'Exportación Ley 25.326 / AAIP (KAN-363). Mensajes y medios se pueden ampliar en una versión posterior.',
     };
   }
 
@@ -406,13 +422,14 @@ export class OrganizationLifecycleService {
       throw new Error(error.message);
     }
 
+    const soleOwnerOrgIds: string[] = [];
+
     for (const membership of memberships ?? []) {
       const organizationId = membership.organization_id as string;
       if (membership.role === 'owner') {
         const owners = await this.countOwners(organizationId);
         if (owners <= 1) {
-          await this.purgeOrgStorage(organizationId);
-          await client.from('organizations').delete().eq('id', organizationId);
+          soleOwnerOrgIds.push(organizationId);
           continue;
         }
         throw new BadRequestException(
@@ -426,8 +443,27 @@ export class OrganizationLifecycleService {
       });
     }
 
+    const orphanCandidates = new Set<string>([user.id]);
+
+    for (const organizationId of soleOwnerOrgIds) {
+      const { data: members } = await client
+        .from('organization_members')
+        .select('user_id')
+        .eq('organization_id', organizationId);
+
+      for (const row of members ?? []) {
+        orphanCandidates.add(String(row.user_id));
+      }
+
+      await this.purgeOrgStorage(organizationId);
+      await client.from('organizations').delete().eq('id', organizationId);
+    }
+
+    await this.purgeOrphanAuthUsers([...orphanCandidates]);
+
+    // Owner may already have been removed as an orphan; ignore "user not found".
     const { error: deleteError } = await client.auth.admin.deleteUser(user.id);
-    if (deleteError) {
+    if (deleteError && !/not found|User not found/i.test(deleteError.message)) {
       throw new Error(`Failed to delete auth user: ${deleteError.message}`);
     }
 
@@ -482,6 +518,52 @@ export class OrganizationLifecycleService {
     }
 
     return data?.length ?? 0;
+  }
+
+  private async purgeOrphanAuthUsers(userIds: string[]): Promise<void> {
+    const client = this.supabaseService.getServiceRoleClient();
+
+    for (const userId of userIds) {
+      const { count, error: countError } = await client
+        .from('organization_members')
+        .select('user_id', { count: 'exact', head: true })
+        .eq('user_id', userId);
+
+      if (countError) {
+        console.error(
+          `[org-lifecycle] Failed to check memberships for ${userId}: ${countError.message}`,
+        );
+        continue;
+      }
+
+      if ((count ?? 0) > 0) {
+        continue;
+      }
+
+      const { data: userData } = await client.auth.admin.getUserById(userId);
+      const email = userData?.user?.email?.trim().toLowerCase() || null;
+      const phoneDigits = String(userData?.user?.phone ?? '')
+        .replace(/\D/g, '')
+        .trim();
+
+      if (email) {
+        await client.from('auth_otp_challenges').delete().eq('email', email).eq('channel', 'email');
+      }
+
+      if (phoneDigits) {
+        const phoneE164 = phoneDigits.startsWith('54') ? `+${phoneDigits}` : `+${phoneDigits}`;
+        await client
+          .from('auth_otp_challenges')
+          .delete()
+          .eq('phone_e164', phoneE164)
+          .eq('channel', 'whatsapp');
+      }
+
+      const { error: deleteError } = await client.auth.admin.deleteUser(userId);
+      if (deleteError) {
+        console.error(`[org-lifecycle] Failed to delete orphan auth user ${userId}: ${deleteError.message}`);
+      }
+    }
   }
 
   private async purgeOrgStorage(organizationId: string): Promise<void> {

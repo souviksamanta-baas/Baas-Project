@@ -10,7 +10,7 @@ export interface OwnerDashboard {
     id: string;
     name: string;
     navShortcut?: string | null;
-    role: 'owner' | 'staff';
+    role: 'owner' | 'manager' | 'staff';
     timezone: string;
     verticalId: string | null;
     followUpDelayHours: number;

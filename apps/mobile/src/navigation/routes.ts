@@ -9,6 +9,7 @@ export const routes = {
   appCopi: '/copi',
   appCopiChat: '/copi/chat',
   appMore: '/more',
+  authWelcome: '/(auth)/welcome',
   authLogin: '/(auth)/login',
   authVerify: '/(auth)/verify',
   authOnboarding: '/(auth)/onboarding',

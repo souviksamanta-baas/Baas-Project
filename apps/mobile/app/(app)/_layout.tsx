@@ -32,6 +32,12 @@ export default function AppLayout(): ReactElement {
   const pathname = usePathname();
   const { authPhase, dashboard } = useOwnerSessionContext();
 
+  const hideBottomNav = shouldHideBottomNav(pathname);
+  const isAuthenticatedShell = !hasSupabaseConfig || authPhase === 'authenticated';
+
+  // Must stay above any early return — authPhase flips after eliminar/archivar negocio.
+  useAndroidRootExitBack(isAuthenticatedShell && !hideBottomNav);
+
   useEffect(() => {
     if (!hasSupabaseConfig || authPhase === 'authenticated' || authPhase === 'loading') {
       return;
@@ -47,16 +53,14 @@ export default function AppLayout(): ReactElement {
       return;
     }
 
-    router.replace(routes.authLogin);
+    router.replace(routes.authWelcome);
   }, [authPhase, router]);
 
-  if (hasSupabaseConfig && authPhase !== 'authenticated') {
+  if (!isAuthenticatedShell) {
     return <LoadingScreen />;
   }
 
   const activeTab = getActiveTab(pathname);
-  const hideBottomNav = shouldHideBottomNav(pathname);
-  useAndroidRootExitBack(!hideBottomNav);
 
   const shortcut = getNavShortcutOption(dashboard?.organization?.navShortcut);
   const shortcutActive = isNavShortcutActive(pathname, shortcut.id);

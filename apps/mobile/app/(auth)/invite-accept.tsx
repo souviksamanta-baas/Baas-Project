@@ -3,6 +3,7 @@ import type { ReactElement } from 'react';
 
 import { parseStaffInviteToken } from '../../src/lib/staffInviteToken';
 import { routes } from '../../src/navigation/routes';
+import { clearAuthEntryIntent } from '../../src/services/authIntent';
 import { StaffInviteAcceptScreen } from '../../src/screens/StaffInviteAcceptScreen';
 
 export default function InviteAcceptRoute(): ReactElement {
@@ -14,7 +15,10 @@ export default function InviteAcceptRoute(): ReactElement {
     return (
       <StaffInviteAcceptScreen
         inviteToken=""
-        onAccepted={() => router.replace(routes.appHome)}
+        onAccepted={() => {
+          clearAuthEntryIntent();
+          router.replace(routes.authWelcome);
+        }}
       />
     );
   }
@@ -22,7 +26,10 @@ export default function InviteAcceptRoute(): ReactElement {
   return (
     <StaffInviteAcceptScreen
       inviteToken={inviteToken}
-      onAccepted={() => router.replace(routes.appHome)}
+      onAccepted={() => {
+        clearAuthEntryIntent();
+        router.replace(routes.appHome);
+      }}
     />
   );
 }

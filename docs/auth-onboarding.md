@@ -2,6 +2,16 @@
 
 This document tracks auth and onboarding for Nexolia owners and staff (**KAN-272**).
 
+## Intent-first entry
+
+Unauthenticated users land on **Bienvenido** (`/(auth)/welcome`) before login:
+
+1. **Unirme con invitación (QR)** → scan → phone OTP on invite-accept (same phone as invite)
+2. **Crear un negocio nuevo** → email OTP → create-org form (skips post-auth choice)
+3. **Ya tengo cuenta** → normal login OTP → home or onboarding if they still need an org
+
+Do **not** open email/phone login as the first screen for new users.
+
 ## Tri-channel login
 
 Owners and staff choose how to receive a one-time code at login:

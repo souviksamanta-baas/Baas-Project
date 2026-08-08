@@ -31,7 +31,7 @@ export function PrivacyDataScreen(props: {
   onBack: () => void;
   onSignedOut: () => Promise<void>;
   organizationId: string | null;
-  role: 'owner' | 'staff' | null;
+  role: 'owner' | 'manager' | 'staff' | null;
 }): ReactElement {
   const [confirmation, setConfirmation] = useState('');
   const [members, setMembers] = useState<
@@ -98,7 +98,7 @@ export function PrivacyDataScreen(props: {
                     });
                   }, 'Exportación lista');
                 }}
-                subtitle="JSON con datos del negocio (GDPR)"
+                subtitle="JSON con datos del negocio (Ley 25.326)"
                 title="Exportar datos del negocio"
               />
               <ActionRow
@@ -128,7 +128,7 @@ export function PrivacyDataScreen(props: {
                     await props.onSignedOut();
                   }, 'Negocio eliminado');
                 }}
-                subtitle="Borra el negocio y datos asociados (ELIMINAR)"
+                subtitle="Borra el negocio, datos asociados y cuentas sin otros negocios (ELIMINAR)"
                 title="Eliminar negocio"
               />
               {members

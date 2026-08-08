@@ -14,7 +14,7 @@ export default function VerifyRoute(): ReactElement {
   }
 
   if (session.authPhase === 'unauthenticated') {
-    return <Redirect href={routes.authLogin} />;
+    return <Redirect href={routes.authWelcome} />;
   }
 
   if (session.authPhase === 'authenticated') {

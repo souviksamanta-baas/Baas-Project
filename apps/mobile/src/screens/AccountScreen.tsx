@@ -8,11 +8,7 @@ import type { OwnerDashboard } from '../types/dashboard';
 import { whatsappConnectionLabel } from '../lib/whatsappPresentation';
 import { colors, shadows } from '../theme';
 
-function roleLabel(role: OwnerDashboard['organization'] extends infer T
-  ? T extends { role: infer R }
-    ? R
-    : null
-  : null): string {
+function roleLabel(role: string | null | undefined): string {
   if (role === 'owner') {
     return 'Dueño';
   }

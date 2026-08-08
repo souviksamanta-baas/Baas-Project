@@ -5,9 +5,35 @@ import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Card, ScreenContent, ScreenTitle } from '../components/ui';
 import { useProfileChromeOptional } from '../context/ProfileChromeProvider';
 import { PrimaryButton, TextField } from '../design-system';
-import { supabase } from '../lib/supabase';
 import { useAndroidUnsavedBack } from '../hooks/useAndroidUnsavedBack';
+import { supabase } from '../lib/supabase';
 import { colors } from '../theme';
+
+function formatProfilePhone(value: unknown): string {
+  if (typeof value !== 'string') {
+    return '';
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return '';
+  }
+
+  if (trimmed.startsWith('+')) {
+    return trimmed;
+  }
+
+  const digits = trimmed.replace(/\D/g, '');
+  return digits ? `+${digits}` : trimmed;
+}
+
+function resolveProfileEmail(user: { email?: string | null }): string {
+  const email = user.email?.trim() ?? '';
+  if (!email || /@auth\.nexolia\.app$/i.test(email)) {
+    return '';
+  }
+  return email;
+}
 
 export function EditProfileScreen(props: { onBack: () => void }): ReactElement {
   const profileChrome = useProfileChromeOptional();
@@ -25,10 +51,12 @@ export function EditProfileScreen(props: { onBack: () => void }): ReactElement {
         return;
       }
 
-      setEmail(user.email ?? '');
+      setEmail(resolveProfileEmail(user));
       const nextFullName = String(user.user_metadata?.full_name ?? '');
       const nextPreferredName = String(user.user_metadata?.preferred_name ?? '');
-      const nextPhone = String(user.user_metadata?.phone ?? user.phone ?? '');
+      const nextPhone = formatProfilePhone(
+        user.user_metadata?.auth_phone ?? user.user_metadata?.phone ?? user.phone,
+      );
       setFullName(nextFullName);
       setPreferredName(nextPreferredName);
       setPhone(nextPhone);
@@ -90,7 +118,19 @@ export function EditProfileScreen(props: { onBack: () => void }): ReactElement {
       </View>
 
       <Card style={styles.formCard}>
-        <TextField editable={false} label="Email" value={email} />
+        <TextField
+          editable={false}
+          label="Email"
+          placeholder="Sin correo en esta cuenta"
+          value={email}
+        />
+        {!email ? (
+          <Text style={styles.hint}>
+            Esta sesión ingresó con teléfono, no con correo. Si te uniste por QR, el email
+            queda en la cuenta con la que pediste el código por correo (son identidades distintas
+            hasta que las vinculemos).
+          </Text>
+        ) : null}
         <TextField
           label="Nombre completo *"
           onChangeText={setFullName}
@@ -142,5 +182,11 @@ const styles = StyleSheet.create({
   headerRow: {
     flexDirection: 'row',
     gap: 4,
+  },
+  hint: {
+    color: colors.slate,
+    fontSize: 13,
+    lineHeight: 18,
+    marginTop: -6,
   },
 });

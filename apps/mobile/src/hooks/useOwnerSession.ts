@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert } from 'react-native';
 import type { Session } from '@supabase/supabase-js';
 
+import { clearAuthEntryIntent } from '../services/authIntent';
 import { createOrganizationWithOwner, getOwnerDashboard } from '../api/dashboard';
 import { requestLoginOtp, signOutOwner, verifyLoginOtp } from '../api/auth';
 import { normalizeNavShortcutId, type NavShortcutId } from '../lib/navShortcut';
@@ -219,6 +220,7 @@ export function useOwnerSession(): OwnerSessionState {
 
     try {
       await createOrganizationWithOwner(businessName.trim(), { navShortcut });
+      clearAuthEntryIntent();
       await bootstrapRoute(session);
     } catch (error) {
       Alert.alert(
@@ -241,6 +243,7 @@ export function useOwnerSession(): OwnerSessionState {
     setOtpSent(false);
     setBusinessName('');
     setNavShortcut('ventas');
+    clearAuthEntryIntent();
     await signOutOwner();
   }, []);
 

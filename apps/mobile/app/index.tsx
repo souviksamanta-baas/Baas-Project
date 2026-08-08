@@ -18,7 +18,7 @@ export default function RootIndexRoute(): ReactElement {
   }
 
   if (authPhase === 'unauthenticated') {
-    return <Redirect href={routes.authLogin} />;
+    return <Redirect href={routes.authWelcome} />;
   }
 
   if (authPhase === 'pending_verify') {
