@@ -191,6 +191,10 @@ function mapInviteRpcError(message: string): string {
     return 'El número verificado no está disponible en la sesión.';
   }
 
+  if (/INVITE_ALREADY_USED/i.test(message)) {
+    return 'Esa invitación ya fue usada. Pedile al dueño un QR nuevo.';
+  }
+
   if (/INVALID_INVITE|INVALID_USER/i.test(message)) {
     return 'La invitación no es válida.';
   }

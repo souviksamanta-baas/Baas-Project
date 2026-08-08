@@ -253,17 +253,19 @@ export class OrganizationLifecycleService {
     }
 
     const client = this.supabaseService.getServiceRoleClient();
-    const { data: centers } = await client
-      .from('business_centers')
+    const { data: memberRow } = await client
+      .from('organization_members')
       .select('id')
-      .eq('organization_id', params.organizationId);
-    const centerIds = (centers ?? []).map((row) => row.id as string);
-    if (centerIds.length > 0) {
+      .eq('organization_id', params.organizationId)
+      .eq('user_id', user.id)
+      .maybeSingle<{ id: string }>();
+
+    if (memberRow) {
       await client
         .from('business_center_members')
         .delete()
-        .eq('user_id', user.id)
-        .in('business_center_id', centerIds);
+        .eq('organization_id', params.organizationId)
+        .eq('organization_member_id', memberRow.id);
     }
 
     const { error } = await client
@@ -275,6 +277,8 @@ export class OrganizationLifecycleService {
     if (error) {
       throw new Error(`Failed to leave organization: ${error.message}`);
     }
+
+    await this.purgeOrphanAuthUsers([user.id]);
 
     return { left: true };
   }
@@ -341,18 +345,29 @@ export class OrganizationLifecycleService {
     }
 
     const client = this.supabaseService.getServiceRoleClient();
-    const centers = await client
-      .from('business_centers')
+    const { data: memberRow, error: memberLookupError } = await client
+      .from('organization_members')
       .select('id')
-      .eq('organization_id', params.organizationId);
+      .eq('organization_id', params.organizationId)
+      .eq('user_id', params.userId)
+      .maybeSingle<{ id: string }>();
 
-    const centerIds = (centers.data ?? []).map((row) => row.id as string);
-    if (centerIds.length > 0) {
-      await client
-        .from('business_center_members')
-        .delete()
-        .eq('user_id', params.userId)
-        .in('business_center_id', centerIds);
+    if (memberLookupError) {
+      throw new Error(`Failed to load member: ${memberLookupError.message}`);
+    }
+
+    if (!memberRow) {
+      throw new NotFoundException('Ese miembro no pertenece al negocio.');
+    }
+
+    const { error: centerError } = await client
+      .from('business_center_members')
+      .delete()
+      .eq('organization_id', params.organizationId)
+      .eq('organization_member_id', memberRow.id);
+
+    if (centerError) {
+      throw new Error(`Failed to remove center membership: ${centerError.message}`);
     }
 
     const { error } = await client
@@ -364,6 +379,9 @@ export class OrganizationLifecycleService {
     if (error) {
       throw new Error(`Failed to remove member: ${error.message}`);
     }
+
+    // Ley 25.326: destroy login when it no longer belongs to any negocio.
+    await this.purgeOrphanAuthUsers([params.userId]);
 
     return { removed: true };
   }
