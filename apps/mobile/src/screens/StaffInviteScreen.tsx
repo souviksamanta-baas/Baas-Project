@@ -25,7 +25,7 @@ export function StaffInviteScreen(props: {
   dashboard: OwnerDashboard;
   onBack: () => void;
 }): ReactElement {
-  const [role, setRole] = useState<StaffInviteRole>('employee');
+  const [role, setRole] = useState<StaffInviteRole>('manager');
   const [phoneInput, setPhoneInput] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [contactPickerOpen, setContactPickerOpen] = useState(false);
@@ -133,7 +133,8 @@ export function StaffInviteScreen(props: {
         <Card style={styles.qrCard}>
           <Text style={styles.qrTitle}>QR de invitación</Text>
           <Text style={styles.qrBody}>
-            La persona debe verificar el mismo número ({phoneInput}) al escanear el código.
+            Rol: {ROLE_OPTIONS.find((option) => option.value === role)?.label ?? role}. La persona
+            debe verificar el mismo número ({phoneInput}) al escanear el código.
           </Text>
           <View style={styles.qrWrap}>
             <QRCode size={180} value={inviteLink} />

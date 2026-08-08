@@ -54,6 +54,9 @@ export class OrganizationInvitesService {
     const inviteToken = randomBytes(24).toString('hex');
     const tokenHash = createHash('sha256').update(inviteToken).digest('hex');
     const expiresAt = new Date(Date.now() + 72 * 60 * 60 * 1000).toISOString();
+    if (!isOrganizationInviteRole(params.role)) {
+      throw new Error('Rol de invitación inválido. Elegí Empleado, Administrador o Co-dueño.');
+    }
     const { orgRole, centerRole } = mapInviteRole(params.role);
     const businessCenterIds = resolveBusinessCenterIds(params);
 
@@ -202,6 +205,10 @@ function mapInviteRpcError(message: string): string {
   return `Failed to accept invite: ${message}`;
 }
 
+function isOrganizationInviteRole(role: unknown): role is OrganizationInviteRole {
+  return role === 'employee' || role === 'manager' || role === 'co_owner';
+}
+
 function mapInviteRole(role: OrganizationInviteRole): {
   centerRole: 'manager' | 'staff';
   orgRole: 'owner' | 'staff';
@@ -211,7 +218,7 @@ function mapInviteRole(role: OrganizationInviteRole): {
       return { orgRole: 'staff', centerRole: 'manager' };
     case 'manager':
       return { orgRole: 'staff', centerRole: 'manager' };
-    default:
+    case 'employee':
       return { orgRole: 'staff', centerRole: 'staff' };
   }
 }
