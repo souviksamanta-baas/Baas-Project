@@ -8,6 +8,7 @@ export type PurchaseStatus = 'pending_confirmation' | 'confirmed';
 
 export type PurchaseLineRecord = {
   cost: string;
+  expiresDate?: string;
   id: string;
   lineTotalCents: number;
   lotId?: string | null;
@@ -62,6 +63,7 @@ function normalizeLine(raw: Partial<PurchaseLineRecord> & { productId: string })
 
   return {
     cost: raw.cost ?? formatMoneyInput(unitCostCents / 100),
+    expiresDate: raw.expiresDate ?? '',
     id: raw.id ?? createPurchaseId(),
     lineTotalCents: raw.lineTotalCents ?? Math.max(0, quantity * unitCostCents),
     lotId: raw.lotId ?? null,

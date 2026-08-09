@@ -1,7 +1,7 @@
 import { Fragment, createElement, type ReactElement, type ReactNode } from 'react';
 
 import { useOwnerSessionContext } from '../context/OwnerSessionProvider';
-import { DEFAULT_COPI_FEATURE_FLAGS } from '../types/features';
+import { DEFAULT_ORGANIZATION_FEATURE_FLAGS } from '../types/features';
 
 const defaultFeatureVisibility: Record<string, boolean> = {
   accountConnectedServices: true,
@@ -59,7 +59,7 @@ function resolveDashboardFeature(feature: string, dashboardFlags: Record<string,
 export function useFeatureVisibility(): Record<string, boolean> {
   const { dashboard } = useOwnerSessionContext();
   const flags = {
-    ...DEFAULT_COPI_FEATURE_FLAGS,
+    ...DEFAULT_ORGANIZATION_FEATURE_FLAGS,
     ...(dashboard?.features ?? {}),
   };
 

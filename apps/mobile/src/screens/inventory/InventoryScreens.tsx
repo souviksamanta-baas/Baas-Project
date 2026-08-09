@@ -34,6 +34,7 @@ import {
   InventoryTextField,
 } from '../../components/ProductEditFormFields';
 import { BrandSuccessModal } from '../../components/BrandSuccessModal';
+import { useHasMultipleSucursales } from '../../hooks/useHasMultipleSucursales';
 import {
   CartLineRow,
   CobrarButton,
@@ -260,6 +261,7 @@ export function AddProductScreen(props: {
   onSaveAndAddAnother: (values: AddProductFormValues) => Promise<void>;
   suppliers: string[];
 }): ReactElement {
+  const showSucursal = useHasMultipleSucursales();
   const [formValues, setFormValues] = useState<AddProductFormValues>(() =>
     createEmptyAddProductForm(props.businessCenterId),
   );
@@ -372,13 +374,19 @@ export function AddProductScreen(props: {
             value={formValues.marginPercent}
           />
         </View>
-        <InventorySupplierField
-          full
-          label="Proveedor"
-          onChangeText={(supplier) => setFormValues((current) => ({ ...current, supplier }))}
-          suggestions={props.suppliers}
-          value={formValues.supplier}
-        />
+        <View style={styles.fieldRow}>
+          <InventoryTextField
+            label="Marca"
+            onChangeText={(brand) => setFormValues((current) => ({ ...current, brand }))}
+            value={formValues.brand}
+          />
+          <InventorySupplierField
+            label="Proveedor"
+            onChangeText={(supplier) => setFormValues((current) => ({ ...current, supplier }))}
+            suggestions={props.suppliers}
+            value={formValues.supplier}
+          />
+        </View>
       </SectionCard>
       <Text style={styles.sectionLabel}>Stock inicial</Text>
       <SectionCard>
@@ -391,21 +399,23 @@ export function AddProductScreen(props: {
             value={formValues.stockQuantity}
           />
           <InventoryIntegerField
-            label="Umbral reorden"
+            label="Stock mínimo"
             onChangeText={(reorderThreshold) =>
               setFormValues((current) => ({ ...current, reorderThreshold }))
             }
             value={formValues.reorderThreshold}
           />
         </View>
-        <InventoryReadOnlyField
-          full
-          label="Sucursal"
-          value={
-            branchOptions.find((option) => option.value === formValues.businessCenterId)?.label ??
-            'Sucursal principal'
-          }
-        />
+        {showSucursal ? (
+          <InventoryReadOnlyField
+            full
+            label="Sucursal"
+            value={
+              branchOptions.find((option) => option.value === formValues.businessCenterId)?.label ??
+              'Sucursal principal'
+            }
+          />
+        ) : null}
         {showLotFields ? (
           <View style={styles.fieldRow}>
             <InventoryDateField
@@ -468,6 +478,7 @@ export function AddSubproductScreen(props: {
   onSaveAndAddAnother: (values: AddProductFormValues) => Promise<void>;
   parentProduct: Product;
 }): ReactElement {
+  const showSucursal = useHasMultipleSucursales();
   const [formValues, setFormValues] = useState<AddProductFormValues>(() =>
     createEmptyAddSubproductForm(props.parentProduct, props.businessCenterId),
   );
@@ -616,21 +627,23 @@ export function AddSubproductScreen(props: {
             value={formValues.stockQuantity}
           />
           <InventoryIntegerField
-            label="Umbral reorden"
+            label="Stock mínimo"
             onChangeText={(reorderThreshold) =>
               setFormValues((current) => ({ ...current, reorderThreshold }))
             }
             value={formValues.reorderThreshold}
           />
         </View>
-        <InventoryReadOnlyField
-          full
-          label="Sucursal"
-          value={
-            branchOptions.find((option) => option.value === formValues.businessCenterId)?.label ??
-            'Sucursal principal'
-          }
-        />
+        {showSucursal ? (
+          <InventoryReadOnlyField
+            full
+            label="Sucursal"
+            value={
+              branchOptions.find((option) => option.value === formValues.businessCenterId)?.label ??
+              'Sucursal principal'
+            }
+          />
+        ) : null}
         {showLotFields ? (
           <View style={styles.fieldRow}>
             <InventoryDateField
@@ -688,6 +701,7 @@ export function ProductDetailScreen(
     childProducts?: Product[];
   },
 ): ReactElement {
+  const showSucursal = useHasMultipleSucursales();
   const product = props.product;
   const childProducts = props.childProducts ?? [];
   const productName = product?.name ?? baseProduct.name;
@@ -717,6 +731,7 @@ export function ProductDetailScreen(
         category={productCategory}
         meta={summaryMeta}
         showBarcode
+        showBranch={showSucursal}
         showMeta
         statusLabel={productStatus}
         statusTone={productStatusTone}
@@ -861,9 +876,11 @@ export function EditProductScreen(
     product: Product;
     readOnly?: boolean;
     subproducts?: Product[];
+    suppliers?: string[];
     title?: string;
   },
 ): ReactElement {
+  const showSucursal = useHasMultipleSucursales();
   const childProducts = props.subproducts ?? [];
   const readOnly = props.readOnly ?? false;
   const [formValues, setFormValues] = useState<ProductEditFormValues>(() =>
@@ -1003,15 +1020,51 @@ export function EditProductScreen(
             </>
           )}
         </View>
-        <InventoryReadOnlyField
-          full
-          label="Sucursal"
-          value={
-            branchOptions.find((option) => option.value === formValues.businessCenterId)?.label ??
-            props.businessCenterName ??
-            'Sucursal principal'
-          }
-        />
+        <View style={styles.fieldRow}>
+          {readOnly ? (
+            <>
+              <InventoryReadOnlyField label="Marca" value={formValues.brand || '—'} />
+              <InventoryReadOnlyField label="Proveedor" value={formValues.supplier || '—'} />
+            </>
+          ) : (
+            <>
+              <InventoryTextField
+                label="Marca"
+                onChangeText={(brand) => setFormValues((current) => ({ ...current, brand }))}
+                value={formValues.brand}
+              />
+              <InventorySupplierField
+                label="Proveedor"
+                onChangeText={(supplier) => setFormValues((current) => ({ ...current, supplier }))}
+                suggestions={props.suppliers ?? []}
+                value={formValues.supplier}
+              />
+            </>
+          )}
+        </View>
+        <View style={styles.fieldRow}>
+          {readOnly ? (
+            <InventoryReadOnlyField label="Stock mínimo" value={formValues.reorderThreshold} />
+          ) : (
+            <InventoryIntegerField
+              label="Stock mínimo"
+              onChangeText={(reorderThreshold) =>
+                setFormValues((current) => ({ ...current, reorderThreshold }))
+              }
+              value={formValues.reorderThreshold}
+            />
+          )}
+          {showSucursal ? (
+            <InventoryReadOnlyField
+              label="Sucursal"
+              value={
+                branchOptions.find((option) => option.value === formValues.businessCenterId)?.label ??
+                props.businessCenterName ??
+                'Sucursal principal'
+              }
+            />
+          ) : null}
+        </View>
         {readOnly ? (
           <InventoryReadOnlyField full label="Notas" value={formValues.description || 'Sin notas'} />
         ) : (
@@ -1087,6 +1140,7 @@ export function EditSubproductScreen(
     subproduct: Product;
   },
 ): ReactElement {
+  const showSucursal = useHasMultipleSucursales();
   const parentProduct = props.parentProduct;
   const parentName = parentProduct?.name ?? baseProduct.name;
   const parentStock = parentProduct ? formatProductStockLabel(parentProduct) : baseProduct.stock;
@@ -1193,14 +1247,16 @@ export function EditSubproductScreen(
             value={formValues.marginPercent}
           />
         </View>
-        <InventoryReadOnlyField
-          full
-          label="Sucursal"
-          value={
-            branchOptions.find((option) => option.value === formValues.businessCenterId)?.label ??
-            'Sucursal principal'
-          }
-        />
+        {showSucursal ? (
+          <InventoryReadOnlyField
+            full
+            label="Sucursal"
+            value={
+              branchOptions.find((option) => option.value === formValues.businessCenterId)?.label ??
+              'Sucursal principal'
+            }
+          />
+        ) : null}
         <InventoryTextField
           full
           label="Notas"
@@ -1255,6 +1311,7 @@ export function AddStockScreen(props: {
   };
   selectableProducts: Product[];
   showProductSelection: boolean;
+  suppliers?: string[];
 }): ReactElement {
   const [selectedProductId, setSelectedProductId] = useState(props.defaultSelectedProductId);
   const selectedProduct =
@@ -1281,6 +1338,7 @@ export function AddStockScreen(props: {
         ? productToAddStockFormValues(selectedProduct, selectedProduct.id)
         : {
             cost: '0.00',
+            expiresDate: '',
             marginPercent: '0',
             quantity: '',
             receivedDate: '',
@@ -1373,7 +1431,6 @@ export function AddStockScreen(props: {
   }
 
   const productStock = formatProductStockLabel(selectedProduct);
-  const isSubproduct = selectedProduct.parentProductId != null;
   const lockPurchaseFields = props.purchaseDefaults?.lockSupplierAndDate === true;
   const saveAnotherLabel = props.purchaseDefaults
     ? 'Guardar y agregar otro ítem'
@@ -1422,51 +1479,32 @@ export function AddStockScreen(props: {
             }
             value={formValues.cost}
           />
-          {isSubproduct ? (
-            <>
-              <InventoryMoneyField
-                label="Precio de venta"
-                onChangeText={(unitPrice) =>
-                  setFormValues((current) => applyAddStockUnitPrice(current, unitPrice))
-                }
-                value={formValues.unitPrice}
-              />
-              <InventoryPercentField
-                label="Margen"
-                onChangeText={(marginPercent) =>
-                  setFormValues((current) => applyAddStockMargin(current, marginPercent))
-                }
-                value={formValues.marginPercent}
-              />
-            </>
-          ) : lockPurchaseFields ? (
-            <InventoryReadOnlyField label="Proveedor" value={formValues.supplier || '—'} />
-          ) : (
-            <InventoryTextField
-              label="Proveedor"
-              onChangeText={(supplier) => setFormValues((current) => ({ ...current, supplier }))}
-              value={formValues.supplier}
-            />
-          )}
+          <InventoryMoneyField
+            label="Precio de venta"
+            onChangeText={(unitPrice) =>
+              setFormValues((current) => applyAddStockUnitPrice(current, unitPrice))
+            }
+            value={formValues.unitPrice}
+          />
+          <InventoryPercentField
+            label="Margen"
+            onChangeText={(marginPercent) =>
+              setFormValues((current) => applyAddStockMargin(current, marginPercent))
+            }
+            value={formValues.marginPercent}
+          />
         </View>
-        {!isSubproduct ? (
-          <View style={styles.fieldRow}>
-            <InventoryMoneyField
-              label="Precio de venta"
-              onChangeText={(unitPrice) =>
-                setFormValues((current) => applyAddStockUnitPrice(current, unitPrice))
-              }
-              value={formValues.unitPrice}
-            />
-            <InventoryPercentField
-              label="Margen"
-              onChangeText={(marginPercent) =>
-                setFormValues((current) => applyAddStockMargin(current, marginPercent))
-              }
-              value={formValues.marginPercent}
-            />
-          </View>
-        ) : null}
+        {lockPurchaseFields ? (
+          <InventoryReadOnlyField full label="Proveedor" value={formValues.supplier || '—'} />
+        ) : (
+          <InventorySupplierField
+            full
+            label="Proveedor"
+            onChangeText={(supplier) => setFormValues((current) => ({ ...current, supplier }))}
+            suggestions={props.suppliers ?? []}
+            value={formValues.supplier}
+          />
+        )}
         <View style={styles.fieldRow}>
           {lockPurchaseFields ? (
             <InventoryReadOnlyField label="Fecha de ingreso" value={formValues.receivedDate} />
@@ -1477,13 +1515,13 @@ export function AddStockScreen(props: {
               value={formValues.receivedDate}
             />
           )}
-          <InventoryReadOnlyField label="Lote" value={lotPreview} />
+          <InventoryDateField
+            label="Fecha de vencimiento"
+            onChange={(expiresDate) => setFormValues((current) => ({ ...current, expiresDate }))}
+            value={formValues.expiresDate}
+          />
         </View>
-        {isSubproduct && lockPurchaseFields ? (
-          <View style={styles.fieldRow}>
-            <InventoryReadOnlyField label="Proveedor" value={formValues.supplier || '—'} />
-          </View>
-        ) : null}
+        <InventoryReadOnlyField full label="Lote" value={lotPreview} />
       </SectionCard>
       {props.showProductSelection ? (
         <InfoBanner>
@@ -1627,6 +1665,13 @@ export function SellProductsScreen(
   );
   const productCountLabel = `${filteredProducts.length} producto${filteredProducts.length === 1 ? '' : 's'}`;
   const discountLabel = formatSaleDiscountLabel(sellCart.discountMode, Number.parseFloat(sellCart.discountInput.replace(',', '.')) || 0);
+
+  useEffect(() => {
+    if (props.initialSearchQuery == null || props.initialSearchQuery === '') {
+      return;
+    }
+    setSearchQuery(props.initialSearchQuery);
+  }, [props.initialSearchQuery]);
 
   useEffect(() => {
     setCurrentPage(1);

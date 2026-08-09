@@ -243,6 +243,40 @@ export function getProductStatusLabel(product: Product): string {
   return getProductStatusLabelFromSlug(readProductStatusSlug(product));
 }
 
+function readProductBrand(product: Product, parentProduct?: Product | null): string {
+  const own =
+    typeof product.metadata.marca === 'string' ? product.metadata.marca.trim() : '';
+  if (own.length > 0) {
+    return own;
+  }
+
+  if (parentProduct && typeof parentProduct.metadata.marca === 'string') {
+    const parentBrand = parentProduct.metadata.marca.trim();
+    if (parentBrand.length > 0) {
+      return parentBrand;
+    }
+  }
+
+  return '—';
+}
+
+function readProductSupplierLabel(product: Product, parentProduct?: Product | null): string {
+  const own =
+    typeof product.metadata.proveedor === 'string' ? product.metadata.proveedor.trim() : '';
+  if (own.length > 0) {
+    return own;
+  }
+
+  if (parentProduct && typeof parentProduct.metadata.proveedor === 'string') {
+    const parentSupplier = parentProduct.metadata.proveedor.trim();
+    if (parentSupplier.length > 0) {
+      return parentSupplier;
+    }
+  }
+
+  return '—';
+}
+
 export function buildProductSummaryMeta(
   product: Product,
   businessCenterName?: string | null,
@@ -250,13 +284,16 @@ export function buildProductSummaryMeta(
   childProducts?: Product[],
 ): {
   branch: string;
+  brand: string;
   codeLabel: string;
   codeUnavailable: boolean;
   codeValue: string;
   cost: string;
   margin: string;
+  minStock: string;
   price: string;
   sku: string;
+  supplier: string;
 } {
   const costCents = resolveProductCostCents(product, parentProduct);
   const salePriceCents = resolveProductSalePriceCents(product, childProducts);
@@ -264,16 +301,22 @@ export function buildProductSummaryMeta(
     costCents != null && costCents > 0 && salePriceCents != null && salePriceCents > 0
       ? calculateMarginFromCostAndPrice(costCents / 100, salePriceCents / 100)
       : null;
+  const storedMargin =
+    typeof product.metadata.margen_pct === 'number' ? product.metadata.margen_pct : null;
+  const marginValue = storedMargin ?? computedMargin;
 
   return {
     branch: businessCenterName ?? '—',
+    brand: readProductBrand(product, parentProduct),
     codeLabel: getProductCodeTypeLabel(product),
     codeUnavailable: isProductCodeUnavailable(product),
     codeValue: readProductCodeValue(product),
     cost: formatProductCost(product, parentProduct),
-    margin: computedMargin != null ? `${formatPercentInput(computedMargin)}%` : '—',
+    margin: marginValue != null ? `${formatPercentInput(marginValue)}%` : '—',
+    minStock: formatUnitLabel(product.reorderThreshold, product.unitCode ?? product.baseUnitCode),
     price: formatProductSalePrice(product, childProducts),
     sku: product.sku ?? '—',
+    supplier: readProductSupplierLabel(product, parentProduct),
   };
 }
 

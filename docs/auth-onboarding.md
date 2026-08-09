@@ -101,6 +101,11 @@ Do **not** enable Supabase WhatsApp OTP via Twilio — Nexolia WhatsApp login us
    attaches the default center server-side).
 5. App shows QR encoding `baas-owner://invite-accept?token=…`
 6. Staff verifies **the same phone** via WhatsApp/SMS login OTP (not email).
+   When `EXPO_PUBLIC_AUTH_LOGIN_CHANNELS` is email-only, invite-accept still
+   offers phone channels (`EXPO_PUBLIC_AUTH_STAFF_PHONE_CHANNELS` or default
+   `whatsapp,sms`). SMS uses Supabase → Twilio; trial Twilio accounts can only
+   SMS numbers listed under Verified Caller IDs (error 21608). WhatsApp needs
+   `NEXOLIA_AUTH_WABA_PHONE_NUMBER_ID` (+ token/template) on the API.
 7. API accepts invite → `organization_members` + `business_center_members` for
    the assigned center.
 

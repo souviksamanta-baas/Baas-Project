@@ -23,6 +23,7 @@ import { useOwnerSessionContext } from './OwnerSessionProvider';
 
 export type LoadPurchaseLine = {
   cost: string;
+  expiresDate: string;
   id: string;
   lineTotalCents: number;
   marginPercent: string;
@@ -92,6 +93,7 @@ function createEmptyDraft(): PurchaseDraft {
 function toPurchaseLines(lines: LoadPurchaseLine[]): PurchaseLineRecord[] {
   return lines.map((line) => ({
     cost: line.cost,
+    expiresDate: line.expiresDate,
     id: line.id,
     lineTotalCents: line.lineTotalCents,
     lotId: null,
@@ -109,6 +111,7 @@ function toPurchaseLines(lines: LoadPurchaseLine[]): PurchaseLineRecord[] {
 function fromPurchaseLines(lines: PurchaseLineRecord[]): LoadPurchaseLine[] {
   return lines.map((line) => ({
     cost: line.cost,
+    expiresDate: line.expiresDate ?? '',
     id: line.id || createLineId(),
     lineTotalCents: line.lineTotalCents,
     marginPercent: line.marginPercent,
@@ -211,6 +214,7 @@ export function LoadPurchaseProvider(props: { children: ReactNode }): ReactEleme
 
     const nextLine: LoadPurchaseLine = {
       cost: formatMoneyInput(unitCost),
+      expiresDate: input.values.expiresDate?.trim() ?? '',
       id: createLineId(),
       lineTotalCents,
       marginPercent: input.values.marginPercent,

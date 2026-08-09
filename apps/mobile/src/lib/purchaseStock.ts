@@ -14,6 +14,7 @@ function lineToAddStockValues(
 ): AddStockFormValues {
   return {
     cost: line.cost,
+    expiresDate: line.expiresDate ?? '',
     marginPercent: line.marginPercent,
     purchaseNumber: purchase.number,
     quantity: String(line.quantity),

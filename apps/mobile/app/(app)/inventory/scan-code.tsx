@@ -46,9 +46,10 @@ export default function InventoryScanCodeRoute(): ReactElement {
     }
 
     if (scanMode === 'sell') {
+      // Only prefill search — never auto-add to cart. User taps + on the result.
       router.replace({
         pathname: routes.inventorySell,
-        params: { scannedCode: payload.value, scannedProductId: product.id },
+        params: { scannedCode: payload.value },
       });
       return;
     }
@@ -65,7 +66,7 @@ export default function InventoryScanCodeRoute(): ReactElement {
     <BarcodeScannerScreen
       hint={
         scanMode === 'sell'
-          ? 'Escaneá para agregar el producto al carrito'
+          ? 'Escaneá para buscar el producto en Ventas'
           : scanMode === 'load-purchase'
             ? 'Escaneá para cargar stock de compra'
             : 'Escaneá para abrir el producto'

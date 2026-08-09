@@ -9,7 +9,7 @@ import { InventoryScreenTitle } from '../../../../../src/components/inventoryUi'
 import { useOwnerSessionContext } from '../../../../../src/context/OwnerSessionProvider';
 import { useBusinessCenters } from '../../../../../src/hooks/useBusinessCenters';
 import { useInventoryProduct } from '../../../../../src/hooks/useInventoryProduct';
-import { collectCategoryOptions } from '../../../../../src/lib/productCatalog';
+import { collectCategoryOptions, collectSupplierOptions } from '../../../../../src/lib/productCatalog';
 import { navigateAfterProductArchive, navigateInventoryReturn } from '../../../../../src/navigation/inventoryNavigation';
 import {
   parseInventoryReturnTo,
@@ -44,6 +44,12 @@ export default function EditProductRoute(): ReactElement {
     () => collectCategoryOptions(products, product?.category),
     [product?.category, products],
   );
+
+  const suppliers = useMemo(() => {
+    const current =
+      typeof product?.metadata?.proveedor === 'string' ? product.metadata.proveedor : null;
+    return collectSupplierOptions(products, current);
+  }, [product?.metadata?.proveedor, products]);
 
   if (!productId || !businessCenterId || !organizationId) {
     return (
@@ -121,6 +127,7 @@ export default function EditProductRoute(): ReactElement {
       product={product}
       readOnly={archiveMode}
       subproducts={childProducts}
+      suppliers={suppliers}
     />
   );
 }

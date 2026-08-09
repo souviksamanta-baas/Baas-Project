@@ -4,6 +4,7 @@ import {
   ActivityIndicator,
   Animated,
   Image,
+  Keyboard,
   Modal,
   Platform,
   Pressable,
@@ -108,6 +109,7 @@ export function ScreenContent(props: {
   const insets = useSafeAreaInsets();
   const collapseHeaderOnScroll = props.collapseHeaderOnScroll !== false;
   const bottomClearance = getBottomNavClearance(insets.bottom);
+  const [keyboardLift, setKeyboardLift] = useState(0);
 
   useEffect(() => {
     if (!collapseHeaderOnScroll) {
@@ -131,13 +133,48 @@ export function ScreenContent(props: {
     chrome.setChrome({ title: props.title });
   }, [chrome.setChrome, collapseHeaderOnScroll, props.title]);
 
+  useEffect(() => {
+    if (props.disableScroll) {
+      return;
+    }
+
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+    const onShow = Keyboard.addListener(showEvent, (event) => {
+      // iOS: ScrollView.automaticallyAdjustKeyboardInsets handles most of it; keep a
+      // small cushion so sticky footers / last fields clear the keys.
+      // Android (resize): window already shrinks — add enough padding that the focused
+      // field can scroll above the keyboard + bottom nav.
+      const height = event.endCoordinates?.height ?? 0;
+      if (Platform.OS === 'ios') {
+        setKeyboardLift(Math.max(spacing.xl, Math.round(height * 0.08)));
+        return;
+      }
+      setKeyboardLift(Math.max(spacing.xxl, Math.round(height * 0.35)));
+    });
+    const onHide = Keyboard.addListener(hideEvent, () => {
+      setKeyboardLift(0);
+    });
+
+    return () => {
+      onShow.remove();
+      onHide.remove();
+    };
+  }, [props.disableScroll]);
+
   if (props.disableScroll) {
     return <View style={{ flex: 1 }}>{props.children}</View>;
   }
 
   return (
     <ScrollView
-      contentContainerStyle={[styles.content, { paddingBottom: bottomClearance }]}
+      automaticallyAdjustKeyboardInsets
+      contentContainerStyle={[
+        styles.content,
+        { paddingBottom: bottomClearance + keyboardLift },
+      ]}
+      keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
       keyboardShouldPersistTaps="handled"
       onScroll={(event) => {
         if (!collapseHeaderOnScroll) {
@@ -544,6 +581,9 @@ export function ReplyComposer(props: {
   const busy = props.isSending || props.isTranscribingVoice || props.isAnalyzingImage;
   const canSend = Boolean(props.onSend && (hasText || hasPendingImage) && !busy);
   const showVoice = Boolean(props.canUseVoice && !hasText && !hasPendingImage && props.onPressVoice);
+  // Mic affordance when the field is empty — even if voice is gated off (handler explains Pro).
+  // Never wire empty-composer taps to onSend (that yields "Escribí un mensaje…").
+  const emptyComposerUsesVoice = Boolean(!hasText && !hasPendingImage && props.onPressVoice);
   const showAttachmentSheet = Boolean(
     props.attachmentMenuOpen && (props.onPressAttachCamera || props.onPressAttachLibrary),
   );
@@ -552,6 +592,16 @@ export function ReplyComposer(props: {
   function closeAttachmentSheet(): void {
     if (props.attachmentMenuOpen && props.onPressPlus) {
       props.onPressPlus();
+    }
+  }
+
+  function handleTrailingPress(): void {
+    if (showVoice || emptyComposerUsesVoice) {
+      props.onPressVoice?.();
+      return;
+    }
+    if (canSend) {
+      props.onSend?.();
     }
   }
 
@@ -587,12 +637,14 @@ export function ReplyComposer(props: {
           value={props.value}
           trailing={
             <Pressable
-              disabled={busy && !showVoice}
-              onPress={showVoice ? props.onPressVoice : props.onSend}
+              disabled={busy && !(showVoice || emptyComposerUsesVoice)}
+              onPress={handleTrailingPress}
               style={[
                 styles.micButton,
                 props.isRecordingVoice && styles.micButtonRecording,
-                showVoice && !props.isRecordingVoice && styles.micButtonIdle,
+                (showVoice || emptyComposerUsesVoice) &&
+                  !props.isRecordingVoice &&
+                  styles.micButtonIdle,
               ]}
             >
               {busy ? (

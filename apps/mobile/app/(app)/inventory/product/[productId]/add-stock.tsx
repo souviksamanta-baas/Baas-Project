@@ -1,6 +1,6 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import type { ReactElement } from 'react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Alert, Text } from 'react-native';
 
 import { addStock } from '../../../../../src/api/inventory';
@@ -10,6 +10,7 @@ import { useOwnerSessionContext } from '../../../../../src/context/OwnerSessionP
 import { useOptionalLoadPurchase } from '../../../../../src/context/LoadPurchaseProvider';
 import { useAddStockContext } from '../../../../../src/hooks/useAddStockContext';
 import { useProductCatalog } from '../../../../../src/context/ProductCatalogProvider';
+import { collectSupplierOptions } from '../../../../../src/lib/productCatalog';
 import { navigateInventoryReturn } from '../../../../../src/navigation/inventoryNavigation';
 import { parseInventoryReturnTo, routes } from '../../../../../src/navigation/routes';
 import { AddStockScreen } from '../../../../../src/screens/inventory/InventoryScreens';
@@ -46,6 +47,10 @@ export default function AddStockRoute(): ReactElement {
     parentOnlyProducts.length > 0
       ? parentOnlyProducts
       : catalogProducts.filter((product) => product.id === (defaultSelectedId ?? routeProductId));
+  const suppliers = useMemo(
+    () => collectSupplierOptions(catalogProducts),
+    [catalogProducts],
+  );
 
   async function persistStock(values: AddStockFormValues): Promise<void> {
     if (isSaving) {
@@ -168,6 +173,7 @@ export default function AddStockRoute(): ReactElement {
       }
       selectableProducts={isLoadPurchase ? loadPurchaseProducts : selectableProducts}
       showProductSelection={isLoadPurchase ? false : showProductSelection}
+      suppliers={suppliers}
     />
   );
 }

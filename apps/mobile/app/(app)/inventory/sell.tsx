@@ -1,6 +1,6 @@
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import type { ReactElement } from 'react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Alert } from 'react-native';
 
 import { useSellCart } from '../../../src/context/SellCartProvider';
@@ -12,42 +12,23 @@ import { SellProductsScreen } from '../../../src/screens/inventory/InventoryScre
 
 export default function SellProductsRoute(): ReactElement {
   const router = useRouter();
-  const { scannedCode, scannedProductId } = useLocalSearchParams<{
+  const { scannedCode } = useLocalSearchParams<{
     scannedCode?: string | string[];
-    scannedProductId?: string | string[];
   }>();
   const catalog = useProductCatalog();
   const products = useMemo(() => mapProductsToSellRows(catalog.products), [catalog.products]);
   const sellNav = useSellNavigation(catalog.products);
   const sellCart = useSellCart();
   const { syncCartPrices } = sellCart;
-  const handledScanRef = useRef<string | null>(null);
   const [isOpeningCobro, setIsOpeningCobro] = useState(false);
 
   const initialSearchQuery = Array.isArray(scannedCode) ? scannedCode[0] : scannedCode;
-  const scannedId = Array.isArray(scannedProductId) ? scannedProductId[0] : scannedProductId;
 
   useFocusEffect(
     useCallback(() => {
       syncCartPrices(catalog.products);
     }, [catalog.products, syncCartPrices]),
   );
-
-  useEffect(() => {
-    if (!scannedId || handledScanRef.current === scannedId) {
-      return;
-    }
-
-    const product = catalog.products.find((item) => item.id === scannedId);
-    handledScanRef.current = scannedId;
-
-    if (!product) {
-      return;
-    }
-
-    sellCart.addProduct(product);
-    Alert.alert('Producto agregado', `${product.name} se sumó al carrito.`);
-  }, [catalog.products, scannedId, sellCart]);
 
   function handleAddToCart(productId: string): void {
     const product = catalog.products.find((item) => item.id === productId);

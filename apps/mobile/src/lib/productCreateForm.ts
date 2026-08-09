@@ -16,6 +16,7 @@ export function createEmptyAddProductForm(businessCenterId: string): AddProductF
   return {
     baseUnitCode: 'unit',
     baseUnitEquivalent: '',
+    brand: '',
     businessCenterId,
     category: '',
     cost: '0.00',
@@ -40,9 +41,12 @@ export function createEmptyAddSubproductForm(
 ): AddProductFormValues {
   const supplier =
     typeof parentProduct.metadata.proveedor === 'string' ? parentProduct.metadata.proveedor : '';
+  const brand =
+    typeof parentProduct.metadata.marca === 'string' ? parentProduct.metadata.marca : '';
 
   return {
     ...createEmptyAddProductForm(businessCenterId),
+    brand,
     category: parentProduct.category ?? '',
     parentProductId: parentProduct.id,
     productType: 'subproducto',

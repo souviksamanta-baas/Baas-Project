@@ -442,6 +442,8 @@ export async function addStock(
   const purchaseNumber = values.purchaseNumber?.trim() ?? '';
   const unitPriceCents = Math.round((parseMoneyInput(values.unitPrice) ?? NaN) * 100);
   const marginPercent = parsePercentInput(values.marginPercent) ?? NaN;
+  const expiresAtIso =
+    values.expiresDate.trim().length > 0 ? dateInputToIso(values.expiresDate) : null;
   const previousMetadata = { ...targetProduct.metadata };
   const previousUnitPriceCents = targetProduct.unitPriceCents;
   const previousBaseUnitCode = targetProduct.baseUnitCode || targetProduct.unitCode;
@@ -465,6 +467,7 @@ export async function addStock(
     .from('inventory_lots')
     .insert({
       business_center_id: businessCenterId,
+      expires_at: expiresAtIso,
       lot_code: lotCode,
       organization_id: organizationId,
       product_id: targetProduct.id,
@@ -1055,6 +1058,9 @@ export async function updateProductDetails(
   const baseUnitCode = normalizeBaseUnitCode(values.baseUnitCode);
   let costCents = Math.round(cost * 100);
   let category = values.category.trim();
+  const brand = values.brand.trim();
+  const supplier = values.supplier.trim();
+  const reorderThreshold = Number.parseInt(values.reorderThreshold.trim(), 10);
 
   if (existingProduct.parentProductId != null) {
     const { data: parentProduct, error: parentError } = await supabase
@@ -1084,13 +1090,25 @@ export async function updateProductDetails(
     }
   }
 
-  const metadata = {
+  const metadata: Record<string, unknown> = {
     ...existingProduct.metadata,
     categoria: category,
     estado: values.status,
     margen_pct: marginPercent,
     precio_costo_cents: costCents,
   };
+
+  if (brand.length > 0) {
+    metadata.marca = brand;
+  } else {
+    delete metadata.marca;
+  }
+
+  if (supplier.length > 0) {
+    metadata.proveedor = supplier;
+  } else {
+    delete metadata.proveedor;
+  }
 
   const { data, error } = await supabase
     .from('products')
@@ -1116,6 +1134,7 @@ export async function updateProductDetails(
   const { data: inventoryItem, error: inventoryError } = await supabase
     .from('inventory_items')
     .update({
+      reorder_threshold: reorderThreshold,
       unit_code: baseUnitCode,
     })
     .eq('organization_id', organizationId)
@@ -1250,6 +1269,7 @@ export async function createProductDetails(
 
   const sku = await resolveUniqueProductSku(organizationId, values.name.trim());
   let supplier = values.supplier.trim();
+  const brand = values.brand.trim();
 
   if (isSubproduct && parentProductId && supplier.length === 0) {
     const { data: parentProduct, error: parentError } = await supabase
@@ -1282,6 +1302,7 @@ export async function createProductDetails(
     tipo_codigo: 'codigo_de_barras',
     tipo_producto: values.productType,
     ...(marginPercent > 0 ? { margen_pct: marginPercent } : {}),
+    ...(brand.length > 0 ? { marca: brand } : {}),
     ...(supplier.length > 0 ? { proveedor: supplier } : {}),
     ...(baseUnitEquivalent != null ? { equivalente_unidad_base: baseUnitEquivalent } : {}),
   };

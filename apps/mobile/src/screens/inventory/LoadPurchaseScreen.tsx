@@ -28,7 +28,7 @@ import {
 } from '../../lib/inventoryPresentation';
 import { isPurchaseNumberTaken } from '../../lib/purchases';
 import { formatCurrency } from '../../lib/sellCart';
-import { listSuppliers } from '../../lib/suppliers';
+import { listSuppliers, supplierLabel } from '../../lib/suppliers';
 import {
   inventoryProducts,
   type InventoryProductMock,
@@ -146,7 +146,7 @@ export function LoadPurchaseScreen(props: {
 
   const loadSuppliers = useCallback(async () => {
     const contacts = await listSuppliers();
-    const uniqueNames = [...new Set(contacts.map((contact) => contact.name))];
+    const uniqueNames = [...new Set(contacts.map((contact) => supplierLabel(contact)))];
     setSupplierNames(uniqueNames);
   }, []);
 

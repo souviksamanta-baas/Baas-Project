@@ -126,6 +126,7 @@ export function productToAddStockFormValues(
 
   return {
     ...pricing,
+    expiresDate: '',
     quantity: '',
     receivedDate: formatDateInput(new Date()),
     supplier: isSubproduct && parentProduct ? readProductSupplier(parentProduct) : readProductSupplier(product),
@@ -222,6 +223,10 @@ export function validateAddStockForm(values: AddStockFormValues): string | null 
 
   if (!parseDateInput(values.receivedDate)) {
     return 'Ingresa una fecha valida en formato dia/mes/año.';
+  }
+
+  if (values.expiresDate.trim().length > 0 && !parseDateInput(values.expiresDate)) {
+    return 'Ingresa una fecha de vencimiento valida en formato dia/mes/año.';
   }
 
   return null;

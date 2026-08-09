@@ -10,6 +10,7 @@ import {
   getStaffPhoneAuthChannels,
   type AuthOtpChannel,
 } from '../services/authChannel';
+import { formatAuthError } from '../services/authErrors';
 import { normalizePhoneNumber } from '../services/phone';
 import { acceptStaffInvite } from '../api/staffInvites';
 import { colors } from '../theme';
@@ -51,7 +52,7 @@ export function StaffInviteAcceptScreen(props: {
       await requestLoginOtp({ channel, identifier });
       setPhase('verify');
     } catch (error) {
-      setAuthError(error instanceof Error ? error.message : 'No se pudo enviar el código.');
+      setAuthError(formatAuthError(error));
     } finally {
       setIsSubmitting(false);
     }
@@ -83,7 +84,7 @@ export function StaffInviteAcceptScreen(props: {
       setStatusMessage('Invitación aceptada. Ya tenés acceso al negocio.');
       await props.onAccepted();
     } catch (error) {
-      setAuthError(error instanceof Error ? error.message : 'No se pudo aceptar la invitación.');
+      setAuthError(formatAuthError(error));
     } finally {
       setIsSubmitting(false);
     }

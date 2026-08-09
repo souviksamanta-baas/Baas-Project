@@ -22,10 +22,30 @@ export function getLoginAuthChannels(): AuthOtpChannel[] {
   return parsed.length > 0 ? parsed : ['email'];
 }
 
+/**
+ * Staff invite accept must verify a phone (matches invite E.164).
+ * Prefer WhatsApp (Nest/Meta) over SMS (Supabase/Twilio). When login is
+ * email-only, do not silently fall back to SMS-only — expose both so SMS
+ * trial limits are not the only path.
+ */
 export function getStaffPhoneAuthChannels(): AuthOtpChannel[] {
-  const phoneChannels = getLoginAuthChannels().filter((channel) => isPhoneAuthChannel(channel));
+  const fromLogin = getLoginAuthChannels().filter((channel) => isPhoneAuthChannel(channel));
+  if (fromLogin.length > 0) {
+    return fromLogin;
+  }
 
-  return phoneChannels.length > 0 ? phoneChannels : ['sms'];
+  const raw = process.env.EXPO_PUBLIC_AUTH_STAFF_PHONE_CHANNELS?.trim();
+  if (raw) {
+    const parsed = raw
+      .split(',')
+      .map((part) => part.trim().toLowerCase())
+      .filter(isPhoneAuthChannel);
+    if (parsed.length > 0) {
+      return parsed;
+    }
+  }
+
+  return ['whatsapp', 'sms'];
 }
 
 export const DEFAULT_AUTH_OTP_CHANNEL: AuthOtpChannel = getLoginAuthChannels()[0] ?? 'email';

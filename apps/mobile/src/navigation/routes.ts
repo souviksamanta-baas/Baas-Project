@@ -34,6 +34,7 @@ export const routes = {
   invoices: '/(app)/invoices',
   integrations: '/(app)/integrations',
   suppliers: '/(app)/suppliers',
+  suppliersAdd: '/(app)/suppliers/add',
   helpSupport: '/(app)/help-support',
   privacyData: '/(app)/privacy-data',
   instagramConnect: '/(app)/instagram-connect',
@@ -428,6 +429,7 @@ export function shouldHideBottomNav(pathname: string): boolean {
     pathname.endsWith('/copi/chat') ||
     pathname.endsWith('/whatsapp-connect') ||
     pathname.endsWith('/staff-invite') ||
+    pathname.endsWith('/suppliers/add') ||
     pathname.endsWith('/edit-profile') ||
     pathname.endsWith('/business-settings') ||
     pathname.endsWith('/arca-settings') ||

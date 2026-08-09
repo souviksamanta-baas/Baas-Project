@@ -12,8 +12,8 @@ import {
   useAudioRecorderState,
 } from 'expo-audio';
 
-import { analyzeCopiVision, transcribeCopiVoiceBlob, transcribeCopiVoiceFile } from '../api/ai';
-import { guessAudioMimeType } from '../lib/copiAudio';
+import { analyzeCopiVision, transcribeCopiVoice } from '../api/ai';
+import { guessAudioMimeType, readAudioAsBase64, readAudioBlobAsBase64 } from '../lib/copiAudio';
 import {
   resolvePreferredAudioConstraints,
   shouldPreferMediaRecorderOverSpeech,
@@ -154,17 +154,20 @@ export function useCopiMediaActions(params: {
 
       setIsTranscribingVoice(true);
       try {
-        const result = upload.uri
-          ? await transcribeCopiVoiceFile({
+        // Prefer JSON + base64: React Native FormData file parts throw
+        // "Unsupported FormDataPart implementation" on modern Hermes/fetch.
+        const payload = upload.uri
+          ? await readAudioAsBase64(upload.uri)
+          : {
+              ...(await readAudioBlobAsBase64(upload.blob!, upload.mimeType)),
               mimeType: upload.mimeType,
-              organizationId,
-              uri: upload.uri,
-            })
-          : await transcribeCopiVoiceBlob({
-              blob: upload.blob!,
-              mimeType: upload.mimeType,
-              organizationId,
-            });
+            };
+
+        const result = await transcribeCopiVoice({
+          audioBase64: payload.base64,
+          mimeType: payload.mimeType || upload.mimeType,
+          organizationId,
+        });
 
         await deliverTranscript(result.text);
       } catch (error) {

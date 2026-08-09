@@ -24,9 +24,11 @@ import {
   type OrganizationProfile,
 } from '../api/organizationProfile';
 import { Icon } from '../components/icons';
+import { MultiSucursalesQuestion } from '../components/MultiSucursalesQuestion';
 import { Card, ScreenContent, ScreenTitle } from '../components/ui';
 import { PrimaryButton, TextField, colors as dsColors, spacing } from '../design-system';
 import { useAndroidBackHandler } from '../hooks/useAndroidBackHandler';
+import { useHasMultipleSucursales } from '../hooks/useHasMultipleSucursales';
 import {
   getNavShortcutOption,
   listNavShortcutOptions,
@@ -95,6 +97,7 @@ export function BusinessSettingsScreen(props: {
   whatsappPhone: string | null;
 }): ReactElement {
   const insets = useSafeAreaInsets();
+  const hasMultipleSucursales = useHasMultipleSucursales();
   const timezoneOptions = useMemo(() => buildTimezoneOptions(), []);
   const navShortcutOptions = useMemo(() => listNavShortcutOptions(), []);
   const [profile, setProfile] = useState<OrganizationProfile>(() =>
@@ -315,6 +318,14 @@ export function BusinessSettingsScreen(props: {
           label="Zona horaria"
           onEdit={() => openEdit('timezone')}
           value={formatTimezoneOptionLabel(profile.timezone)}
+        />
+      </Card>
+
+      <Card style={styles.summaryCard}>
+        <Text style={styles.sectionCardTitle}>Sucursales</Text>
+        <MultiSucursalesQuestion
+          disabled
+          value={hasMultipleSucursales ? 'yes' : 'no'}
         />
       </Card>
 

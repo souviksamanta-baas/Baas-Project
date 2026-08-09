@@ -26,12 +26,16 @@ export function formatAuthError(error: unknown): string {
     return 'Pediste demasiados códigos seguidos. Esperá unos segundos antes de intentar de nuevo.';
   }
 
-  if (/unverified/i.test(message) || /21608/.test(message)) {
-    return 'No pudimos enviar el SMS por Twilio. Verificá el número en twilio.com (cuentas de prueba) o usá WhatsApp o correo.';
+  if (/unverified/i.test(message) || /21608/.test(message) || /Trial accounts cannot send/i.test(message)) {
+    return [
+      'No pudimos enviar el SMS: la cuenta Twilio está en modo prueba.',
+      'Verificá ese número en Twilio (Verified Caller IDs) o pasá Twilio a pago.',
+      'Si ves la opción WhatsApp, usala en lugar de SMS.',
+    ].join(' ');
   }
 
   if (/Platform WhatsApp auth is not configured/i.test(message)) {
-    return 'WhatsApp login no está configurado todavía. Probá correo electrónico o SMS.';
+    return 'WhatsApp de Nexolia aún no está configurado en el servidor. Usá SMS (Twilio) o pedile al dueño que reintente más tarde.';
   }
 
   if (/token.*expired|otp.*expired|invalid.*otp|invalid.*token/i.test(message)) {

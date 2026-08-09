@@ -17,14 +17,15 @@ export function InventoryTextField(props: {
   value: string;
 }): ReactElement {
   return (
-    <TextField
-      label={props.label}
-      multiline={props.multiline}
-      numberOfLines={props.multiline ? 4 : 1}
-      onChangeText={props.onChangeText}
-      style={[props.full ? styles.fieldFull : undefined, props.multiline && styles.multilineField]}
-      value={props.value}
-    />
+    <View style={[styles.field, props.full && styles.fieldFull, props.multiline && styles.multilineField]}>
+      <TextField
+        label={props.label}
+        multiline={props.multiline}
+        numberOfLines={props.multiline ? 4 : 1}
+        onChangeText={props.onChangeText}
+        value={props.value}
+      />
+    </View>
   );
 }
 
@@ -166,7 +167,7 @@ export function InventorySupplierField(props: {
         }}
         onChangeText={props.onChangeText}
         onFocus={() => setFocused(true)}
-        placeholder={props.existingOnly ? 'Buscar proveedor' : 'Proveedor o marca'}
+        placeholder={props.existingOnly ? 'Buscar proveedor' : 'Nombre del proveedor'}
         placeholderTextColor={colors.placeholder}
         style={[styles.supplierInput, Platform.OS === 'web' && styles.inputWeb]}
         value={props.value}

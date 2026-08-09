@@ -60,13 +60,16 @@ export function productToEditFormValues(
 
   return {
     baseUnitCode: normalizeBaseUnitCode(product.baseUnitCode ?? product.unitCode),
+    brand: typeof product.metadata.marca === 'string' ? product.metadata.marca : '',
     businessCenterId,
     category: product.category ?? '',
     cost: formatMoneyInput(cost),
     description: product.description ?? '',
     marginPercent: formatPercentInput(margin),
     name: product.name,
+    reorderThreshold: String(product.reorderThreshold),
     status: readProductStatusSlug(product),
+    supplier: typeof product.metadata.proveedor === 'string' ? product.metadata.proveedor : '',
     unitPrice: formatMoneyInput(price),
   };
 }
@@ -147,6 +150,11 @@ export function validateProductEditForm(values: ProductEditFormValues): string |
   const marginPercent = parsePercentInput(values.marginPercent);
   if (marginPercent === null || marginPercent < 0) {
     return 'Ingresa un margen valido.';
+  }
+
+  const reorderThreshold = Number.parseInt(values.reorderThreshold.trim(), 10);
+  if (!Number.isInteger(reorderThreshold) || reorderThreshold < 0) {
+    return 'Ingresa un stock minimo valido.';
   }
 
   return null;

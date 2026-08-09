@@ -14,6 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { PrimaryButton, SecondaryButton } from '../components/Buttons';
 import { Icon } from '../components/icons';
+import { MultiSucursalesQuestion } from '../components/MultiSucursalesQuestion';
 import {
   getNavShortcutOption,
   listNavShortcutOptions,
@@ -143,6 +144,10 @@ export function OnboardingScreen(props: {
             );
           })}
         </View>
+
+        <View style={styles.sucursalesBlock}>
+          <MultiSucursalesQuestion disabled value="no" />
+        </View>
       </ScrollView>
 
       <View style={styles.footer}>
@@ -249,5 +254,8 @@ const styles = StyleSheet.create({
   },
   spacer: {
     height: 10,
+  },
+  sucursalesBlock: {
+    marginTop: 20,
   },
 });

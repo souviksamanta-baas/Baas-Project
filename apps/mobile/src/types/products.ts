@@ -25,13 +25,16 @@ export interface Product {
 
 export interface ProductEditFormValues {
   baseUnitCode: string;
+  brand: string;
   businessCenterId: string;
   category: string;
   cost: string;
   description: string;
   marginPercent: string;
   name: string;
+  reorderThreshold: string;
   status: ProductStatusSlug;
+  supplier: string;
   unitPrice: string;
 }
 
@@ -40,6 +43,7 @@ export type ProductTypeSlug = 'producto' | 'subproducto';
 export interface AddProductFormValues {
   baseUnitCode: string;
   baseUnitEquivalent: string;
+  brand: string;
   businessCenterId: string;
   category: string;
   cost: string;

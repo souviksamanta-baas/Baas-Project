@@ -95,15 +95,19 @@ export function ProductSummaryCard(props: {
   linkedTo?: string;
   meta?: {
     branch?: string;
+    brand?: string;
     codeLabel?: string;
     codeUnavailable?: boolean;
     codeValue?: string;
     cost?: string;
     margin?: string;
+    minStock?: string;
     price?: string;
     sku?: string;
+    supplier?: string;
   };
   showBarcode?: boolean;
+  showBranch?: boolean;
   showMeta?: boolean;
   statusLabel?: string;
   statusTone?: StockTone | 'neutral';
@@ -112,13 +116,16 @@ export function ProductSummaryCard(props: {
 }): ReactElement {
   const meta = props.meta ?? {
     branch: 'Sucursal Centro',
+    brand: '—',
     codeLabel: 'Codigo de barras',
     codeUnavailable: true,
     codeValue: 'No Disponible',
     cost: '$1.250',
     margin: '34%',
+    minStock: '10 unidades',
     price: '$1.900',
     sku: 'HAR-GRAN-100KG',
+    supplier: '—',
   };
   const codeLabel = meta.codeLabel ?? 'Codigo de barras';
   const codeValue = meta.codeValue ?? '—';
@@ -160,12 +167,17 @@ export function ProductSummaryCard(props: {
       </View>
       {props.showMeta ? (
         <View style={styles.metaGrid}>
-          <MetaItem danger={codeUnavailable} label={codeLabel} value={codeValue} />
-          <MetaItem label="Precio de venta" value={meta.price ?? '—'} />
+          <MetaItem label="Marca" value={meta.brand ?? '—'} />
+          <MetaItem label="Proveedor" value={meta.supplier ?? '—'} />
           <MetaItem label="Costo" value={meta.cost ?? '—'} />
-          <MetaItem label="SKU" value={meta.sku ?? '—'} />
+          <MetaItem label="Precio de venta" value={meta.price ?? '—'} />
           <MetaItem label="Margen" value={meta.margin ?? '—'} />
-          <MetaItem label="Sucursal" value={meta.branch ?? '—'} />
+          <MetaItem label="Stock mínimo" value={meta.minStock ?? '—'} />
+          <MetaItem danger={codeUnavailable} label={codeLabel} value={codeValue} />
+          <MetaItem label="SKU" value={meta.sku ?? '—'} />
+          {props.showBranch ? (
+            <MetaItem label="Sucursal" value={meta.branch ?? '—'} />
+          ) : null}
         </View>
       ) : null}
     </View>
