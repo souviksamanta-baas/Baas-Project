@@ -171,7 +171,7 @@ export function InvoiceDetailScreen(props: {
           <Text style={styles.backText}>‹</Text>
         </Pressable>
         <View style={styles.flex}>
-          <ScreenTitle title="Detalle de factura" />
+          <ScreenTitle onBack={props.onBack} title="Detalle de factura" />
         </View>
       </View>
 

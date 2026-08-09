@@ -67,7 +67,18 @@ export function AppHeader(props: {
         {showCollapsed ? (
           <>
             <View style={styles.headerLeading}>
-              <NexoliaMark size={32} />
+              {chrome.onBack ? (
+                <Pressable
+                  accessibilityLabel="Volver"
+                  hitSlop={8}
+                  onPress={chrome.onBack}
+                  style={styles.headerBackPressable}
+                >
+                  <Text style={styles.headerBackText}>‹</Text>
+                </Pressable>
+              ) : (
+                <NexoliaMark size={32} />
+              )}
             </View>
             <Text numberOfLines={1} style={styles.headerTitle}>
               {chrome.title ?? ''}
@@ -113,7 +124,7 @@ export function ScreenContent(props: {
 
   useEffect(() => {
     if (!collapseHeaderOnScroll) {
-      chrome.setChrome({ collapseEnabled: false, collapsed: false, title: null });
+      chrome.setChrome({ collapseEnabled: false, collapsed: false, onBack: null, title: null });
       return () => {
         chrome.resetChrome();
       };
@@ -193,6 +204,7 @@ export function ScreenContent(props: {
 }
 
 export function ScreenTitle(props: {
+  onBack?: () => void;
   subtitle?: string;
   title: string;
   /** Optional rich title (e.g. inline links). Chrome collapse still uses `title`. */
@@ -201,8 +213,12 @@ export function ScreenTitle(props: {
   const chrome = useHeaderChromeOptional();
 
   useEffect(() => {
-    chrome.setChrome({ collapseEnabled: true, title: props.title });
-  }, [chrome.setChrome, props.title]);
+    chrome.setChrome({
+      collapseEnabled: true,
+      onBack: props.onBack ?? null,
+      title: props.title,
+    });
+  }, [chrome.setChrome, props.onBack, props.title]);
 
   return (
     <View>
@@ -743,8 +759,13 @@ export function BottomNavigation(props: {
   shortcutLabel: string;
 }): ReactElement {
   const insets = useSafeAreaInsets();
-  const isAndroidTabBar = Platform.OS === 'android';
+  const previewAndroidNav =
+    Platform.OS === 'web' &&
+    typeof window !== 'undefined' &&
+    new URLSearchParams(window.location.search).get('androidNav') === '1';
+  const isAndroidTabBar = Platform.OS === 'android' || previewAndroidNav;
   // iOS/web: WhatsApp-style floating pill. Android: Instagram/Facebook edge-to-edge bar.
+  // Chrome preview of Android bar: append ?androidNav=1 to the URL.
   const edgeInset = isAndroidTabBar ? 0 : 16;
   const bottomInset = isAndroidTabBar ? Math.max(insets.bottom, 0) : edgeInset;
   const copiActive = props.activeTab === 'copi';
@@ -795,9 +816,10 @@ export function BottomNavigation(props: {
               styles.centerAction,
               isAndroidTabBar && styles.centerActionAndroid,
               copiActive && styles.centerActionActive,
+              isAndroidTabBar && copiActive && styles.centerActionAndroidActive,
             ]}
           >
-            <CopiRobotIcon shadowed={!isAndroidTabBar} size={isAndroidTabBar ? 44 : 52} />
+            <CopiRobotIcon shadowed size={52} />
           </Pressable>
           <TabButton
             active={Boolean(props.shortcutActive)}
@@ -1086,7 +1108,7 @@ const styles = StyleSheet.create({
     borderWidth: 0,
     elevation: 0,
     height: layout.tabBarHeight,
-    overflow: 'hidden',
+    overflow: 'visible',
     shadowOpacity: 0,
   },
   tabGlassHighlight: {
@@ -1146,14 +1168,13 @@ const styles = StyleSheet.create({
     width: 66,
     zIndex: 2,
   },
+  // Android-only: grey ring so Copi reads as a button; size/shadow unchanged.
   centerActionAndroid: {
-    backgroundColor: 'transparent',
-    borderWidth: 0,
-    elevation: 0,
-    height: layout.tabBarHeight,
-    marginTop: 0,
-    shadowOpacity: 0,
-    width: 56,
+    borderColor: colors.tabInactive,
+    borderWidth: 0.5,
+  },
+  centerActionAndroidActive: {
+    borderColor: colors.tabActive,
   },
   centerActionActive: {
     borderColor: colors.primarySoft,
@@ -1265,6 +1286,19 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     minWidth: 40,
     zIndex: 2,
+  },
+  headerBackPressable: {
+    alignItems: 'center',
+    height: 40,
+    justifyContent: 'center',
+    marginLeft: -4,
+    minWidth: 40,
+  },
+  headerBackText: {
+    color: colors.navy,
+    fontSize: 36,
+    lineHeight: 40,
+    marginTop: -2,
   },
   headerMain: {
     alignItems: 'center',

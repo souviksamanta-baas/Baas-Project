@@ -11,6 +11,8 @@ import {
 export type HeaderChromeState = {
   collapseEnabled: boolean;
   collapsed: boolean;
+  /** When set, collapsed header shows a back control instead of the Nexolia mark. */
+  onBack: (() => void) | null;
   title: string | null;
 };
 
@@ -23,6 +25,7 @@ type HeaderChromeContextValue = HeaderChromeState & {
 const DEFAULT_STATE: HeaderChromeState = {
   collapseEnabled: false,
   collapsed: false,
+  onBack: null,
   title: null,
 };
 

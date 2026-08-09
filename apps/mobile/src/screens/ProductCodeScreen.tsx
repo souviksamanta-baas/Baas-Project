@@ -116,7 +116,7 @@ export function ProductCodeScreen(props: {
           <Text style={styles.backText}>‹</Text>
         </Pressable>
         <View style={styles.flex}>
-          <ScreenTitle title="Gestionar código" />
+          <ScreenTitle onBack={props.onBack} title="Gestionar código" />
         </View>
       </View>
 

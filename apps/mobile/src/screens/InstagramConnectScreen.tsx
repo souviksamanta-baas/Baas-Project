@@ -102,7 +102,7 @@ export function InstagramConnectScreen(props: {
           <Text style={styles.backText}>‹</Text>
         </Pressable>
         <View style={styles.flex}>
-          <ScreenTitle title="Conectar Instagram" />
+          <ScreenTitle onBack={props.onBack} title="Conectar Instagram" />
         </View>
       </View>
 

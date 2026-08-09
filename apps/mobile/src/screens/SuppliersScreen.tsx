@@ -77,7 +77,7 @@ export function SuppliersScreen(props: {
           <Text style={styles.backText}>‹</Text>
         </Pressable>
         <View style={styles.flex}>
-          <ScreenTitle title="Proveedores" />
+          <ScreenTitle onBack={props.onBack} title="Proveedores" />
         </View>
       </View>
 

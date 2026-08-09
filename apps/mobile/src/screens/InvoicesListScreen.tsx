@@ -78,7 +78,7 @@ export function InvoicesListScreen(props: {
           <Text style={styles.backText}>‹</Text>
         </Pressable>
         <View style={styles.flex}>
-          <ScreenTitle title="Facturas" />
+          <ScreenTitle onBack={props.onBack} title="Facturas" />
         </View>
       </View>
 

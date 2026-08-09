@@ -11,6 +11,7 @@ import {
   spacing,
   textStyles,
 } from '../design-system';
+import { useHeaderScreenOptions } from '../hooks/useHeaderScreenOptions';
 import type { OwnerDashboard } from '../types/dashboard';
 import { whatsappConnectionLabel } from '../lib/whatsappPresentation';
 
@@ -28,6 +29,11 @@ export function WhatsAppConnectScreen(props: {
   wabaId: string;
 }): ReactElement {
   const connectionCopy = whatsappConnectionLabel(props.connection);
+  useHeaderScreenOptions({
+    collapseOnScroll: true,
+    onBack: props.onBack,
+    title: 'WhatsApp Business',
+  });
 
   return (
     <ScreenContent>

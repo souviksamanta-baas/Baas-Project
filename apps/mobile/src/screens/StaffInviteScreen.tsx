@@ -80,7 +80,7 @@ export function StaffInviteScreen(props: {
           <Text style={styles.backText}>‹</Text>
         </Pressable>
         <View style={styles.flex}>
-          <ScreenTitle title="Invitar miembro" />
+          <ScreenTitle onBack={props.onBack} title="Invitar miembro" />
         </View>
       </View>
 

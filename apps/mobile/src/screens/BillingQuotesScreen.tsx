@@ -187,7 +187,7 @@ export function BillingQuotesScreen(props: {
           <Text style={styles.backText}>‹</Text>
         </Pressable>
         <View style={styles.flex}>
-          <ScreenTitle title="Presupuestos" />
+          <ScreenTitle onBack={props.onBack} title="Presupuestos" />
         </View>
       </View>
 

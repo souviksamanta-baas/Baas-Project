@@ -27,7 +27,7 @@ export function TaskDetailScreen(props: {
           <Text style={styles.backText}>‹</Text>
         </Pressable>
         <View style={styles.flex}>
-          <ScreenTitle title={displayTitle} />
+          <ScreenTitle onBack={props.onBack} title={displayTitle} />
         </View>
       </View>
 

@@ -218,6 +218,7 @@ export function CopiChatScreen(props: {
   const scrollRef = useRef<ScrollView>(null);
   useHeaderScreenOptions({
     forceCollapsed: true,
+    onBack: props.onBack,
     title: 'Copi',
   });
 

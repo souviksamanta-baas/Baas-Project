@@ -135,7 +135,7 @@ export function ArcaSettingsScreen(props: {
           <Text style={styles.backText}>‹</Text>
         </Pressable>
         <View style={styles.flex}>
-          <ScreenTitle title="Facturación ARCA" />
+          <ScreenTitle onBack={props.onBack} title="Facturación ARCA" />
         </View>
       </View>
 

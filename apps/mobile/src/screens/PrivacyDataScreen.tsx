@@ -68,7 +68,7 @@ export function PrivacyDataScreen(props: {
           <Text style={styles.backText}>‹</Text>
         </Pressable>
         <View style={styles.flex}>
-          <ScreenTitle title="Privacidad y datos" />
+          <ScreenTitle onBack={props.onBack} title="Privacidad y datos" />
         </View>
       </View>
 

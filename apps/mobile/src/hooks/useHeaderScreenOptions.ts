@@ -6,16 +6,19 @@ import { useHeaderChromeOptional } from '../context/HeaderChromeProvider';
 export function useHeaderScreenOptions(options: {
   collapseOnScroll?: boolean;
   forceCollapsed?: boolean;
+  onBack?: (() => void) | null;
   title?: string | null;
 }): void {
   const { resetChrome, setChrome, setCollapsed } = useHeaderChromeOptional();
   const forceCollapsed = options.forceCollapsed === true;
   const collapseOnScroll = forceCollapsed ? true : (options.collapseOnScroll ?? true);
+  const onBack = options.onBack ?? null;
   const title = options.title ?? null;
 
   useEffect(() => {
     setChrome({
       collapseEnabled: collapseOnScroll,
+      onBack,
       title,
     });
 
@@ -26,5 +29,5 @@ export function useHeaderScreenOptions(options: {
     return () => {
       resetChrome();
     };
-  }, [collapseOnScroll, forceCollapsed, resetChrome, setChrome, setCollapsed, title]);
+  }, [collapseOnScroll, forceCollapsed, onBack, resetChrome, setChrome, setCollapsed, title]);
 }

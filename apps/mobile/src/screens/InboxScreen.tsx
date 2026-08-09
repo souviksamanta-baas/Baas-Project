@@ -294,6 +294,7 @@ export function ConversationDetailScreen(props: {
   const messagesScrollRef = useRef<ScrollView>(null);
   useHeaderScreenOptions({
     forceCollapsed: true,
+    onBack: props.onBack,
     title: props.customerName || props.displayPhoneNumber || 'Chat',
   });
 

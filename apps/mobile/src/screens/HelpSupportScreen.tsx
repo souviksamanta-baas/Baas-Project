@@ -33,7 +33,7 @@ export function HelpSupportScreen(props: { onBack: () => void }): ReactElement {
           <Text style={styles.backText}>‹</Text>
         </Pressable>
         <View style={styles.flex}>
-          <ScreenTitle title="Ayuda y soporte" />
+          <ScreenTitle onBack={props.onBack} title="Ayuda y soporte" />
         </View>
       </View>
 

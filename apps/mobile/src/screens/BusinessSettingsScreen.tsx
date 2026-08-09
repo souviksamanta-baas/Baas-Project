@@ -288,7 +288,7 @@ export function BusinessSettingsScreen(props: {
           <Text style={styles.backText}>‹</Text>
         </Pressable>
         <View style={styles.flex}>
-          <ScreenTitle title="Configuracion del negocio" />
+          <ScreenTitle onBack={props.onBack} title="Configuracion del negocio" />
         </View>
       </View>
 

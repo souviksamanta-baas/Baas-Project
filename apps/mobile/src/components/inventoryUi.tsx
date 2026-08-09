@@ -43,8 +43,13 @@ export function InventoryScreenTitle(props: {
   const stickyTitle = props.stickyTitle ?? props.title;
 
   useEffect(() => {
-    chrome.setChrome({ collapseEnabled: true, title: stickyTitle });
-  }, [chrome.setChrome, stickyTitle]);
+    const showBack = props.showBack !== false && props.onBack != null;
+    chrome.setChrome({
+      collapseEnabled: true,
+      onBack: showBack ? (props.onBack ?? null) : null,
+      title: stickyTitle,
+    });
+  }, [chrome.setChrome, props.onBack, props.showBack, stickyTitle]);
 
   return (
     <ScreenHeader

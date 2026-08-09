@@ -48,7 +48,7 @@ export function AddSupplierScreen(props: {
           <Text style={styles.backText}>‹</Text>
         </Pressable>
         <View style={styles.flex}>
-          <ScreenTitle title="Agregar proveedor" />
+          <ScreenTitle onBack={props.onBack} title="Agregar proveedor" />
         </View>
       </View>
 
