@@ -48,9 +48,15 @@ export class AuthController {
   @ApiBody({ type: WhatsAppOtpRequestDto })
   @ApiOkResponse({ description: 'OTP requested.' })
   async requestWhatsAppOtp(@Body() body: WhatsAppOtpRequestDto): Promise<{ ok: true }> {
-    const phoneE164 = normalizePhone(body.phone);
-    await this.platformWhatsAppAuthService.requestOtp(phoneE164);
-    return { ok: true };
+    try {
+      const phoneE164 = normalizePhone(body.phone);
+      await this.platformWhatsAppAuthService.requestOtp(phoneE164);
+      return { ok: true };
+    } catch (error) {
+      throw new BadRequestException(
+        error instanceof Error ? error.message : 'No se pudo enviar el código por WhatsApp.',
+      );
+    }
   }
 
   @Post('otp/whatsapp/verify')
@@ -69,11 +75,20 @@ export class AuthController {
   async verifyWhatsAppOtp(
     @Body() body: WhatsAppOtpVerifyDto,
   ): Promise<OtpVerifyResponse> {
-    const phoneE164 = normalizePhone(body.phone);
-    const isValid = await this.platformWhatsAppAuthService.verifyOtp({
-      code: body.code,
-      phoneE164,
-    });
+    let phoneE164: string;
+    let isValid: boolean;
+
+    try {
+      phoneE164 = normalizePhone(body.phone);
+      isValid = await this.platformWhatsAppAuthService.verifyOtp({
+        code: body.code,
+        phoneE164,
+      });
+    } catch (error) {
+      throw new BadRequestException(
+        error instanceof Error ? error.message : 'No se pudo verificar el código.',
+      );
+    }
 
     if (!isValid) {
       throw new UnauthorizedException('Código inválido.');

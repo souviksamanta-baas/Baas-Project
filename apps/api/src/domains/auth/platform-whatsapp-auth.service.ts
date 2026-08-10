@@ -164,7 +164,9 @@ export class PlatformWhatsAppAuthService {
         return;
       }
 
-      throw new Error('Platform WhatsApp auth is not configured on the API server.');
+      throw new Error(
+        'WhatsApp de ingreso no está configurado en el servidor (falta NEXOLIA_AUTH_WABA_PHONE_NUMBER_ID). Probá SMS o correo.',
+      );
     }
 
     const response = await fetch(

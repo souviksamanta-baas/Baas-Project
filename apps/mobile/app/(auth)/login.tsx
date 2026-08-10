@@ -4,7 +4,7 @@ import { useEffect, type ReactElement } from 'react';
 import { useOwnerSessionContext } from '../../src/context/OwnerSessionProvider';
 import { routes } from '../../src/navigation/routes';
 import { getAuthEntryIntent } from '../../src/services/authIntent';
-import { DEFAULT_AUTH_OTP_CHANNEL } from '../../src/services/authChannel';
+import { getAuthChannelsForIntent, getDefaultChannelForIntent } from '../../src/services/authChannel';
 import { LoginScreen } from '../../src/screens/LoginScreen';
 
 export default function LoginRoute(): ReactElement {
@@ -12,12 +12,14 @@ export default function LoginRoute(): ReactElement {
   const session = useOwnerSessionContext();
   const intent = getAuthEntryIntent();
   const setOtpChannel = session.setOtpChannel;
+  const otpChannel = session.otpChannel;
 
   useEffect(() => {
-    if (intent === 'create') {
-      setOtpChannel(DEFAULT_AUTH_OTP_CHANNEL);
+    const channels = getAuthChannelsForIntent(intent);
+    if (!channels.includes(otpChannel)) {
+      setOtpChannel(getDefaultChannelForIntent(intent));
     }
-  }, [intent, setOtpChannel]);
+  }, [intent, otpChannel, setOtpChannel]);
 
   if (session.authPhase === 'pending_verify') {
     return <Redirect href={routes.authVerify} />;

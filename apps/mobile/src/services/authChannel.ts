@@ -23,17 +23,11 @@ export function getLoginAuthChannels(): AuthOtpChannel[] {
 }
 
 /**
- * Staff invite accept must verify a phone (matches invite E.164).
- * Prefer WhatsApp (Nest/Meta) over SMS (Supabase/Twilio). When login is
- * email-only, do not silently fall back to SMS-only — expose both so SMS
- * trial limits are not the only path.
+ * Staff invite accept + returning phone sign-in.
+ * WhatsApp stays off until the Spanish AUTHENTICATION template is approved in Meta.
+ * Override with EXPO_PUBLIC_AUTH_STAFF_PHONE_CHANNELS when ready (e.g. whatsapp,sms).
  */
 export function getStaffPhoneAuthChannels(): AuthOtpChannel[] {
-  const fromLogin = getLoginAuthChannels().filter((channel) => isPhoneAuthChannel(channel));
-  if (fromLogin.length > 0) {
-    return fromLogin;
-  }
-
   const raw = process.env.EXPO_PUBLIC_AUTH_STAFF_PHONE_CHANNELS?.trim();
   if (raw) {
     const parsed = raw
@@ -45,7 +39,58 @@ export function getStaffPhoneAuthChannels(): AuthOtpChannel[] {
     }
   }
 
-  return ['whatsapp', 'sms'];
+  const fromLogin = getLoginAuthChannels().filter((channel) => isPhoneAuthChannel(channel));
+  if (fromLogin.length > 0) {
+    return fromLogin;
+  }
+
+  // SMS only until Meta Spanish auth template is available.
+  return ['sms'];
+}
+
+/**
+ * Channel list for the login screen by entry intent.
+ * - create business → email only
+ * - returning sign-in → phone channels (staff QR path) + any configured login channels
+ */
+export function getAuthChannelsForIntent(
+  intent: 'create' | 'signin' | null | undefined,
+): AuthOtpChannel[] {
+  if (intent === 'create') {
+    return ['email'];
+  }
+
+  if (intent === 'signin') {
+    const phone = getStaffPhoneAuthChannels();
+    const login = getLoginAuthChannels();
+    const merged: AuthOtpChannel[] = [];
+
+    for (const channel of [...phone, ...login]) {
+      if (!merged.includes(channel)) {
+        merged.push(channel);
+      }
+    }
+
+    return merged.length > 0 ? merged : ['sms'];
+  }
+
+  return getLoginAuthChannels();
+}
+
+export function getDefaultChannelForIntent(
+  intent: 'create' | 'signin' | null | undefined,
+): AuthOtpChannel {
+  const channels = getAuthChannelsForIntent(intent);
+
+  if (intent === 'signin') {
+    return channels.find((channel) => isPhoneAuthChannel(channel)) ?? channels[0] ?? 'sms';
+  }
+
+  if (intent === 'create') {
+    return 'email';
+  }
+
+  return channels[0] ?? 'email';
 }
 
 export const DEFAULT_AUTH_OTP_CHANNEL: AuthOtpChannel = getLoginAuthChannels()[0] ?? 'email';

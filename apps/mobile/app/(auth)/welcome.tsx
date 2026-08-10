@@ -4,7 +4,7 @@ import type { ReactElement } from 'react';
 import { useOwnerSessionContext } from '../../src/context/OwnerSessionProvider';
 import { routes } from '../../src/navigation/routes';
 import { setAuthEntryIntent } from '../../src/services/authIntent';
-import { DEFAULT_AUTH_OTP_CHANNEL } from '../../src/services/authChannel';
+import { getDefaultChannelForIntent } from '../../src/services/authChannel';
 import { LoadingScreen } from '../../src/screens/LoadingScreen';
 import { WelcomeIntentScreen } from '../../src/screens/WelcomeIntentScreen';
 
@@ -32,7 +32,8 @@ export default function WelcomeRoute(): ReactElement {
     <WelcomeIntentScreen
       onCreateBusiness={() => {
         setAuthEntryIntent('create');
-        session.setOtpChannel(DEFAULT_AUTH_OTP_CHANNEL);
+        session.setOtpChannel(getDefaultChannelForIntent('create'));
+        session.setLoginIdentifier('');
         router.push(routes.authLogin);
       }}
       onJoinWithInviteToken={(inviteToken) => {
@@ -43,6 +44,8 @@ export default function WelcomeRoute(): ReactElement {
       }}
       onSignIn={() => {
         setAuthEntryIntent('signin');
+        session.setOtpChannel(getDefaultChannelForIntent('signin'));
+        session.setLoginIdentifier('');
         router.push(routes.authLogin);
       }}
     />

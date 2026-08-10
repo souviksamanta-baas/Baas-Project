@@ -6,8 +6,8 @@ import type { AuthOtpChannel } from '../services/authChannel';
 import {
   authChannelDeliveryHint,
   authChannelLabel,
-  DEFAULT_AUTH_OTP_CHANNEL,
-  getLoginAuthChannels,
+  getAuthChannelsForIntent,
+  getDefaultChannelForIntent,
 } from '../services/authChannel';
 import type { AuthEntryIntent } from '../services/authIntent';
 import { colors, PrimaryButton, spacing, TextField, textStyles } from '../design-system';
@@ -24,7 +24,8 @@ export function LoginScreen(props: {
   onChangeLoginIdentifier: (value: string) => void;
   onRequestOtp: () => void;
 }): ReactElement {
-  const channels = getLoginAuthChannels();
+  const channels = getAuthChannelsForIntent(props.intent);
+  const defaultChannel = getDefaultChannelForIntent(props.intent);
   const isPhone = props.channel === 'sms' || props.channel === 'whatsapp';
   const showChannelPicker = channels.length > 1 && props.intent !== 'create';
   const title =
@@ -36,9 +37,11 @@ export function LoginScreen(props: {
   const subtitle =
     props.intent === 'create'
       ? 'Te enviamos un código a tu correo para verificar tu identidad y crear el negocio.'
-      : showChannelPicker
-        ? 'Elegí cómo querés recibir el código. El número de ingreso no tiene que ser el WhatsApp de tu negocio.'
-        : authChannelDeliveryHint(props.channel);
+      : props.intent === 'signin'
+        ? 'Usá el mismo teléfono con el que aceptaste la invitación (SMS). Si creaste el negocio, podés usar tu correo.'
+        : showChannelPicker
+          ? 'Elegí cómo querés recibir el código. El número de ingreso no tiene que ser el WhatsApp de tu negocio.'
+          : authChannelDeliveryHint(props.channel);
 
   return (
     <AuthScreenShell subtitle={subtitle} title={title}>
@@ -52,7 +55,7 @@ export function LoginScreen(props: {
         <View style={localStyles.channelRow}>
           {channels.map((channel) => {
             const active = props.channel === channel;
-            const recommended = channel === DEFAULT_AUTH_OTP_CHANNEL;
+            const recommended = channel === defaultChannel;
 
             return (
               <Pressable
