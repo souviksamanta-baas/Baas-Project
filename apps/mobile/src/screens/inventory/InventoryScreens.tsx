@@ -34,7 +34,9 @@ import {
   InventoryTextField,
 } from '../../components/ProductEditFormFields';
 import { BrandSuccessModal } from '../../components/BrandSuccessModal';
+import { useProductCatalog } from '../../context/ProductCatalogProvider';
 import { useHasMultipleSucursales } from '../../hooks/useHasMultipleSucursales';
+import { pickAndUploadProductPhoto } from '../../lib/productPhoto';
 import {
   CartLineRow,
   CobrarButton,
@@ -702,6 +704,8 @@ export function ProductDetailScreen(
   },
 ): ReactElement {
   const showSucursal = useHasMultipleSucursales();
+  const catalog = useProductCatalog();
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const product = props.product;
   const childProducts = props.childProducts ?? [];
   const productName = product?.name ?? baseProduct.name;
@@ -724,12 +728,38 @@ export function ProductDetailScreen(
   const isBaseProduct = product?.parentProductId == null;
   const showSubproductsSection = Boolean(product && isBaseProduct && isGranelProduct(product));
 
+  async function handleChangePhoto(): Promise<void> {
+    if (!product || isUploadingPhoto) {
+      return;
+    }
+
+    setIsUploadingPhoto(true);
+    try {
+      await pickAndUploadProductPhoto({
+        organizationId: product.organizationId,
+        productId: product.id,
+      });
+      await catalog.reloadProducts();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Error desconocido';
+      if (message === 'CANCELLED') {
+        return;
+      }
+      Alert.alert('No se pudo subir la foto', message);
+    } finally {
+      setIsUploadingPhoto(false);
+    }
+  }
+
   return (
     <ScreenContent title={productName}>
       <InventoryScreenTitle onBack={props.onBack} stickyTitle={productName} title="Producto" />
       <ProductSummaryCard
         category={productCategory}
+        changePhoto={Boolean(product)}
+        imageUrl={product?.imageUrl}
         meta={summaryMeta}
+        onChangePhoto={product ? () => void handleChangePhoto() : undefined}
         showBarcode
         showBranch={showSucursal}
         showMeta
@@ -881,6 +911,8 @@ export function EditProductScreen(
   },
 ): ReactElement {
   const showSucursal = useHasMultipleSucursales();
+  const catalog = useProductCatalog();
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const childProducts = props.subproducts ?? [];
   const readOnly = props.readOnly ?? false;
   const [formValues, setFormValues] = useState<ProductEditFormValues>(() =>
@@ -915,6 +947,29 @@ export function EditProductScreen(
     [props.businessCenters],
   );
 
+  async function handleChangePhoto(): Promise<void> {
+    if (readOnly || isUploadingPhoto) {
+      return;
+    }
+
+    setIsUploadingPhoto(true);
+    try {
+      await pickAndUploadProductPhoto({
+        organizationId: props.product.organizationId,
+        productId: props.product.id,
+      });
+      await catalog.reloadProducts();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Error desconocido';
+      if (message === 'CANCELLED') {
+        return;
+      }
+      Alert.alert('No se pudo subir la foto', message);
+    } finally {
+      setIsUploadingPhoto(false);
+    }
+  }
+
   async function handleSave(): Promise<void> {
     try {
       await props.onSave(formValues);
@@ -932,6 +987,8 @@ export function EditProductScreen(
       <ProductSummaryCard
         badge={childProducts.length > 0 ? 'Producto con subproductos' : undefined}
         changePhoto={!readOnly}
+        imageUrl={props.product.imageUrl}
+        onChangePhoto={!readOnly ? () => void handleChangePhoto() : undefined}
         title={formValues.name}
       />
       <SectionCard>
@@ -1439,7 +1496,11 @@ export function AddStockScreen(props: {
   return (
     <ScreenContent>
       <InventoryScreenTitle onBack={props.onBack} title="Agregar stock" />
-      <ProductSummaryCard stock={productStock} title={selectedProduct.name} />
+      <ProductSummaryCard
+        imageUrl={selectedProduct.imageUrl}
+        stock={productStock}
+        title={selectedProduct.name}
+      />
       {props.showProductSelection ? (
         <>
           <Text style={styles.sectionLabel}>A que producto queres agregar stock?</Text>
@@ -1576,7 +1637,12 @@ export function DeleteProductScreen(props: {
   return (
     <ScreenContent>
       <InventoryScreenTitle onBack={props.onBack} title="Eliminar producto" />
-      <ProductSummaryCard showBarcode stock={productStock} title={productName} />
+      <ProductSummaryCard
+        imageUrl={product?.imageUrl}
+        showBarcode
+        stock={productStock}
+        title={productName}
+      />
       <View style={styles.deleteWarningCard}>
         <View style={styles.deleteWarningHeader}>
           <Icon color={colors.danger} kind="alert" size={16} strokeWidth={1.8} />
@@ -1998,7 +2064,7 @@ function InventoryListRow(props: {
       ]}
     >
       <View style={styles.inventoryRowMain}>
-        <ProductThumb />
+        <ProductThumb imageUrl={props.product.imageUrl} name={props.product.name} />
         <View style={styles.flex}>
           <Text style={styles.rowTitle}>{props.product.name}</Text>
           <Text style={styles.rowMeta}>{props.product.category}</Text>
@@ -2041,7 +2107,7 @@ function SellProductRow(props: {
   return (
     <View style={[styles.sellRow, props.product.indent && styles.sellRowIndent]}>
       <Pressable onPress={props.onPress} style={styles.sellRowMain}>
-        <ProductThumb />
+        <ProductThumb imageUrl={props.product.imageUrl} name={props.product.name} />
         <View style={styles.flex}>
           <Text style={styles.rowTitle}>{props.product.name}</Text>
           <Text style={styles.rowMeta}>{props.product.category ?? 'Almacen'}</Text>

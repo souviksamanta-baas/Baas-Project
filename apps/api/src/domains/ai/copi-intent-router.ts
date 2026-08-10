@@ -92,7 +92,7 @@ export function selectCopiTools(
   const priorNormalized = prior ? normalizeCopiQuestion(prior) : '';
   const tools = new Set<CopiToolName>();
   const priorWasSales = Boolean(prior && isSalesRelatedQuestion(prior));
-  const followUpDetail = isSalesFollowUpDetail(question) && priorWasSales;
+  const followUpDetail = isSalesFollowUpDetail(question, history) && priorWasSales;
   const asksSales =
     isSalesRelatedQuestion(question) ||
     followUpDetail ||
@@ -234,8 +234,49 @@ export function isSalesRelatedQuestion(question: string): boolean {
   return SALES_PATTERN.test(normalized) || /\bpresupuest/.test(normalized);
 }
 
-export function isSalesFollowUpDetail(question: string): boolean {
-  return FOLLOW_UP_DETAIL_PATTERN.test(normalizeCopiQuestion(question));
+function isShortAffirmative(question: string): boolean {
+  const normalized = normalizeCopiQuestion(question)
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  return /^(si|sip|sep|ok|okay|dale|claro|va|bueno|perfecto|listo|por favor|dale si|si por favor|si dale|si gracias)$/.test(
+    normalized,
+  );
+}
+
+function lastAssistantOfferedSalesDetails(history: CopiConversationTurn[]): boolean {
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    if (history[index]?.role !== 'assistant') {
+      continue;
+    }
+
+    const normalized = normalizeCopiQuestion(history[index]?.body ?? '');
+    return /\b(mas detalles|detalle(s)?|list(e|ar|a)|productos?|desglose|queres (ver|que)|te gustaria|mostrarte|ver el detalle)\b/.test(
+      normalized,
+    );
+  }
+
+  return false;
+}
+
+/** True when the owner is asking for a sales breakdown / product list (including short “sí”). */
+export function isSalesFollowUpDetail(
+  question: string,
+  history: CopiConversationTurn[] = [],
+): boolean {
+  if (FOLLOW_UP_DETAIL_PATTERN.test(normalizeCopiQuestion(question))) {
+    return true;
+  }
+
+  if (!isShortAffirmative(question)) {
+    return false;
+  }
+
+  const prior = getPriorOwnerQuestion(history);
+  return Boolean(
+    (prior && isSalesRelatedQuestion(prior)) || lastAssistantOfferedSalesDetails(history),
+  );
 }
 
 export function detectProActionIntent(question: string): boolean {
@@ -255,13 +296,12 @@ export function wantsDetailedSalesList(
   question: string,
   history: CopiConversationTurn[] = [],
 ): boolean {
-  const prior = getPriorOwnerQuestion(history);
   if (wantsSalesCountOnly(question, history)) {
     return false;
   }
 
   const normalized = normalizeCopiQuestion(question);
-  if (SALES_DETAIL_PATTERN.test(normalized) || isSalesFollowUpDetail(question)) {
+  if (SALES_DETAIL_PATTERN.test(normalized) || isSalesFollowUpDetail(question, history)) {
     return true;
   }
 
@@ -273,7 +313,7 @@ export function wantsSalesCountOnly(
   history: CopiConversationTurn[] = [],
 ): boolean {
   const normalized = normalizeCopiQuestion(question);
-  if (wantsDetailedSalesListWithoutCountGuard(question) || isSalesFollowUpDetail(question)) {
+  if (wantsDetailedSalesListWithoutCountGuard(question) || isSalesFollowUpDetail(question, history)) {
     return false;
   }
 

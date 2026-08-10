@@ -51,7 +51,7 @@ function InventoryListRow(props: {
       ]}
     >
       <View style={styles.inventoryRowMain}>
-        <ProductThumb />
+        <ProductThumb imageUrl={props.product.imageUrl} name={props.product.name} />
         <View style={styles.flex}>
           <Text style={styles.rowTitle}>{props.product.name}</Text>
           <Text style={styles.rowMeta}>{props.product.category}</Text>

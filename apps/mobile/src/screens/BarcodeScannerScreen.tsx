@@ -28,6 +28,8 @@ const BARCODE_TYPES = [
 
 export function BarcodeScannerScreen(props: {
   hint?: string;
+  /** When true, only QR codes are accepted (e.g. browser session pairing). */
+  qrOnly?: boolean;
   onBack: () => void;
   onScanned: (payload: BarcodeScannedPayload) => void;
   title?: string;
@@ -35,6 +37,7 @@ export function BarcodeScannerScreen(props: {
   const [permission, requestPermission] = useCameraPermissions();
   const [ready, setReady] = useState(false);
   const lockedRef = useRef(false);
+  const barcodeTypes = props.qrOnly ? (['qr'] as const) : BARCODE_TYPES;
 
   useEffect(() => {
     if (!permission?.granted) {
@@ -97,7 +100,7 @@ export function BarcodeScannerScreen(props: {
         <View style={styles.cameraWrap}>
           <CameraView
             barcodeScannerSettings={{
-              barcodeTypes: [...BARCODE_TYPES],
+              barcodeTypes: [...barcodeTypes],
             }}
             onBarcodeScanned={ready ? handleScanned : undefined}
             onCameraReady={() => setReady(true)}
@@ -105,7 +108,10 @@ export function BarcodeScannerScreen(props: {
           />
           <View pointerEvents="none" style={styles.frame} />
           <Text style={styles.hint}>
-            {props.hint ?? 'Apuntá al código de barras o QR del producto'}
+            {props.hint ??
+              (props.qrOnly
+                ? 'Apuntá al código QR'
+                : 'Apuntá al código de barras o QR del producto')}
           </Text>
         </View>
       )}

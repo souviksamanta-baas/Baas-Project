@@ -15,6 +15,7 @@ export type MoreMenuRowId =
   | 'account'
   | 'integrations'
   | 'suppliers'
+  | 'browser-session'
   | 'help'
   | 'privacy';
 
@@ -63,6 +64,7 @@ export const moreMenuSections: MoreMenuSection[] = [
       { icon: 'bell', id: 'notifications-tasks', title: 'Notificaciones y tareas' },
       { icon: 'users', id: 'suppliers', title: 'Proveedores' },
       { icon: 'puzzle', id: 'integrations', title: 'Integraciones' },
+      { icon: 'qr', id: 'browser-session', title: 'Abrir sesión en el navegador' },
       { icon: 'shield', id: 'privacy', title: 'Privacidad y datos' },
       { icon: 'help', id: 'help', title: 'Ayuda y soporte' },
     ],

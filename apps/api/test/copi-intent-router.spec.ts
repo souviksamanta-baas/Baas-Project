@@ -109,6 +109,27 @@ describe('wantsDetailedSalesList / wantsSalesCountOnly', () => {
     expect(wantsDetailedSalesList(followUp, history)).toBe(true);
     expect(wantsSalesCountOnly(followUp, history)).toBe(false);
   });
+
+  it('treats short affirmatives after a sales ask as detail follow-ups', () => {
+    const history = [
+      { body: '¿Cuántas ventas hubo esta semana?', role: 'owner' as const },
+      {
+        body: 'Esta semana hubo 3 ventas registradas, por un total aproximado de $19.400. ¿Te gustaría ver más detalles sobre estas ventas?',
+        role: 'assistant' as const,
+      },
+    ];
+
+    expect(selectCopiTools('Si', history)).toEqual(['sales_summary']);
+    expect(selectCopiTools('Sí', history)).toEqual(['sales_summary']);
+    expect(selectCopiTools('dale', history)).toEqual(['sales_summary']);
+    expect(wantsDetailedSalesList('Si', history)).toBe(true);
+    expect(wantsSalesCountOnly('Si', history)).toBe(false);
+  });
+
+  it('does not treat bare Si as sales detail without sales context', () => {
+    expect(selectCopiTools('Si')).toEqual([]);
+    expect(wantsDetailedSalesList('Si')).toBe(false);
+  });
 });
 
 describe('detectProActionIntent / create-task vs stock', () => {

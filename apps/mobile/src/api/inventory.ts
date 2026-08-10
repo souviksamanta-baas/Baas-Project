@@ -62,6 +62,7 @@ interface ProductRow {
   currency: string;
   description: string | null;
   id: string;
+  image_url: string | null;
   is_active: boolean;
   metadata: Record<string, unknown> | null;
   name: string;
@@ -77,7 +78,7 @@ export async function getProducts(
   const { data, error } = await supabase
     .from('inventory_items')
     .select(
-      'id, organization_id, business_center_id, quantity_on_hand, reorder_threshold, unit_code, products!inner(id, name, sku, description, unit_price_cents, currency, is_active, metadata, parent_product_id, base_unit_code)',
+      'id, organization_id, business_center_id, quantity_on_hand, reorder_threshold, unit_code, products!inner(id, name, sku, description, unit_price_cents, currency, is_active, metadata, parent_product_id, base_unit_code, image_url)',
     )
     .eq('organization_id', organizationId)
     .eq('business_center_id', businessCenterId)
@@ -1528,6 +1529,10 @@ function toProduct(row: InventoryProductRow): Product {
     currency: product.currency,
     description: product.description,
     id: product.id,
+    imageUrl:
+      typeof product.image_url === 'string' && product.image_url.trim().length > 0
+        ? product.image_url.trim()
+        : null,
     inventoryItemId: row.id,
     isActive: product.is_active,
     isLowStock: stockQuantity <= reorderThreshold,

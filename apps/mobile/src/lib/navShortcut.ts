@@ -86,6 +86,8 @@ export function resolveNavShortcutRoute(id: NavShortcutId): string | null {
       return routes.helpSupport;
     case 'privacy':
       return routes.privacyData;
+    case 'browser-session':
+      return routes.browserSessionScan;
     case 'cash':
       return null;
     default:

@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactElement, type ReactNode } from 'react';
-import { Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Image, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import type { StockTone } from '../api/inventoryMockData';
 import {
@@ -20,6 +20,7 @@ import {
   type BadgeTone,
 } from '../design-system';
 import { useHeaderChromeOptional } from '../context/HeaderChromeProvider';
+import { splitProductThumbLabel } from '../lib/productPhoto';
 import { Icon } from './icons';
 import type { IconKind } from './icons';
 
@@ -78,13 +79,43 @@ export function SearchFilterRow(props: {
   );
 }
 
-export function ProductThumb(): ReactElement {
+export function ProductThumb(props: {
+  imageUrl?: string | null;
+  name?: string;
+  size?: number;
+  stockLabel?: string;
+}): ReactElement {
+  const size = props.size ?? 52;
+  const imageUrl = props.imageUrl?.trim() || null;
+  const label = splitProductThumbLabel(props.name ?? '');
+
+  if (imageUrl) {
+    return (
+      <Image
+        accessibilityLabel={props.name ? `Foto de ${props.name}` : 'Foto del producto'}
+        resizeMode="cover"
+        source={{ uri: imageUrl }}
+        style={[styles.thumb, styles.thumbImage, { height: size, width: size }]}
+      />
+    );
+  }
+
   return (
-    <View style={styles.thumb}>
+    <View style={[styles.thumb, { height: size, width: size }]}>
       <View style={styles.thumbHighlight} />
-      <Text style={styles.thumbBrand}>HARINA</Text>
-      <Text style={styles.thumbSub}>DE TRIGO</Text>
-      <Text style={styles.thumbQty}>100 kg</Text>
+      <Text numberOfLines={1} style={styles.thumbBrand}>
+        {label.primary}
+      </Text>
+      {label.secondary ? (
+        <Text numberOfLines={1} style={styles.thumbSub}>
+          {label.secondary}
+        </Text>
+      ) : null}
+      {props.stockLabel ? (
+        <Text numberOfLines={1} style={styles.thumbQty}>
+          {props.stockLabel}
+        </Text>
+      ) : null}
     </View>
   );
 }
@@ -97,6 +128,7 @@ export function ProductSummaryCard(props: {
   badge?: string;
   category?: string;
   changePhoto?: boolean;
+  imageUrl?: string | null;
   linkedTo?: string;
   meta?: {
     branch?: string;
@@ -111,6 +143,7 @@ export function ProductSummaryCard(props: {
     sku?: string;
     supplier?: string;
   };
+  onChangePhoto?: () => void;
   showBarcode?: boolean;
   showBranch?: boolean;
   showMeta?: boolean;
@@ -136,18 +169,33 @@ export function ProductSummaryCard(props: {
   const codeValue = meta.codeValue ?? '—';
   const codeUnavailable = meta.codeUnavailable ?? false;
   const barcodeColor = codeUnavailable ? colors.danger : colors.navy;
+  const canChangePhoto = props.changePhoto === true && props.onChangePhoto != null;
+
+  const thumb = (
+    <View>
+      <ProductThumb imageUrl={props.imageUrl} name={props.title} />
+      {props.changePhoto ? (
+        <View style={styles.changePhotoBadge}>
+          <Icon color={colors.surface} kind="edit" size={10} strokeWidth={2} />
+        </View>
+      ) : null}
+    </View>
+  );
 
   return (
     <View style={styles.summaryCard}>
       <View style={styles.summaryTop}>
-        <View>
-          <ProductThumb />
-          {props.changePhoto ? (
-            <View style={styles.changePhotoBadge}>
-              <Icon color={colors.surface} kind="edit" size={10} strokeWidth={2} />
-            </View>
-          ) : null}
-        </View>
+        {canChangePhoto ? (
+          <Pressable
+            accessibilityLabel="Cambiar foto del producto"
+            hitSlop={6}
+            onPress={props.onChangePhoto}
+          >
+            {thumb}
+          </Pressable>
+        ) : (
+          thumb
+        )}
         <View style={styles.flex}>
           <Text style={styles.summaryName}>{props.title}</Text>
           <Text style={styles.summaryCategory}>{props.category ?? 'Almacen'}</Text>
@@ -571,7 +619,7 @@ export function LinkedSubproductRow(props: {
       onPress={props.onPress}
       style={[styles.linkedSubproductRow, props.isLast && styles.linkedSubproductRowLast]}
     >
-      <ProductThumb />
+      <ProductThumb name={props.name} />
       <View style={styles.flex}>
         <Text style={styles.linkedSubproductName}>{props.name}</Text>
         <Text style={styles.linkedSubproductMeta}>Usa stock del producto base</Text>
@@ -605,7 +653,7 @@ export function RadioProductOption(props: {
       <View style={[styles.radioCircle, props.active && styles.radioCircleActive]}>
         {props.active ? <View style={styles.radioDot} /> : null}
       </View>
-      <ProductThumb />
+      <ProductThumb name={props.name} />
       <View style={styles.flex}>
         <Text style={styles.radioOptionName}>{props.name}</Text>
         <Text style={styles.radioOptionMeta}>{props.meta}</Text>
@@ -621,7 +669,7 @@ export function InfoBanner(props: { children: ReactNode }): ReactElement {
 export function LinkedDeleteRow(props: { name: string }): ReactElement {
   return (
     <View style={styles.linkedDeleteRow}>
-      <ProductThumb />
+      <ProductThumb name={props.name} />
       <Text style={styles.linkedDeleteName}>{props.name}</Text>
     </View>
   );
@@ -664,7 +712,7 @@ export function CartLineRow(props: {
         props.isFirst && !props.inListCard && styles.cartLineRowFirst,
       ]}
     >
-      <ProductThumb />
+      <ProductThumb name={props.item.name} />
       <View style={styles.flex}>
         <View style={styles.cartNameRow}>
           <Text style={styles.cartName}>{props.item.name}</Text>
@@ -1552,6 +1600,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     overflow: 'hidden',
     width: 52,
+  },
+  thumbImage: {
+    backgroundColor: colors.surface,
   },
   thumbBrand: {
     color: '#8a5a22',

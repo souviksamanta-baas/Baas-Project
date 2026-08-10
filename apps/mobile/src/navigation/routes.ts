@@ -37,6 +37,7 @@ export const routes = {
   suppliersAdd: '/(app)/suppliers/add',
   helpSupport: '/(app)/help-support',
   privacyData: '/(app)/privacy-data',
+  browserSessionScan: '/(app)/browser-session-scan',
   instagramConnect: '/(app)/instagram-connect',
 } as const;
 
@@ -434,6 +435,7 @@ export function shouldHideBottomNav(pathname: string): boolean {
     pathname.endsWith('/business-settings') ||
     pathname.endsWith('/arca-settings') ||
     pathname.endsWith('/scan-code') ||
+    pathname.endsWith('/browser-session-scan') ||
     /\/tasks\/[^/]+$/.test(pathname) ||
     /\/presupuestos\/[^/]+$/.test(pathname) ||
     /\/invoices\/[^/]+$/.test(pathname) ||

@@ -6,6 +6,7 @@ export interface InventoryProductMock {
   codeTone?: 'red';
   createCode?: boolean;
   id: string;
+  imageUrl?: string | null;
   indent?: boolean;
   isBase?: boolean;
   name: string;
@@ -48,6 +49,7 @@ export interface SellProductMock {
   category?: string;
   code?: string;
   id: string;
+  imageUrl?: string | null;
   indent?: boolean;
   linkedTo?: string;
   name: string;

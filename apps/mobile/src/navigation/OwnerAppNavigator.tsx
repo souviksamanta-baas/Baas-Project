@@ -105,6 +105,7 @@ const legacyEditProduct: Product = {
   currency: 'USD',
   description: baseProduct.notes,
   id: DEFAULT_BASE_PRODUCT_ID,
+  imageUrl: null,
   inventoryItemId: null,
   baseUnitEquivalent: null,
   isActive: true,

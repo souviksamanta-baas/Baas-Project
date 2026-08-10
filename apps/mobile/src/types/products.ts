@@ -6,6 +6,7 @@ export interface Product {
   currency: string;
   description: string | null;
   id: string;
+  imageUrl: string | null;
   inventoryItemId: string | null;
   isActive: boolean;
   isLowStock: boolean;

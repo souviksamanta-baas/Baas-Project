@@ -80,6 +80,9 @@ export default function MoreRoute(): ReactElement {
       case 'privacy':
         router.push(routes.privacyData);
         return;
+      case 'browser-session':
+        router.push(routes.browserSessionScan);
+        return;
       case 'cash':
       default:
         return;
