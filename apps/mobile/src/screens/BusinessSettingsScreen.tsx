@@ -24,11 +24,9 @@ import {
   type OrganizationProfile,
 } from '../api/organizationProfile';
 import { Icon } from '../components/icons';
-import { MultiSucursalesQuestion } from '../components/MultiSucursalesQuestion';
 import { Card, ScreenContent, ScreenTitle } from '../components/ui';
 import { PrimaryButton, TextField, colors as dsColors, spacing } from '../design-system';
 import { useAndroidBackHandler } from '../hooks/useAndroidBackHandler';
-import { useHasMultipleSucursales } from '../hooks/useHasMultipleSucursales';
 import {
   getNavShortcutOption,
   listNavShortcutOptions,
@@ -97,7 +95,6 @@ export function BusinessSettingsScreen(props: {
   whatsappPhone: string | null;
 }): ReactElement {
   const insets = useSafeAreaInsets();
-  const hasMultipleSucursales = useHasMultipleSucursales();
   const timezoneOptions = useMemo(() => buildTimezoneOptions(), []);
   const navShortcutOptions = useMemo(() => listNavShortcutOptions(), []);
   const [profile, setProfile] = useState<OrganizationProfile>(() =>
@@ -322,10 +319,10 @@ export function BusinessSettingsScreen(props: {
       </Card>
 
       <Card style={styles.summaryCard}>
-        <Text style={styles.sectionCardTitle}>Sucursales</Text>
-        <MultiSucursalesQuestion
-          disabled
-          value={hasMultipleSucursales ? 'yes' : 'no'}
+        <SummaryRow
+          editDisabled
+          label="Sucursales"
+          value="No hay sucursales registradas"
         />
       </Card>
 
@@ -621,12 +618,15 @@ export function BusinessSettingsScreen(props: {
 
 function SummaryRow(props: {
   editable?: boolean;
+  /** Show a non-interactive grey edit icon (e.g. coming soon). */
+  editDisabled?: boolean;
   hint?: string;
   label: string;
   onEdit?: () => void;
   value: string;
 }): ReactElement {
-  const editable = props.editable !== false && Boolean(props.onEdit);
+  const editable = props.editable !== false && Boolean(props.onEdit) && !props.editDisabled;
+  const showDisabledEdit = props.editDisabled === true;
 
   return (
     <View style={styles.summaryRow}>
@@ -644,6 +644,14 @@ function SummaryRow(props: {
         >
           <Icon color={colors.primary} kind="edit" size={16} strokeWidth={2} />
         </Pressable>
+      ) : showDisabledEdit ? (
+        <View
+          accessibilityLabel={`Editar ${props.label} (no disponible)`}
+          accessibilityState={{ disabled: true }}
+          style={styles.pencilButton}
+        >
+          <Icon color={colors.slate} kind="edit" size={16} strokeWidth={2} />
+        </View>
       ) : null}
     </View>
   );
