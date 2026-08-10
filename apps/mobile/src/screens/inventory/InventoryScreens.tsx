@@ -383,6 +383,7 @@ export function AddProductScreen(props: {
             value={formValues.brand}
           />
           <InventorySupplierField
+            existingOnly
             label="Proveedor"
             onChangeText={(supplier) => setFormValues((current) => ({ ...current, supplier }))}
             suggestions={props.suppliers}
@@ -1091,6 +1092,7 @@ export function EditProductScreen(
                 value={formValues.brand}
               />
               <InventorySupplierField
+                existingOnly
                 label="Proveedor"
                 onChangeText={(supplier) => setFormValues((current) => ({ ...current, supplier }))}
                 suggestions={props.suppliers ?? []}
@@ -1559,6 +1561,7 @@ export function AddStockScreen(props: {
           <InventoryReadOnlyField full label="Proveedor" value={formValues.supplier || '—'} />
         ) : (
           <InventorySupplierField
+            existingOnly
             full
             label="Proveedor"
             onChangeText={(supplier) => setFormValues((current) => ({ ...current, supplier }))}

@@ -9,7 +9,8 @@ import { InventoryScreenTitle } from '../../../src/components/inventoryUi';
 import { useOwnerSessionContext } from '../../../src/context/OwnerSessionProvider';
 import { useProductCatalog } from '../../../src/context/ProductCatalogProvider';
 import { useBusinessCenters } from '../../../src/hooks/useBusinessCenters';
-import { collectCategoryOptions, collectSupplierOptions } from '../../../src/lib/productCatalog';
+import { useSupplierNames } from '../../../src/hooks/useSupplierNames';
+import { collectCategoryOptions } from '../../../src/lib/productCatalog';
 import {
   parseInventoryReturnTo,
   productDetailRoute,
@@ -35,10 +36,7 @@ export default function AddProductRoute(): ReactElement {
     [catalog.products],
   );
 
-  const suppliers = useMemo(
-    () => collectSupplierOptions(catalog.products),
-    [catalog.products],
-  );
+  const suppliers = useSupplierNames();
 
   const goBack = () => {
     if (returnTo === 'product-detail') {

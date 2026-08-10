@@ -9,7 +9,8 @@ import { InventoryScreenTitle } from '../../../../../src/components/inventoryUi'
 import { useOwnerSessionContext } from '../../../../../src/context/OwnerSessionProvider';
 import { useBusinessCenters } from '../../../../../src/hooks/useBusinessCenters';
 import { useInventoryProduct } from '../../../../../src/hooks/useInventoryProduct';
-import { collectCategoryOptions, collectSupplierOptions } from '../../../../../src/lib/productCatalog';
+import { collectCategoryOptions } from '../../../../../src/lib/productCatalog';
+import { useSupplierNames } from '../../../../../src/hooks/useSupplierNames';
 import { navigateAfterProductArchive, navigateInventoryReturn } from '../../../../../src/navigation/inventoryNavigation';
 import {
   parseInventoryReturnTo,
@@ -45,11 +46,9 @@ export default function EditProductRoute(): ReactElement {
     [product?.category, products],
   );
 
-  const suppliers = useMemo(() => {
-    const current =
-      typeof product?.metadata?.proveedor === 'string' ? product.metadata.proveedor : null;
-    return collectSupplierOptions(products, current);
-  }, [product?.metadata?.proveedor, products]);
+  const currentSupplier =
+    typeof product?.metadata?.proveedor === 'string' ? product.metadata.proveedor : null;
+  const suppliers = useSupplierNames(currentSupplier);
 
   if (!productId || !businessCenterId || !organizationId) {
     return (
