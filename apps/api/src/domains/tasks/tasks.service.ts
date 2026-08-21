@@ -1,11 +1,13 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject, forwardRef, Optional } from '@nestjs/common';
 
 import { InventoryService, type InventoryProduct } from '../inventory/inventory.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { SupabaseService } from '../../supabase/supabase.service';
 
 export interface TaskMaintenanceResult {
   followUpTasksCreated: number;
   lowStockAlertsCreated: number;
+  notificationsCreated: number;
   pushNotificationsSent: number;
   pushNotificationsFailed: number;
 }
@@ -65,7 +67,8 @@ interface InsertedOwnerTaskRow {
 interface LowStockNotificationInsertRow {
   body: string;
   business_center_id: string;
-  notification_type: 'low_stock';
+  channel: 'stock';
+  notification_type: 'stock.low';
   organization_id: string;
   payload: {
     productId: string;
@@ -74,7 +77,7 @@ interface LowStockNotificationInsertRow {
   };
   product_id: string;
   source_key: string;
-  title: 'Low stock alert';
+  title: string;
 }
 
 interface OwnerDeviceTokenRow {
@@ -116,6 +119,9 @@ export class TasksService {
   constructor(
     private readonly supabaseService: SupabaseService,
     private readonly inventoryService: InventoryService,
+    @Optional()
+    @Inject(forwardRef(() => NotificationsService))
+    private readonly notificationsService?: NotificationsService,
   ) {}
 
   async runMaintenance(params: {
@@ -130,7 +136,20 @@ export class TasksService {
       async (businessCenter) => this.runBusinessCenterMaintenance(businessCenter, now),
     );
 
-    return results.reduce(sumTaskMaintenanceResults, emptyTaskMaintenanceResult());
+    const scheduled = this.notificationsService
+      ? await this.notificationsService.runScheduled({
+          now,
+          organizationId: params.organizationId,
+        })
+      : { notificationsCreated: 0, pushFailed: 0, pushSent: 0 };
+
+    const aggregated = results.reduce(sumTaskMaintenanceResults, emptyTaskMaintenanceResult());
+    return {
+      ...aggregated,
+      notificationsCreated: aggregated.notificationsCreated + scheduled.notificationsCreated,
+      pushNotificationsFailed: aggregated.pushNotificationsFailed + scheduled.pushFailed,
+      pushNotificationsSent: aggregated.pushNotificationsSent + scheduled.pushSent,
+    };
   }
 
   async listTasks(params: {
@@ -236,7 +255,18 @@ export class TasksService {
       throw new Error(`Failed to create owner task: ${error.message}`);
     }
 
-    return toOwnerTaskRecord(data as Record<string, unknown>);
+    const task = toOwnerTaskRecord(data as Record<string, unknown>);
+    if (task.assignedToUserId && this.notificationsService) {
+      await this.notificationsService.notifyTaskAssigned({
+        assignedToUserId: task.assignedToUserId,
+        businessCenterId: params.businessCenterId,
+        organizationId: params.organizationId,
+        taskId: task.id,
+        title: task.title,
+      });
+    }
+
+    return task;
   }
 
   async updateTaskStatus(params: {
@@ -304,7 +334,18 @@ export class TasksService {
       throw new Error(`Failed to assign owner task: ${error.message}`);
     }
 
-    return toOwnerTaskRecord(data as Record<string, unknown>);
+    const task = toOwnerTaskRecord(data as Record<string, unknown>);
+    if (task.assignedToUserId && this.notificationsService) {
+      await this.notificationsService.notifyTaskAssigned({
+        assignedToUserId: task.assignedToUserId,
+        businessCenterId: params.businessCenterId,
+        organizationId: params.organizationId,
+        taskId: task.id,
+        title: task.title,
+      });
+    }
+
+    return task;
   }
 
   private async runBusinessCenterMaintenance(
@@ -320,6 +361,7 @@ export class TasksService {
     return {
       followUpTasksCreated,
       lowStockAlertsCreated: lowStockResult.alertsCreated,
+      notificationsCreated: 0,
       pushNotificationsFailed: lowStockResult.pushNotificationsFailed,
       pushNotificationsSent: lowStockResult.pushNotificationsSent,
     };
@@ -497,8 +539,9 @@ export class TasksService {
     }
 
     const rows: LowStockNotificationInsertRow[] = products.map((product) => ({
-      body: `${product.name} has ${product.stockQuantity} in stock; reorder threshold is ${product.reorderThreshold}.`,
-      notification_type: 'low_stock',
+      body: `${product.name} tiene ${product.stockQuantity} en stock; el umbral de reposición es ${product.reorderThreshold}.`,
+      channel: 'stock',
+      notification_type: 'stock.low',
       business_center_id: product.businessCenterId,
       organization_id: product.organizationId,
       payload: {
@@ -508,14 +551,14 @@ export class TasksService {
       },
       product_id: product.id,
       source_key: this.getLowStockSourceKey(product),
-      title: 'Low stock alert',
+      title: 'Stock bajo',
     }));
     const client = this.supabaseService.getServiceRoleClient();
     const { data, error } = await client
       .from('owner_notifications')
       .upsert(rows, {
         ignoreDuplicates: true,
-        onConflict: 'source_key',
+        onConflict: 'organization_id,source_key',
       })
       .select('id, product_id, source_key');
 
@@ -528,7 +571,7 @@ export class TasksService {
 
   private getLowStockSourceKey(product: InventoryProduct): string {
     return [
-      'low_stock',
+      'stock.low',
       product.id,
       `stock:${product.stockQuantity}`,
       `threshold:${product.reorderThreshold}`,
@@ -547,12 +590,13 @@ export class TasksService {
     const messages = params.tokens.map((token) => ({
       to: token.push_token,
       sound: 'default',
-      title: 'Low stock alert',
-      body: `${params.product.name} is at or below reorder threshold.`,
+      title: 'Stock bajo',
+      body: `${params.product.name} está en o por debajo del umbral de reposición.`,
+      channelId: 'stock',
       data: {
         notificationId: params.notificationId,
         productId: params.product.id,
-        type: 'low_stock',
+        type: 'stock.low',
       },
     }));
 
@@ -634,6 +678,7 @@ function emptyTaskMaintenanceResult(): TaskMaintenanceResult {
   return {
     followUpTasksCreated: 0,
     lowStockAlertsCreated: 0,
+    notificationsCreated: 0,
     pushNotificationsFailed: 0,
     pushNotificationsSent: 0,
   };
@@ -646,6 +691,7 @@ function sumTaskMaintenanceResults(
   return {
     followUpTasksCreated: total.followUpTasksCreated + current.followUpTasksCreated,
     lowStockAlertsCreated: total.lowStockAlertsCreated + current.lowStockAlertsCreated,
+    notificationsCreated: total.notificationsCreated + current.notificationsCreated,
     pushNotificationsFailed: total.pushNotificationsFailed + current.pushNotificationsFailed,
     pushNotificationsSent: total.pushNotificationsSent + current.pushNotificationsSent,
   };

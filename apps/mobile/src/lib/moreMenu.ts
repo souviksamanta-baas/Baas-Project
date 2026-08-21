@@ -1,5 +1,8 @@
 import type { IconKind } from '../components/icons';
 
+import type { OrganizationFeatureFlags } from '../types/features';
+import { resolveOrganizationFeatureFlags } from '../types/features';
+
 export type MoreMenuRowId =
   | 'ventas'
   | 'manage-stock'
@@ -9,6 +12,7 @@ export type MoreMenuRowId =
   | 'manage-purchases'
   | 'load-purchase'
   | 'notifications-tasks'
+  | 'appointments'
   | 'billing'
   | 'invoices'
   | 'cash'
@@ -52,6 +56,7 @@ export const moreMenuSections: MoreMenuSection[] = [
     id: 'operations',
     rows: [
       { icon: 'document', id: 'manage-purchases', title: 'Gestionar compras' },
+      { icon: 'calendar', id: 'appointments', title: 'Agenda' },
       { icon: 'bill', id: 'billing', title: 'Presupuestos' },
       { icon: 'bill', id: 'invoices', title: 'Facturas' },
       { disabled: true, icon: 'cash', id: 'cash', title: 'Caja' },
@@ -70,6 +75,47 @@ export const moreMenuSections: MoreMenuSection[] = [
     ],
   },
 ];
+
+const ROW_FEATURE_FLAG: Partial<Record<MoreMenuRowId, keyof OrganizationFeatureFlags>> = {
+  ventas: 'commerce_pos',
+  'manage-stock': 'commerce_inventory',
+  'add-product': 'commerce_inventory',
+  'lots-movements': 'commerce_lots',
+  compras: 'commerce_purchases',
+  'manage-purchases': 'commerce_purchases',
+  'load-purchase': 'commerce_purchases',
+  appointments: 'appointments',
+  billing: 'billing_quotes',
+  invoices: 'billing_invoices',
+  cash: 'billing_cash',
+  suppliers: 'commerce_suppliers',
+  integrations: 'integrations',
+  'browser-session': 'browser_session',
+  help: 'help_privacy',
+  privacy: 'help_privacy',
+  'notifications-tasks': 'tasks',
+};
+
+export function filterMoreMenuSections(
+  features?: OrganizationFeatureFlags | null,
+): MoreMenuSection[] {
+  const flags = resolveOrganizationFeatureFlags(features);
+  return moreMenuSections
+    .map((section) => ({
+      ...section,
+      rows: section.rows.filter((row) => {
+        if (row.id === 'notifications-tasks') {
+          return flags.tasks || flags.notifications;
+        }
+        const key = ROW_FEATURE_FLAG[row.id];
+        if (!key) {
+          return true;
+        }
+        return flags[key] === true;
+      }),
+    }))
+    .filter((section) => section.rows.length > 0);
+}
 
 export type AccountMenuActionId =
   | 'edit-profile'

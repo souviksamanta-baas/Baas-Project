@@ -37,7 +37,7 @@ interface OwnerNotificationRow {
   created_at: string;
   error_message: string | null;
   id: string;
-  notification_type: 'low_stock';
+  notification_type: string;
   payload: {
     productId?: string;
     reorderThreshold?: number;

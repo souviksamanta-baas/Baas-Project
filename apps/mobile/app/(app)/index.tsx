@@ -5,11 +5,13 @@ import { StyleSheet, View } from 'react-native';
 
 import type { AppTab } from '../../src/components/ui';
 import { useOwnerSessionContext } from '../../src/context/OwnerSessionProvider';
+import { useAppointments } from '../../src/hooks/useAppointments';
 import { useInbox } from '../../src/hooks/useInbox';
 import { useOwnerTasks } from '../../src/hooks/useOwnerTasks';
 import { resolveOwnerGreetingName } from '../../src/lib/ownerGreeting';
 import { supabase } from '../../src/lib/supabase';
 import {
+  appointmentDetailRoute,
   conversationRoute,
   manageStockRoute,
   productDetailRoute,
@@ -27,6 +29,7 @@ export default function HomeRoute(): ReactElement {
   const businessCenterId = dashboard?.businessCenter?.id ?? null;
   const inbox = useInbox(organizationId, businessCenterId);
   const tasksState = useOwnerTasks(organizationId, businessCenterId);
+  const appointmentsState = useAppointments(organizationId, businessCenterId);
   const [greetingName, setGreetingName] = useState('');
 
   useEffect(() => {
@@ -46,10 +49,15 @@ export default function HomeRoute(): ReactElement {
   return (
     <View style={styles.root}>
       <HomeScreen
+        appointments={appointmentsState.appointments}
         conversations={inbox.conversations}
         metrics={dashboard?.metrics ?? null}
         notifications={tasksState.notifications}
         onOpenAlertProduct={(productId) => router.push(productDetailRoute(productId, 'home'))}
+        onOpenAppointment={(appointmentId) =>
+          router.push(appointmentDetailRoute(appointmentId, 'home'))
+        }
+        onOpenAppointments={() => router.push(routes.appointments)}
         onOpenConversation={(conversationId) => router.push(conversationRoute(conversationId))}
         onOpenLowStock={() => router.push(manageStockRoute({ lowStock: true }))}
         onOpenManageStock={() => router.push(routes.inventoryManageStock)}

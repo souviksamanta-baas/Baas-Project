@@ -6,10 +6,11 @@ import { ActionRow, Card, ScreenContent, ScreenTitle } from '../components/ui';
 import { FeatureGate } from '../hooks/useFeatureVisibility';
 import {
   buildAccountMenuRows,
-  moreMenuSections,
+  filterMoreMenuSections,
   type AccountMenuActionId,
   type MoreMenuRowId,
 } from '../lib/moreMenu';
+import { useOrganizationFlags } from '../hooks/useFeatureVisibility';
 import { colors } from '../theme';
 
 function initialsFromName(name: string): string {
@@ -35,6 +36,8 @@ export function MoreScreen(props: {
   whatsappTitle: string;
 }): ReactElement {
   const [accountOpen, setAccountOpen] = useState(false);
+  const flags = useOrganizationFlags();
+  const sections = useMemo(() => filterMoreMenuSections(flags), [flags]);
   const displayName = props.fullName.trim() || 'Tu nombre';
   const initials = initialsFromName(displayName);
   const accountRows = useMemo(
@@ -99,7 +102,7 @@ export function MoreScreen(props: {
         </Card>
       </FeatureGate>
 
-      {moreMenuSections.map((section) => (
+      {sections.map((section) => (
         <FeatureGate feature={section.feature} key={section.id}>
           <Card flush>
             {section.rows.map((row, index) => (

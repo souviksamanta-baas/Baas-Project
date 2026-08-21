@@ -189,6 +189,9 @@ export class TaskMaintenanceResultDto {
   @ApiProperty({ example: 2 })
   lowStockAlertsCreated!: number;
 
+  @ApiProperty({ example: 5 })
+  notificationsCreated!: number;
+
   @ApiProperty({ example: 4 })
   pushNotificationsSent!: number;
 
@@ -445,6 +448,122 @@ export class InstagramSendMessageDto {
 }
 
 export class InstagramSendMessageResponseDto {
+  @ApiPropertyOptional({ nullable: true })
+  externalMessageId!: string | null;
+
+  @ApiProperty({ enum: ['sent'] })
+  status!: 'sent';
+}
+
+export class FacebookOAuthStartDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsString()
+  organizationId!: string;
+}
+
+export class FacebookOAuthStartResponseDto {
+  @ApiProperty({ example: 'https://www.facebook.com/v20.0/dialog/oauth?...' })
+  authUrl!: string;
+
+  @ApiProperty({
+    description:
+      'HTTPS redirect_uri sent to Meta (must match Facebook Login for Business settings exactly)',
+    example:
+      'https://baas-project-production.up.railway.app/integrations/meta/facebook/oauth/callback',
+  })
+  redirectUri!: string;
+
+  @ApiProperty({ description: 'Signed state returned to oauth/callback' })
+  state!: string;
+}
+
+export class FacebookOAuthCallbackDto {
+  @ApiProperty()
+  @IsString()
+  code!: string;
+
+  @ApiProperty()
+  @IsString()
+  state!: string;
+
+  @ApiPropertyOptional({
+    description: 'Optional page id to select when the user manages multiple pages',
+  })
+  @IsOptional()
+  @IsString()
+  pageId?: string;
+}
+
+export class FacebookConnectionSummaryDto {
+  @ApiPropertyOptional({ nullable: true })
+  lastError!: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  lastStatusCheckAt!: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  pageId!: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  pageName!: string | null;
+
+  @ApiProperty({
+    enum: ['not_configured', 'pending', 'connected', 'error', 'disconnected'],
+  })
+  status!: 'not_configured' | 'pending' | 'connected' | 'error' | 'disconnected';
+
+  @ApiPropertyOptional({ nullable: true })
+  tokenExpiresAt?: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  verifiedAt!: string | null;
+}
+
+export class FacebookDisconnectDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsString()
+  organizationId!: string;
+}
+
+export class FacebookMessagingWindowStateDto {
+  @ApiProperty({
+    enum: [
+      'customer_must_message_first',
+      'reply_available',
+      'human_reply_only',
+      'window_expired',
+      'meta_approval_required',
+    ],
+  })
+  state!: string;
+
+  @ApiPropertyOptional({ nullable: true })
+  expiresAt!: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  lastInboundAt!: string | null;
+}
+
+export class FacebookSendMessageDto {
+  @ApiProperty()
+  @IsString()
+  @MinLength(1)
+  body!: string;
+
+  @ApiProperty({ format: 'uuid' })
+  @IsString()
+  businessCenterId!: string;
+
+  @ApiProperty({ format: 'uuid' })
+  @IsString()
+  conversationId!: string;
+
+  @ApiProperty({ format: 'uuid' })
+  @IsString()
+  organizationId!: string;
+}
+
+export class FacebookSendMessageResponseDto {
   @ApiPropertyOptional({ nullable: true })
   externalMessageId!: string | null;
 

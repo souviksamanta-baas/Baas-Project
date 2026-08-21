@@ -1,9 +1,15 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 
+import { AppointmentsService } from '../appointments/appointments.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { TasksService } from '../tasks/tasks.service';
 import { SupabaseService } from '../../supabase/supabase.service';
 import type { CopiActionProposal, CopiActionType, CopiQueryContext } from './copi.types';
-import { detectProActionIntent, normalizeCopiQuestion } from './copi-intent-router';
+import {
+  detectProActionIntent,
+  mentionsAppointmentIntent,
+  normalizeCopiQuestion,
+} from './copi-intent-router';
 import {
   buildCreateTaskPayload,
   parseCreatePresupuestoRequest,
@@ -19,6 +25,8 @@ export class CopiActionService {
   constructor(
     private readonly supabaseService: SupabaseService,
     private readonly tasksService: TasksService,
+    private readonly appointmentsService: AppointmentsService,
+    @Optional() private readonly notificationsService?: NotificationsService,
   ) {}
 
   async proposeAction(context: CopiQueryContext): Promise<CopiActionProposal | null> {
@@ -48,12 +56,24 @@ export class CopiActionService {
       throw new Error(`Failed to create Copi action proposal: ${error.message}`);
     }
 
-    return {
+    const proposal: CopiActionProposal = {
       actionType: data.action_type,
       id: data.id,
       payload: data.payload,
       summary: summarizeProposal(data.action_type, data.payload),
     };
+
+    if (this.notificationsService) {
+      await this.notificationsService.notifyCopiActionNeeded({
+        actionId: proposal.id,
+        businessCenterId: context.businessCenterId,
+        organizationId: context.organizationId,
+        summary: proposal.summary,
+        userId: context.userId,
+      });
+    }
+
+    return proposal;
   }
 
   async confirmAction(params: {
@@ -387,8 +407,97 @@ export class CopiActionService {
         });
         return { status: task.status, taskId: task.id };
       }
+      case 'appointment_create': {
+        await this.assertAppointmentsEnabled(params.organizationId);
+        const title =
+          typeof params.payload.title === 'string' && params.payload.title.trim()
+            ? params.payload.title.trim()
+            : 'Nuevo turno';
+        const startsAt = readRequiredIsoDate(params.payload.startsAt, 'agendar');
+        const endsAt =
+          typeof params.payload.endsAt === 'string' && params.payload.endsAt.trim()
+            ? params.payload.endsAt
+            : new Date(new Date(startsAt).getTime() + 30 * 60 * 1000).toISOString();
+        const appointment = await this.appointmentsService.createAppointment({
+          assignedToUserId: readOptionalUuid(params.payload.assignedToUserId),
+          businessCenterId: params.businessCenterId,
+          contactId: readOptionalUuid(params.payload.contactId),
+          createdByUserId: params.userId,
+          endsAt,
+          notes:
+            typeof params.payload.notes === 'string' ? params.payload.notes : null,
+          organizationId: params.organizationId,
+          startsAt,
+          title,
+        });
+        return {
+          appointmentId: appointment.id,
+          endsAt: appointment.endsAt,
+          startsAt: appointment.startsAt,
+          title: appointment.title,
+        };
+      }
+      case 'appointment_update': {
+        await this.assertAppointmentsEnabled(params.organizationId);
+        const appointmentId = readRequiredUuid(params.payload.appointmentId, 'actualizar turno');
+        const appointment = await this.appointmentsService.updateAppointment({
+          appointmentId,
+          businessCenterId: params.businessCenterId,
+          endsAt:
+            typeof params.payload.endsAt === 'string' ? params.payload.endsAt : undefined,
+          notes:
+            typeof params.payload.notes === 'string' ? params.payload.notes : undefined,
+          organizationId: params.organizationId,
+          startsAt:
+            typeof params.payload.startsAt === 'string' ? params.payload.startsAt : undefined,
+          status:
+            params.payload.status === 'scheduled' ||
+            params.payload.status === 'completed' ||
+            params.payload.status === 'cancelled'
+              ? params.payload.status
+              : undefined,
+          title:
+            typeof params.payload.title === 'string' ? params.payload.title : undefined,
+        });
+        return { appointmentId: appointment.id, status: appointment.status };
+      }
+      case 'appointment_assign': {
+        await this.assertAppointmentsEnabled(params.organizationId);
+        const appointmentId = readRequiredUuid(params.payload.appointmentId, 'asignar turno');
+        const assignedToUserId = readOptionalUuid(params.payload.assignedToUserId);
+        if (!assignedToUserId) {
+          throw new Error('Falta el usuario al que asignar el turno.');
+        }
+        const appointment = await this.appointmentsService.assignAppointment({
+          appointmentId,
+          assignedToUserId,
+          businessCenterId: params.businessCenterId,
+          organizationId: params.organizationId,
+        });
+        return {
+          appointmentId: appointment.id,
+          assignedToUserId: appointment.assignedToUserId,
+        };
+      }
       default:
         throw new Error(`Unsupported Copi action: ${params.actionType}`);
+    }
+  }
+
+  private async assertAppointmentsEnabled(organizationId: string): Promise<void> {
+    const client = this.supabaseService.getServiceRoleClient();
+    const { data, error } = await client
+      .from('organizations')
+      .select('feature_flags')
+      .eq('id', organizationId)
+      .single<{ feature_flags: Record<string, unknown> | null }>();
+
+    if (error || !data) {
+      throw new Error('No se pudo verificar la disponibilidad de la Agenda.');
+    }
+
+    if (!(data.feature_flags ?? {}).appointments) {
+      throw new Error('La Agenda no está habilitada para esta organización.');
     }
   }
 
@@ -618,6 +727,21 @@ export function inferCopiActionType(question: string): CopiActionType {
     return 'create_presupuesto';
   }
 
+  const mentionsAppointment = mentionsAppointmentIntent(question);
+  if (mentionsAppointment) {
+    if (/\b(asign|assign|reassign|pasale)\b/.test(normalized)) {
+      return 'appointment_assign';
+    }
+    if (
+      /\b(reagenda|reagendar|reprograma|reprogramar|actualiza|actualizar|modifica|modificar|cambia|cambiar|cancel|completa|completar|marca)\b/.test(
+        normalized,
+      )
+    ) {
+      return 'appointment_update';
+    }
+    return 'appointment_create';
+  }
+
   const mentionsTask = /\btareas?\b/.test(normalized);
   const isCreate =
     mentionsTask &&
@@ -668,6 +792,18 @@ function buildActionPayload(
       question,
       timezone,
       title: parsed.title,
+    };
+  }
+
+  if (
+    actionType === 'appointment_create' ||
+    actionType === 'appointment_update' ||
+    actionType === 'appointment_assign'
+  ) {
+    return {
+      appointmentId: null,
+      question,
+      timezone,
     };
   }
 
@@ -783,6 +919,26 @@ function readRequiredTaskId(
   return taskId;
 }
 
+function readRequiredUuid(value: unknown, verb: string): string {
+  const id = typeof value === 'string' ? value.trim() : '';
+  if (!id || id === 'null' || id === 'undefined' || !isValidUuid(id)) {
+    throw new Error(`Falta el ID para ${verb}.`);
+  }
+  return id;
+}
+
+function readRequiredIsoDate(value: unknown, verb: string): string {
+  const raw = typeof value === 'string' ? value.trim() : '';
+  if (!raw) {
+    throw new Error(`Falta la fecha/hora para ${verb}.`);
+  }
+  const timestamp = Date.parse(raw);
+  if (Number.isNaN(timestamp)) {
+    throw new Error(`Fecha inválida para ${verb}.`);
+  }
+  return new Date(timestamp).toISOString();
+}
+
 function readOptionalUuid(value: unknown): string | null {
   if (typeof value !== 'string') {
     return null;
@@ -835,6 +991,12 @@ function summarizeProposal(actionType: CopiActionType, payload: Record<string, u
       return 'Posponer tarea';
     case 'cancel_task':
       return 'Cancelar tarea';
+    case 'appointment_create':
+      return 'Crear turno en la agenda';
+    case 'appointment_update':
+      return 'Actualizar turno';
+    case 'appointment_assign':
+      return 'Asignar turno';
     default:
       return 'Acción de Copi';
   }

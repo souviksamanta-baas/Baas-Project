@@ -24,7 +24,9 @@ export type CopiToolName =
   | 'tasks_overdue'
   | 'tasks_by_contact'
   | 'my_tasks'
-  | 'staff_roster';
+  | 'staff_roster'
+  | 'appointments_upcoming'
+  | 'appointments_today';
 
 export type CopiActionType =
   | 'create_task'
@@ -33,7 +35,10 @@ export type CopiActionType =
   | 'complete_task'
   | 'snooze_task'
   | 'cancel_task'
-  | 'reassign_task';
+  | 'reassign_task'
+  | 'appointment_create'
+  | 'appointment_update'
+  | 'appointment_assign';
 
 export type CopiPolicyDecision = 'allowed' | 'policy_denied' | 'tier_required';
 

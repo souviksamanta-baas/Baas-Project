@@ -12,8 +12,10 @@ export default function IntegrationsRoute(): ReactElement {
   return (
     <IntegrationsScreen
       onBack={() => router.back()}
+      onOpenFacebook={() => router.push(routes.facebookConnect)}
       onOpenInstagram={() => router.push(routes.instagramConnect)}
       onOpenWhatsApp={() => router.push(routes.whatsappConnect)}
+      facebookConnection={dashboard?.facebookConnection ?? null}
       instagramConnection={dashboard?.instagramConnection ?? null}
       whatsappConnection={dashboard?.whatsappConnection ?? null}
     />

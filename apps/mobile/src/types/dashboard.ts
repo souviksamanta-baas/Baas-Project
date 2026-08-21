@@ -13,6 +13,7 @@ export interface OwnerDashboard {
     role: 'owner' | 'manager' | 'staff';
     timezone: string;
     verticalId: string | null;
+    verticalSlug?: string | null;
     followUpDelayHours: number;
   } | null;
   businessCenter: {
@@ -36,6 +37,14 @@ export interface OwnerDashboard {
     pageId: string | null;
     igUserId: string | null;
     igUsername: string | null;
+    verifiedAt: string | null;
+    lastStatusCheckAt: string | null;
+    lastError: string | null;
+  };
+  facebookConnection?: {
+    status: 'not_configured' | 'pending' | 'connected' | 'error' | 'disconnected';
+    pageId: string | null;
+    pageName: string | null;
     verifiedAt: string | null;
     lastStatusCheckAt: string | null;
     lastError: string | null;

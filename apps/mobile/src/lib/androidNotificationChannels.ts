@@ -6,13 +6,19 @@ export const ANDROID_NOTIFICATION_CHANNELS = [
   {
     id: 'tareas',
     name: 'Tareas',
-    description: 'Recordatorios y tareas del negocio',
+    description: 'Recordatorios, agenda y resumen diario',
+    importance: Notifications.AndroidImportance.HIGH,
+  },
+  {
+    id: 'inbox',
+    name: 'Inbox',
+    description: 'Mensajes nuevos y conversaciones sin responder',
     importance: Notifications.AndroidImportance.HIGH,
   },
   {
     id: 'ventas',
     name: 'Ventas',
-    description: 'Alertas de ventas y cobros',
+    description: 'Alertas de ventas y presupuestos',
     importance: Notifications.AndroidImportance.DEFAULT,
   },
   {

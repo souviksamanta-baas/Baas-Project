@@ -184,6 +184,15 @@ export class OrganizationLifecycleService {
       .eq('organization_id', params.organizationId);
 
     await client
+      .from('facebook_config')
+      .update({
+        connection_status: 'disconnected',
+        access_token_encrypted: null,
+        last_status_check_at: archivedAt,
+      })
+      .eq('organization_id', params.organizationId);
+
+    await client
       .from('organization_invites')
       .update({ revoked_at: archivedAt })
       .eq('organization_id', params.organizationId)

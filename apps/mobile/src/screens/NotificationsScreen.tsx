@@ -1,7 +1,12 @@
 import type { ReactElement } from 'react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import {
+  getNotificationPrefs,
+  updateNotificationPrefs,
+  type ReminderLeadMinutes,
+} from '../api/notifications';
 import { Card, NotificationRow, ScreenContent, ScreenTitle } from '../components/ui';
 import { FeatureGate } from '../hooks/useFeatureVisibility';
 import {
@@ -20,6 +25,8 @@ const FILTERS: Array<{ id: WorkQueueFilter | 'unread'; label: string }> = [
   { id: 'follow_up', label: 'Seguimientos' },
 ];
 
+const LEAD_OPTIONS: ReminderLeadMinutes[] = [15, 30, 60];
+
 export function NotificationsScreen(props: {
   isLoading?: boolean;
   isSaving?: boolean;
@@ -29,9 +36,12 @@ export function NotificationsScreen(props: {
   onOpenAlertProduct: (productId: string) => void;
   onOpenTaskDetail: (taskId: string) => void;
   onOpenTasks: () => void;
+  organizationId?: string | null;
   tasks: OwnerTask[];
 }): ReactElement {
   const [activeFilter, setActiveFilter] = useState<WorkQueueFilter | 'unread'>('all');
+  const [reminderLeadMinutes, setReminderLeadMinutes] = useState<ReminderLeadMinutes>(30);
+  const [prefsSaving, setPrefsSaving] = useState(false);
   const items = useMemo(() => {
     const queue = buildWorkQueue(props.tasks, props.notifications);
     if (activeFilter === 'unread') {
@@ -41,6 +51,41 @@ export function NotificationsScreen(props: {
     return filterWorkQueue(queue, activeFilter);
   }, [activeFilter, props.notifications, props.tasks]);
 
+  useEffect(() => {
+    if (!props.organizationId) {
+      return;
+    }
+    let mounted = true;
+    void getNotificationPrefs(props.organizationId)
+      .then((prefs) => {
+        if (mounted) {
+          setReminderLeadMinutes(prefs.reminderLeadMinutes);
+        }
+      })
+      .catch(() => {
+        // Keep default.
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [props.organizationId]);
+
+  async function saveLead(minutes: ReminderLeadMinutes): Promise<void> {
+    if (!props.organizationId) {
+      return;
+    }
+    setReminderLeadMinutes(minutes);
+    setPrefsSaving(true);
+    try {
+      await updateNotificationPrefs({
+        organizationId: props.organizationId,
+        reminderLeadMinutes: minutes,
+      });
+    } finally {
+      setPrefsSaving(false);
+    }
+  }
+
   return (
     <ScreenContent title="Notificaciones">
       <View style={styles.titleRow}>
@@ -49,6 +94,27 @@ export function NotificationsScreen(props: {
           <Text style={styles.markRead}>Marcar todas como leidas</Text>
         </Pressable>
       </View>
+
+      <Card style={styles.prefsCard}>
+        <Text style={styles.prefsTitle}>Recordatorios</Text>
+        <Text style={styles.prefsHint}>Avisame antes de tareas y turnos (minutos)</Text>
+        <View style={styles.leadRow}>
+          {LEAD_OPTIONS.map((minutes) => (
+            <Pressable
+              key={minutes}
+              disabled={prefsSaving}
+              onPress={() => void saveLead(minutes)}
+              style={[styles.leadPill, reminderLeadMinutes === minutes && styles.leadPillActive]}
+            >
+              <Text
+                style={[styles.leadText, reminderLeadMinutes === minutes && styles.leadTextActive]}
+              >
+                {minutes}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+      </Card>
 
       <FeatureGate feature="notificationsFilters">
         <View style={styles.filterRow}>
@@ -143,11 +209,50 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '300',
   },
+  leadPill: {
+    borderColor: colors.borderInput,
+    borderRadius: 999,
+    borderWidth: 1,
+    minWidth: 52,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  leadPillActive: {
+    backgroundColor: colors.primarySoft,
+    borderColor: colors.primary,
+  },
+  leadRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 10,
+  },
+  leadText: {
+    color: colors.navy,
+    fontSize: 15,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  leadTextActive: {
+    color: colors.primary,
+  },
   markRead: {
     color: colors.slate,
     fontSize: 13,
     fontWeight: '300',
     paddingBottom: 2,
+  },
+  prefsCard: {
+    padding: 14,
+  },
+  prefsHint: {
+    color: colors.slate,
+    fontSize: 13,
+    marginTop: 2,
+  },
+  prefsTitle: {
+    color: colors.navy,
+    fontSize: 15,
+    fontWeight: '700',
   },
   tasksLink: {
     alignItems: 'center',

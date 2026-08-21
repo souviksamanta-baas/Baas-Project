@@ -1,7 +1,8 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 import { decryptSecret } from '../../lib/token-crypto';
+import { NotificationsService } from '../notifications/notifications.service';
 import { SupabaseService } from '../../supabase/supabase.service';
 
 const WINDOW_MS = 24 * 60 * 60 * 1000;
@@ -23,6 +24,7 @@ export class InstagramEventProcessor {
   constructor(
     private readonly supabaseService: SupabaseService,
     private readonly configService: ConfigService,
+    @Optional() private readonly notificationsService?: NotificationsService,
   ) {}
 
   scheduleProcess(eventIds: string[]): void {
@@ -155,6 +157,21 @@ export class InstagramEventProcessor {
       if (messageError && messageError.code !== '23505') {
         throw new Error(messageError.message);
       }
+
+      void this.notificationsService
+        ?.notifyInboxNewMessage({
+          bodyPreview: envelope.text,
+          businessCenterId: config.business_center_id,
+          conversationId: conversation.id,
+          messageId: envelope.mid,
+          organizationId: config.organization_id,
+          senderLabel: displayName ?? envelope.senderId,
+        })
+        .catch((error: unknown) => {
+          this.logger.error(
+            error instanceof Error ? error.message : 'Instagram inbox notification failed',
+          );
+        });
 
       await client
         .from('instagram_message_events')

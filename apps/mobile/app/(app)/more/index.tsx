@@ -59,6 +59,9 @@ export default function MoreRoute(): ReactElement {
       case 'notifications-tasks':
         router.push(routes.tasks);
         return;
+      case 'appointments':
+        router.push(routes.appointments);
+        return;
       case 'billing':
         router.push(routes.billing);
         return;

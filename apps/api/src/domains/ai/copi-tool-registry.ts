@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
+import { AppointmentsService } from '../appointments/appointments.service';
 import { InventoryService } from '../inventory/inventory.service';
 import { TasksService } from '../tasks/tasks.service';
 import { SupabaseService } from '../../supabase/supabase.service';
@@ -46,6 +47,7 @@ export class CopiToolRegistry {
     private readonly supabaseService: SupabaseService,
     private readonly inventoryService: InventoryService,
     private readonly tasksService: TasksService,
+    private readonly appointmentsService: AppointmentsService,
   ) {}
 
   async executeTools(context: CopiQueryContext, tools: CopiToolName[]): Promise<CopiToolResult[]> {
@@ -97,9 +99,87 @@ export class CopiToolRegistry {
         return this.myTasks(context);
       case 'staff_roster':
         return this.staffRoster(context);
+      case 'appointments_upcoming':
+        return this.appointmentsUpcoming(context);
+      case 'appointments_today':
+        return this.appointmentsToday(context);
       default:
         return { payload: {}, summary: 'Herramienta no disponible.' };
     }
+  }
+
+  private async appointmentsFeatureEnabled(organizationId: string): Promise<boolean> {
+    const client = this.supabaseService.getServiceRoleClient();
+    const { data, error } = await client
+      .from('organizations')
+      .select('feature_flags')
+      .eq('id', organizationId)
+      .single<{ feature_flags: Record<string, unknown> | null }>();
+
+    if (error || !data) {
+      return false;
+    }
+
+    return Boolean((data.feature_flags ?? {}).appointments);
+  }
+
+  private async appointmentsUpcoming(
+    context: CopiQueryContext,
+  ): Promise<Omit<CopiToolResult, 'key'>> {
+    const enabled = await this.appointmentsFeatureEnabled(context.organizationId);
+    if (!enabled) {
+      return {
+        payload: { enabled: false },
+        summary: 'Agenda no está habilitada para esta organización.',
+      };
+    }
+
+    const appointments = await this.appointmentsService.listAppointments({
+      businessCenterId: context.businessCenterId,
+      fromDate: context.now.toISOString(),
+      limit: 10,
+      organizationId: context.organizationId,
+      statuses: ['scheduled'],
+    });
+
+    return {
+      payload: { appointments, count: appointments.length },
+      summary:
+        appointments.length === 0
+          ? 'Agenda: no hay próximos turnos programados.'
+          : `Agenda: ${appointments.length} próximo(s) turno(s).`,
+    };
+  }
+
+  private async appointmentsToday(
+    context: CopiQueryContext,
+  ): Promise<Omit<CopiToolResult, 'key'>> {
+    const enabled = await this.appointmentsFeatureEnabled(context.organizationId);
+    if (!enabled) {
+      return {
+        payload: { enabled: false },
+        summary: 'Agenda no está habilitada para esta organización.',
+      };
+    }
+
+    const timeZone = normalizeTimeZone(context.timezone);
+    const { end, start } = getZonedDayBounds(context.now, timeZone, 0);
+    const appointments = await this.appointmentsService.listAppointments({
+      businessCenterId: context.businessCenterId,
+      fromDate: start.toISOString(),
+      limit: 20,
+      organizationId: context.organizationId,
+      statuses: ['scheduled', 'completed'],
+      toDate: end.toISOString(),
+    });
+
+    return {
+      payload: { appointments, count: appointments.length },
+      summary:
+        appointments.length === 0
+          ? 'Agenda de hoy: no hay turnos.'
+          : `Agenda de hoy: ${appointments.length} turno(s).`,
+    };
   }
 
   private async messagesToday(context: CopiQueryContext): Promise<Omit<CopiToolResult, 'key'>> {

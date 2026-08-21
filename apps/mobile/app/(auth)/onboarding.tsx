@@ -28,11 +28,14 @@ export default function OnboardingRoute(): ReactElement {
   return (
     <OnboardingScreen
       businessName={session.businessName}
+      featureFlags={session.featureFlags}
       initialStep={initialStep}
       isSubmitting={session.isSubmitting}
       navShortcut={session.navShortcut}
       onChangeBusinessName={session.setBusinessName}
+      onChangeFeatureFlags={session.setFeatureFlags}
       onChangeNavShortcut={session.setNavShortcut}
+      onChangeVerticalId={session.setVerticalId}
       onCreateOrganization={() => {
         void session.createOrganization();
       }}
@@ -45,6 +48,7 @@ export default function OnboardingRoute(): ReactElement {
       onSignOut={() => {
         void session.signOut();
       }}
+      verticalId={session.verticalId}
     />
   );
 }

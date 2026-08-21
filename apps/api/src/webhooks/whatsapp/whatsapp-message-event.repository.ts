@@ -1,6 +1,7 @@
 import { Injectable, Logger, Optional } from '@nestjs/common';
 
 import { SalesAiService } from '../../domains/ai/sales-ai.service';
+import { NotificationsService } from '../../domains/notifications/notifications.service';
 import { WhatsAppConversationMessageRepository } from '../../domains/whatsapp/whatsapp-conversation-message.repository';
 import { WhatsAppMediaService } from '../../domains/whatsapp/whatsapp-media.service';
 import { WhatsAppOutboundMessageService } from '../../domains/whatsapp/whatsapp-outbound-message.service';
@@ -50,6 +51,8 @@ export class WhatsAppMessageEventRepository {
     private readonly mediaService?: WhatsAppMediaService,
     @Optional()
     private readonly outboundMessageService?: WhatsAppOutboundMessageService,
+    @Optional()
+    private readonly notificationsService?: NotificationsService,
   ) {}
 
   async recordInboundMessages(
@@ -202,6 +205,24 @@ export class WhatsAppMessageEventRepository {
     }
 
     if (persistedMessage.conversationMessageId) {
+      void this.notificationsService
+        ?.notifyInboxNewMessage({
+          bodyPreview: event.textBody,
+          businessCenterId: messageEvent.business_center_id,
+          conversationId: persistedMessage.conversationId,
+          messageId: persistedMessage.conversationMessageId,
+          organizationId: messageEvent.organization_id,
+          senderLabel: event.senderDisplayName ?? event.senderPhone,
+        })
+        .catch((error: unknown) => {
+          this.logger.error(
+            JSON.stringify({
+              event: 'notifications.inbox.new_message.failed',
+              message: error instanceof Error ? error.message : 'Unknown notification error',
+            }),
+          );
+        });
+
       void this.salesAiService
         ?.handleInboundMessage({
           conversationId: persistedMessage.conversationId,

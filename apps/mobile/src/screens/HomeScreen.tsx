@@ -5,7 +5,7 @@ import { Card, ConversationRow, MetricGrid, NotificationRow, RobotAvatar, Screen
 import type { AppTab } from '../components/ui';
 import { Icon } from '../components/icons';
 import { InfoBanner, ListBox, PrimaryButton, colors as dsColors, textStyles } from '../design-system';
-import { FeatureGate } from '../hooks/useFeatureVisibility';
+import { FeatureGate, useOrganizationFlags } from '../hooks/useFeatureVisibility';
 import {
   conversationAvatarLabel,
   conversationDisplayName,
@@ -13,6 +13,7 @@ import {
   formatConversationTime,
   leadStatusLabel,
 } from '../lib/inboxPresentation';
+import type { Appointment } from '../types/appointments';
 import type { OwnerDashboard } from '../types/dashboard';
 import type { InboxConversationSummary } from '../types/messages';
 import { formatWeeklySales } from '../lib/formatCurrency';
@@ -22,10 +23,13 @@ import type { OwnerNotification, OwnerTask } from '../types/tasks';
 import { colors, shadows } from '../theme';
 
 export function HomeScreen(props: {
+  appointments?: Appointment[];
   conversations: InboxConversationSummary[];
   metrics: OwnerDashboard['metrics'] | null;
   notifications: OwnerNotification[];
   onOpenAlertProduct: (productId: string) => void;
+  onOpenAppointment?: (appointmentId: string) => void;
+  onOpenAppointments?: () => void;
   onOpenConversation: (conversationId: string) => void;
   onOpenLowStock: () => void;
   onOpenManageStock: () => void;
@@ -38,6 +42,7 @@ export function HomeScreen(props: {
   tasks: OwnerTask[];
   whatsappConnection: OwnerDashboard['whatsappConnection'] | null;
 }): ReactElement {
+  const flags = useOrganizationFlags();
   const connection = props.whatsappConnection ?? {
     status: 'not_configured' as const,
     phoneNumberId: null,
@@ -54,21 +59,33 @@ export function HomeScreen(props: {
       tone: 'orange' as const,
       value: String(props.metrics?.pendingFollowUps ?? 0),
     },
-    {
-      id: 'stock',
-      label: 'Productos con bajo stock',
-      tone: 'red' as const,
-      value: String(props.metrics?.lowStockItems ?? 0),
-    },
-    {
-      id: 'sales',
-      label: 'Ventas (Semana)',
-      tone: 'green' as const,
-      value: formatWeeklySales(props.metrics?.weeklySalesCents ?? 0),
-    },
+    ...(flags.commerce_inventory
+      ? [
+          {
+            id: 'stock',
+            label: 'Productos con bajo stock',
+            tone: 'red' as const,
+            value: String(props.metrics?.lowStockItems ?? 0),
+          },
+        ]
+      : []),
+    ...(flags.commerce_pos
+      ? [
+          {
+            id: 'sales',
+            label: 'Ventas (Semana)',
+            tone: 'green' as const,
+            value: formatWeeklySales(props.metrics?.weeklySalesCents ?? 0),
+          },
+        ]
+      : []),
   ];
   const connectionCopy = whatsappConnectionLabel(connection);
   const recentAlerts = buildWorkQueue(props.tasks, props.notifications).slice(0, 3);
+  const now = Date.now();
+  const upcomingAppointments = (props.appointments ?? [])
+    .filter((appointment) => new Date(appointment.startsAt).getTime() >= now)
+    .slice(0, 3);
 
   return (
     <ScreenContent collapseHeaderOnScroll={false}>
@@ -164,6 +181,45 @@ export function HomeScreen(props: {
           </View>
           <Icon color="#c7c7cc" kind="chevron-right" size={20} strokeWidth={2.4} />
         </Pressable>
+      </FeatureGate>
+
+      <FeatureGate feature="homeAppointments">
+        <ListBox
+          headerAction={
+            props.onOpenAppointments
+              ? { label: 'Ver agenda', onPress: props.onOpenAppointments }
+              : undefined
+          }
+          title="Próximos turnos"
+        >
+          {upcomingAppointments.length === 0 ? (
+            <Text style={styles.emptyBody}>No hay turnos próximos.</Text>
+          ) : null}
+          {upcomingAppointments.map((appointment, index) => (
+            <NotificationRow
+              key={appointment.id}
+              notification={{
+                id: appointment.id,
+                subtitle: appointment.contactLabel,
+                time: new Date(appointment.startsAt).toLocaleString('es-AR', {
+                  day: '2-digit',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  month: '2-digit',
+                }),
+                title: appointment.title,
+                tone: 'blue',
+                unread: false,
+              }}
+              onPress={
+                props.onOpenAppointment
+                  ? () => props.onOpenAppointment?.(appointment.id)
+                  : undefined
+              }
+              showDivider={index < upcomingAppointments.length - 1}
+            />
+          ))}
+        </ListBox>
       </FeatureGate>
 
       <FeatureGate feature="homeAlerts">

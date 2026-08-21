@@ -3,33 +3,50 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { IconKind } from '../components/icons';
 import { ActionRow, Card, ScreenContent, ScreenTitle } from '../components/ui';
+import { useOrganizationFlags } from '../hooks/useFeatureVisibility';
 import { colors } from '../theme';
 import type { OwnerDashboard } from '../types/dashboard';
 import { whatsappConnectionLabel } from '../lib/whatsappPresentation';
 
-type IntegrationId = 'whatsapp' | 'instagram' | 'email' | 'sms';
+type IntegrationId = 'whatsapp' | 'instagram' | 'facebook' | 'email' | 'sms';
 
 const INTEGRATIONS: Array<{
   comingSoon?: boolean;
+  flag?:
+    | 'integrations_whatsapp'
+    | 'integrations_instagram'
+    | 'integrations_messenger'
+    | 'integrations_email'
+    | 'integrations_sms';
   icon: IconKind;
   id: IntegrationId;
   subtitle: string;
   title: string;
 }> = [
   {
+    flag: 'integrations_whatsapp',
     icon: 'whatsapp',
     id: 'whatsapp',
     subtitle: 'Chats y mensajes con clientes',
     title: 'WhatsApp Business',
   },
   {
+    flag: 'integrations_instagram',
     icon: 'instagram',
     id: 'instagram',
     subtitle: 'Mensajes directos de Instagram',
     title: 'Instagram',
   },
   {
+    flag: 'integrations_messenger',
+    icon: 'facebook',
+    id: 'facebook',
+    subtitle: 'Mensajes de tu página en Messenger',
+    title: 'Facebook Messenger',
+  },
+  {
     comingSoon: true,
+    flag: 'integrations_email',
     icon: 'email',
     id: 'email',
     subtitle: 'Correo transaccional y campañas',
@@ -37,6 +54,7 @@ const INTEGRATIONS: Array<{
   },
   {
     comingSoon: true,
+    flag: 'integrations_sms',
     icon: 'message',
     id: 'sms',
     subtitle: 'Avisos y códigos por SMS',
@@ -46,11 +64,14 @@ const INTEGRATIONS: Array<{
 
 export function IntegrationsScreen(props: {
   onBack: () => void;
+  onOpenFacebook: () => void;
   onOpenInstagram: () => void;
   onOpenWhatsApp: () => void;
+  facebookConnection?: OwnerDashboard['facebookConnection'] | null;
   instagramConnection?: OwnerDashboard['instagramConnection'] | null;
   whatsappConnection: OwnerDashboard['whatsappConnection'] | null;
 }): ReactElement {
+  const flags = useOrganizationFlags();
   const connection = props.whatsappConnection ?? {
     status: 'not_configured' as const,
     phoneNumberId: null,
@@ -65,6 +86,11 @@ export function IntegrationsScreen(props: {
     ig?.status === 'connected'
       ? `Conectado · ${ig.igUsername ? `@${ig.igUsername}` : ig.igUserId ?? 'cuenta'}`
       : 'Mensajes directos de Instagram';
+  const fb = props.facebookConnection;
+  const fbSubtitle =
+    fb?.status === 'connected'
+      ? `Conectado · ${fb.pageName ?? fb.pageId ?? 'página'}`
+      : 'Mensajes de tu página en Messenger';
 
   return (
     <ScreenContent title="Integraciones">
@@ -78,7 +104,7 @@ export function IntegrationsScreen(props: {
       </View>
 
       <Card>
-        {INTEGRATIONS.map((item) => {
+        {INTEGRATIONS.filter((item) => !item.flag || flags[item.flag] === true).map((item) => {
           if (item.id === 'whatsapp') {
             return (
               <ActionRow
@@ -98,6 +124,18 @@ export function IntegrationsScreen(props: {
                 key={item.id}
                 onPress={props.onOpenInstagram}
                 subtitle={igSubtitle}
+                title={item.title}
+              />
+            );
+          }
+
+          if (item.id === 'facebook') {
+            return (
+              <ActionRow
+                icon={item.icon}
+                key={item.id}
+                onPress={props.onOpenFacebook}
+                subtitle={fbSubtitle}
                 title={item.title}
               />
             );

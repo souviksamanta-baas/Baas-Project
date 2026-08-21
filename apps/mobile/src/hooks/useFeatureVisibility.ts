@@ -1,12 +1,16 @@
 import { Fragment, createElement, type ReactElement, type ReactNode } from 'react';
 
 import { useOwnerSessionContext } from '../context/OwnerSessionProvider';
-import { DEFAULT_ORGANIZATION_FEATURE_FLAGS } from '../types/features';
+import {
+  resolveOrganizationFeatureFlags,
+  type OrganizationFeatureFlags,
+} from '../types/features';
 
 const defaultFeatureVisibility: Record<string, boolean> = {
   accountConnectedServices: true,
   accountProfile: true,
   accountSettings: true,
+  appointmentsScreen: false,
   chatComposer: true,
   chatMessages: true,
   chatProfileHeader: true,
@@ -19,6 +23,7 @@ const defaultFeatureVisibility: Record<string, boolean> = {
   copiVisionInput: false,
   copiVoiceInput: false,
   homeAlerts: true,
+  homeAppointments: false,
   homeAssistant: true,
   homeConversations: true,
   homeInventoryCta: true,
@@ -36,40 +41,66 @@ const defaultFeatureVisibility: Record<string, boolean> = {
   tasksScreen: true,
 };
 
-function resolveDashboardFeature(feature: string, dashboardFlags: Record<string, boolean | undefined>): boolean | undefined {
-  switch (feature) {
-    case 'copiComposer':
-    case 'copiQuestionComposer':
-    case 'copiQuickSummary':
-    case 'copiSuggestedQuestions':
-      return dashboardFlags.copi_enabled ?? true;
-    case 'copiVoiceInput':
-      return dashboardFlags.copi_voice ?? false;
-    case 'copiVisionInput':
-      return dashboardFlags.copi_vision ?? false;
-    case 'copiCustomReports':
-      return dashboardFlags.copi_custom_reports ?? false;
-    case 'copiProUpsell':
-      return !(dashboardFlags.copi_pro_agent ?? false);
-    default:
-      return undefined;
-  }
+function mapOrgFlagsToVisibility(
+  flags: Required<OrganizationFeatureFlags>,
+): Record<string, boolean> {
+  return {
+    accountConnectedServices: flags.account,
+    accountProfile: flags.account,
+    accountSettings: flags.account,
+    appointmentsScreen: flags.appointments,
+    chatComposer: flags.inbox,
+    chatMessages: flags.inbox,
+    chatProfileHeader: flags.inbox,
+    copiComposer: flags.copi_enabled,
+    copiCustomReports: flags.copi_custom_reports,
+    copiProUpsell: !flags.copi_pro_agent,
+    copiQuestionComposer: flags.copi_enabled,
+    copiQuickSummary: flags.copi_enabled,
+    copiSuggestedQuestions: flags.copi_enabled,
+    copiVisionInput: flags.copi_vision,
+    copiVoiceInput: flags.copi_voice,
+    homeAlerts: flags.notifications || flags.tasks,
+    homeAppointments: flags.appointments,
+    homeAssistant: flags.copi_enabled,
+    homeConversations: flags.inbox,
+    homeInventoryCta: flags.commerce_inventory,
+    homeMetrics: true,
+    inboxFilters: flags.inbox,
+    inboxSearch: flags.inbox,
+    inboxTabs: flags.inbox,
+    moreInventory:
+      flags.commerce_inventory ||
+      flags.commerce_lots ||
+      flags.commerce_pos ||
+      flags.commerce_purchases,
+    moreOperations:
+      flags.commerce_purchases ||
+      flags.billing_quotes ||
+      flags.billing_invoices ||
+      flags.billing_cash ||
+      flags.appointments,
+    moreQuickActions: false,
+    moreReports: false,
+    moreSettings: true,
+    notificationsFilters: flags.notifications,
+    notificationsList: flags.notifications,
+    tasksScreen: flags.tasks,
+  };
 }
 
 export function useFeatureVisibility(): Record<string, boolean> {
   const { dashboard } = useOwnerSessionContext();
-  const flags = {
-    ...DEFAULT_ORGANIZATION_FEATURE_FLAGS,
-    ...(dashboard?.features ?? {}),
+  const flags = resolveOrganizationFeatureFlags(dashboard?.features ?? null);
+  return {
+    ...defaultFeatureVisibility,
+    ...mapOrgFlagsToVisibility(flags),
   };
+}
 
-  const resolved: Record<string, boolean> = { ...defaultFeatureVisibility };
-  for (const [feature, defaultValue] of Object.entries(defaultFeatureVisibility)) {
-    const dashboardValue = resolveDashboardFeature(feature, flags);
-    resolved[feature] = dashboardValue ?? defaultValue;
-  }
-
-  return resolved;
+export function useOrganizationFlags(): Required<OrganizationFeatureFlags> {
+  const { dashboard } = useOwnerSessionContext();
+  return resolveOrganizationFeatureFlags(dashboard?.features ?? null);
 }
 
 export function isFeatureVisible(feature: string, visibility?: Record<string, boolean>): boolean {

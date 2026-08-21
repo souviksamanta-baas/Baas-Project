@@ -22,11 +22,15 @@ export interface OwnerNotification {
   createdAt: string;
   errorMessage: string | null;
   id: string;
-  notificationType: 'low_stock';
+  notificationType: string;
   payload: {
+    appointmentId?: string;
+    conversationId?: string;
+    invoiceId?: string;
     productId?: string;
     reorderThreshold?: number;
     stockQuantity?: number;
+    taskId?: string;
   };
   productId: string | null;
   productLabel: string | null;

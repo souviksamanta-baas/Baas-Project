@@ -29,6 +29,7 @@ export const routes = {
   businessSettings: '/(app)/business-settings',
   arcaSettings: '/(app)/arca-settings',
   tasks: '/(app)/tasks',
+  appointments: '/(app)/appointments',
   billing: '/(app)/billing',
   presupuestos: '/(app)/billing',
   invoices: '/(app)/invoices',
@@ -39,6 +40,7 @@ export const routes = {
   privacyData: '/(app)/privacy-data',
   browserSessionScan: '/(app)/browser-session-scan',
   instagramConnect: '/(app)/instagram-connect',
+  facebookConnect: '/(app)/facebook-connect',
 } as const;
 
 export type PresupuestoReturnTo =
@@ -131,6 +133,47 @@ export function taskDetailRoute(taskId: string, returnTo?: TaskReturnTo): string
   }
 
   return `${path}?returnTo=${returnTo}`;
+}
+
+export type AppointmentReturnTo = 'agenda' | 'home' | 'more';
+
+export function appointmentDetailRoute(
+  appointmentId: string,
+  returnTo?: AppointmentReturnTo,
+): string {
+  const path = `/(app)/appointments/${encodeURIComponent(appointmentId)}`;
+
+  if (!returnTo) {
+    return path;
+  }
+
+  return `${path}?returnTo=${returnTo}`;
+}
+
+export function parseAppointmentReturnTo(
+  value: string | string[] | undefined,
+): AppointmentReturnTo | undefined {
+  const raw = Array.isArray(value) ? value[0] : value;
+
+  if (raw === 'agenda' || raw === 'home' || raw === 'more') {
+    return raw;
+  }
+
+  return undefined;
+}
+
+export function resolveAppointmentReturnRoute(
+  returnTo: AppointmentReturnTo | undefined,
+): string {
+  if (returnTo === 'home') {
+    return routes.appHome;
+  }
+
+  if (returnTo === 'more') {
+    return routes.appMore;
+  }
+
+  return routes.appointments;
 }
 
 export type TaskReturnTo = 'tasks-portal' | 'notifications' | 'home';
@@ -437,6 +480,7 @@ export function shouldHideBottomNav(pathname: string): boolean {
     pathname.endsWith('/scan-code') ||
     pathname.endsWith('/browser-session-scan') ||
     /\/tasks\/[^/]+$/.test(pathname) ||
+    /\/appointments\/[^/]+$/.test(pathname) ||
     /\/presupuestos\/[^/]+$/.test(pathname) ||
     /\/invoices\/[^/]+$/.test(pathname) ||
     /\/product\/[^/]+\/code$/.test(pathname)

@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 
 import { SupabaseService } from '../../supabase/supabase.service';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { InstagramConnectionService } from './instagram-connection.service';
 import { InstagramEventProcessor } from './instagram-event-processor.service';
 import { InstagramHistorySyncService } from './instagram-history-sync.service';
@@ -15,6 +16,7 @@ import {
 import { InstagramWebhookService } from './instagram-webhook.service';
 
 @Module({
+  imports: [NotificationsModule],
   controllers: [
     InstagramController,
     InstagramOAuthRedirectController,

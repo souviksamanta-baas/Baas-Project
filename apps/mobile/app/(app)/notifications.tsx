@@ -23,6 +23,7 @@ export default function NotificationsRoute(): ReactElement {
       onOpenAlertProduct={(productId) => router.push(productDetailRoute(productId, 'notifications'))}
       onOpenTaskDetail={(taskId) => router.push(taskDetailRoute(taskId, 'notifications'))}
       onOpenTasks={() => router.push(tasksRoute())}
+      organizationId={organizationId}
       tasks={tasksState.tasks}
     />
   );

@@ -6,6 +6,12 @@ import {
   subscribeToConversationMessages,
 } from '../api/conversations';
 import {
+  getFacebookMessagingWindowState,
+  facebookWindowComposerCopy,
+  sendFacebookReply,
+  type FacebookMessagingWindowState,
+} from '../api/facebook';
+import {
   getInstagramMessagingWindowState,
   instagramWindowComposerCopy,
   sendInstagramReply,
@@ -68,7 +74,7 @@ export function useConversationThread(params: {
   errorMessage: string | null;
   isLoading: boolean;
   messages: WhatsAppMessagePreview[];
-  messagingWindowState: InstagramMessagingWindowState | null;
+  messagingWindowState: InstagramMessagingWindowState | FacebookMessagingWindowState | null;
   sendImageReply: (params: {
     caption?: string;
     imageBase64: string;
@@ -79,8 +85,9 @@ export function useConversationThread(params: {
   const [messages, setMessages] = useState<WhatsAppMessagePreview[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [messagingWindowState, setMessagingWindowState] =
-    useState<InstagramMessagingWindowState | null>(null);
+  const [messagingWindowState, setMessagingWindowState] = useState<
+    InstagramMessagingWindowState | FacebookMessagingWindowState | null
+  >(null);
 
   useEffect(() => {
     if (!params.conversationId) {
@@ -139,13 +146,22 @@ export function useConversationThread(params: {
   }, [params.businessCenterId, params.conversationId, params.organizationId]);
 
   useEffect(() => {
-    if (params.channel !== 'instagram' || !params.organizationId || !params.conversationId) {
+    if (
+      (params.channel !== 'instagram' && params.channel !== 'facebook') ||
+      !params.organizationId ||
+      !params.conversationId
+    ) {
       setMessagingWindowState(null);
       return;
     }
 
     let mounted = true;
-    getInstagramMessagingWindowState({
+    const fetchState =
+      params.channel === 'facebook'
+        ? getFacebookMessagingWindowState
+        : getInstagramMessagingWindowState;
+
+    fetchState({
       conversationId: params.conversationId,
       organizationId: params.organizationId,
     })
@@ -181,6 +197,16 @@ export function useConversationThread(params: {
         return;
       }
 
+      if (params.channel === 'facebook') {
+        await sendFacebookReply({
+          body,
+          businessCenterId: params.businessCenterId,
+          conversationId: params.conversationId,
+          organizationId: params.organizationId,
+        });
+        return;
+      }
+
       await sendConversationReply({
         body,
         businessCenterId: params.businessCenterId,
@@ -205,6 +231,12 @@ export function useConversationThread(params: {
         throw new Error('El envío de imágenes por Instagram llega en una próxima versión.');
       }
 
+      if (params.channel === 'facebook') {
+        throw new Error(
+          'El envío de imágenes por Facebook Messenger llega en una próxima versión.',
+        );
+      }
+
       await sendConversationImage({
         body: imageParams.caption,
         businessCenterId: params.businessCenterId,
@@ -217,10 +249,13 @@ export function useConversationThread(params: {
     [params.businessCenterId, params.channel, params.conversationId, params.organizationId],
   );
 
-  const windowCopy =
-    params.channel === 'instagram' && messagingWindowState
-      ? instagramWindowComposerCopy(messagingWindowState)
-      : null;
+  const windowCopy = messagingWindowState
+    ? params.channel === 'facebook'
+      ? facebookWindowComposerCopy(messagingWindowState as FacebookMessagingWindowState)
+      : params.channel === 'instagram'
+        ? instagramWindowComposerCopy(messagingWindowState as InstagramMessagingWindowState)
+        : null
+    : null;
 
   return {
     composerBlockedMessage: windowCopy?.blocked ? windowCopy.message : null,

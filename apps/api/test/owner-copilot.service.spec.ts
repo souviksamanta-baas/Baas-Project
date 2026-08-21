@@ -7,6 +7,7 @@ import { CopiLlmToolSelectorService } from '../src/domains/ai/copi-llm-tool-sele
 import { CopiToolRegistry } from '../src/domains/ai/copi-tool-registry';
 import { CopiSessionService } from '../src/domains/ai/copi-session.service';
 import { CopiActionService } from '../src/domains/ai/copi-action.service';
+import { AppointmentsService } from '../src/domains/appointments/appointments.service';
 import { InventoryService } from '../src/domains/inventory/inventory.service';
 import { TasksService } from '../src/domains/tasks/tasks.service';
 import { SupabaseService } from '../src/supabase/supabase.service';
@@ -89,7 +90,16 @@ function createOrchestrator(): {
     proposeAction: vi.fn(async () => null),
   } as unknown as CopiActionService;
 
-  const toolRegistry = new CopiToolRegistry(supabaseService, inventoryService, tasksService);
+  const appointmentsService = {
+    listAppointments: vi.fn(async () => []),
+  } as unknown as AppointmentsService;
+
+  const toolRegistry = new CopiToolRegistry(
+    supabaseService,
+    inventoryService,
+    tasksService,
+    appointmentsService,
+  );
   const toolSelectorService = new CopiLlmToolSelectorService();
   const phraserService = new CopiLlmPhraserService(policyService);
 

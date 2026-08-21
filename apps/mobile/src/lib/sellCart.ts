@@ -457,7 +457,42 @@ export async function updateSellQuote(
     return null;
   }
 
-  return mapSellQuoteRow(data as SellQuoteRow);
+  const quote = mapSellQuoteRow(data as SellQuoteRow);
+  if (updates.status === 'aceptado') {
+    void emitQuoteAcceptedNotification({
+      businessCenterId,
+      organizationId,
+      quoteId,
+      totalCents: getSellQuoteTotalCents(quote),
+    });
+  }
+
+  return quote;
+}
+
+async function emitQuoteAcceptedNotification(params: {
+  businessCenterId: string;
+  organizationId: string;
+  quoteId: string;
+  totalCents: number;
+}): Promise<void> {
+  try {
+    const { emitNotificationEvent } = await import('../api/notifications');
+    const amount = (params.totalCents / 100).toLocaleString('es-AR', {
+      maximumFractionDigits: 0,
+      minimumFractionDigits: 0,
+    });
+    await emitNotificationEvent({
+      body: `Presupuesto ${params.quoteId} aceptado por $${amount}`,
+      businessCenterId: params.businessCenterId,
+      organizationId: params.organizationId,
+      payload: { quoteId: params.quoteId },
+      sourceKey: `quote.accepted:${params.quoteId}`,
+      type: 'quote.accepted',
+    });
+  } catch {
+    // Non-blocking.
+  }
 }
 
 export async function saveSellQuote(

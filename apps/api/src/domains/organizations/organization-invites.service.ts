@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { createHash, randomBytes } from 'node:crypto';
 
 import {
@@ -8,6 +8,7 @@ import {
 } from '../../auth/request-auth.helper';
 import { SupabaseService } from '../../supabase/supabase.service';
 import { AuthSessionService } from '../auth/auth-session.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 export type OrganizationInviteRole = 'employee' | 'manager' | 'co_owner';
 
@@ -43,6 +44,7 @@ export class OrganizationInvitesService {
   constructor(
     private readonly supabaseService: SupabaseService,
     private readonly authSessionService: AuthSessionService,
+    @Optional() private readonly notificationsService?: NotificationsService,
   ) {}
 
   async createInvite(params: CreateOrganizationInviteParams): Promise<OrganizationInviteSummary> {
@@ -147,6 +149,26 @@ export class OrganizationInvitesService {
             ...existingMetadata,
             full_name: invitedDisplayName,
           },
+        });
+      }
+    }
+
+    if (this.notificationsService) {
+      const { data: center } = await client
+        .from('business_centers')
+        .select('id')
+        .eq('organization_id', organizationId)
+        .eq('is_active', true)
+        .order('is_default', { ascending: false })
+        .limit(1)
+        .maybeSingle<{ id: string }>();
+
+      if (center?.id) {
+        await this.notificationsService.notifyTeamInviteAccepted({
+          businessCenterId: center.id,
+          displayName: invitedDisplayName || 'Nuevo miembro',
+          organizationId,
+          userId: user.id,
         });
       }
     }

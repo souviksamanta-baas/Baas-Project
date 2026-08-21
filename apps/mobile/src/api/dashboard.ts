@@ -1,6 +1,16 @@
 import { supabase } from '../lib/supabase';
 import { normalizeNavShortcutId } from '../lib/navShortcut';
 import type { OwnerDashboard } from '../types/dashboard';
+import type { OrganizationFeatureFlags } from '../types/features';
+
+export type OrganizationVertical = {
+  description: string | null;
+  display_name: string;
+  id: string;
+  slug: string;
+  sort_order: number;
+  suggested_feature_flags: OrganizationFeatureFlags;
+};
 
 export async function getOwnerDashboard(): Promise<OwnerDashboard> {
   const { data, error } = await supabase.rpc('get_owner_dashboard');
@@ -15,6 +25,14 @@ export async function getOwnerDashboard(): Promise<OwnerDashboard> {
   }
 
   return dashboard;
+}
+
+export async function listOrganizationVerticals(): Promise<OrganizationVertical[]> {
+  const { data, error } = await supabase.rpc('list_organization_verticals');
+  if (error) {
+    throw new Error(error.message);
+  }
+  return (data ?? []) as OrganizationVertical[];
 }
 
 export async function listBusinessCenters(
@@ -36,11 +54,17 @@ export async function listBusinessCenters(
 
 export async function createOrganizationWithOwner(
   name: string,
-  options?: { navShortcut?: string },
+  options?: {
+    featureFlags?: OrganizationFeatureFlags;
+    navShortcut?: string;
+    verticalId?: string | null;
+  },
 ): Promise<string> {
   const { data, error } = await supabase.rpc('create_organization_with_owner', {
     org_name: name,
     org_timezone: Intl.DateTimeFormat().resolvedOptions().timeZone ?? 'UTC',
+    ...(options?.verticalId ? { org_vertical_id: options.verticalId } : {}),
+    ...(options?.featureFlags ? { org_feature_flags: options.featureFlags } : {}),
   });
 
   if (error) {

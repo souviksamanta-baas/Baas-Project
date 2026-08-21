@@ -16,6 +16,11 @@ import {
 import { normalizeEmail } from '../services/email';
 import { normalizePhoneNumber } from '../services/phone';
 import type { OwnerDashboard } from '../types/dashboard';
+import {
+  DEFAULT_ORGANIZATION_FEATURE_FLAGS,
+  resolveOrganizationFeatureFlags,
+  type OrganizationFeatureFlags,
+} from '../types/features';
 
 export type AuthPhase = 'loading' | 'unauthenticated' | 'pending_verify' | 'onboarding' | 'authenticated';
 
@@ -25,21 +30,29 @@ export interface OwnerSessionState {
   businessName: string;
   canSubmitLogin: boolean;
   dashboard: OwnerDashboard | null;
+  featureFlags: OrganizationFeatureFlags;
   isSubmitting: boolean;
   loginIdentifier: string;
   navShortcut: NavShortcutId;
   otpChannel: AuthOtpChannel;
   otpCode: string;
+  verticalId: string | null;
   requestOtp: () => Promise<boolean>;
   setBusinessName: (businessName: string) => void;
+  setFeatureFlags: (featureFlags: OrganizationFeatureFlags) => void;
   setLoginIdentifier: (loginIdentifier: string) => void;
   setNavShortcut: (navShortcut: NavShortcutId) => void;
   setOtpChannel: (channel: AuthOtpChannel) => void;
   setOtpCode: (otpCode: string) => void;
+  setVerticalId: (verticalId: string | null) => void;
   createOrganization: () => Promise<void>;
   refreshDashboard: () => Promise<void>;
   signOut: () => Promise<void>;
   verifyOtp: () => Promise<void>;
+}
+
+function initialFeatureFlags(): OrganizationFeatureFlags {
+  return { ...DEFAULT_ORGANIZATION_FEATURE_FLAGS };
 }
 
 export function useOwnerSession(): OwnerSessionState {
@@ -50,6 +63,8 @@ export function useOwnerSession(): OwnerSessionState {
   const [otpCode, setOtpCode] = useState('');
   const [businessName, setBusinessName] = useState('');
   const [navShortcut, setNavShortcut] = useState<NavShortcutId>('ventas');
+  const [verticalId, setVerticalId] = useState<string | null>(null);
+  const [featureFlags, setFeatureFlags] = useState<OrganizationFeatureFlags>(initialFeatureFlags);
   const [dashboard, setDashboard] = useState<OwnerDashboard | null>(null);
   const [isResolvingDashboard, setIsResolvingDashboard] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -219,7 +234,11 @@ export function useOwnerSession(): OwnerSessionState {
     setIsSubmitting(true);
 
     try {
-      await createOrganizationWithOwner(businessName.trim(), { navShortcut });
+      await createOrganizationWithOwner(businessName.trim(), {
+        featureFlags: resolveOrganizationFeatureFlags(featureFlags),
+        navShortcut,
+        verticalId,
+      });
       clearAuthEntryIntent();
       await bootstrapRoute(session);
     } catch (error) {
@@ -230,7 +249,7 @@ export function useOwnerSession(): OwnerSessionState {
     } finally {
       setIsSubmitting(false);
     }
-  }, [bootstrapRoute, businessName, navShortcut, session]);
+  }, [bootstrapRoute, businessName, featureFlags, navShortcut, session, verticalId]);
 
   const refreshDashboard = useCallback(async (): Promise<void> => {
     const { data } = await supabase.auth.getSession();
@@ -243,6 +262,8 @@ export function useOwnerSession(): OwnerSessionState {
     setOtpSent(false);
     setBusinessName('');
     setNavShortcut('ventas');
+    setVerticalId(null);
+    setFeatureFlags(initialFeatureFlags());
     clearAuthEntryIntent();
     await signOutOwner();
   }, []);
@@ -261,6 +282,14 @@ export function useOwnerSession(): OwnerSessionState {
     setNavShortcut(normalizeNavShortcutId(value));
   }, []);
 
+  const handleSetVerticalId = useCallback((value: string | null): void => {
+    setVerticalId(value && value.length > 0 ? value : null);
+  }, []);
+
+  const handleSetFeatureFlags = useCallback((next: OrganizationFeatureFlags): void => {
+    setFeatureFlags(resolveOrganizationFeatureFlags(next));
+  }, []);
+
   return useMemo(
     (): OwnerSessionState => ({
       authError,
@@ -269,6 +298,7 @@ export function useOwnerSession(): OwnerSessionState {
       canSubmitLogin,
       createOrganization,
       dashboard,
+      featureFlags,
       isSubmitting,
       loginIdentifier,
       navShortcut,
@@ -277,12 +307,15 @@ export function useOwnerSession(): OwnerSessionState {
       refreshDashboard,
       requestOtp,
       setBusinessName,
+      setFeatureFlags: handleSetFeatureFlags,
       setLoginIdentifier: handleSetLoginIdentifier,
       setNavShortcut: handleSetNavShortcut,
       setOtpChannel: handleSetOtpChannel,
       setOtpCode,
+      setVerticalId: handleSetVerticalId,
       signOut,
       verifyOtp,
+      verticalId,
     }),
     [
       authError,
@@ -291,9 +324,12 @@ export function useOwnerSession(): OwnerSessionState {
       canSubmitLogin,
       createOrganization,
       dashboard,
+      featureFlags,
+      handleSetFeatureFlags,
       handleSetLoginIdentifier,
       handleSetNavShortcut,
       handleSetOtpChannel,
+      handleSetVerticalId,
       isSubmitting,
       loginIdentifier,
       navShortcut,
@@ -303,6 +339,7 @@ export function useOwnerSession(): OwnerSessionState {
       requestOtp,
       signOut,
       verifyOtp,
+      verticalId,
     ],
   );
 }

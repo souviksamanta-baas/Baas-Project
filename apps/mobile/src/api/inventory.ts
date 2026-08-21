@@ -23,6 +23,7 @@ import {
 import { resolveUniqueProductSku } from '../lib/productSku';
 import {
   buildSaleMovementNote,
+  computeCartSubtotalCents,
   getCartLineSoldQuantity,
   type SellCartLine,
   type SellCheckoutDraft,
@@ -1003,6 +1004,47 @@ export async function confirmSale(
     if (movementError) {
       throw new Error(movementError.message);
     }
+  }
+
+  const totalCents = computeCartSubtotalCents(checkout.cart);
+  void emitSaleNotifications({
+    businessCenterId,
+    clientLabel: checkout.clientLabel,
+    organizationId,
+    totalCents,
+  });
+}
+
+async function emitSaleNotifications(params: {
+  businessCenterId: string;
+  clientLabel: string | null;
+  organizationId: string;
+  totalCents: number;
+}): Promise<void> {
+  try {
+    const { emitNotificationEvent } = await import('./notifications');
+    const amount = (params.totalCents / 100).toLocaleString('es-AR', {
+      maximumFractionDigits: 0,
+      minimumFractionDigits: 0,
+    });
+    const label = params.clientLabel?.trim() || 'Cliente';
+    const sourceKey = `sales.completed:${params.organizationId}:${params.businessCenterId}:${Date.now()}`;
+    await emitNotificationEvent({
+      body: `Venta a ${label} por $${amount}`,
+      businessCenterId: params.businessCenterId,
+      organizationId: params.organizationId,
+      sourceKey,
+      type: 'sales.completed',
+    });
+    await emitNotificationEvent({
+      body: `Pago recibido de ${label} por $${amount}`,
+      businessCenterId: params.businessCenterId,
+      organizationId: params.organizationId,
+      sourceKey: `payment.received:${sourceKey}`,
+      type: 'payment.received',
+    });
+  } catch {
+    // Non-blocking: sale already completed.
   }
 }
 

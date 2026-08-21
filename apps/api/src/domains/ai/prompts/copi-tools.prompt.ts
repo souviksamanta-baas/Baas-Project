@@ -43,8 +43,10 @@ If a Pro action is requested without Pro, the orchestrator already handles the d
 | mis tareas | \`my_tasks\` |
 | empleados / equipo | \`staff_roster\` |
 | qué atender hoy / resumen | \`attention_summary\` |
+| turnos hoy / agenda de hoy | \`appointments_today\` |
+| próximos turnos / agenda / citas | \`appointments_upcoming\` |
 | createTask()-like | Pro action proposal (not a read tool) |
-| getInvoices / createInvoice / getCash / registerPayment / sendWhatsApp / updateStock write / getAppointments / getReports custom | **NOT LIVE** — do not select |
+| getInvoices / createInvoice / getCash / registerPayment / sendWhatsApp / updateStock write / getReports custom | **NOT LIVE** — do not select |
 
 ## Read tools — when to use
 
@@ -87,6 +89,9 @@ Org members + roles.
 
 ### attention_summary
 General "qué tengo que atender" only — never for a specific sales question.
+
+### appointments_today / appointments_upcoming
+Turnos / citas / agenda. Only available when the org has the \`appointments\` feature flag on. Prefer \`appointments_today\` if the owner asks about hoy; otherwise \`appointments_upcoming\`.
 
 ## Sales payload contract (sales_*)
 
@@ -170,7 +175,7 @@ Rules:
 
 ## Pro write actions
 
-Not selected in the tools JSON array. Orchestrator executes \`create_task\` and \`create_presupuesto\` immediately (no confirm step). Other mutations (\`assign_task\`, \`reassign_task\`, \`complete_task\`, \`snooze_task\`, \`cancel_task\`) may still propose and ask for confirmation.
+Not selected in the tools JSON array. Orchestrator executes \`create_task\` and \`create_presupuesto\` immediately (no confirm step). Other mutations (\`assign_task\`, \`reassign_task\`, \`complete_task\`, \`snooze_task\`, \`cancel_task\`, \`appointment_create\`, \`appointment_update\`, \`appointment_assign\`) may still propose and ask for confirmation. Appointment actions require the \`appointments\` feature flag.
 
 When a write already ran, answer briefly with the result (and presupuesto link markup). Never say "listo, ya lo hice" for actions that still need confirmation.
 

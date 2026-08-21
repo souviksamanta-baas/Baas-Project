@@ -14,6 +14,8 @@ const FOLLOW_UP_DETAIL_PATTERN =
   /\b(mas detalles|detalles|mas info|cuales son|que productos|cantidad de cada|necesitaria|necesito mas|amplia|mostrame|de esas|de esos|de eso)\b/;
 const PRODUCT_EXPIRY_PATTERN =
   /\b(vencimiento|vencimientos|fecha de venc|caduc|caduca|caducidad|proxim[oa]s? a vencer)\b/;
+const APPOINTMENT_PATTERN =
+  /\b(turno|turnos|cita|citas|agenda|reserva|reservas|appointment|appointments)\b/;
 const GREETING_PATTERN =
   /\b(hola|buenas|buen dia|buenos dias|buenas tardes|buenas noches|que tal|como va|como andas)\b/;
 
@@ -44,6 +46,14 @@ export const COPI_TOOL_CATALOG: Array<{ description: string; name: CopiToolName 
   { description: 'Tareas filtradas por contacto/cliente', name: 'tasks_by_contact' },
   { description: 'Mis tareas asignadas', name: 'my_tasks' },
   { description: 'Integrantes del equipo', name: 'staff_roster' },
+  {
+    description: 'Próximos turnos (agenda) — para preguntas sobre turnos/citas/horarios.',
+    name: 'appointments_upcoming',
+  },
+  {
+    description: 'Turnos de hoy (agenda del día).',
+    name: 'appointments_today',
+  },
 ];
 
 export type CopiConversationTurn = {
@@ -179,6 +189,15 @@ export function selectCopiTools(
     tools.add('tasks_by_contact');
   }
 
+  const asksAppointments = APPOINTMENT_PATTERN.test(normalized);
+  if (asksAppointments && !wantsMutation) {
+    if (/\b(hoy|today)\b/.test(normalized)) {
+      tools.add('appointments_today');
+    } else {
+      tools.add('appointments_upcoming');
+    }
+  }
+
   return Array.from(tools);
 }
 
@@ -284,12 +303,17 @@ export function detectProActionIntent(question: string): boolean {
   // Keep conjugations in sync with inferCopiActionType / copi-task-parse
   // ("creas una tarea", "necesito que crees…", "creame…", "anotá…").
   return (
-    /\b(creas?|crear|creame|crees?|asign|assign|marca|marcar|complet|cancel|pospon|snooze|recorda|recordar|anota|anotar)\b/.test(
+    /\b(creas?|crear|creame|crees?|asign|assign|marca|marcar|complet|cancel|pospon|snooze|recorda|recordar|anota|anotar|reagenda|reagendar|reprograma|reprogramar|reservar|reservame)\b/.test(
       normalized,
     ) ||
     /\bnecesito\s+que\s+creas?\b/.test(normalized) ||
-    /\b(haceme|haga|hagan)\s+(una\s+)?tarea\b/.test(normalized)
+    /\b(haceme|haga|hagan)\s+(una\s+)?tarea\b/.test(normalized) ||
+    /\b(agenda(r|me)?|programa(r|me)?)\s+(un|una)?\s*(turno|cita)\b/.test(normalized)
   );
+}
+
+export function mentionsAppointmentIntent(question: string): boolean {
+  return APPOINTMENT_PATTERN.test(normalizeCopiQuestion(question));
 }
 
 export function wantsDetailedSalesList(
