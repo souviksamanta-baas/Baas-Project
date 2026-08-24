@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
-import { assertOrgMembership, resolveAuthUser } from '../../auth/request-auth.helper';
+import { assertOrgMembership, isOwnerOrCoOwner, resolveAuthUser } from '../../auth/request-auth.helper';
 import { encryptSecret } from '../../lib/token-crypto';
 import { SupabaseService } from '../../supabase/supabase.service';
 import type {
@@ -220,8 +220,8 @@ export class ArcaConnectionService {
       supabaseService: this.supabaseService,
       userId: user.id,
     });
-    if (role !== 'owner') {
-      throw new ForbiddenException('Solo el dueño puede configurar Facturación ARCA.');
+    if (!isOwnerOrCoOwner(role)) {
+      throw new ForbiddenException('Solo el dueño o un co-dueño puede configurar Facturación ARCA.');
     }
     return user.id;
   }

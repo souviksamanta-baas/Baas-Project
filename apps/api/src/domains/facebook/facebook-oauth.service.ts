@@ -9,6 +9,7 @@ import { ConfigService } from '@nestjs/config';
 
 import {
   assertOrgMembership,
+  isOwnerOrCoOwner,
   resolveAuthUser,
 } from '../../auth/request-auth.helper';
 import { decryptSecret, encryptSecret } from '../../lib/token-crypto';
@@ -48,8 +49,8 @@ export class FacebookOAuthService {
       supabaseService: this.supabaseService,
       userId: user.id,
     });
-    if (role !== 'owner') {
-      throw new BadRequestException('Solo el dueño puede conectar Facebook Messenger.');
+    if (!isOwnerOrCoOwner(role)) {
+      throw new BadRequestException('Solo el dueño o un co-dueño puede conectar Facebook Messenger.');
     }
 
     const appId = this.requireMetaAppId();
@@ -113,8 +114,8 @@ export class FacebookOAuthService {
       supabaseService: this.supabaseService,
       userId: user.id,
     });
-    if (role !== 'owner') {
-      throw new BadRequestException('Solo el dueño puede conectar Facebook Messenger.');
+    if (!isOwnerOrCoOwner(role)) {
+      throw new BadRequestException('Solo el dueño o un co-dueño puede conectar Facebook Messenger.');
     }
 
     const userToken = await this.exchangeCode(params.code);
@@ -194,8 +195,8 @@ export class FacebookOAuthService {
       supabaseService: this.supabaseService,
       userId: user.id,
     });
-    if (role !== 'owner') {
-      throw new BadRequestException('Solo el dueño puede desconectar Facebook Messenger.');
+    if (!isOwnerOrCoOwner(role)) {
+      throw new BadRequestException('Solo el dueño o un co-dueño puede desconectar Facebook Messenger.');
     }
 
     const client = this.supabaseService.getServiceRoleClient();

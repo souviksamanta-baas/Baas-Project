@@ -6,8 +6,13 @@ import {
 } from '@nestjs/common';
 
 import {
+  assertFoundingOwnerRole,
   assertOrgMembership,
+  assertOwnerOrCoOwnerRole,
+  isOwnerOrCoOwner,
+  normalizeOrganizationMemberRole,
   resolveAuthUser,
+  type OrganizationMemberRole,
 } from '../../auth/request-auth.helper';
 import { SupabaseService } from '../../supabase/supabase.service';
 
@@ -45,29 +50,6 @@ export class OrganizationLifecycleService {
     }
 
     const memberRows = data ?? [];
-    const memberIds = memberRows.map((row) => row.id as string);
-
-    const centerRoleByMemberId = new Map<string, 'manager' | 'staff'>();
-    if (memberIds.length > 0) {
-      const { data: centerRows, error: centerError } = await client
-        .from('business_center_members')
-        .select('organization_member_id, role')
-        .eq('organization_id', params.organizationId)
-        .in('organization_member_id', memberIds);
-
-      if (centerError) {
-        throw new Error(`Failed to list center roles: ${centerError.message}`);
-      }
-
-      for (const centerRow of centerRows ?? []) {
-        const memberId = centerRow.organization_member_id as string;
-        const centerRole = centerRow.role === 'manager' ? 'manager' : 'staff';
-        const current = centerRoleByMemberId.get(memberId);
-        if (!current || (centerRole === 'manager' && current !== 'manager')) {
-          centerRoleByMemberId.set(memberId, centerRole);
-        }
-      }
-    }
 
     const inviteNameByPhone = new Map<string, string>();
     const { data: invites } = await client
@@ -93,12 +75,8 @@ export class OrganizationLifecycleService {
     }> = [];
 
     for (const row of memberRows) {
-      const memberId = row.id as string;
       const userId = row.user_id as string;
-      const orgRole = row.role as string;
-      const centerRole = centerRoleByMemberId.get(memberId);
-      const role =
-        orgRole === 'owner' ? 'owner' : centerRole === 'manager' ? 'manager' : 'staff';
+      const role = normalizeOrganizationMemberRole(row.role as string);
 
       let displayName = 'Miembro';
       let email: string | null = null;
@@ -128,8 +106,9 @@ export class OrganizationLifecycleService {
     members.sort((a, b) => {
       const rank = (role: string): number => {
         if (role === 'owner') return 0;
-        if (role === 'manager') return 1;
-        return 2;
+        if (role === 'co_owner') return 1;
+        if (role === 'manager') return 2;
+        return 3;
       };
       const rankDiff = rank(a.role) - rank(b.role);
       if (rankDiff !== 0) {
@@ -347,7 +326,7 @@ export class OrganizationLifecycleService {
     organizationId: string;
     userId: string;
   }): Promise<{ removed: true }> {
-    const actor = await this.assertOwner(params);
+    const actor = await this.assertOwnerOrCoOwner(params);
 
     if (params.userId === actor.id) {
       throw new BadRequestException('No podés removerte a vos mismo. Usá salir del negocio.');
@@ -356,10 +335,10 @@ export class OrganizationLifecycleService {
     const client = this.supabaseService.getServiceRoleClient();
     const { data: memberRow, error: memberLookupError } = await client
       .from('organization_members')
-      .select('id')
+      .select('id, role')
       .eq('organization_id', params.organizationId)
       .eq('user_id', params.userId)
-      .maybeSingle<{ id: string }>();
+      .maybeSingle<{ id: string; role: string }>();
 
     if (memberLookupError) {
       throw new Error(`Failed to load member: ${memberLookupError.message}`);
@@ -367,6 +346,13 @@ export class OrganizationLifecycleService {
 
     if (!memberRow) {
       throw new NotFoundException('Ese miembro no pertenece al negocio.');
+    }
+
+    const targetRole = normalizeOrganizationMemberRole(memberRow.role);
+    if (targetRole === 'owner') {
+      throw new ForbiddenException(
+        'No se puede eliminar al dueño fundador del negocio.',
+      );
     }
 
     const { error: centerError } = await client
@@ -406,8 +392,8 @@ export class OrganizationLifecycleService {
       userId: user.id,
     });
 
-    if (role !== 'owner') {
-      throw new ForbiddenException('Solo el dueño puede exportar los datos del negocio.');
+    if (!isOwnerOrCoOwner(role)) {
+      throw new ForbiddenException('Solo el dueño o un co-dueño puede exportar los datos del negocio.');
     }
 
     const client = this.supabaseService.getServiceRoleClient();
@@ -506,7 +492,7 @@ export class OrganizationLifecycleService {
   private async assertOwner(params: {
     authorizationHeader: string | undefined;
     organizationId: string;
-  }): Promise<{ id: string }> {
+  }): Promise<{ id: string; role: OrganizationMemberRole }> {
     const user = await resolveAuthUser(this.supabaseService, params.authorizationHeader);
     const role = await assertOrgMembership({
       organizationId: params.organizationId,
@@ -514,9 +500,7 @@ export class OrganizationLifecycleService {
       userId: user.id,
     });
 
-    if (role !== 'owner') {
-      throw new ForbiddenException('Solo el dueño puede realizar esta acción.');
-    }
+    assertFoundingOwnerRole(role);
 
     const client = this.supabaseService.getServiceRoleClient();
     const { data } = await client
@@ -529,7 +513,34 @@ export class OrganizationLifecycleService {
       throw new NotFoundException('Negocio no encontrado.');
     }
 
-    return user;
+    return { id: user.id, role };
+  }
+
+  private async assertOwnerOrCoOwner(params: {
+    authorizationHeader: string | undefined;
+    organizationId: string;
+  }): Promise<{ id: string; role: OrganizationMemberRole }> {
+    const user = await resolveAuthUser(this.supabaseService, params.authorizationHeader);
+    const role = await assertOrgMembership({
+      organizationId: params.organizationId,
+      supabaseService: this.supabaseService,
+      userId: user.id,
+    });
+
+    assertOwnerOrCoOwnerRole(role);
+
+    const client = this.supabaseService.getServiceRoleClient();
+    const { data } = await client
+      .from('organizations')
+      .select('id, archived_at')
+      .eq('id', params.organizationId)
+      .maybeSingle<{ archived_at: string | null; id: string }>();
+
+    if (!data) {
+      throw new NotFoundException('Negocio no encontrado.');
+    }
+
+    return { id: user.id, role };
   }
 
   private async countOwners(organizationId: string): Promise<number> {

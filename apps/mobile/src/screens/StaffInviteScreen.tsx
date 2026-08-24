@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 
@@ -11,11 +11,12 @@ import {
   createStaffInvite,
   type StaffInviteRole,
 } from '../api/staffInvites';
+import { canInviteStaffRole } from '../lib/orgRoles';
 import { normalizePhoneNumber } from '../services/phone';
 import { colors } from '../theme';
 import type { OwnerDashboard } from '../types/dashboard';
 
-const ROLE_OPTIONS: Array<{ label: string; value: StaffInviteRole }> = [
+const ALL_ROLE_OPTIONS: Array<{ label: string; value: StaffInviteRole }> = [
   { label: 'Empleado', value: 'employee' },
   { label: 'Administrador', value: 'manager' },
   { label: 'Co-dueño', value: 'co_owner' },
@@ -25,13 +26,24 @@ export function StaffInviteScreen(props: {
   dashboard: OwnerDashboard;
   onBack: () => void;
 }): ReactElement {
-  const [role, setRole] = useState<StaffInviteRole>('manager');
+  const actorRole = props.dashboard.organization?.role ?? 'staff';
+  const roleOptions = useMemo(
+    () => ALL_ROLE_OPTIONS.filter((option) => canInviteStaffRole(actorRole, option.value)),
+    [actorRole],
+  );
+  const [role, setRole] = useState<StaffInviteRole>(
+    () => roleOptions[0]?.value ?? 'employee',
+  );
   const [phoneInput, setPhoneInput] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [contactPickerOpen, setContactPickerOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [inviteLink, setInviteLink] = useState<string | null>(null);
+
+  const selectedRole = roleOptions.some((option) => option.value === role)
+    ? role
+    : (roleOptions[0]?.value ?? 'employee');
 
   async function handleCreateInvite(): Promise<void> {
     const invitedPhoneE164 = normalizePhoneNumber(phoneInput);
@@ -53,6 +65,13 @@ export function StaffInviteScreen(props: {
       return;
     }
 
+    if (!canInviteStaffRole(actorRole, selectedRole)) {
+      setErrorMessage(
+        'Solo el dueño o un co-dueño puede invitar administradores o co-dueños.',
+      );
+      return;
+    }
+
     setIsSubmitting(true);
     setErrorMessage(null);
 
@@ -62,7 +81,7 @@ export function StaffInviteScreen(props: {
         invitedDisplayName: trimmedName,
         invitedPhoneE164,
         organizationId: props.dashboard.organization!.id,
-        role,
+        role: selectedRole,
       });
 
       setInviteLink(buildStaffInviteDeepLink(invite.inviteToken));
@@ -86,19 +105,31 @@ export function StaffInviteScreen(props: {
 
       <Card style={styles.formCard}>
         <Text style={styles.sectionLabel}>Rol</Text>
-        <View style={styles.roleRow}>
-          {ROLE_OPTIONS.map((option) => (
-            <Pressable
-              key={option.value}
-              onPress={() => setRole(option.value)}
-              style={[styles.roleChip, role === option.value && styles.roleChipActive]}
-            >
-              <Text style={[styles.roleChipText, role === option.value && styles.roleChipTextActive]}>
-                {option.label}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
+        {roleOptions.length === 0 ? (
+          <Text style={styles.errorText}>No tenés permiso para invitar miembros.</Text>
+        ) : (
+          <View style={styles.roleRow}>
+            {roleOptions.map((option) => (
+              <Pressable
+                key={option.value}
+                onPress={() => setRole(option.value)}
+                style={[
+                  styles.roleChip,
+                  selectedRole === option.value && styles.roleChipActive,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.roleChipText,
+                    selectedRole === option.value && styles.roleChipTextActive,
+                  ]}
+                >
+                  {option.label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        )}
 
         <Pressable onPress={() => setContactPickerOpen(true)} style={styles.contactLink}>
           <Text style={styles.contactLinkText}>+ Agregar desde contactos</Text>
@@ -122,7 +153,7 @@ export function StaffInviteScreen(props: {
         {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
 
         <PrimaryButton
-          disabled={isSubmitting}
+          disabled={isSubmitting || roleOptions.length === 0}
           fullWidth
           label={isSubmitting ? 'Generando…' : 'Generar QR'}
           onPress={() => void handleCreateInvite()}
@@ -133,7 +164,7 @@ export function StaffInviteScreen(props: {
         <Card style={styles.qrCard}>
           <Text style={styles.qrTitle}>QR de invitación</Text>
           <Text style={styles.qrBody}>
-            Rol: {ROLE_OPTIONS.find((option) => option.value === role)?.label ?? role}. La persona
+            Rol: {ALL_ROLE_OPTIONS.find((option) => option.value === selectedRole)?.label ?? selectedRole}. La persona
             debe verificar el mismo número ({phoneInput}) al escanear el código.
           </Text>
           <View style={styles.qrWrap}>

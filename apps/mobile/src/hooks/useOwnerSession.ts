@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert } from 'react-native';
+import { Alert, AppState, type AppStateStatus } from 'react-native';
 import type { Session } from '@supabase/supabase-js';
 
 import { clearAuthEntryIntent } from '../services/authIntent';
@@ -21,6 +21,22 @@ import {
   resolveOrganizationFeatureFlags,
   type OrganizationFeatureFlags,
 } from '../types/features';
+
+function isInvalidSessionError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error ?? '');
+  const normalized = message.toLowerCase();
+  return (
+    normalized.includes('jwt') ||
+    normalized.includes('session') ||
+    normalized.includes('not authenticated') ||
+    normalized.includes('invalid claim') ||
+    normalized.includes('user not found') ||
+    normalized.includes('user_not_found') ||
+    normalized.includes('refresh_token') ||
+    normalized.includes('401') ||
+    normalized.includes('403')
+  );
+}
 
 export type AuthPhase = 'loading' | 'unauthenticated' | 'pending_verify' | 'onboarding' | 'authenticated';
 
@@ -79,6 +95,14 @@ export function useOwnerSession(): OwnerSessionState {
     return normalizeEmail(loginIdentifier) !== null;
   }, [loginIdentifier, otpChannel]);
 
+  const clearLocalSession = useCallback(async (): Promise<void> => {
+    setSession(null);
+    setDashboard(null);
+    setOtpSent(false);
+    clearAuthEntryIntent();
+    await signOutOwner();
+  }, []);
+
   const bootstrapRoute = useCallback(async (
     nextSession: Session | null,
     options?: { silent?: boolean },
@@ -95,15 +119,28 @@ export function useOwnerSession(): OwnerSessionState {
     }
 
     try {
+      // getSession can keep a zombie JWT after the Auth user was deleted (member remove).
+      // getUser() hits the Auth server and fails for purged accounts.
+      const { data: userData, error: userError } = await supabase.auth.getUser();
+      if (userError || !userData.user) {
+        await clearLocalSession();
+        return;
+      }
+
       const nextDashboard = await getOwnerDashboard();
       setDashboard(nextDashboard);
       setOtpSent(false);
+    } catch (error) {
+      setDashboard(null);
+      if (isInvalidSessionError(error)) {
+        await clearLocalSession();
+      }
     } finally {
       if (!silent) {
         setIsResolvingDashboard(false);
       }
     }
-  }, []);
+  }, [clearLocalSession]);
 
   useEffect(() => {
     let mounted = true;
@@ -115,9 +152,7 @@ export function useOwnerSession(): OwnerSessionState {
       }
 
       if (error) {
-        await signOutOwner();
-        setSession(null);
-        setDashboard(null);
+        await clearLocalSession();
         setBootstrapped(true);
         return;
       }
@@ -137,18 +172,37 @@ export function useOwnerSession(): OwnerSessionState {
 
       // USER_UPDATED (e.g. avatar/profile metadata) must not flip auth to loading
       // or the navigation stack resets back to Home.
-      if (event === 'USER_UPDATED' || event === 'TOKEN_REFRESHED') {
+      if (event === 'USER_UPDATED') {
         return;
       }
 
-      void bootstrapRoute(nextSession);
+      // TOKEN_REFRESHED / SIGNED_IN / etc.: re-check membership + Auth user existence.
+      void bootstrapRoute(nextSession, { silent: event === 'TOKEN_REFRESHED' });
     });
+
+    const onAppStateChange = (status: AppStateStatus): void => {
+      if (status !== 'active') {
+        return;
+      }
+
+      void (async () => {
+        const { data } = await supabase.auth.getSession();
+        if (!mounted || !data.session) {
+          return;
+        }
+
+        await bootstrapRoute(data.session, { silent: true });
+      })();
+    };
+
+    const appStateSubscription = AppState.addEventListener('change', onAppStateChange);
 
     return () => {
       mounted = false;
       subscription.unsubscribe();
+      appStateSubscription.remove();
     };
-  }, [bootstrapRoute]);
+  }, [bootstrapRoute, clearLocalSession]);
 
   const authPhase = useMemo((): AuthPhase => {
     if (!bootstrapped || isResolvingDashboard) {

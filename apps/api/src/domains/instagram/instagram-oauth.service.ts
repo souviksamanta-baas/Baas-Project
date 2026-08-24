@@ -9,6 +9,7 @@ import { ConfigService } from '@nestjs/config';
 
 import {
   assertOrgMembership,
+  isOwnerOrCoOwner,
   resolveAuthUser,
 } from '../../auth/request-auth.helper';
 import { decryptSecret, encryptSecret } from '../../lib/token-crypto';
@@ -47,8 +48,8 @@ export class InstagramOAuthService {
       supabaseService: this.supabaseService,
       userId: user.id,
     });
-    if (role !== 'owner') {
-      throw new BadRequestException('Solo el dueño puede conectar Instagram.');
+    if (!isOwnerOrCoOwner(role)) {
+      throw new BadRequestException('Solo el dueño o un co-dueño puede conectar Instagram.');
     }
 
     const appId = this.requireInstagramAppId();
@@ -111,8 +112,8 @@ export class InstagramOAuthService {
       supabaseService: this.supabaseService,
       userId: user.id,
     });
-    if (role !== 'owner') {
-      throw new BadRequestException('Solo el dueño puede conectar Instagram.');
+    if (!isOwnerOrCoOwner(role)) {
+      throw new BadRequestException('Solo el dueño o un co-dueño puede conectar Instagram.');
     }
 
     const shortLived = await this.exchangeCode(params.code);
@@ -204,8 +205,8 @@ export class InstagramOAuthService {
       supabaseService: this.supabaseService,
       userId: user.id,
     });
-    if (role !== 'owner') {
-      throw new BadRequestException('Solo el dueño puede desconectar Instagram.');
+    if (!isOwnerOrCoOwner(role)) {
+      throw new BadRequestException('Solo el dueño o un co-dueño puede desconectar Instagram.');
     }
 
     const client = this.supabaseService.getServiceRoleClient();

@@ -26,8 +26,8 @@ export function ProfileChromeProvider(props: { children: ReactNode }): ReactElem
   const [fullName, setFullName] = useState('');
 
   const refreshProfile = useCallback(async (): Promise<void> => {
-    const { data } = await supabase.auth.getUser();
-    const user = data.user;
+    const { data, error } = await supabase.auth.getUser();
+    const user = error ? null : data.user;
     setAvatarUrl(readAvatarUrlFromUser(user));
     setFullName(String(user?.user_metadata?.full_name ?? '').trim());
   }, []);

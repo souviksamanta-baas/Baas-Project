@@ -3,6 +3,7 @@ import type { ReactElement } from 'react';
 
 import { useOwnerSessionContext } from '../../src/context/OwnerSessionProvider';
 import { useProfileChrome } from '../../src/context/ProfileChromeProvider';
+import { canManageBusinessSettings } from '../../src/lib/orgRoles';
 import { routes } from '../../src/navigation/routes';
 import { AccountScreen } from '../../src/screens/AccountScreen';
 
@@ -18,7 +19,7 @@ export default function AccountRoute(): ReactElement {
   const router = useRouter();
   const { dashboard, signOut } = useOwnerSessionContext();
   const profile = useProfileChrome();
-  const isOwner = dashboard?.organization?.role === 'owner';
+  const isOwnerOrCoOwner = canManageBusinessSettings(dashboard?.organization?.role);
 
   return (
     <AccountScreen
@@ -26,7 +27,7 @@ export default function AccountRoute(): ReactElement {
       businessName={dashboard?.organization?.name ?? null}
       fullName={profile.fullName}
       onOpenBusinessSettings={
-        isOwner
+        isOwnerOrCoOwner
           ? () => {
               router.push(routes.businessSettings);
             }

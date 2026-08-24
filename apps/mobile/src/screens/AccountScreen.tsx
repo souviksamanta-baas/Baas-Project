@@ -4,21 +4,10 @@ import { Alert, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Icon } from '../components/icons';
 import { ActionRow, Card, ScreenContent, ScreenTitle } from '../components/ui';
 import { FeatureGate } from '../hooks/useFeatureVisibility';
+import { canManageBusinessSettings, memberRoleLabel } from '../lib/orgRoles';
 import type { OwnerDashboard } from '../types/dashboard';
 import { whatsappConnectionLabel } from '../lib/whatsappPresentation';
 import { colors, shadows } from '../theme';
-
-function roleLabel(role: string | null | undefined): string {
-  if (role === 'owner') {
-    return 'Dueño';
-  }
-
-  if (role === 'manager' || role === 'co_owner') {
-    return 'Administrador';
-  }
-
-  return 'Equipo';
-}
 
 function initialsFromName(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -64,7 +53,7 @@ export function AccountScreen(props: {
   const connectionCopy = whatsappConnectionLabel(connection);
   const displayName = props.fullName.trim() || 'Tu nombre';
   const initials = initialsFromName(displayName);
-  const canManageBusiness = props.role === 'owner';
+  const canManageBusiness = canManageBusinessSettings(props.role);
 
   async function handleUploadAvatar(): Promise<void> {
     try {
@@ -102,7 +91,7 @@ export function AccountScreen(props: {
           <View style={styles.flex}>
             <Text style={styles.profileName}>{displayName}</Text>
             <Text style={styles.profileLine}>{props.businessName ?? 'Tu negocio'}</Text>
-            <Text style={styles.profileLine}>{roleLabel(props.role)}</Text>
+            <Text style={styles.profileLine}>{memberRoleLabel(props.role)}</Text>
           </View>
         </View>
       </FeatureGate>

@@ -33,6 +33,7 @@ import {
   type NavShortcutId,
 } from '../lib/navShortcut';
 import { buildTimezoneOptions, formatTimezoneOptionLabel } from '../lib/timezones';
+import { memberRoleLabel } from '../lib/orgRoles';
 import { colors } from '../theme';
 
 type EditSection = 'name' | 'email' | 'address' | 'timezone' | 'navShortcut' | null;
@@ -72,16 +73,6 @@ function formatAddress(profile: OrganizationProfile): string {
   ].filter(Boolean);
 
   return parts.length > 0 ? parts.join(', ') : 'Sin dirección';
-}
-
-function memberRoleLabel(role: string): string {
-  if (role === 'owner') {
-    return 'Dueño';
-  }
-  if (role === 'manager' || role === 'co_owner') {
-    return 'Administrador';
-  }
-  return 'Equipo';
 }
 
 export function BusinessSettingsScreen(props: {

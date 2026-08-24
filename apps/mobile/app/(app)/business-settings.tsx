@@ -2,6 +2,7 @@ import { useRouter } from 'expo-router';
 import { useEffect, type ReactElement } from 'react';
 
 import { useOwnerSessionContext } from '../../src/context/OwnerSessionProvider';
+import { canManageBusinessSettings } from '../../src/lib/orgRoles';
 import { routes } from '../../src/navigation/routes';
 import { BusinessSettingsScreen } from '../../src/screens/BusinessSettingsScreen';
 import { LoadingScreen } from '../../src/screens/LoadingScreen';
@@ -10,15 +11,15 @@ export default function BusinessSettingsRoute(): ReactElement {
   const router = useRouter();
   const { dashboard, refreshDashboard } = useOwnerSessionContext();
   const organization = dashboard?.organization;
-  const isOwner = organization?.role === 'owner';
+  const canManage = canManageBusinessSettings(organization?.role);
 
   useEffect(() => {
-    if (organization && !isOwner) {
+    if (organization && !canManage) {
       router.replace(routes.account);
     }
-  }, [isOwner, organization, router]);
+  }, [canManage, organization, router]);
 
-  if (!organization || !isOwner) {
+  if (!organization || !canManage) {
     return <LoadingScreen />;
   }
 

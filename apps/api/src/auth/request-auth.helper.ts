@@ -39,18 +39,20 @@ export async function resolveUserId(
   return user.id;
 }
 
+export type OrganizationMemberRole = 'owner' | 'co_owner' | 'manager' | 'staff';
+
 export async function assertOrgMembership(params: {
   organizationId: string;
   supabaseService: SupabaseService;
   userId: string;
-}): Promise<'owner' | 'staff'> {
+}): Promise<OrganizationMemberRole> {
   const client = params.supabaseService.getServiceRoleClient();
   const { data, error } = await client
     .from('organization_members')
     .select('role')
     .eq('organization_id', params.organizationId)
     .eq('user_id', params.userId)
-    .maybeSingle<{ role: 'owner' | 'staff' }>();
+    .maybeSingle<{ role: string }>();
 
   if (error) {
     throw new Error(`Failed to verify organization membership: ${error.message}`);
@@ -60,7 +62,31 @@ export async function assertOrgMembership(params: {
     throw new ForbiddenException('Not a member of this organization');
   }
 
-  return data.role;
+  return normalizeOrganizationMemberRole(data.role);
+}
+
+export function normalizeOrganizationMemberRole(role: string | null | undefined): OrganizationMemberRole {
+  if (role === 'owner' || role === 'co_owner' || role === 'manager') {
+    return role;
+  }
+  return 'staff';
+}
+
+/** Founding dueño or co-dueño — full operational control except some founding-owner protections. */
+export function isOwnerOrCoOwner(role: OrganizationMemberRole): boolean {
+  return role === 'owner' || role === 'co_owner';
+}
+
+export function assertOwnerOrCoOwnerRole(role: OrganizationMemberRole): void {
+  if (!isOwnerOrCoOwner(role)) {
+    throw new ForbiddenException('Solo el dueño o un co-dueño puede realizar esta acción.');
+  }
+}
+
+export function assertFoundingOwnerRole(role: OrganizationMemberRole): void {
+  if (role !== 'owner') {
+    throw new ForbiddenException('Solo el dueño puede realizar esta acción.');
+  }
 }
 
 /** Phone used for platform auth (E.164), never trust client-supplied values. */

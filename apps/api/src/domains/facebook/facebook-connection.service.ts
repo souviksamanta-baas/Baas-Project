@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
-import { resolveAuthUser, assertOrgMembership } from '../../auth/request-auth.helper';
+import { assertOrgMembership, isOwnerOrCoOwner, resolveAuthUser } from '../../auth/request-auth.helper';
 import { encryptSecret } from '../../lib/token-crypto';
 import { SupabaseService } from '../../supabase/supabase.service';
 import type { FacebookConnectionSummary } from './facebook-connection.types';
@@ -29,8 +29,8 @@ export class FacebookConnectionService {
       supabaseService: this.supabaseService,
       userId: user.id,
     });
-    if (role !== 'owner') {
-      throw new Error('Only organization owners can register Facebook connections');
+    if (!isOwnerOrCoOwner(role)) {
+      throw new Error('Only organization owners or co-owners can register Facebook connections');
     }
 
     const businessCenterId = await this.getDefaultBusinessCenterId(params.organizationId);

@@ -4,6 +4,7 @@ import type { ReactElement } from 'react';
 import { useOwnerSessionContext } from '../../../src/context/OwnerSessionProvider';
 import { useProfileChrome } from '../../../src/context/ProfileChromeProvider';
 import type { AccountMenuActionId, MoreMenuRowId } from '../../../src/lib/moreMenu';
+import { canManageBusinessSettings } from '../../../src/lib/orgRoles';
 import { whatsappConnectionLabel } from '../../../src/lib/whatsappPresentation';
 import {
   productAddRoute,
@@ -23,7 +24,7 @@ export default function MoreRoute(): ReactElement {
   const router = useRouter();
   const { dashboard, signOut } = useOwnerSessionContext();
   const profile = useProfileChrome();
-  const isOwner = dashboard?.organization?.role === 'owner';
+  const canManageBusiness = canManageBusinessSettings(dashboard?.organization?.role);
   const connection = dashboard?.whatsappConnection ?? {
     status: 'not_configured' as const,
     phoneNumberId: null,
@@ -101,7 +102,7 @@ export default function MoreRoute(): ReactElement {
         router.push(routes.staffInvite);
         return;
       case 'business-settings':
-        if (isOwner) {
+        if (canManageBusiness) {
           router.push(routes.businessSettings);
         }
         return;
@@ -120,7 +121,7 @@ export default function MoreRoute(): ReactElement {
     <MoreScreen
       avatarUrl={profile.avatarUrl}
       businessName={dashboard?.organization?.name ?? null}
-      canManageBusiness={isOwner}
+      canManageBusiness={canManageBusiness}
       fullName={profile.fullName}
       onAccountAction={openAccountAction}
       onOpenRow={openRow}

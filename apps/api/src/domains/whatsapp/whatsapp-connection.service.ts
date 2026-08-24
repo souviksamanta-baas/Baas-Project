@@ -23,7 +23,7 @@ interface WhatsAppConnectionRecord {
 }
 
 interface MembershipRow {
-  role: 'owner' | 'staff';
+  role: 'owner' | 'co_owner' | 'manager' | 'staff';
 }
 
 interface MetaPhoneNumberResponse {
@@ -189,8 +189,8 @@ export class WhatsAppConnectionService {
       throw new Error('User is not a member of this organization');
     }
 
-    if (data.role !== 'owner') {
-      throw new Error('Only organization owners can register WhatsApp connections');
+    if (data.role !== 'owner' && data.role !== 'co_owner') {
+      throw new Error('Only organization owners or co-owners can register WhatsApp connections');
     }
   }
 

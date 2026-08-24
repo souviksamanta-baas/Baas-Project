@@ -31,7 +31,7 @@ export function PrivacyDataScreen(props: {
   onBack: () => void;
   onSignedOut: () => Promise<void>;
   organizationId: string | null;
-  role: 'owner' | 'manager' | 'staff' | null;
+  role: 'owner' | 'co_owner' | 'manager' | 'staff' | null;
 }): ReactElement {
   const [confirmation, setConfirmation] = useState('');
   const [members, setMembers] = useState<

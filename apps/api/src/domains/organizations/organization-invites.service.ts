@@ -1,10 +1,17 @@
-import { Injectable, Optional } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  Optional,
+} from '@nestjs/common';
 import { createHash, randomBytes } from 'node:crypto';
 
 import {
+  assertOrgMembership,
+  isOwnerOrCoOwner,
   normalizeAuthPhoneE164,
   phoneFromAuthUser,
   resolveAuthUser,
+  type OrganizationMemberRole,
 } from '../../auth/request-auth.helper';
 import { SupabaseService } from '../../supabase/supabase.service';
 import { AuthSessionService } from '../auth/auth-session.service';
@@ -48,17 +55,20 @@ export class OrganizationInvitesService {
   ) {}
 
   async createInvite(params: CreateOrganizationInviteParams): Promise<OrganizationInviteSummary> {
-    const createdBy = await this.assertOwner({
+    const actor = await this.resolveInviteActor({
       authorizationHeader: params.authorizationHeader,
       organizationId: params.organizationId,
     });
 
-    const inviteToken = randomBytes(24).toString('hex');
-    const tokenHash = createHash('sha256').update(inviteToken).digest('hex');
-    const expiresAt = new Date(Date.now() + 72 * 60 * 60 * 1000).toISOString();
     if (!isOrganizationInviteRole(params.role)) {
       throw new Error('Rol de invitación inválido. Elegí Empleado, Administrador o Co-dueño.');
     }
+
+    assertCanInviteRole(actor.role, params.role);
+
+    const inviteToken = randomBytes(24).toString('hex');
+    const tokenHash = createHash('sha256').update(inviteToken).digest('hex');
+    const expiresAt = new Date(Date.now() + 72 * 60 * 60 * 1000).toISOString();
     const { orgRole, centerRole } = mapInviteRole(params.role);
     const businessCenterIds = resolveBusinessCenterIds(params);
 
@@ -75,7 +85,7 @@ export class OrganizationInvitesService {
         center_role: centerRole,
         token_hash: tokenHash,
         expires_at: expiresAt,
-        created_by: createdBy,
+        created_by: actor.userId,
       })
       .select('id, organization_id, invited_phone_e164, invited_display_name, expires_at')
       .single<{
@@ -176,31 +186,42 @@ export class OrganizationInvitesService {
     return { organizationId };
   }
 
-  private async assertOwner(params: {
+  private async resolveInviteActor(params: {
     authorizationHeader: string | undefined;
     organizationId: string;
-  }): Promise<string> {
+  }): Promise<{ role: OrganizationMemberRole; userId: string }> {
     const userId = await this.authSessionService.getUserIdFromBearerToken(
       params.authorizationHeader,
     );
-    const client = this.supabaseService.getServiceRoleClient();
-    const { data, error } = await client
-      .from('organization_members')
-      .select('role')
-      .eq('organization_id', params.organizationId)
-      .eq('user_id', userId)
-      .maybeSingle<{ role: 'owner' | 'staff' }>();
+    const role = await assertOrgMembership({
+      organizationId: params.organizationId,
+      supabaseService: this.supabaseService,
+      userId,
+    });
 
-    if (error) {
-      throw new Error(`Failed to verify organization membership: ${error.message}`);
+    if (role === 'staff') {
+      throw new ForbiddenException('No tenés permiso para invitar miembros.');
     }
 
-    if (!data || data.role !== 'owner') {
-      throw new Error('Only organization owners can manage invites.');
-    }
-
-    return userId;
+    return { role, userId };
   }
+}
+
+function assertCanInviteRole(
+  actorRole: OrganizationMemberRole,
+  inviteRole: OrganizationInviteRole,
+): void {
+  if (isOwnerOrCoOwner(actorRole)) {
+    return;
+  }
+
+  if (actorRole === 'manager' && inviteRole === 'employee') {
+    return;
+  }
+
+  throw new ForbiddenException(
+    'Solo el dueño o un co-dueño puede invitar administradores o co-dueños. Un administrador solo puede invitar empleados.',
+  );
 }
 
 function mapInviteRpcError(message: string): string {
@@ -233,13 +254,13 @@ function isOrganizationInviteRole(role: unknown): role is OrganizationInviteRole
 
 function mapInviteRole(role: OrganizationInviteRole): {
   centerRole: 'manager' | 'staff';
-  orgRole: 'owner' | 'staff';
+  orgRole: 'co_owner' | 'manager' | 'staff';
 } {
   switch (role) {
     case 'co_owner':
-      return { orgRole: 'staff', centerRole: 'manager' };
+      return { orgRole: 'co_owner', centerRole: 'manager' };
     case 'manager':
-      return { orgRole: 'staff', centerRole: 'manager' };
+      return { orgRole: 'manager', centerRole: 'manager' };
     case 'employee':
       return { orgRole: 'staff', centerRole: 'staff' };
   }
