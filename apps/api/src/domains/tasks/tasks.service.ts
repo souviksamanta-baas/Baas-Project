@@ -32,6 +32,8 @@ export interface OwnerTaskRecord {
   assignedToUserId: string | null;
   businessCenterId: string;
   contactId: string | null;
+  /** Present when list query joins contacts — avoids a client round-trip. */
+  contactLabel?: string | null;
   conversationId: string | null;
   createdByUserId: string | null;
   description: string | null;
@@ -190,7 +192,7 @@ export class TasksService {
       )
       .eq('organization_id', params.organizationId)
       .order('due_at', { ascending: true, nullsFirst: false })
-      .limit(params.limit ?? 200);
+      .limit(params.limit ?? 50);
 
     if (params.statuses?.length) {
       query = query.in('status', params.statuses);
@@ -1038,10 +1040,19 @@ function getContact(conversation: ConversationRow): ContactRow | null {
 }
 
 function toOwnerTaskRecord(row: Record<string, unknown>): OwnerTaskRecord {
+  const contacts = row.contacts as
+    | { display_name: string | null; phone_number: string | null }
+    | Array<{ display_name: string | null; phone_number: string | null }>
+    | null
+    | undefined;
+  const contact = Array.isArray(contacts) ? contacts[0] : contacts;
+  const contactLabel = contact?.display_name ?? contact?.phone_number ?? null;
+
   return {
     assignedToUserId: (row.assigned_to_user_id as string | null) ?? null,
     businessCenterId: (row.business_center_id as string | null) ?? '',
     contactId: (row.contact_id as string | null) ?? null,
+    contactLabel,
     conversationId: (row.conversation_id as string | null) ?? null,
     createdByUserId: (row.created_by_user_id as string | null) ?? null,
     description: (row.description as string | null) ?? null,

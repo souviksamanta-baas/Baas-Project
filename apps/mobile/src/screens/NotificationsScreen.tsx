@@ -18,14 +18,13 @@ import {
   formatWorkQueueTime,
   type WorkQueueFilter,
 } from '../lib/workQueue';
-import type { OwnerNotification, OwnerTask } from '../types/tasks';
+import type { OwnerNotification } from '../types/tasks';
 import { colors } from '../theme';
 
 const FILTERS: Array<{ id: WorkQueueFilter | 'unread'; label: string }> = [
   { id: 'all', label: 'Todas' },
   { id: 'unread', label: 'No leídas' },
   { id: 'stock', label: 'Stock' },
-  { id: 'follow_up', label: 'Seguimientos' },
 ];
 
 const LEAD_OPTIONS: ReminderLeadMinutes[] = [15, 30, 60];
@@ -40,7 +39,6 @@ export function NotificationsScreen(props: {
   onOpenTaskDetail: (taskId: string) => void;
   onOpenTasks: () => void;
   organizationId?: string | null;
-  tasks: OwnerTask[];
 }): ReactElement {
   const [activeFilter, setActiveFilter] = useState<WorkQueueFilter | 'unread'>('all');
   const [reminderLeadMinutes, setReminderLeadMinutes] = useState<ReminderLeadMinutes>(30);
@@ -51,13 +49,14 @@ export function NotificationsScreen(props: {
   const showFilters = flags.notificationsFilters;
 
   const items = useMemo(() => {
-    const queue = buildWorkQueue(props.tasks, props.notifications);
+    // Alerts only — task rows live on Tareas (avoids gating this screen on Nest /tasks).
+    const queue = buildWorkQueue([], props.notifications);
     if (activeFilter === 'unread') {
       return queue.filter((item) => item.isUnread);
     }
 
     return filterWorkQueue(queue, activeFilter);
-  }, [activeFilter, props.notifications, props.tasks]);
+  }, [activeFilter, props.notifications]);
 
   const activeFilterLabel =
     activeFilter === 'all' ? null : (FILTERS.find((filter) => filter.id === activeFilter)?.label ?? null);

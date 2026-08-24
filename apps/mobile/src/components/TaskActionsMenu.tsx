@@ -6,15 +6,20 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Icon } from './icons';
 import type { IconKind } from './icons';
+import { InventoryDateField } from './ProductEditFormFields';
 import type { OrganizationMember } from '../api/accountLifecycle';
 import { GhostButton, PrimaryButton, colors, radius, spacing } from '../design-system';
+import { formatDateInput, parseDateInput } from '../lib/addStockForm';
 import type { OwnerTask } from '../types/tasks';
+
+type AmPm = 'AM' | 'PM';
 
 export interface TaskActionPermissions {
   /** Can start/complete/postpone/reassign/cancel (assignee or owner/co-owner). */
@@ -238,64 +243,106 @@ function DateTimeSheet(props: {
   submitLabel: string;
   title: string;
 }): ReactElement {
-  const dateLabel = props.date.toLocaleDateString('es-AR', {
-    day: 'numeric',
-    month: 'long',
-    weekday: 'long',
-  });
-  const timeLabel = props.date.toLocaleTimeString('es-AR', {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+  // Same Vence controls as Nueva tarea: DD/MM/YYYY + hora + AM/PM.
+  const [dateText, setDateText] = useState(() => formatDateInput(props.date));
+  const [timeText, setTimeText] = useState(() => formatTime12h(props.date));
+  const [amPm, setAmPm] = useState<AmPm>(() => (props.date.getHours() >= 12 ? 'PM' : 'AM'));
+  const [amPmOpen, setAmPmOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    setDateText(formatDateInput(props.date));
+    setTimeText(formatTime12h(props.date));
+    setAmPm(props.date.getHours() >= 12 ? 'PM' : 'AM');
+    setErrorMessage(null);
+  }, [props.date]);
+
+  function applyFields(nextDate: string, nextTime: string, nextAmPm: AmPm): void {
+    setDateText(nextDate);
+    setTimeText(nextTime);
+    setAmPm(nextAmPm);
+    const composed = composeDueAt(nextDate, nextTime, nextAmPm);
+    if (composed) {
+      setErrorMessage(null);
+      props.onChange(composed);
+    }
+  }
+
+  function handleConfirm(): void {
+    const composed = composeDueAt(dateText, timeText, amPm);
+    if (!composed) {
+      setErrorMessage('Revisá la fecha y la hora (ej. 24/08/2026 y 6:30).');
+      return;
+    }
+    props.onChange(composed);
+    props.onConfirm();
+  }
 
   return (
-    <ScrollView keyboardShouldPersistTaps="handled">
+    <ScrollView keyboardShouldPersistTaps="handled" style={styles.sheetScroll}>
       <Text style={styles.sheetTitle}>{props.title}</Text>
-      <Text style={styles.dateLine}>{capitalize(dateLabel)}</Text>
 
-      <View style={styles.stepperRow}>
-        <Text style={styles.stepperLabel}>Día</Text>
-        <View style={styles.stepper}>
+      <View style={styles.dueRow}>
+        <View style={styles.dueDate}>
+          <InventoryDateField
+            label=""
+            onChange={(value) => applyFields(value, timeText, amPm)}
+            value={dateText}
+          />
+        </View>
+        <TextInput
+          accessibilityLabel="Hora"
+          keyboardType="numbers-and-punctuation"
+          onChangeText={(value) => applyFields(dateText, value, amPm)}
+          placeholder="6:30"
+          placeholderTextColor={colors.placeholder}
+          style={styles.timeInput}
+          value={timeText}
+        />
+        <View style={styles.amPmWrap}>
           <Pressable
-            hitSlop={8}
-            onPress={() => props.onChange(addMinutes(props.date, -60 * 24))}
+            accessibilityLabel="AM o PM"
+            onPress={() => setAmPmOpen((open) => !open)}
+            style={({ pressed }) => [styles.amPmButton, pressed && styles.amPmButtonPressed]}
           >
-            <Text style={styles.stepperText}>−</Text>
+            <Text style={styles.amPmText}>{amPm}</Text>
+            <Text style={styles.amPmCaret}>{amPmOpen ? '▴' : '▾'}</Text>
           </Pressable>
-          <Text style={styles.stepperValue}>
-            {props.date.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' })}
-          </Text>
-          <Pressable
-            hitSlop={8}
-            onPress={() => props.onChange(addMinutes(props.date, 60 * 24))}
-          >
-            <Text style={styles.stepperText}>+</Text>
-          </Pressable>
+          {amPmOpen ? (
+            <View style={styles.amPmMenu}>
+              {(['AM', 'PM'] as const).map((option) => (
+                <Pressable
+                  key={option}
+                  onPress={() => {
+                    applyFields(dateText, timeText, option);
+                    setAmPmOpen(false);
+                  }}
+                  style={({ pressed }) => [
+                    styles.amPmOption,
+                    option === amPm && styles.amPmOptionActive,
+                    pressed && styles.amPmButtonPressed,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.amPmOptionText,
+                      option === amPm && styles.amPmOptionTextActive,
+                    ]}
+                  >
+                    {option}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          ) : null}
         </View>
       </View>
 
-      <View style={styles.stepperRow}>
-        <Text style={styles.stepperLabel}>Hora</Text>
-        <View style={styles.stepper}>
-          <Pressable
-            hitSlop={8}
-            onPress={() => props.onChange(addMinutes(props.date, -POSTPONE_STEP_MINUTES))}
-          >
-            <Text style={styles.stepperText}>−</Text>
-          </Pressable>
-          <Text style={styles.stepperValue}>{timeLabel}</Text>
-          <Pressable
-            hitSlop={8}
-            onPress={() => props.onChange(addMinutes(props.date, POSTPONE_STEP_MINUTES))}
-          >
-            <Text style={styles.stepperText}>+</Text>
-          </Pressable>
-        </View>
-      </View>
+      {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
 
       <View style={styles.actionsRow}>
         <GhostButton label="Cancelar" onPress={props.onCancel} />
-        <PrimaryButton label={props.submitLabel} onPress={props.onConfirm} />
+        <PrimaryButton label={props.submitLabel} onPress={handleConfirm} />
       </View>
     </ScrollView>
   );
@@ -343,10 +390,6 @@ function initials(name: string): string {
   return `${parts[0]![0] ?? ''}${parts[1]![0] ?? ''}`.toUpperCase();
 }
 
-function addMinutes(date: Date, minutes: number): Date {
-  return new Date(date.getTime() + minutes * 60_000);
-}
-
 function roundToNextStep(date: Date): Date {
   const next = new Date(date);
   next.setSeconds(0, 0);
@@ -358,8 +401,39 @@ function roundToNextStep(date: Date): Date {
   return next;
 }
 
-function capitalize(value: string): string {
-  return value.length === 0 ? value : `${value[0]!.toUpperCase()}${value.slice(1)}`;
+function formatTime12h(date: Date): string {
+  const hours24 = date.getHours();
+  const hours12 = hours24 % 12 === 0 ? 12 : hours24 % 12;
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  return `${hours12}:${minutes}`;
+}
+
+function composeDueAt(dateText: string, timeText: string, amPm: AmPm): Date | null {
+  const date = parseDateInput(dateText);
+  if (!date) {
+    return null;
+  }
+
+  const match = /^(\d{1,2})\s*[:.]\s*(\d{1,2})$/.exec(timeText.trim());
+  if (!match) {
+    return null;
+  }
+
+  let hours = Number.parseInt(match[1]!, 10);
+  const minutes = Number.parseInt(match[2]!, 10);
+  if (hours < 1 || hours > 12 || minutes < 0 || minutes > 59) {
+    return null;
+  }
+
+  if (amPm === 'AM') {
+    hours = hours === 12 ? 0 : hours;
+  } else {
+    hours = hours === 12 ? 12 : hours + 12;
+  }
+
+  const dueAt = new Date(date);
+  dueAt.setHours(hours, minutes, 0, 0);
+  return dueAt;
 }
 
 /** Resolve whether the current user may manage a task (start/postpone/complete). */
@@ -384,21 +458,89 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     marginTop: spacing.md,
   },
+  amPmButton: {
+    alignItems: 'center',
+    borderColor: colors.borderInput,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 4,
+    justifyContent: 'center',
+    minHeight: 40,
+    paddingHorizontal: 10,
+    paddingVertical: 11,
+  },
+  amPmButtonPressed: {
+    backgroundColor: colors.surfaceMint,
+  },
+  amPmCaret: {
+    color: colors.slate,
+    fontSize: 12,
+  },
+  amPmMenu: {
+    backgroundColor: colors.surface,
+    borderColor: colors.borderInput,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    left: 0,
+    overflow: 'hidden',
+    position: 'absolute',
+    right: 0,
+    top: '100%',
+    zIndex: 20,
+  },
+  amPmOption: {
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+  },
+  amPmOptionActive: {
+    backgroundColor: colors.primarySoft,
+  },
+  amPmOptionText: {
+    color: colors.navy,
+    fontSize: 14,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  amPmOptionTextActive: {
+    color: colors.primaryDark,
+  },
+  amPmText: {
+    color: colors.navy,
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  amPmWrap: {
+    minWidth: 72,
+    position: 'relative',
+    zIndex: 10,
+  },
   backdrop: {
     backgroundColor: 'rgba(15, 23, 42, 0.45)',
     flex: 1,
     justifyContent: 'flex-end',
   },
-  dateLine: {
-    color: colors.slate,
-    fontSize: 14,
-    marginBottom: spacing.md,
+  dueDate: {
+    flex: 1,
+    minWidth: 0,
+  },
+  dueRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
+    zIndex: 5,
   },
   emptyText: {
     color: colors.slate,
     fontSize: 14,
     paddingVertical: spacing.md,
     textAlign: 'center',
+  },
+  errorText: {
+    color: colors.danger,
+    fontSize: 14,
+    marginBottom: spacing.sm,
   },
   handle: {
     alignSelf: 'center',
@@ -471,43 +613,26 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.sm,
   },
+  sheetScroll: {
+    overflow: 'visible',
+  },
   sheetTitle: {
     color: colors.navy,
     fontSize: 18,
     fontWeight: '700',
     marginBottom: spacing.sm,
   },
-  stepper: {
-    alignItems: 'center',
+  timeInput: {
     borderColor: colors.borderInput,
     borderRadius: radius.md,
     borderWidth: 1,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    minHeight: 40,
-    minWidth: 140,
-    paddingHorizontal: spacing.sm,
-  },
-  stepperLabel: {
-    color: colors.navy,
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  stepperRow: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: spacing.sm,
-  },
-  stepperText: {
-    color: colors.primary,
-    fontSize: 20,
-    fontWeight: '500',
-    paddingHorizontal: spacing.sm,
-  },
-  stepperValue: {
     color: colors.navy,
     fontSize: 15,
     fontWeight: '600',
+    minHeight: 40,
+    minWidth: 72,
+    paddingHorizontal: 10,
+    paddingVertical: 11,
+    textAlign: 'center',
   },
 });

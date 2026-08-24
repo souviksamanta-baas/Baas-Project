@@ -11,6 +11,7 @@ interface OwnerTaskApiRow {
   assignedToUserId: string | null;
   businessCenterId: string;
   contactId: string | null;
+  contactLabel?: string | null;
   conversationId: string | null;
   createdByUserId: string | null;
   description: string | null;
@@ -24,6 +25,9 @@ interface OwnerTaskApiRow {
   taskType: OwnerTaskType;
   title: string;
 }
+
+/** Default list page size for mobile work queues (was 200). */
+const DEFAULT_TASK_LIST_LIMIT = 50;
 
 interface ContactLookupRow {
   display_name: string | null;
@@ -89,11 +93,7 @@ function taskQuery(params: {
     search.set('statuses', statuses.join(','));
   }
 
-  if (params.limit) {
-    search.set('limit', String(params.limit));
-  } else {
-    search.set('limit', '200');
-  }
+  search.set('limit', String(params.limit ?? DEFAULT_TASK_LIST_LIMIT));
 
   return search.toString();
 }
@@ -353,18 +353,23 @@ export async function getOwnerNotifications(
   organizationId: string,
   businessCenterId: string,
   limit = 50,
+  currentUserId?: string | null,
 ): Promise<OwnerNotification[]> {
-  const {
-    data: { user },
-    error: userError,
-  } = await supabase.auth.getUser();
+  let userId = currentUserId ?? null;
+  if (!userId) {
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
 
-  if (userError) {
-    throw new Error(userError.message);
-  }
+    if (userError) {
+      throw new Error(userError.message);
+    }
 
-  if (!user) {
-    throw new Error('Sign in before loading notifications.');
+    if (!user) {
+      throw new Error('Sign in before loading notifications.');
+    }
+    userId = user.id;
   }
 
   const { data, error } = await supabase
@@ -377,7 +382,7 @@ export async function getOwnerNotifications(
     .neq('status', 'dismissed')
     // Assignee/user-targeted rows (task.assigned, copi.action_needed, …) only for me;
     // null target_user_id = org broadcast.
-    .or(`target_user_id.is.null,target_user_id.eq.${user.id}`)
+    .or(`target_user_id.is.null,target_user_id.eq.${userId}`)
     .order('created_at', { ascending: false })
     .limit(limit);
 
@@ -517,9 +522,17 @@ async function enrichTasks(params: {
     return [];
   }
 
-  const contactIds = uniqueTruthy(rows.map((row) => row.contactId));
-  const conversationIds = uniqueTruthy(rows.map((row) => row.conversationId));
-  const assignedUserIds = uniqueTruthy(rows.map((row) => row.assignedToUserId));
+  // Prefer Nest-provided contactLabel; only hit Supabase for gaps.
+  const contactIds = uniqueTruthy(
+    rows
+      .filter((row) => row.contactId && !row.contactLabel)
+      .map((row) => row.contactId),
+  );
+  const conversationIds = uniqueTruthy(
+    rows
+      .filter((row) => row.conversationId && !row.contactId && !row.contactLabel)
+      .map((row) => row.conversationId),
+  );
   const taskIds = rows.map((row) => row.id);
 
   const [contactMap, conversationMap, followingSet] = await Promise.all([
@@ -533,11 +546,6 @@ async function enrichTasks(params: {
         })
       : Promise.resolve(new Set<string>()),
   ]);
-  // Assignee labels are looked up lazily by the hook (via the org members API).
-  const assigneeLabels = new Map<string, string>();
-  for (const userId of assignedUserIds) {
-    assigneeLabels.set(userId, '');
-  }
 
   return rows.map((row) => toOwnerTask(row, {
     contactMap,
@@ -559,6 +567,7 @@ function toOwnerTask(
     ? ctx.conversationMap.get(row.conversationId) ?? null
     : null;
   const contactLabel =
+    row.contactLabel ??
     contact?.display_name ??
     contact?.phone_number ??
     conversation?.external_contact_id ??

@@ -19,7 +19,7 @@ export default function NotificationsRoute(): ReactElement {
 
   return (
     <NotificationsScreen
-      isLoading={tasksState.isLoading}
+      isLoading={tasksState.isLoading && tasksState.notifications.length === 0}
       isSaving={tasksState.isSaving}
       notifications={tasksState.notifications}
       onDismissAll={tasksState.dismissAllNotifications}
@@ -28,7 +28,6 @@ export default function NotificationsRoute(): ReactElement {
       onOpenTaskDetail={(taskId) => router.push(taskDetailRoute(taskId, 'notifications'))}
       onOpenTasks={() => router.push(tasksRoute())}
       organizationId={organizationId}
-      tasks={tasksState.tasks}
     />
   );
 }
