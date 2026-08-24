@@ -2,6 +2,7 @@ import type { ReactElement } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import {
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -16,6 +17,7 @@ import type { IconKind } from './icons';
 import { InventoryDateField } from './ProductEditFormFields';
 import type { OrganizationMember } from '../api/accountLifecycle';
 import { GhostButton, PrimaryButton, colors, radius, spacing } from '../design-system';
+import { useAndroidKeyboardHeight } from '../hooks/useAndroidKeyboard';
 import { formatDateInput, parseDateInput } from '../lib/addStockForm';
 import type { OwnerTask } from '../types/tasks';
 
@@ -57,6 +59,7 @@ export function TaskActionsMenu(props: TaskActionsMenuProps): ReactElement {
   const [postponeDate, setPostponeDate] = useState<Date>(() => roundToNextStep(new Date()));
   const [meetingDate, setMeetingDate] = useState<Date>(() => roundToNextStep(new Date()));
   const insets = useSafeAreaInsets();
+  const androidKeyboardHeight = useAndroidKeyboardHeight();
 
   useEffect(() => {
     if (props.visible) {
@@ -66,6 +69,11 @@ export function TaskActionsMenu(props: TaskActionsMenuProps): ReactElement {
       setMeetingDate(now);
     }
   }, [props.visible]);
+
+  const sheetBottomPad =
+    Math.max(insets.bottom, spacing.md) +
+    spacing.sm +
+    (Platform.OS === 'android' ? androidKeyboardHeight : 0);
 
   return (
     <Modal
@@ -77,10 +85,7 @@ export function TaskActionsMenu(props: TaskActionsMenuProps): ReactElement {
       <Pressable onPress={props.onClose} style={styles.backdrop}>
         <Pressable
           onPress={(event) => event.stopPropagation()}
-          style={[
-            styles.sheet,
-            { paddingBottom: Math.max(insets.bottom, spacing.md) + spacing.sm },
-          ]}
+          style={[styles.sheet, { paddingBottom: sheetBottomPad }]}
         >
           <View style={styles.handle} />
           {screen === 'root' ? (

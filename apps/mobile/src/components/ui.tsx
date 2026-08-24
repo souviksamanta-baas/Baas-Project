@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
+  findNodeHandle,
   Image,
   Keyboard,
   Modal,
@@ -11,6 +12,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
@@ -121,6 +123,7 @@ export function ScreenContent(props: {
   const collapseHeaderOnScroll = props.collapseHeaderOnScroll !== false;
   const bottomClearance = getBottomNavClearance(insets.bottom);
   const [keyboardLift, setKeyboardLift] = useState(0);
+  const scrollRef = useRef<ScrollView>(null);
 
   useEffect(() => {
     if (!collapseHeaderOnScroll) {
@@ -153,16 +156,39 @@ export function ScreenContent(props: {
     const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
 
     const onShow = Keyboard.addListener(showEvent, (event) => {
-      // iOS: ScrollView.automaticallyAdjustKeyboardInsets handles most of it; keep a
-      // small cushion so sticky footers / last fields clear the keys.
-      // Android (resize): window already shrinks — add enough padding that the focused
-      // field can scroll above the keyboard + bottom nav.
       const height = event.endCoordinates?.height ?? 0;
       if (Platform.OS === 'ios') {
+        // iOS: ScrollView.automaticallyAdjustKeyboardInsets handles most of it;
+        // keep a small cushion so sticky footers / last fields clear the keys.
         setKeyboardLift(Math.max(spacing.xl, Math.round(height * 0.08)));
         return;
       }
-      setKeyboardLift(Math.max(spacing.xxl, Math.round(height * 0.35)));
+
+      // Android edge-to-edge: window often does not resize — pad the full keyboard
+      // height so the ScrollView can actually scroll content out from under it.
+      setKeyboardLift(Math.max(0, Math.round(height)));
+
+      // Scroll the focused field above the keyboard after padding applies.
+      requestAnimationFrame(() => {
+        const focused = TextInput.State.currentlyFocusedInput?.();
+        const node = focused ? findNodeHandle(focused) : null;
+        const responder = scrollRef.current?.getScrollResponder?.() as
+          | {
+              scrollResponderScrollNativeHandleToKeyboard?: (
+                nodeHandle: number,
+                offset: number,
+                animated: boolean,
+              ) => void;
+            }
+          | undefined;
+        if (node != null && responder?.scrollResponderScrollNativeHandleToKeyboard) {
+          responder.scrollResponderScrollNativeHandleToKeyboard(
+            node,
+            Math.round(height) + spacing.xl,
+            true,
+          );
+        }
+      });
     });
     const onHide = Keyboard.addListener(hideEvent, () => {
       setKeyboardLift(0);
@@ -178,13 +204,18 @@ export function ScreenContent(props: {
     return <View style={{ flex: 1 }}>{props.children}</View>;
   }
 
+  // When the keyboard is open on Android the bottom nav is hidden, so drop that
+  // clearance and rely on keyboardLift alone.
+  const paddingBottom =
+    Platform.OS === 'android' && keyboardLift > 0
+      ? keyboardLift + spacing.md
+      : bottomClearance + keyboardLift;
+
   return (
     <ScrollView
-      automaticallyAdjustKeyboardInsets
-      contentContainerStyle={[
-        styles.content,
-        { paddingBottom: bottomClearance + keyboardLift },
-      ]}
+      ref={scrollRef}
+      automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
+      contentContainerStyle={[styles.content, { paddingBottom }]}
       keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
       keyboardShouldPersistTaps="handled"
       onScroll={(event) => {

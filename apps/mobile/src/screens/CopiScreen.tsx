@@ -28,6 +28,7 @@ import {
 } from '../components/ui';
 import { Icon } from '../components/icons';
 import { colors as dsColors } from '../design-system';
+import { useAndroidKeyboardHeight } from '../hooks/useAndroidKeyboard';
 import { FeatureGate, useFeatureVisibility } from '../hooks/useFeatureVisibility';
 import { useHeaderScreenOptions } from '../hooks/useHeaderScreenOptions';
 import type { OwnerCopilotState } from '../hooks/useOwnerCopilot';
@@ -216,6 +217,7 @@ export function CopiChatScreen(props: {
 }): ReactElement {
   const visibility = useFeatureVisibility();
   const scrollRef = useRef<ScrollView>(null);
+  const androidKeyboardHeight = useAndroidKeyboardHeight();
   useHeaderScreenOptions({
     forceCollapsed: true,
     onBack: props.onBack,
@@ -232,9 +234,14 @@ export function CopiChatScreen(props: {
 
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0}
-      style={styles.detailRoot}
+      style={[
+        styles.detailRoot,
+        Platform.OS === 'android' && androidKeyboardHeight > 0
+          ? { paddingBottom: androidKeyboardHeight }
+          : null,
+      ]}
     >
       <View style={styles.chatToolbar}>
         <Pressable hitSlop={8} onPress={props.onBack} style={styles.chatBackButton}>

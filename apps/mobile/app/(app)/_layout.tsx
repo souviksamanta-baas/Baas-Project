@@ -12,6 +12,7 @@ import { useOwnerSessionContext } from '../../src/context/OwnerSessionProvider';
 import { OwnerTasksProvider } from '../../src/context/OwnerTasksProvider';
 import { ProductCatalogProvider } from '../../src/context/ProductCatalogProvider';
 import { SellCartProvider } from '../../src/context/SellCartProvider';
+import { useAndroidKeyboardVisible } from '../../src/hooks/useAndroidKeyboard';
 import { hasSupabaseConfig } from '../../src/lib/supabase';
 import {
   getNavShortcutOption,
@@ -32,12 +33,16 @@ export default function AppLayout(): ReactElement {
   const router = useRouter();
   const pathname = usePathname();
   const { authPhase, dashboard } = useOwnerSessionContext();
+  const androidKeyboardVisible = useAndroidKeyboardVisible();
 
-  const hideBottomNav = shouldHideBottomNav(pathname);
+  const routeHidesBottomNav = shouldHideBottomNav(pathname);
+  // Android edge-to-edge: hide the tab bar while typing so it doesn’t sit under the
+  // keyboard and steal space from the scrollable form.
+  const hideBottomNav = routeHidesBottomNav || androidKeyboardVisible;
   const isAuthenticatedShell = !hasSupabaseConfig || authPhase === 'authenticated';
 
   // Must stay above any early return — authPhase flips after eliminar/archivar negocio.
-  useAndroidRootExitBack(isAuthenticatedShell && !hideBottomNav);
+  useAndroidRootExitBack(isAuthenticatedShell && !routeHidesBottomNav);
 
   useEffect(() => {
     if (!hasSupabaseConfig || authPhase === 'authenticated' || authPhase === 'loading') {

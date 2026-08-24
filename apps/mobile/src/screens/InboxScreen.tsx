@@ -19,6 +19,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { showPermissionDeniedAlert } from '../lib/androidPermissions';
 import { readImageAssetAsBase64 } from '../lib/readImageAssetAsBase64';
 import { useAndroidBackHandler } from '../hooks/useAndroidBackHandler';
+import { useAndroidKeyboardHeight } from '../hooks/useAndroidKeyboard';
 
 import { MobileContainedModal } from '../components/MobileContainedModal';
 
@@ -292,6 +293,7 @@ export function ConversationDetailScreen(props: {
   } | null>(null);
   const [stickToBottom, setStickToBottom] = useState(true);
   const messagesScrollRef = useRef<ScrollView>(null);
+  const androidKeyboardHeight = useAndroidKeyboardHeight();
   useHeaderScreenOptions({
     forceCollapsed: true,
     onBack: props.onBack,
@@ -425,8 +427,13 @@ export function ConversationDetailScreen(props: {
 
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={styles.detailRoot}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      style={[
+        styles.detailRoot,
+        Platform.OS === 'android' && androidKeyboardHeight > 0
+          ? { paddingBottom: androidKeyboardHeight }
+          : null,
+      ]}
     >
       <View style={styles.chatToolbar}>
         <Pressable hitSlop={8} onPress={props.onBack} style={styles.chatBackButton}>
