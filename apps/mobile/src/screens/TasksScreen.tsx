@@ -13,7 +13,7 @@ import {
   type WorkQueueFilter,
   type WorkQueueItem,
 } from '../lib/workQueue';
-import type { OwnerNotification, OwnerTask } from '../types/tasks';
+import type { OwnerTask } from '../types/tasks';
 import { colors } from '../theme';
 
 const FILTERS: Array<{ id: WorkQueueFilter; label: string }> = [
@@ -43,10 +43,6 @@ export function TasksScreen(props: {
   isLoading?: boolean;
   isSaving?: boolean;
   members: OrganizationMember[];
-  notifications: OwnerNotification[];
-  onDismissAlert: (notificationId: string) => Promise<void>;
-  onOpenAlertProduct: (productId: string) => void;
-  onOpenConversation: (conversationId: string) => void;
   onOpenCopi: () => void;
   onOpenNewTask: () => void;
   onOpenTaskDetail: (taskId: string) => void;
@@ -56,9 +52,10 @@ export function TasksScreen(props: {
   const [activeFilter, setActiveFilter] = useState<WorkQueueFilter>(props.initialFilter ?? 'all');
   const [openTaskId, setOpenTaskId] = useState<string | null>(null);
 
+  // Tasks portal is tasks-only — never mix in owner_notifications (member joined, stock, etc.).
   const items = useMemo(
-    () => filterWorkQueue(buildWorkQueue(props.tasks, props.notifications), activeFilter),
-    [activeFilter, props.notifications, props.tasks],
+    () => filterWorkQueue(buildWorkQueue(props.tasks, []), activeFilter),
+    [activeFilter, props.tasks],
   );
 
   const openTask = useMemo(
@@ -97,18 +94,15 @@ export function TasksScreen(props: {
 
       {items.length === 0 ? (
         <Card style={styles.emptyCard}>
-          <Text style={styles.emptyText}>No hay tareas ni alertas para este filtro.</Text>
+          <Text style={styles.emptyText}>No hay tareas para este filtro.</Text>
         </Card>
       ) : (
         <Card flush>
           {items.map((item) => (
-            <WorkQueueRow
+            <TaskQueueRow
               isSaving={props.isSaving}
               item={item}
               key={item.id}
-              onDismissAlert={props.onDismissAlert}
-              onOpenAlertProduct={props.onOpenAlertProduct}
-              onOpenConversation={props.onOpenConversation}
               onOpenMenu={(taskId) => setOpenTaskId(taskId)}
               onOpenTaskDetail={props.onOpenTaskDetail}
             />
@@ -153,37 +147,25 @@ export function TasksScreen(props: {
   );
 }
 
-function WorkQueueRow(props: {
+function TaskQueueRow(props: {
   isSaving?: boolean;
   item: WorkQueueItem;
-  onDismissAlert: (notificationId: string) => Promise<void>;
-  onOpenAlertProduct: (productId: string) => void;
-  onOpenConversation: (conversationId: string) => void;
   onOpenMenu: (taskId: string) => void;
   onOpenTaskDetail: (taskId: string) => void;
 }): ReactElement {
-  const openItem = (): void => {
-    if (props.item.kind === 'alert' && props.item.productId) {
-      props.onOpenAlertProduct(props.item.productId);
-      return;
-    }
-
-    if (props.item.kind === 'task' && props.item.conversationId) {
-      props.onOpenConversation(props.item.conversationId);
-      return;
-    }
-
-    if (props.item.taskId) {
-      props.onOpenTaskDetail(props.item.taskId);
-    }
-  };
-
   const taskId = props.item.taskId;
-  const notificationId = props.item.notificationId;
 
   return (
     <View style={styles.row}>
-      <Pressable disabled={props.isSaving} onPress={openItem} style={styles.rowBody}>
+      <Pressable
+        disabled={props.isSaving || !taskId}
+        onPress={() => {
+          if (taskId) {
+            props.onOpenTaskDetail(taskId);
+          }
+        }}
+        style={styles.rowBody}
+      >
         <NotificationRow
           notification={{
             id: props.item.id,
@@ -196,70 +178,30 @@ function WorkQueueRow(props: {
           showDivider={false}
         />
       </Pressable>
-      <View style={styles.actions}>
-        {props.item.kind === 'task' && taskId ? (
-          <Pressable
-            accessibilityLabel="Más acciones"
-            accessibilityRole="button"
-            disabled={props.isSaving}
-            hitSlop={10}
-            onPress={() => props.onOpenMenu(taskId)}
-            style={({ pressed }) => [
-              styles.menuButton,
-              pressed && styles.menuButtonPressed,
-              props.isSaving && styles.menuButtonDisabled,
-            ]}
-          >
-            <Icon color={colors.slate} kind="dots-vertical" size={20} strokeWidth={1.8} />
-          </Pressable>
-        ) : notificationId ? (
-          <Pressable
-            accessibilityRole="button"
-            disabled={props.isSaving}
-            hitSlop={6}
-            onPress={() => {
-              void props.onDismissAlert(notificationId);
-            }}
-            style={({ pressed }) => [
-              styles.actionButtonPrimary,
-              pressed && styles.actionButtonPressed,
-              props.isSaving && styles.actionButtonDisabled,
-            ]}
-          >
-            <Text style={styles.actionTextPrimary}>Descartar</Text>
-          </Pressable>
-        ) : null}
-      </View>
+
+      {taskId ? (
+        <Pressable
+          accessibilityLabel="Más acciones"
+          accessibilityRole="button"
+          disabled={props.isSaving}
+          hitSlop={10}
+          onPress={() => props.onOpenMenu(taskId)}
+          style={({ pressed }) => [
+            styles.menuButton,
+            pressed && styles.menuButtonPressed,
+            props.isSaving && styles.menuButtonDisabled,
+          ]}
+        >
+          <Icon color={colors.slate} kind="dots-vertical" size={20} strokeWidth={1.8} />
+        </Pressable>
+      ) : (
+        <View style={styles.menuSpacer} />
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  actionButtonDisabled: {
-    opacity: 0.5,
-  },
-  actionButtonPressed: {
-    opacity: 0.7,
-  },
-  actionButtonPrimary: {
-    backgroundColor: colors.primarySoft,
-    borderRadius: 999,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-  },
-  actionTextPrimary: {
-    color: colors.primary,
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  actions: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: 10,
-    paddingBottom: 14,
-    paddingHorizontal: 14,
-    zIndex: 2,
-  },
   activeFilterPill: {
     borderColor: colors.primary,
   },
@@ -292,18 +234,21 @@ const styles = StyleSheet.create({
   },
   menuButton: {
     alignItems: 'center',
-    borderColor: colors.border,
-    borderRadius: 999,
-    borderWidth: 1,
-    height: 32,
+    alignSelf: 'center',
+    height: 36,
     justifyContent: 'center',
-    width: 32,
+    marginRight: 6,
+    width: 36,
   },
   menuButtonDisabled: {
     opacity: 0.5,
   },
   menuButtonPressed: {
     backgroundColor: colors.surfaceMint,
+    borderRadius: 999,
+  },
+  menuSpacer: {
+    width: 36,
   },
   newTaskCta: {
     alignItems: 'center',
@@ -324,10 +269,13 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   row: {
+    alignItems: 'center',
     borderBottomColor: colors.borderSoft,
     borderBottomWidth: 1,
+    flexDirection: 'row',
   },
   rowBody: {
-    paddingTop: 4,
+    flex: 1,
+    minWidth: 0,
   },
 });

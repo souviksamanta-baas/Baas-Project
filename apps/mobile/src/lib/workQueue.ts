@@ -127,9 +127,17 @@ function buildTaskSubtitle(task: OwnerTask): string | null {
   if (task.contactLabel && task.contactLabel !== task.assigneeLabel) {
     parts.push(task.contactLabel);
   } else if (!task.contactLabel && task.description) {
-    parts.push(task.description);
+    parts.push(truncateSubtitle(task.description));
   }
   return parts.length > 0 ? parts.join(' · ') : null;
+}
+
+function truncateSubtitle(value: string, max = 72): string {
+  const next = value.replace(/\s+/g, ' ').trim();
+  if (next.length <= max) {
+    return next;
+  }
+  return `${next.slice(0, max - 1).trimEnd()}…`;
 }
 
 function taskTone(status: OwnerTaskStatus): Tone {

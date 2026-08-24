@@ -1,14 +1,17 @@
 import type { ReactElement } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
   getNotificationPrefs,
   updateNotificationPrefs,
   type ReminderLeadMinutes,
 } from '../api/notifications';
+import { Icon } from '../components/icons';
+import { MobileContainedModal } from '../components/MobileContainedModal';
 import { Card, NotificationRow, ScreenContent, ScreenTitle } from '../components/ui';
-import { FeatureGate } from '../hooks/useFeatureVisibility';
+import { FeatureGate, useFeatureVisibility } from '../hooks/useFeatureVisibility';
 import {
   buildWorkQueue,
   filterWorkQueue,
@@ -20,7 +23,7 @@ import { colors } from '../theme';
 
 const FILTERS: Array<{ id: WorkQueueFilter | 'unread'; label: string }> = [
   { id: 'all', label: 'Todas' },
-  { id: 'unread', label: 'No leidas' },
+  { id: 'unread', label: 'No leídas' },
   { id: 'stock', label: 'Stock' },
   { id: 'follow_up', label: 'Seguimientos' },
 ];
@@ -42,6 +45,11 @@ export function NotificationsScreen(props: {
   const [activeFilter, setActiveFilter] = useState<WorkQueueFilter | 'unread'>('all');
   const [reminderLeadMinutes, setReminderLeadMinutes] = useState<ReminderLeadMinutes>(30);
   const [prefsSaving, setPrefsSaving] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const flags = useFeatureVisibility();
+  const insets = useSafeAreaInsets();
+  const showFilters = flags.notificationsFilters;
+
   const items = useMemo(() => {
     const queue = buildWorkQueue(props.tasks, props.notifications);
     if (activeFilter === 'unread') {
@@ -50,6 +58,9 @@ export function NotificationsScreen(props: {
 
     return filterWorkQueue(queue, activeFilter);
   }, [activeFilter, props.notifications, props.tasks]);
+
+  const activeFilterLabel =
+    activeFilter === 'all' ? null : (FILTERS.find((filter) => filter.id === activeFilter)?.label ?? null);
 
   useEffect(() => {
     if (!props.organizationId) {
@@ -89,48 +100,28 @@ export function NotificationsScreen(props: {
   return (
     <ScreenContent title="Notificaciones">
       <View style={styles.titleRow}>
-        <ScreenTitle title="Notificaciones" />
-        <Pressable disabled={props.isSaving} onPress={() => void props.onDismissAll()}>
-          <Text style={styles.markRead}>Marcar todas como leidas</Text>
+        <View style={styles.titleBlock}>
+          <ScreenTitle title="Notificaciones" />
+        </View>
+        <Pressable
+          accessibilityLabel="Más opciones"
+          accessibilityRole="button"
+          hitSlop={8}
+          onPress={() => setMenuOpen(true)}
+          style={({ pressed }) => [styles.menuButton, pressed && styles.menuButtonPressed]}
+        >
+          <Icon color={colors.slate} kind="dots-vertical" size={22} strokeWidth={1.8} />
         </Pressable>
       </View>
 
-      <Card style={styles.prefsCard}>
-        <Text style={styles.prefsTitle}>Recordatorios</Text>
-        <Text style={styles.prefsHint}>Avisame antes de tareas y turnos (minutos)</Text>
-        <View style={styles.leadRow}>
-          {LEAD_OPTIONS.map((minutes) => (
-            <Pressable
-              key={minutes}
-              disabled={prefsSaving}
-              onPress={() => void saveLead(minutes)}
-              style={[styles.leadPill, reminderLeadMinutes === minutes && styles.leadPillActive]}
-            >
-              <Text
-                style={[styles.leadText, reminderLeadMinutes === minutes && styles.leadTextActive]}
-              >
-                {minutes}
-              </Text>
-            </Pressable>
-          ))}
+      {activeFilterLabel ? (
+        <View style={styles.activeFilterRow}>
+          <Text style={styles.activeFilterLabel}>Filtro: {activeFilterLabel}</Text>
+          <Pressable hitSlop={8} onPress={() => setActiveFilter('all')}>
+            <Text style={styles.clearFilter}>Quitar</Text>
+          </Pressable>
         </View>
-      </Card>
-
-      <FeatureGate feature="notificationsFilters">
-        <View style={styles.filterRow}>
-          {FILTERS.map((filter) => (
-            <Pressable
-              key={filter.id}
-              onPress={() => setActiveFilter(filter.id)}
-              style={[styles.filterPill, activeFilter === filter.id && styles.activeFilterPill]}
-            >
-              <Text style={[styles.filterText, activeFilter === filter.id && styles.activeFilterText]}>
-                {filter.label}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
-      </FeatureGate>
+      ) : null}
 
       <Pressable onPress={props.onOpenTasks} style={styles.tasksLink}>
         <Text style={styles.tasksLinkText}>Ver todas las tareas</Text>
@@ -144,46 +135,190 @@ export function NotificationsScreen(props: {
           </Card>
         ) : (
           <Card flush>
-            {items.map((item, index) => (
-              <NotificationRow
-                key={item.id}
-                notification={{
-                  id: item.id,
-                  subtitle: item.subtitle,
-                  time: formatWorkQueueTime(item.timestamp),
-                  title: item.title,
-                  tone: item.tone,
-                  unread: item.isUnread,
-                }}
-                onPress={() => {
-                  if (item.kind === 'task' && item.taskId) {
-                    props.onOpenTaskDetail(item.taskId);
-                    return;
-                  }
+            {items.map((item, index) => {
+              const openDestination = (): void => {
+                if (item.kind === 'task' && item.taskId) {
+                  props.onOpenTaskDetail(item.taskId);
+                  return;
+                }
 
-                  if (item.productId) {
-                    props.onOpenAlertProduct(item.productId);
-                    return;
-                  }
+                if (item.productId) {
+                  props.onOpenAlertProduct(item.productId);
+                }
+                // Informational alerts (member joined, etc.) have no deep link.
+              };
 
-                  props.onOpenTasks();
-                }}
-                showDivider={index < items.length - 1}
-              />
-            ))}
+              const canOpen =
+                (item.kind === 'task' && Boolean(item.taskId)) || Boolean(item.productId);
+              const notificationId = item.notificationId;
+
+              return (
+                <View
+                  key={item.id}
+                  style={[styles.alertRow, index < items.length - 1 && styles.alertRowDivider]}
+                >
+                  <View style={styles.alertRowBody}>
+                    <NotificationRow
+                      notification={{
+                        id: item.id,
+                        subtitle: item.subtitle,
+                        time: formatWorkQueueTime(item.timestamp),
+                        title: item.title,
+                        tone: item.tone,
+                        unread: item.isUnread,
+                      }}
+                      onPress={canOpen ? openDestination : undefined}
+                      showDivider={false}
+                    />
+                  </View>
+                  {notificationId && item.kind === 'alert' ? (
+                    <Pressable
+                      accessibilityRole="button"
+                      disabled={props.isSaving}
+                      hitSlop={6}
+                      onPress={() => {
+                        void props.onDismissNotification(notificationId);
+                      }}
+                      style={({ pressed }) => [
+                        styles.dismissButton,
+                        pressed && styles.dismissButtonPressed,
+                        props.isSaving && styles.dismissButtonDisabled,
+                      ]}
+                    >
+                      <Text style={styles.dismissText}>Descartar</Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+              );
+            })}
           </Card>
         )}
       </FeatureGate>
+
+      <MobileContainedModal
+        animationType="slide"
+        onClose={() => setMenuOpen(false)}
+        sheetStyle={{
+          ...styles.menuSheet,
+          paddingBottom: Math.max(insets.bottom, 16),
+        }}
+        visible={menuOpen}
+      >
+        <View style={styles.menuHandle} />
+        <Text style={styles.menuTitle}>Opciones</Text>
+
+        <Pressable
+          disabled={props.isSaving}
+          onPress={() => {
+            void props.onDismissAll();
+            setMenuOpen(false);
+          }}
+          style={({ pressed }) => [styles.menuAction, pressed && styles.menuActionPressed]}
+        >
+          <Text style={styles.menuActionText}>Marcar todas como leídas</Text>
+        </Pressable>
+
+        <View style={styles.menuSection}>
+          <Text style={styles.menuSectionTitle}>Recordatorios</Text>
+          <Text style={styles.menuSectionHint}>Avisame antes de tareas y turnos (minutos)</Text>
+          <View style={styles.leadRow}>
+            {LEAD_OPTIONS.map((minutes) => (
+              <Pressable
+                key={minutes}
+                disabled={prefsSaving}
+                onPress={() => void saveLead(minutes)}
+                style={[styles.leadPill, reminderLeadMinutes === minutes && styles.leadPillActive]}
+              >
+                <Text
+                  style={[styles.leadText, reminderLeadMinutes === minutes && styles.leadTextActive]}
+                >
+                  {minutes}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+
+        {showFilters ? (
+          <View style={styles.menuSection}>
+            <Text style={styles.menuSectionTitle}>Filtros</Text>
+            <View style={styles.filterRow}>
+              {FILTERS.map((filter) => (
+                <Pressable
+                  key={filter.id}
+                  onPress={() => {
+                    setActiveFilter(filter.id);
+                    setMenuOpen(false);
+                  }}
+                  style={[styles.filterPill, activeFilter === filter.id && styles.activeFilterPill]}
+                >
+                  <Text
+                    style={[styles.filterText, activeFilter === filter.id && styles.activeFilterText]}
+                  >
+                    {filter.label}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+        ) : null}
+      </MobileContainedModal>
     </ScreenContent>
   );
 }
 
 const styles = StyleSheet.create({
+  activeFilterLabel: {
+    color: colors.slate,
+    fontSize: 13,
+    fontWeight: '500',
+  },
   activeFilterPill: {
     borderColor: colors.primary,
   },
+  activeFilterRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
   activeFilterText: {
     color: colors.primary,
+  },
+  alertRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+  },
+  alertRowBody: {
+    flex: 1,
+    minWidth: 0,
+  },
+  alertRowDivider: {
+    borderBottomColor: colors.borderSoft,
+    borderBottomWidth: 1,
+  },
+  clearFilter: {
+    color: colors.primary,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  dismissButton: {
+    alignSelf: 'center',
+    backgroundColor: colors.primarySoft,
+    borderRadius: 999,
+    marginRight: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  dismissButtonDisabled: {
+    opacity: 0.5,
+  },
+  dismissButtonPressed: {
+    opacity: 0.7,
+  },
+  dismissText: {
+    color: colors.primary,
+    fontSize: 13,
+    fontWeight: '600',
   },
   emptyCard: {
     padding: 16,
@@ -203,6 +338,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 9,
+    marginTop: 10,
   },
   filterText: {
     color: colors.slate,
@@ -235,23 +371,60 @@ const styles = StyleSheet.create({
   leadTextActive: {
     color: colors.primary,
   },
-  markRead: {
-    color: colors.slate,
-    fontSize: 13,
-    fontWeight: '300',
-    paddingBottom: 2,
+  menuAction: {
+    borderColor: colors.border,
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
   },
-  prefsCard: {
-    padding: 14,
+  menuActionPressed: {
+    backgroundColor: colors.primarySoft,
   },
-  prefsHint: {
+  menuActionText: {
+    color: colors.navy,
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  menuButton: {
+    alignItems: 'center',
+    height: 40,
+    justifyContent: 'center',
+    marginTop: 2,
+    width: 40,
+  },
+  menuButtonPressed: {
+    opacity: 0.7,
+  },
+  menuHandle: {
+    alignSelf: 'center',
+    backgroundColor: colors.border,
+    borderRadius: 999,
+    height: 4,
+    marginBottom: 12,
+    width: 40,
+  },
+  menuSection: {
+    marginTop: 4,
+  },
+  menuSectionHint: {
     color: colors.slate,
     fontSize: 13,
     marginTop: 2,
   },
-  prefsTitle: {
+  menuSectionTitle: {
     color: colors.navy,
     fontSize: 15,
+    fontWeight: '700',
+  },
+  menuSheet: {
+    gap: 16,
+    paddingHorizontal: 18,
+    paddingTop: 10,
+  },
+  menuTitle: {
+    color: colors.navy,
+    fontSize: 18,
     fontWeight: '700',
   },
   tasksLink: {
@@ -267,8 +440,13 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
   },
+  titleBlock: {
+    flex: 1,
+    minWidth: 0,
+    paddingRight: 8,
+  },
   titleRow: {
-    alignItems: 'flex-end',
+    alignItems: 'flex-start',
     flexDirection: 'row',
     justifyContent: 'space-between',
   },

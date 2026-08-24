@@ -4,9 +4,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useOwnerSessionContext } from '../../../src/context/OwnerSessionProvider';
 import { useOwnerTasks } from '../../../src/hooks/useOwnerTasks';
 import {
-  conversationRoute,
   parseWorkQueueFilter,
-  productDetailRoute,
   routes,
   taskDetailRoute,
   taskNewRoute,
@@ -42,13 +40,7 @@ export default function TasksRoute(): ReactElement {
       isLoading={tasksState.isLoading}
       isSaving={tasksState.isSaving}
       members={tasksState.members}
-      notifications={tasksState.notifications}
-      onDismissAlert={tasksState.dismissNotification}
-      onOpenAlertProduct={(productId) =>
-        router.push(productDetailRoute(productId, 'tasks-portal'))
-      }
       onOpenCopi={() => router.push(routes.appCopiChat)}
-      onOpenConversation={(conversationId) => router.push(conversationRoute(conversationId))}
       onOpenNewTask={() => router.push(taskNewRoute())}
       onOpenTaskDetail={(taskId) => router.push(taskDetailRoute(taskId, 'tasks-portal'))}
       role={dashboard?.organization?.role}

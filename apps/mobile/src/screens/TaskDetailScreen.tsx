@@ -1,12 +1,12 @@
 import type { ReactElement } from 'react';
 import { useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import type { OrganizationMember } from '../api/accountLifecycle';
+import { Icon } from '../components/icons';
 import { TaskActionsMenu, resolveTaskPermissions } from '../components/TaskActionsMenu';
 import { Card, ScreenContent, ScreenTitle } from '../components/ui';
 import { prepareTaskBody } from '../lib/taskDetail';
-import { compactTaskTitle } from '../lib/workQueue';
 import type { OwnerTask } from '../types/tasks';
 import { colors } from '../theme';
 
@@ -31,8 +31,8 @@ export function TaskDetailScreen(props: {
 }): ReactElement {
   const [menuOpen, setMenuOpen] = useState(false);
   const presupuestoId = props.task.presupuestoId;
-  const displayTitle = compactTaskTitle(props.task.title);
   const body = prepareTaskBody(props.task.description, presupuestoId);
+  const fullDescription = props.task.description?.trim() || body;
   const permissions = useMemo(
     () =>
       resolveTaskPermissions({
@@ -50,7 +50,7 @@ export function TaskDetailScreen(props: {
           <Text style={styles.backText}>‹</Text>
         </Pressable>
         <View style={styles.flex}>
-          <ScreenTitle onBack={props.onBack} title={displayTitle} />
+          <ScreenTitle onBack={props.onBack} title="Detalle de tarea" />
         </View>
         <Pressable
           accessibilityLabel="Más acciones"
@@ -58,63 +58,78 @@ export function TaskDetailScreen(props: {
           disabled={props.isSaving}
           hitSlop={8}
           onPress={() => setMenuOpen(true)}
-          style={styles.menuPressable}
+          style={({ pressed }) => [styles.menuPressable, pressed && styles.menuPressablePressed]}
         >
-          <Text style={styles.menuText}>⋮</Text>
+          <Icon color={colors.slate} kind="dots-vertical" size={22} strokeWidth={1.8} />
         </Pressable>
       </View>
 
-      <Card style={styles.card}>
-        {props.task.contactLabel ? (
-          <Text style={styles.meta}>Contacto: {props.task.contactLabel}</Text>
-        ) : null}
-        {props.task.assigneeLabel ? (
-          <Text style={styles.meta}>Asignada a: {props.task.assigneeLabel}</Text>
-        ) : null}
-        {body ? <Text style={styles.body}>{body}</Text> : null}
-        {presupuestoId && props.onOpenPresupuesto ? (
-          <Pressable
-            onPress={() => props.onOpenPresupuesto?.(presupuestoId)}
-            style={styles.presupuestoRow}
-          >
-            <Text style={styles.meta}>Presupuesto</Text>
-            <Text style={styles.linkText}>{presupuestoId}</Text>
-          </Pressable>
-        ) : null}
-        {props.task.dueAt ? (
-          <Text style={styles.meta}>
-            Vence{' '}
-            {new Date(props.task.dueAt).toLocaleString('es-AR', {
-              dateStyle: 'short',
-              timeStyle: 'short',
-            })}
-          </Text>
-        ) : null}
-        {props.task.postponedUntil ? (
-          <Text style={styles.meta}>
-            Pospuesta hasta{' '}
-            {new Date(props.task.postponedUntil).toLocaleString('es-AR', {
-              dateStyle: 'short',
-              timeStyle: 'short',
-            })}
-          </Text>
-        ) : null}
-        <Text style={styles.meta}>Estado: {statusLabel(props.task.status)}</Text>
-        <Text style={styles.meta}>Tipo: {taskTypeLabel(props.task.taskType)}</Text>
-      </Card>
+      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+        <Card style={styles.card}>
+          <Text style={styles.sectionLabel}>Título</Text>
+          <Text style={styles.title}>{props.task.title}</Text>
 
-      <View style={styles.actions}>
-        {props.task.conversationId ? (
-          <Pressable onPress={() => props.onOpenConversation(props.task.conversationId!)}>
-            <Text style={styles.linkText}>Abrir conversación</Text>
-          </Pressable>
-        ) : null}
-        {permissions.canManage ? (
-          <Pressable disabled={props.isSaving} onPress={() => void props.onCompleteTask()}>
-            <Text style={styles.actionTextPrimary}>Marcar como hecho</Text>
-          </Pressable>
-        ) : null}
-      </View>
+          <Text style={styles.sectionLabel}>Asunto</Text>
+          <Text style={styles.body}>
+            {fullDescription?.trim() ? fullDescription : 'Sin detalle'}
+          </Text>
+
+          <View style={styles.metaBlock}>
+            <Text style={styles.meta}>Estado: {statusLabel(props.task.status)}</Text>
+            {props.task.assigneeLabel ? (
+              <Text style={styles.meta}>Asignada a: {props.task.assigneeLabel}</Text>
+            ) : null}
+            {props.task.contactLabel ? (
+              <Text style={styles.meta}>Contacto: {props.task.contactLabel}</Text>
+            ) : null}
+            {props.task.dueAt ? (
+              <Text style={styles.meta}>
+                Vence{' '}
+                {new Date(props.task.dueAt).toLocaleString('es-AR', {
+                  dateStyle: 'full',
+                  timeStyle: 'short',
+                })}
+              </Text>
+            ) : null}
+            {props.task.postponedUntil ? (
+              <Text style={styles.meta}>
+                Pospuesta hasta{' '}
+                {new Date(props.task.postponedUntil).toLocaleString('es-AR', {
+                  dateStyle: 'short',
+                  timeStyle: 'short',
+                })}
+              </Text>
+            ) : null}
+            <Text style={styles.meta}>Tipo: {taskTypeLabel(props.task.taskType)}</Text>
+            {props.task.isFollowing ? (
+              <Text style={styles.meta}>Estás siguiendo esta tarea</Text>
+            ) : null}
+          </View>
+
+          {presupuestoId && props.onOpenPresupuesto ? (
+            <Pressable
+              onPress={() => props.onOpenPresupuesto?.(presupuestoId)}
+              style={styles.presupuestoRow}
+            >
+              <Text style={styles.sectionLabel}>Presupuesto</Text>
+              <Text style={styles.linkText}>{presupuestoId}</Text>
+            </Pressable>
+          ) : null}
+        </Card>
+
+        <View style={styles.quickActions}>
+          {props.task.conversationId ? (
+            <Pressable onPress={() => props.onOpenConversation(props.task.conversationId!)}>
+              <Text style={styles.linkText}>Abrir conversación</Text>
+            </Pressable>
+          ) : null}
+          {permissions.canManage ? (
+            <Pressable disabled={props.isSaving} onPress={() => void props.onCompleteTask()}>
+              <Text style={styles.actionTextPrimary}>Marcar como hecho</Text>
+            </Pressable>
+          ) : null}
+        </View>
+      </ScrollView>
 
       <TaskActionsMenu
         members={props.members}
@@ -173,11 +188,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
   },
-  actions: {
-    flexDirection: 'row',
-    gap: 16,
-    paddingHorizontal: 4,
-  },
   backPressable: {
     marginRight: 4,
     paddingHorizontal: 4,
@@ -191,12 +201,11 @@ const styles = StyleSheet.create({
   },
   body: {
     color: colors.navy,
-    fontSize: 15,
-    lineHeight: 22,
-    marginBottom: 8,
+    fontSize: 16,
+    lineHeight: 24,
+    marginBottom: 16,
   },
   card: {
-    gap: 6,
     marginBottom: 16,
     padding: 16,
   },
@@ -214,20 +223,50 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   menuPressable: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    alignItems: 'center',
+    height: 36,
+    justifyContent: 'center',
+    width: 36,
   },
-  menuText: {
-    color: colors.slate,
-    fontSize: 22,
-    fontWeight: '700',
+  menuPressablePressed: {
+    backgroundColor: colors.surfaceMint,
+    borderRadius: 999,
   },
   meta: {
     color: colors.slate,
     fontSize: 14,
+    lineHeight: 20,
+  },
+  metaBlock: {
+    gap: 6,
+    marginBottom: 8,
   },
   presupuestoRow: {
-    gap: 2,
+    gap: 4,
+    marginTop: 8,
+  },
+  quickActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 16,
+    paddingHorizontal: 4,
+  },
+  scrollContent: {
+    paddingBottom: 32,
+  },
+  sectionLabel: {
+    color: colors.slate,
+    fontSize: 12,
+    fontWeight: '600',
+    letterSpacing: 0.2,
     marginBottom: 4,
+    textTransform: 'uppercase',
+  },
+  title: {
+    color: colors.navy,
+    fontSize: 20,
+    fontWeight: '700',
+    lineHeight: 26,
+    marginBottom: 16,
   },
 });

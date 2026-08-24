@@ -107,6 +107,35 @@ describe('workQueue', () => {
     expect(filterWorkQueue(queue, 'stock')).toHaveLength(1);
     expect(filterWorkQueue(queue, 'stock')[0]?.kind).toBe('alert');
   });
+
+  it('builds a tasks-only queue when notifications are omitted', () => {
+    const tasks: OwnerTask[] = [
+      {
+        assignedToUserId: null,
+        assigneeLabel: null,
+        contactId: null,
+        contactLabel: null,
+        conversationId: null,
+        createdByUserId: null,
+        description: null,
+        dueAt: null,
+        id: 'task-1',
+        isFollowing: false,
+        metadata: {},
+        postponedUntil: null,
+        priority: 'normal',
+        presupuestoId: null,
+        reminderSnoozedUntil: null,
+        status: 'pending',
+        taskType: 'manual',
+        title: 'Manual task',
+      },
+    ];
+
+    const queue = filterWorkQueue(buildWorkQueue(tasks, []), 'all');
+    expect(queue).toHaveLength(1);
+    expect(queue.every((item) => item.kind === 'task')).toBe(true);
+  });
 });
 
 describe('prepareTaskBody', () => {

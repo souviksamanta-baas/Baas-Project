@@ -257,10 +257,13 @@ KAN-69 / KAN-401 add an owner task surface to the mobile dashboard:
   status.
 - Manual create at `/(app)/tasks/new` requires title, subject (description),
   due datetime, and assignee. Reminder lead minutes stay on
-  `user_notification_prefs` (Notificaciones → Recordatorios), not on the task.
-- Task rows expose a ⋮ overflow menu: follow/unfollow, create meeting, postpone
-  until, silence reminder 10 min, start, complete, reassign, and cancel
-  (Eliminar → `cancelled`). Assignee or owner/co-owner can manage the task.
+  `user_notification_prefs` (Notificaciones → ⋮ → Recordatorios), not on the task.
+- Task rows expose a **⋮ overflow menu on the right** of each row: follow/unfollow,
+  create meeting, postpone until, silence reminder 10 min, start, complete,
+  reassign, and cancel (**Eliminar** → `cancelled`). Assignee or owner/co-owner
+  can manage the task.
+- Tapping a task row opens the dedicated detail page `/(app)/tasks/[taskId]` so
+  the full **Asunto** (description) is readable; conversation is a link from detail.
 - Loads recent `owner_notifications` for low-stock and task-related alerts.
 - Lets the owner dismiss handled alerts.
 - Subscribes to center-scoped task and notification Realtime changes.
@@ -268,9 +271,10 @@ KAN-69 / KAN-401 add an owner task surface to the mobile dashboard:
 
 ### Task Portal (Centro de tareas)
 
-The mobile app exposes a unified work queue at `/(app)/tasks` that combines live
-`owner_tasks` and `owner_notifications` through `WorkQueueItem` in
-`apps/mobile/src/lib/workQueue.ts`.
+The mobile app exposes a unified work queue at `/(app)/tasks` that lists live
+`owner_tasks` through `WorkQueueItem` in `apps/mobile/src/lib/workQueue.ts`.
+General alerts (`owner_notifications`, e.g. member joined, low stock) stay on
+Home and Notifications — not on the tasks portal.
 
 Routes:
 
@@ -280,7 +284,8 @@ Routes:
 - `/(app)/tasks/new` — manual create with mandatory fields
 - `/(app)/tasks/[taskId]` — task detail with `?returnTo=tasks-portal|notifications|home`
 - `/(app)/notifications` — live tasks and alerts (no mock data), with a
-  “Ver todas las tareas” link; dismiss all notifications is supported
+  “Ver todas las tareas” link; **⋮** opens mark-all-read, reminder lead prefs
+  (15/30/60), and list filters
 
 Navigation:
 
@@ -291,7 +296,7 @@ Navigation:
   their source screen.
 - Low-stock alert rows open product detail and return to Home, Notifications, or
   the Task Portal according to their source.
-- Follow-up rows in the Task Portal open conversation or task detail.
+- Follow-up rows in the Task Portal open the task detail page (⋮ for actions).
 - Copi portal entry: “Pedile a Copi que cree o asigne tareas” opens chat.
   Copi `create_task` requires confirmation and collects mandatory fields first.
 

@@ -238,7 +238,7 @@ export function InventoryDecimalField(props: {
 }
 
 export function InventoryDateField(props: {
-  label: string;
+  label?: string;
   onChange: (value: string) => void;
   value: string;
 }): ReactElement {
@@ -248,6 +248,7 @@ export function InventoryDateField(props: {
   const [visibleMonth, setVisibleMonth] = useState(
     () => new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1),
   );
+  const label = props.label?.trim() ?? '';
 
   function applyIsoDate(isoValue: string): void {
     const date = new Date(`${isoValue}T12:00:00`);
@@ -289,19 +290,20 @@ export function InventoryDateField(props: {
     ...Array.from({ length: leadingBlanks }, () => null),
     ...Array.from({ length: daysInMonth }, (_, index) => index + 1),
   ];
+  const parsed = parseDateInput(props.value);
   const selectedDay =
-    parseDateInput(props.value) &&
-    parseDateInput(props.value)!.getFullYear() === visibleMonth.getFullYear() &&
-    parseDateInput(props.value)!.getMonth() === visibleMonth.getMonth()
-      ? parseDateInput(props.value)!.getDate()
+    parsed &&
+    parsed.getFullYear() === visibleMonth.getFullYear() &&
+    parsed.getMonth() === visibleMonth.getMonth()
+      ? parsed.getDate()
       : null;
-  const isoValue = parseDateInput(props.value)
-    ? `${parseDateInput(props.value)!.getFullYear()}-${String(parseDateInput(props.value)!.getMonth() + 1).padStart(2, '0')}-${String(parseDateInput(props.value)!.getDate()).padStart(2, '0')}`
+  const isoValue = parsed
+    ? `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, '0')}-${String(parsed.getDate()).padStart(2, '0')}`
     : '';
 
   return (
     <View style={styles.field}>
-      <Text style={styles.label}>{props.label}</Text>
+      {label ? <Text style={styles.label}>{label}</Text> : null}
       <View style={styles.dateInputBox}>
         <TextInput
           keyboardType="numbers-and-punctuation"
@@ -340,7 +342,7 @@ export function InventoryDateField(props: {
       </View>
 
       <MobileContainedModal onClose={() => setPickerOpen(false)} visible={pickerOpen}>
-        <Text style={styles.modalTitle}>{props.label}</Text>
+        <Text style={styles.modalTitle}>{label || 'Fecha'}</Text>
         <View style={styles.calendarHeader}>
           <Pressable
             accessibilityLabel="Mes anterior"
