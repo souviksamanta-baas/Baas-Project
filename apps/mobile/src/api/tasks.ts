@@ -354,6 +354,19 @@ export async function getOwnerNotifications(
   businessCenterId: string,
   limit = 50,
 ): Promise<OwnerNotification[]> {
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+
+  if (userError) {
+    throw new Error(userError.message);
+  }
+
+  if (!user) {
+    throw new Error('Sign in before loading notifications.');
+  }
+
   const { data, error } = await supabase
     .from('owner_notifications')
     .select(
@@ -362,6 +375,9 @@ export async function getOwnerNotifications(
     .eq('organization_id', organizationId)
     .eq('business_center_id', businessCenterId)
     .neq('status', 'dismissed')
+    // Assignee/user-targeted rows (task.assigned, copi.action_needed, …) only for me;
+    // null target_user_id = org broadcast.
+    .or(`target_user_id.is.null,target_user_id.eq.${user.id}`)
     .order('created_at', { ascending: false })
     .limit(limit);
 

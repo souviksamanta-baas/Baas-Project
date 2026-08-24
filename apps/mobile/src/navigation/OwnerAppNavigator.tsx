@@ -365,7 +365,7 @@ export function OwnerAppNavigator(props: { onSignOut: () => void }): ReactElemen
                 notifications={[]}
                 onDismissAll={async () => undefined}
                 onDismissNotification={async () => undefined}
-                onOpenAlertProduct={() => undefined}
+                onOpenNotification={() => undefined}
                 onOpenTaskDetail={() => undefined}
                 onOpenTasks={() => undefined}
                 tasks={[]}

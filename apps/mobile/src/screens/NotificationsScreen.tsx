@@ -36,7 +36,7 @@ export function NotificationsScreen(props: {
   notifications: OwnerNotification[];
   onDismissAll: () => Promise<void>;
   onDismissNotification: (notificationId: string) => Promise<void>;
-  onOpenAlertProduct: (productId: string) => void;
+  onOpenNotification: (notificationId: string) => void;
   onOpenTaskDetail: (taskId: string) => void;
   onOpenTasks: () => void;
   organizationId?: string | null;
@@ -136,21 +136,18 @@ export function NotificationsScreen(props: {
         ) : (
           <Card flush>
             {items.map((item, index) => {
+              const notificationId = item.notificationId;
+
               const openDestination = (): void => {
                 if (item.kind === 'task' && item.taskId) {
                   props.onOpenTaskDetail(item.taskId);
                   return;
                 }
 
-                if (item.productId) {
-                  props.onOpenAlertProduct(item.productId);
+                if (notificationId) {
+                  props.onOpenNotification(notificationId);
                 }
-                // Informational alerts (member joined, etc.) have no deep link.
               };
-
-              const canOpen =
-                (item.kind === 'task' && Boolean(item.taskId)) || Boolean(item.productId);
-              const notificationId = item.notificationId;
 
               return (
                 <View
@@ -167,7 +164,11 @@ export function NotificationsScreen(props: {
                         tone: item.tone,
                         unread: item.isUnread,
                       }}
-                      onPress={canOpen ? openDestination : undefined}
+                      onPress={
+                        (item.kind === 'task' && item.taskId) || notificationId
+                          ? openDestination
+                          : undefined
+                      }
                       showDivider={false}
                     />
                   </View>

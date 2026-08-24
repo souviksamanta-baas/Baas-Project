@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Text } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import { getOwnerTask } from '../../../src/api/tasks';
@@ -29,18 +29,26 @@ export default function TaskDetailRoute(): ReactElement {
   const organizationId = dashboard?.organization?.id ?? null;
   const businessCenterId = dashboard?.businessCenter?.id ?? null;
   const tasksState = useOwnerTasks(organizationId, businessCenterId);
-  const [task, setTask] = useState<OwnerTask | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+
+  const [fetchedTask, setFetchedTask] = useState<OwnerTask | null>(null);
+  const [isFetching, setIsFetching] = useState(false);
+
+  // Instant when opening from the list. Never put `tasksState.tasks` in the fetch
+  // effect deps — a fresh array each render used to keep this page on the spinner.
+  const taskFromList = taskId
+    ? (tasksState.tasks.find((item) => item.id === taskId) ?? null)
+    : null;
+  const task = taskFromList ?? fetchedTask;
 
   useEffect(() => {
     if (!organizationId || !businessCenterId || !taskId) {
-      setTask(null);
-      setIsLoading(false);
+      setFetchedTask(null);
+      setIsFetching(false);
       return;
     }
 
     let mounted = true;
-    setIsLoading(true);
+    setIsFetching(true);
 
     getOwnerTask({
       businessCenterId,
@@ -50,21 +58,41 @@ export default function TaskDetailRoute(): ReactElement {
     })
       .then((nextTask) => {
         if (mounted) {
-          setTask(nextTask);
+          setFetchedTask(nextTask);
+        }
+      })
+      .catch(() => {
+        if (mounted) {
+          setFetchedTask(null);
         }
       })
       .finally(() => {
         if (mounted) {
-          setIsLoading(false);
+          setIsFetching(false);
         }
       });
 
     return () => {
       mounted = false;
     };
-  }, [businessCenterId, organizationId, taskId, tasksState.currentUserId, tasksState.tasks]);
+  }, [businessCenterId, organizationId, taskId, tasksState.currentUserId]);
 
-  if (isLoading) {
+  const goBack = (): void => {
+    router.replace(resolveTaskReturnRoute(returnTo));
+  };
+
+  if (!taskId) {
+    return (
+      <ScreenContent>
+        <Text style={styles.message}>No se encontró la tarea.</Text>
+        <Pressable onPress={goBack}>
+          <Text style={styles.link}>Volver</Text>
+        </Pressable>
+      </ScreenContent>
+    );
+  }
+
+  if (!task && isFetching) {
     return (
       <ScreenContent>
         <ActivityIndicator color={colors.primary} />
@@ -75,14 +103,13 @@ export default function TaskDetailRoute(): ReactElement {
   if (!task) {
     return (
       <ScreenContent>
-        <Text>No se encontró la tarea.</Text>
+        <Text style={styles.message}>No se encontró la tarea.</Text>
+        <Pressable onPress={goBack}>
+          <Text style={styles.link}>Volver</Text>
+        </Pressable>
       </ScreenContent>
     );
   }
-
-  const goBack = (): void => {
-    router.replace(resolveTaskReturnRoute(returnTo));
-  };
 
   return (
     <TaskDetailScreen
@@ -124,9 +151,20 @@ export default function TaskDetailRoute(): ReactElement {
         await tasksState.unfollowTask(task.id);
       }}
       role={dashboard?.organization?.role}
-      task={
-        tasksState.tasks.find((item) => item.id === task.id) ?? task
-      }
+      task={task}
     />
   );
 }
+
+const styles = StyleSheet.create({
+  link: {
+    color: colors.primary,
+    fontSize: 15,
+    fontWeight: '600',
+    marginTop: 12,
+  },
+  message: {
+    color: colors.slate,
+    fontSize: 15,
+  },
+});

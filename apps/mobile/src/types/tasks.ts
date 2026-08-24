@@ -35,13 +35,19 @@ export interface OwnerNotification {
   id: string;
   notificationType: string;
   payload: {
+    actionId?: string;
+    actionType?: string;
     appointmentId?: string;
+    assigneeName?: string | null;
     conversationId?: string;
+    description?: string | null;
+    dueAt?: string | null;
     invoiceId?: string;
     productId?: string;
     reorderThreshold?: number;
     stockQuantity?: number;
     taskId?: string;
+    title?: string | null;
   };
   productId: string | null;
   productLabel: string | null;

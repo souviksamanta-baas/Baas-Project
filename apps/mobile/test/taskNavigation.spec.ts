@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  notificationDetailRoute,
   parseInventoryReturnTo,
   resolveInventoryReturnRoute,
   taskDetailRoute,
@@ -13,6 +14,10 @@ describe('task navigation', () => {
     expect(taskDetailRoute('task-1', 'notifications')).toBe(
       '/(app)/tasks/task-1?returnTo=notifications',
     );
+  });
+
+  it('builds notification detail routes', () => {
+    expect(notificationDetailRoute('alert-1')).toBe('/(app)/notifications/alert-1');
   });
 
   it('returns alert products to Home or Notifications', () => {

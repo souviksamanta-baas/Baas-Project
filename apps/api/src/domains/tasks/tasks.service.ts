@@ -415,11 +415,19 @@ export class TasksService {
     }
 
     const task = toOwnerTaskRecord(data as Record<string, unknown>);
-    await this.emitStatusChangedIfNeeded({
-      actorUserId: params.actorUserId ?? params.completedByUserId ?? null,
-      organizationId: params.organizationId,
-      task,
-    });
+    try {
+      await this.emitStatusChangedIfNeeded({
+        actorUserId: params.actorUserId ?? params.completedByUserId ?? null,
+        organizationId: params.organizationId,
+        task,
+      });
+    } catch (error) {
+      // Status already persisted — never fail the mutation because push/prefs failed.
+      console.error('Failed to emit task.status_changed notification', {
+        error: error instanceof Error ? error.message : error,
+        taskId: params.taskId,
+      });
+    }
 
     return task;
   }

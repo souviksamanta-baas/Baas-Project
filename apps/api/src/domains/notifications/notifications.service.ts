@@ -16,6 +16,8 @@ const CONCURRENCY = 5;
 const INBOX_THROTTLE_MINUTES = 10;
 const INVOICE_OVERDUE_DAYS = 30;
 const DIGEST_HOUR = 8;
+/** Remind the owner to confirm a Copi proposal only after this idle window. */
+const COPI_ACTION_REMINDER_DELAY_MS = 5 * 60_000;
 
 export interface NotificationPrefs {
   enabled: Record<string, boolean>;
@@ -196,6 +198,13 @@ export class NotificationsService {
     let pushSent = 0;
     let pushFailed = 0;
 
+    const copiReminders = await this.notifyStaleCopiActionProposals({
+      now,
+      organizationId: params.organizationId,
+    });
+    created += copiReminders.created;
+    pushSent += copiReminders.sent;
+
     for (const org of orgs) {
       const centers = await this.listCenters(org.id);
       for (const center of centers) {
@@ -338,20 +347,117 @@ export class NotificationsService {
 
   async notifyCopiActionNeeded(params: {
     actionId: string;
+    actionType?: string;
+    assigneeName?: string | null;
     businessCenterId: string;
+    description?: string | null;
+    dueAt?: string | null;
     organizationId: string;
     summary: string;
+    title?: string | null;
     userId: string;
   }): Promise<void> {
     await this.emit({
       body: params.summary,
       businessCenterId: params.businessCenterId,
       organizationId: params.organizationId,
-      payload: { actionId: params.actionId },
+      payload: {
+        actionId: params.actionId,
+        actionType: params.actionType ?? null,
+        assigneeName: params.assigneeName ?? null,
+        description: params.description ?? null,
+        dueAt: params.dueAt ?? null,
+        title: params.title ?? null,
+      },
       sourceKey: `copi.action_needed:${params.actionId}`,
       targetUserId: params.userId,
       type: 'copi.action_needed',
     });
+  }
+
+  /** Dismiss the reminder once the owner confirms in Copi chat. */
+  async dismissCopiActionNeeded(actionId: string): Promise<void> {
+    const client = this.supabaseService.getServiceRoleClient();
+    const { error } = await client
+      .from('owner_notifications')
+      .update({ status: 'dismissed' })
+      .eq('source_key', `copi.action_needed:${actionId}`)
+      .neq('status', 'dismissed');
+
+    if (error) {
+      this.logger.warn(`Failed to dismiss copi.action_needed for ${actionId}: ${error.message}`);
+    }
+  }
+
+  /**
+   * After 5 minutes without confirm, nudge the owner. Skips executed proposals;
+   * source_key upsert prevents duplicates.
+   */
+  async notifyStaleCopiActionProposals(params: {
+    now: Date;
+    organizationId?: string;
+  }): Promise<{ created: number; sent: number }> {
+    const cutoff = new Date(params.now.getTime() - COPI_ACTION_REMINDER_DELAY_MS).toISOString();
+    const client = this.supabaseService.getServiceRoleClient();
+    let query = client
+      .from('copi_action_proposals')
+      .select('id, action_type, business_center_id, organization_id, payload, user_id')
+      .eq('status', 'pending')
+      .lte('created_at', cutoff)
+      .gt('expires_at', params.now.toISOString())
+      .limit(100);
+
+    if (params.organizationId) {
+      query = query.eq('organization_id', params.organizationId);
+    }
+
+    const { data, error } = await query;
+    if (error) {
+      this.logger.error(`Failed to list stale Copi proposals: ${error.message}`);
+      return { created: 0, sent: 0 };
+    }
+
+    let created = 0;
+    let sent = 0;
+    for (const row of (data ?? []) as Array<{
+      action_type: string;
+      business_center_id: string;
+      id: string;
+      organization_id: string;
+      payload: Record<string, unknown>;
+      user_id: string;
+    }>) {
+      const details = extractCopiProposalDetails(row.action_type, row.payload);
+      try {
+        const result = await this.emit({
+          body: details.summary,
+          businessCenterId: row.business_center_id,
+          organizationId: row.organization_id,
+          payload: {
+            actionId: row.id,
+            actionType: row.action_type,
+            assigneeName: details.assigneeName,
+            description: details.description,
+            dueAt: details.dueAt,
+            title: details.title,
+          },
+          sourceKey: `copi.action_needed:${row.id}`,
+          targetUserId: row.user_id,
+          type: 'copi.action_needed',
+        });
+        if (result.created) {
+          created += 1;
+        }
+        sent += result.sent;
+      } catch (emitError) {
+        this.logger.error('Failed to emit copi.action_needed reminder', {
+          actionId: row.id,
+          error: emitError instanceof Error ? emitError.message : emitError,
+        });
+      }
+    }
+
+    return { created, sent };
   }
 
   async notifyTeamInviteAccepted(params: {
@@ -1191,4 +1297,49 @@ function formatSpanishDate(iso: string): string {
     month: 'short',
     timeZone: 'America/Argentina/Cordoba',
   });
+}
+
+function extractCopiProposalDetails(
+  actionType: string,
+  payload: Record<string, unknown>,
+): {
+  assigneeName: string | null;
+  description: string | null;
+  dueAt: string | null;
+  summary: string;
+  title: string | null;
+} {
+  const tasks = Array.isArray(payload.tasks) ? payload.tasks : [];
+  const firstTask =
+    tasks[0] && typeof tasks[0] === 'object'
+      ? (tasks[0] as Record<string, unknown>)
+      : null;
+
+  const title =
+    (typeof firstTask?.title === 'string' && firstTask.title.trim()) ||
+    (typeof payload.title === 'string' && payload.title.trim()) ||
+    null;
+  const description =
+    (typeof firstTask?.description === 'string' && firstTask.description.trim()) ||
+    (typeof payload.description === 'string' && payload.description.trim()) ||
+    null;
+  const dueAt =
+    (typeof firstTask?.dueAt === 'string' && firstTask.dueAt) ||
+    (typeof payload.dueAt === 'string' && payload.dueAt) ||
+    null;
+  const assigneeName =
+    (typeof firstTask?.assigneeName === 'string' && firstTask.assigneeName.trim()) ||
+    (typeof payload.assigneeName === 'string' && payload.assigneeName.trim()) ||
+    null;
+
+  const summary =
+    actionType === 'create_task' && title
+      ? `Crear tarea: ${title}${assigneeName ? ` (asignada a ${assigneeName})` : ''}${
+          dueAt ? ` (vence ${formatSpanishDate(dueAt)})` : ''
+        }`
+      : typeof payload.question === 'string' && payload.question.trim()
+        ? payload.question.trim().slice(0, 160)
+        : `Copi espera tu confirmación (${actionType})`;
+
+  return { assigneeName, description, dueAt, summary, title };
 }

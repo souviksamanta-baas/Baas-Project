@@ -1,10 +1,14 @@
 import type { ReactElement } from 'react';
 import { useRouter } from 'expo-router';
 
-import { useOwnerSessionContext } from '../../src/context/OwnerSessionProvider';
-import { useOwnerTasks } from '../../src/hooks/useOwnerTasks';
-import { productDetailRoute, taskDetailRoute, tasksRoute } from '../../src/navigation/routes';
-import { NotificationsScreen } from '../../src/screens/NotificationsScreen';
+import { useOwnerSessionContext } from '../../../src/context/OwnerSessionProvider';
+import { useOwnerTasks } from '../../../src/hooks/useOwnerTasks';
+import {
+  notificationDetailRoute,
+  taskDetailRoute,
+  tasksRoute,
+} from '../../../src/navigation/routes';
+import { NotificationsScreen } from '../../../src/screens/NotificationsScreen';
 
 export default function NotificationsRoute(): ReactElement {
   const router = useRouter();
@@ -20,7 +24,7 @@ export default function NotificationsRoute(): ReactElement {
       notifications={tasksState.notifications}
       onDismissAll={tasksState.dismissAllNotifications}
       onDismissNotification={tasksState.dismissNotification}
-      onOpenAlertProduct={(productId) => router.push(productDetailRoute(productId, 'notifications'))}
+      onOpenNotification={(notificationId) => router.push(notificationDetailRoute(notificationId))}
       onOpenTaskDetail={(taskId) => router.push(taskDetailRoute(taskId, 'notifications'))}
       onOpenTasks={() => router.push(tasksRoute())}
       organizationId={organizationId}

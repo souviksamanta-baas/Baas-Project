@@ -286,6 +286,10 @@ Routes:
 - `/(app)/notifications` — live tasks and alerts (no mock data), with a
   “Ver todas las tareas” link; **⋮** opens mark-all-read, reminder lead prefs
   (15/30/60), and list filters
+- `/(app)/notifications/[notificationId]` — full alert title/body (list rows
+  truncate); links to related task/product when present. `task.assigned` is
+  assignee-only. `copi.action_needed` appears only after 5 minutes without chat
+  confirm, and the detail page can confirm the pending Copi action.
 
 Navigation:
 

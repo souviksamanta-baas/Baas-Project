@@ -148,6 +148,10 @@ export function taskDetailRoute(taskId: string, returnTo?: TaskReturnTo): string
   return `${path}?returnTo=${returnTo}`;
 }
 
+export function notificationDetailRoute(notificationId: string): string {
+  return `/(app)/notifications/${encodeURIComponent(notificationId)}`;
+}
+
 export type AppointmentReturnTo = 'agenda' | 'home' | 'more';
 
 export function appointmentDetailRoute(

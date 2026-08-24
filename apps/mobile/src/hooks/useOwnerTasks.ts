@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import * as Notifications from 'expo-notifications';
 import { Alert } from 'react-native';
 
@@ -172,13 +172,15 @@ export function useOwnerTasks(
   }, [businessCenterId, loadTasks, organizationId]);
 
   // Merge assignee display names in-memory whenever members or tasks change.
-  const assigneeMap = buildAssigneeMap(members);
-  const tasksWithLabels = tasks.map((task) => ({
-    ...task,
-    assigneeLabel: task.assignedToUserId
-      ? assigneeMap.get(task.assignedToUserId) ?? task.assigneeLabel
-      : task.assigneeLabel,
-  }));
+  const tasksWithLabels = useMemo(() => {
+    const assigneeMap = buildAssigneeMap(members);
+    return tasks.map((task) => ({
+      ...task,
+      assigneeLabel: task.assignedToUserId
+        ? assigneeMap.get(task.assignedToUserId) ?? task.assigneeLabel
+        : task.assigneeLabel,
+    }));
+  }, [members, tasks]);
 
   const runAction = useCallback(
     async (params: {

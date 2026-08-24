@@ -63,15 +63,9 @@ export class CopiActionService {
       summary: summarizeProposal(data.action_type, data.payload),
     };
 
-    if (this.notificationsService) {
-      await this.notificationsService.notifyCopiActionNeeded({
-        actionId: proposal.id,
-        businessCenterId: context.businessCenterId,
-        organizationId: context.organizationId,
-        summary: proposal.summary,
-        userId: context.userId,
-      });
-    }
+    // Do not push "Copi necesita confirmación" immediately — chat already shows
+    // the confirm card. A reminder is emitted after 5 minutes only if still pending
+    // (see NotificationsService.notifyStaleCopiActionProposals).
 
     return proposal;
   }
@@ -135,6 +129,10 @@ export class CopiActionService {
 
     if (updateError) {
       throw new Error(`Failed to mark Copi action as executed: ${updateError.message}`);
+    }
+
+    if (this.notificationsService) {
+      await this.notificationsService.dismissCopiActionNeeded(data.id);
     }
 
     return { result, status: 'executed' };

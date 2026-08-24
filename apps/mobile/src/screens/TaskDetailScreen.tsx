@@ -44,7 +44,7 @@ export function TaskDetailScreen(props: {
   );
 
   return (
-    <ScreenContent>
+    <ScreenContent disableScroll>
       <View style={styles.headerRow}>
         <Pressable hitSlop={8} onPress={props.onBack} style={styles.backPressable}>
           <Text style={styles.backText}>‹</Text>
@@ -64,7 +64,11 @@ export function TaskDetailScreen(props: {
         </Pressable>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        style={styles.scroll}
+      >
         <Card style={styles.card}>
           <Text style={styles.sectionLabel}>Título</Text>
           <Text style={styles.title}>{props.task.title}</Text>
@@ -206,8 +210,8 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   card: {
-    marginBottom: 16,
-    padding: 16,
+    marginBottom: 8,
+    padding: 20,
   },
   flex: {
     flex: 1,
@@ -216,6 +220,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flexDirection: 'row',
     marginBottom: 8,
+    paddingHorizontal: 24,
   },
   linkText: {
     color: colors.primary,
@@ -251,15 +256,20 @@ const styles = StyleSheet.create({
     gap: 16,
     paddingHorizontal: 4,
   },
+  scroll: {
+    flex: 1,
+  },
   scrollContent: {
+    gap: 16,
     paddingBottom: 32,
+    paddingHorizontal: 24,
   },
   sectionLabel: {
     color: colors.slate,
     fontSize: 12,
     fontWeight: '600',
     letterSpacing: 0.2,
-    marginBottom: 4,
+    marginBottom: 6,
     textTransform: 'uppercase',
   },
   title: {
