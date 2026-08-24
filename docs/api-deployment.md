@@ -198,14 +198,29 @@ The trigger:
 If `BAAS_TASKS_JOB_SECRET` is missing or the header does not match, the endpoint
 does not run the job.
 
-### Task Portal API gap
+### Task Portal REST (KAN-401)
 
-The mobile Task Portal (`docs/mobile-app.md`) reads and updates `owner_tasks` and
-`owner_notifications` through Supabase RLS via `apps/mobile/src/api/tasks.ts`.
-The NestJS `TasksController` currently exposes only `POST /tasks/run-maintenance`;
-authenticated task list/create/update endpoints are deferred to Phase 3
-(`docs/phase-3-scope.md`). `TasksService` already implements internal task
-operations used by Copi action confirmation.
+Authenticated owner session (Bearer) can list/create/update tasks under `/tasks`
+in addition to the job secret maintenance trigger:
+
+| Method | Path | Notes |
+| --- | --- | --- |
+| `GET` | `/tasks` | Org + center scoped list |
+| `GET` | `/tasks/:taskId` | Single task |
+| `POST` | `/tasks` | Create (title, description, dueAt, assignedToUserId required) |
+| `PATCH` | `/tasks/:taskId` | Update fields |
+| `POST` | `/tasks/:taskId/assign` | Reassign (assignee, owner, or co-owner) |
+| `POST` | `/tasks/:taskId/start` | → `in_progress` |
+| `POST` | `/tasks/:taskId/complete` | → `completed` |
+| `POST` | `/tasks/:taskId/cancel` | → `cancelled` (Eliminar) |
+| `POST` | `/tasks/:taskId/postpone` | → `postponed` + `postponedUntil` |
+| `POST` | `/tasks/:taskId/snooze-reminder` | Silence reminder (`reminder_snoozed_until`) |
+| `POST`/`DELETE` | `/tasks/:taskId/followers` | Follow / unfollow |
+| `POST` | `/tasks/:taskId/appointments` | Create meeting linked via `appointments.task_id` |
+
+Statuses: `pending` \| `in_progress` \| `completed` \| `cancelled` \| `postponed`.
+Mobile client: `apps/mobile/src/api/tasks.ts`. See `docs/mobile-app.md` and
+Confluence Task Portal / push catalog.
 
 ## Deployment Verification
 

@@ -18,6 +18,7 @@ export interface AppointmentRecord {
   organizationId: string;
   startsAt: string;
   status: AppointmentStatus;
+  taskId: string | null;
   title: string;
   updatedAt: string;
 }
@@ -35,12 +36,13 @@ interface AppointmentRow {
   organization_id: string;
   starts_at: string;
   status: AppointmentStatus;
+  task_id: string | null;
   title: string;
   updated_at: string;
 }
 
 const APPOINTMENT_SELECT =
-  'id, organization_id, business_center_id, title, starts_at, ends_at, status, notes, contact_id, assigned_to_user_id, created_by_user_id, metadata, created_at, updated_at';
+  'id, organization_id, business_center_id, title, starts_at, ends_at, status, notes, contact_id, assigned_to_user_id, created_by_user_id, metadata, task_id, created_at, updated_at';
 
 @Injectable()
 export class AppointmentsService {
@@ -103,6 +105,7 @@ export class AppointmentsService {
     notes?: string | null;
     organizationId: string;
     startsAt: string;
+    taskId?: string | null;
     title: string;
   }): Promise<AppointmentRecord> {
     const client = this.supabaseService.getServiceRoleClient();
@@ -119,6 +122,7 @@ export class AppointmentsService {
         organization_id: params.organizationId,
         starts_at: params.startsAt,
         status: 'scheduled',
+        task_id: params.taskId ?? null,
         title: params.title,
       })
       .select(APPOINTMENT_SELECT)
@@ -140,6 +144,33 @@ export class AppointmentsService {
     }
 
     return appointment;
+  }
+
+  async createFromTask(params: {
+    assignedToUserId?: string | null;
+    businessCenterId: string;
+    contactId?: string | null;
+    createdByUserId: string;
+    endsAt: string;
+    notes?: string | null;
+    organizationId: string;
+    startsAt: string;
+    task: { id: string; title: string };
+    title?: string;
+  }): Promise<AppointmentRecord> {
+    return this.createAppointment({
+      assignedToUserId: params.assignedToUserId ?? null,
+      businessCenterId: params.businessCenterId,
+      contactId: params.contactId ?? null,
+      createdByUserId: params.createdByUserId,
+      endsAt: params.endsAt,
+      metadata: { fromTaskId: params.task.id },
+      notes: params.notes ?? null,
+      organizationId: params.organizationId,
+      startsAt: params.startsAt,
+      taskId: params.task.id,
+      title: params.title?.trim() || params.task.title,
+    });
   }
 
   async updateAppointment(params: {
@@ -229,6 +260,7 @@ function toAppointmentRecord(row: AppointmentRow): AppointmentRecord {
     organizationId: row.organization_id,
     startsAt: row.starts_at,
     status: row.status,
+    taskId: row.task_id ?? null,
     title: row.title,
     updatedAt: row.updated_at,
   };

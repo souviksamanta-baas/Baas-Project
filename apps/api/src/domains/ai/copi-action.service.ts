@@ -172,12 +172,21 @@ export class CopiActionService {
               : null) ??
             fallbackAssigneeId;
 
-          // Named assignee missing from the org → fall back to the task creator.
-          const assignedToUserId =
-            resolvedAssigneeId ?? (item.assigneeName ? params.userId : null);
+          // KAN-401 mandatory fields: always resolve to an assignee (fallback: creator).
+          const assignedToUserId = resolvedAssigneeId ?? params.userId;
           const assigneeFellBackToCreator = Boolean(
-            item.assigneeName && !resolvedAssigneeId && assignedToUserId === params.userId,
+            !resolvedAssigneeId && assignedToUserId === params.userId,
           );
+
+          // dueAt is mandatory server-side; default to +24h when Copi could not infer one.
+          const dueAt =
+            item.dueAt && item.dueAt.trim().length > 0
+              ? item.dueAt
+              : new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+          const description =
+            item.description && item.description.trim().length > 0
+              ? item.description
+              : item.title;
 
           const task = await this.tasksService.createTask({
             assignedToUserId,
@@ -185,11 +194,11 @@ export class CopiActionService {
             contactId: readOptionalUuid(params.payload.contactId),
             conversationId: readOptionalUuid(params.payload.conversationId),
             createdByUserId: params.userId,
-            description: item.description,
-            dueAt: item.dueAt,
+            description,
+            dueAt,
             metadata: {
               ...(item.assigneeName ? { assigneeName: item.assigneeName } : {}),
-              ...(assigneeFellBackToCreator
+              ...(assigneeFellBackToCreator && item.assigneeName
                 ? {
                     assigneeFellBackToCreator: true,
                     clarificationQuestion: `No encontré a «${item.assigneeName}» en el equipo. Asigné «${item.title}» a vos.`,
@@ -370,6 +379,7 @@ export class CopiActionService {
       case 'complete_task': {
         const taskId = readRequiredTaskId(params.payload.taskId, 'completar');
         const task = await this.tasksService.updateTaskStatus({
+          actorUserId: params.userId,
           businessCenterId: params.businessCenterId,
           completedByUserId: params.userId,
           organizationId: params.organizationId,
@@ -378,21 +388,36 @@ export class CopiActionService {
         });
         return { status: task.status, taskId: task.id };
       }
+      case 'start_task': {
+        const taskId = readRequiredTaskId(params.payload.taskId, 'iniciar');
+        const task = await this.tasksService.startTask({
+          actorUserId: params.userId,
+          businessCenterId: params.businessCenterId,
+          organizationId: params.organizationId,
+          taskId,
+        });
+        return { status: task.status, taskId: task.id };
+      }
+      // KAN-401: snooze_task now maps to status='postponed' (posponer hasta).
       case 'snooze_task': {
         const taskId = readRequiredTaskId(
           params.payload.taskId,
           'posponer',
           'No hay una tarea concreta para posponer. Pedile a Copi que cree o identifique la tarea primero.',
         );
-        const snoozedUntil =
-          typeof params.payload.snoozedUntil === 'string' && params.payload.snoozedUntil.trim()
+        const postponedUntil =
+          (typeof params.payload.postponedUntil === 'string' && params.payload.postponedUntil.trim()
+            ? params.payload.postponedUntil
+            : null) ??
+          (typeof params.payload.snoozedUntil === 'string' && params.payload.snoozedUntil.trim()
             ? params.payload.snoozedUntil
-            : new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
-        const task = await this.tasksService.updateTaskStatus({
+            : null) ??
+          new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+        const task = await this.tasksService.postponeTask({
+          actorUserId: params.userId,
           businessCenterId: params.businessCenterId,
           organizationId: params.organizationId,
-          snoozedUntil,
-          status: 'snoozed',
+          postponedUntil,
           taskId,
         });
         return { status: task.status, taskId: task.id };
@@ -400,6 +425,7 @@ export class CopiActionService {
       case 'cancel_task': {
         const taskId = readRequiredTaskId(params.payload.taskId, 'cancelar');
         const task = await this.tasksService.updateTaskStatus({
+          actorUserId: params.userId,
           businessCenterId: params.businessCenterId,
           organizationId: params.organizationId,
           status: 'cancelled',
@@ -757,6 +783,9 @@ export function inferCopiActionType(question: string): CopiActionType {
   if (/\b(asign|assign|reassign|pasale)\b/.test(normalized)) {
     return /\b(reassign|pasale)\b/.test(normalized) ? 'reassign_task' : 'assign_task';
   }
+  if (/\b(empez|empeza|empezar|comenz|comenza|comenzar|iniciar|inicia|arranc|start|starting)\b/.test(normalized) && mentionsTask) {
+    return 'start_task';
+  }
   if (/\b(complet|hecha|done|marca)\b/.test(normalized) && mentionsTask) {
     return 'complete_task';
   }
@@ -985,6 +1014,8 @@ function summarizeProposal(actionType: CopiActionType, payload: Record<string, u
     case 'assign_task':
     case 'reassign_task':
       return 'Asignar tarea';
+    case 'start_task':
+      return 'Iniciar tarea (en progreso)';
     case 'complete_task':
       return 'Marcar tarea como completada';
     case 'snooze_task':

@@ -1,28 +1,39 @@
+import { apiFetchAuthJson } from './client';
 import { supabase } from '../lib/supabase';
-import type { OwnerNotification, OwnerTask, OwnerTaskStatus, OwnerTaskType } from '../types/tasks';
+import type {
+  OwnerNotification,
+  OwnerTask,
+  OwnerTaskStatus,
+  OwnerTaskType,
+} from '../types/tasks';
 
-interface ContactRow {
+interface OwnerTaskApiRow {
+  assignedToUserId: string | null;
+  businessCenterId: string;
+  contactId: string | null;
+  conversationId: string | null;
+  createdByUserId: string | null;
+  description: string | null;
+  dueAt: string | null;
+  id: string;
+  organizationId: string;
+  postponedUntil: string | null;
+  priority: 'low' | 'normal' | 'high';
+  reminderSnoozedUntil: string | null;
+  status: OwnerTaskStatus;
+  taskType: OwnerTaskType;
+  title: string;
+}
+
+interface ContactLookupRow {
   display_name: string | null;
+  id: string;
   phone_number: string | null;
 }
 
-interface ConversationRow {
+interface ConversationLookupRow {
   external_contact_id: string | null;
-}
-
-interface OwnerTaskRow {
-  contacts: ContactRow | ContactRow[] | null;
-  conversation_id: string | null;
-  conversations: ConversationRow | ConversationRow[] | null;
-  description: string | null;
-  due_at: string | null;
   id: string;
-  metadata: Record<string, unknown> | null;
-  priority: 'low' | 'normal' | 'high' | null;
-  snoozed_until: string | null;
-  status: OwnerTaskStatus;
-  task_type: OwnerTaskType | null;
-  title: string;
 }
 
 interface ProductRow {
@@ -50,72 +61,293 @@ interface OwnerNotificationRow {
   title: string;
 }
 
-const TASK_SELECT =
-  'id, conversation_id, title, description, status, due_at, snoozed_until, task_type, priority, metadata, contacts(display_name, phone_number), conversations(external_contact_id)';
-
-export async function getOwnerTasks(
-  organizationId: string,
-  businessCenterId: string,
-): Promise<OwnerTask[]> {
-  const { data, error } = await supabase
-    .from('owner_tasks')
-    .select(TASK_SELECT)
-    .eq('organization_id', organizationId)
-    .eq('business_center_id', businessCenterId)
-    .in('status', ['pending', 'snoozed'])
-    .order('due_at', { ascending: true, nullsFirst: false });
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  return (data as OwnerTaskRow[]).map(toOwnerTask);
+export interface OwnerTaskAssigneeInfo {
+  displayName: string;
+  userId: string;
 }
 
-export async function getOwnerTask(
-  organizationId: string,
-  businessCenterId: string,
-  taskId: string,
-): Promise<OwnerTask | null> {
-  const { data, error } = await supabase
-    .from('owner_tasks')
-    .select(TASK_SELECT)
-    .eq('organization_id', organizationId)
-    .eq('business_center_id', businessCenterId)
-    .eq('id', taskId)
-    .maybeSingle();
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  return data ? toOwnerTask(data as OwnerTaskRow) : null;
+export interface OwnerTaskContext {
+  assignees: OwnerTaskAssigneeInfo[];
+  followingTaskIds: Set<string>;
 }
 
-export async function completeOwnerTask(
-  organizationId: string,
-  businessCenterId: string,
-  taskId: string,
-): Promise<void> {
-  await updateOwnerTaskStatus(organizationId, businessCenterId, taskId, {
-    completed_at: new Date().toISOString(),
-    status: 'completed',
+const DEFAULT_STATUSES: OwnerTaskStatus[] = ['pending', 'in_progress', 'postponed'];
+
+function taskQuery(params: {
+  businessCenterId: string;
+  organizationId: string;
+  statuses?: OwnerTaskStatus[];
+  limit?: number;
+}): string {
+  const search = new URLSearchParams({
+    businessCenterId: params.businessCenterId,
+    organizationId: params.organizationId,
+  });
+
+  const statuses = params.statuses ?? DEFAULT_STATUSES;
+  if (statuses.length > 0) {
+    search.set('statuses', statuses.join(','));
+  }
+
+  if (params.limit) {
+    search.set('limit', String(params.limit));
+  } else {
+    search.set('limit', '200');
+  }
+
+  return search.toString();
+}
+
+/**
+ * Fetch tasks from the Nest API and enrich them with assignee, contact and
+ * following context loaded straight from Supabase. Direct supabase reads are
+ * kept for lookups that the REST endpoints don't expose today.
+ */
+export async function getOwnerTasks(params: {
+  businessCenterId: string;
+  currentUserId: string | null;
+  organizationId: string;
+  statuses?: OwnerTaskStatus[];
+}): Promise<OwnerTask[]> {
+  const rows = await apiFetchAuthJson<OwnerTaskApiRow[]>(
+    `/tasks?${taskQuery({
+      businessCenterId: params.businessCenterId,
+      organizationId: params.organizationId,
+      statuses: params.statuses,
+    })}`,
+  );
+
+  return enrichTasks({
+    currentUserId: params.currentUserId,
+    organizationId: params.organizationId,
+    rows,
   });
 }
 
-export async function snoozeOwnerTask(
-  organizationId: string,
-  businessCenterId: string,
-  taskId: string,
-  snoozedUntil: Date,
-): Promise<void> {
-  const timestamp = snoozedUntil.toISOString();
-  await updateOwnerTaskStatus(organizationId, businessCenterId, taskId, {
-    due_at: timestamp,
-    snoozed_until: timestamp,
-    status: 'snoozed',
+export async function getOwnerTask(params: {
+  businessCenterId: string;
+  currentUserId: string | null;
+  organizationId: string;
+  taskId: string;
+}): Promise<OwnerTask | null> {
+  try {
+    const row = await apiFetchAuthJson<OwnerTaskApiRow>(
+      `/tasks/${encodeURIComponent(params.taskId)}?${taskQuery({
+        businessCenterId: params.businessCenterId,
+        organizationId: params.organizationId,
+      })}`,
+    );
+    const enriched = await enrichTasks({
+      currentUserId: params.currentUserId,
+      organizationId: params.organizationId,
+      rows: [row],
+    });
+    return enriched[0] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export interface CreateOwnerTaskInput {
+  assignedToUserId: string;
+  businessCenterId: string;
+  contactId?: string | null;
+  conversationId?: string | null;
+  description: string;
+  dueAt: string;
+  organizationId: string;
+  priority?: 'low' | 'normal' | 'high';
+  title: string;
+}
+
+export async function createOwnerTask(input: CreateOwnerTaskInput): Promise<OwnerTask> {
+  const row = await apiFetchAuthJson<OwnerTaskApiRow>('/tasks', {
+    body: JSON.stringify({
+      assignedToUserId: input.assignedToUserId,
+      businessCenterId: input.businessCenterId,
+      contactId: input.contactId ?? null,
+      conversationId: input.conversationId ?? null,
+      description: input.description,
+      dueAt: input.dueAt,
+      organizationId: input.organizationId,
+      priority: input.priority ?? 'normal',
+      title: input.title,
+    }),
+    method: 'POST',
+  });
+
+  const [task] = await enrichTasks({
+    currentUserId: null,
+    organizationId: input.organizationId,
+    rows: [row],
+  });
+  return task!;
+}
+
+export async function startOwnerTask(params: {
+  businessCenterId: string;
+  organizationId: string;
+  taskId: string;
+}): Promise<OwnerTaskApiRow> {
+  return apiFetchAuthJson<OwnerTaskApiRow>(
+    `/tasks/${encodeURIComponent(params.taskId)}/start`,
+    {
+      body: JSON.stringify({
+        businessCenterId: params.businessCenterId,
+        organizationId: params.organizationId,
+      }),
+      method: 'POST',
+    },
+  );
+}
+
+export async function completeOwnerTask(params: {
+  businessCenterId: string;
+  organizationId: string;
+  taskId: string;
+}): Promise<OwnerTaskApiRow> {
+  return apiFetchAuthJson<OwnerTaskApiRow>(
+    `/tasks/${encodeURIComponent(params.taskId)}/complete`,
+    {
+      body: JSON.stringify({
+        businessCenterId: params.businessCenterId,
+        organizationId: params.organizationId,
+      }),
+      method: 'POST',
+    },
+  );
+}
+
+export async function cancelOwnerTask(params: {
+  businessCenterId: string;
+  organizationId: string;
+  taskId: string;
+}): Promise<OwnerTaskApiRow> {
+  return apiFetchAuthJson<OwnerTaskApiRow>(
+    `/tasks/${encodeURIComponent(params.taskId)}/cancel`,
+    {
+      body: JSON.stringify({
+        businessCenterId: params.businessCenterId,
+        organizationId: params.organizationId,
+      }),
+      method: 'POST',
+    },
+  );
+}
+
+export async function postponeOwnerTask(params: {
+  businessCenterId: string;
+  organizationId: string;
+  postponedUntil: Date;
+  taskId: string;
+}): Promise<OwnerTaskApiRow> {
+  return apiFetchAuthJson<OwnerTaskApiRow>(
+    `/tasks/${encodeURIComponent(params.taskId)}/postpone`,
+    {
+      body: JSON.stringify({
+        businessCenterId: params.businessCenterId,
+        organizationId: params.organizationId,
+        postponedUntil: params.postponedUntil.toISOString(),
+      }),
+      method: 'POST',
+    },
+  );
+}
+
+export async function snoozeOwnerTaskReminder(params: {
+  businessCenterId: string;
+  minutes?: number;
+  organizationId: string;
+  taskId: string;
+}): Promise<OwnerTaskApiRow> {
+  return apiFetchAuthJson<OwnerTaskApiRow>(
+    `/tasks/${encodeURIComponent(params.taskId)}/snooze-reminder`,
+    {
+      body: JSON.stringify({
+        businessCenterId: params.businessCenterId,
+        minutes: params.minutes ?? 10,
+        organizationId: params.organizationId,
+      }),
+      method: 'POST',
+    },
+  );
+}
+
+export async function reassignOwnerTask(params: {
+  assignedToUserId: string;
+  businessCenterId: string;
+  organizationId: string;
+  taskId: string;
+}): Promise<OwnerTaskApiRow> {
+  return apiFetchAuthJson<OwnerTaskApiRow>(
+    `/tasks/${encodeURIComponent(params.taskId)}/assign`,
+    {
+      body: JSON.stringify({
+        assignedToUserId: params.assignedToUserId,
+        businessCenterId: params.businessCenterId,
+        organizationId: params.organizationId,
+      }),
+      method: 'POST',
+    },
+  );
+}
+
+export async function followOwnerTask(params: {
+  businessCenterId: string;
+  organizationId: string;
+  taskId: string;
+}): Promise<{ added: boolean }> {
+  return apiFetchAuthJson<{ added: boolean }>(
+    `/tasks/${encodeURIComponent(params.taskId)}/followers`,
+    {
+      body: JSON.stringify({
+        businessCenterId: params.businessCenterId,
+        organizationId: params.organizationId,
+      }),
+      method: 'POST',
+    },
+  );
+}
+
+export async function unfollowOwnerTask(params: {
+  organizationId: string;
+  taskId: string;
+}): Promise<{ removed: boolean }> {
+  const search = new URLSearchParams({ organizationId: params.organizationId });
+  return apiFetchAuthJson<{ removed: boolean }>(
+    `/tasks/${encodeURIComponent(params.taskId)}/followers?${search.toString()}`,
+    { method: 'DELETE' },
+  );
+}
+
+export async function createAppointmentFromOwnerTask(params: {
+  businessCenterId: string;
+  endsAt?: string;
+  notes?: string | null;
+  organizationId: string;
+  startsAt: string;
+  taskId: string;
+  title?: string;
+}): Promise<{ appointmentId: string; startsAt: string; endsAt: string; title: string }> {
+  return apiFetchAuthJson<{
+    appointmentId: string;
+    startsAt: string;
+    endsAt: string;
+    title: string;
+  }>(`/tasks/${encodeURIComponent(params.taskId)}/appointments`, {
+    body: JSON.stringify({
+      businessCenterId: params.businessCenterId,
+      endsAt: params.endsAt,
+      notes: params.notes ?? null,
+      organizationId: params.organizationId,
+      startsAt: params.startsAt,
+      title: params.title,
+    }),
+    method: 'POST',
   });
 }
+
+// -- Notifications ---------------------------------------------------------
 
 export async function getOwnerNotifications(
   organizationId: string,
@@ -243,7 +475,9 @@ export function subscribeToOwnerTaskChanges(
       },
       (payload) => {
         if (payload.eventType === 'INSERT') {
-          handlers.onNotificationInsert(toOwnerNotification(payload.new as OwnerNotificationRow));
+          handlers.onNotificationInsert(
+            toOwnerNotification(payload.new as OwnerNotificationRow),
+          );
         }
         handlers.onRefresh();
       },
@@ -255,54 +489,161 @@ export function subscribeToOwnerTaskChanges(
   };
 }
 
-async function updateOwnerTaskStatus(
-  organizationId: string,
-  businessCenterId: string,
-  taskId: string,
-  updates: Record<string, string | null>,
-): Promise<void> {
-  const { data, error } = await supabase
-    .from('owner_tasks')
-    .update(updates)
-    .eq('organization_id', organizationId)
-    .eq('business_center_id', businessCenterId)
-    .eq('id', taskId)
-    .select('id')
-    .maybeSingle();
+// -- Enrichment helpers ---------------------------------------------------
 
-  if (error) {
-    throw new Error(error.message);
+async function enrichTasks(params: {
+  currentUserId: string | null;
+  organizationId: string;
+  rows: OwnerTaskApiRow[];
+}): Promise<OwnerTask[]> {
+  const rows = params.rows;
+  if (rows.length === 0) {
+    return [];
   }
 
-  if (!data) {
-    throw new Error('No se pudo actualizar la tarea. Probá de nuevo.');
+  const contactIds = uniqueTruthy(rows.map((row) => row.contactId));
+  const conversationIds = uniqueTruthy(rows.map((row) => row.conversationId));
+  const assignedUserIds = uniqueTruthy(rows.map((row) => row.assignedToUserId));
+  const taskIds = rows.map((row) => row.id);
+
+  const [contactMap, conversationMap, followingSet] = await Promise.all([
+    loadContacts(contactIds),
+    loadConversations(conversationIds),
+    params.currentUserId
+      ? loadFollowerTaskIds({
+          organizationId: params.organizationId,
+          taskIds,
+          userId: params.currentUserId,
+        })
+      : Promise.resolve(new Set<string>()),
+  ]);
+  // Assignee labels are looked up lazily by the hook (via the org members API).
+  const assigneeLabels = new Map<string, string>();
+  for (const userId of assignedUserIds) {
+    assigneeLabels.set(userId, '');
   }
+
+  return rows.map((row) => toOwnerTask(row, {
+    contactMap,
+    conversationMap,
+    followingSet,
+  }));
 }
 
-function toOwnerTask(row: OwnerTaskRow): OwnerTask {
-  const contact = Array.isArray(row.contacts) ? row.contacts[0] : row.contacts;
-  const conversation = Array.isArray(row.conversations) ? row.conversations[0] : row.conversations;
-  const metadata = row.metadata && typeof row.metadata === 'object' ? row.metadata : {};
-  const metadataPresupuestoId =
-    typeof metadata.presupuestoId === 'string' ? metadata.presupuestoId.trim() : null;
+function toOwnerTask(
+  row: OwnerTaskApiRow,
+  ctx: {
+    contactMap: Map<string, ContactLookupRow>;
+    conversationMap: Map<string, ConversationLookupRow>;
+    followingSet: Set<string>;
+  },
+): OwnerTask {
+  const contact = row.contactId ? ctx.contactMap.get(row.contactId) ?? null : null;
+  const conversation = row.conversationId
+    ? ctx.conversationMap.get(row.conversationId) ?? null
+    : null;
+  const contactLabel =
+    contact?.display_name ??
+    contact?.phone_number ??
+    conversation?.external_contact_id ??
+    null;
 
+  const combinedText = `${row.title}\n${row.description ?? ''}`;
   return {
-    contactLabel:
-      contact?.display_name ?? contact?.phone_number ?? conversation?.external_contact_id ?? null,
-    conversationId: row.conversation_id,
+    assignedToUserId: row.assignedToUserId,
+    assigneeLabel: null,
+    contactId: row.contactId,
+    contactLabel,
+    conversationId: row.conversationId,
+    createdByUserId: row.createdByUserId,
     description: row.description,
-    dueAt: row.due_at,
+    dueAt: row.dueAt,
     id: row.id,
-    metadata,
+    isFollowing: ctx.followingSet.has(row.id),
+    metadata: {},
+    postponedUntil: row.postponedUntil,
+    presupuestoId: extractPresupuestoId(combinedText),
     priority: row.priority ?? 'normal',
-    presupuestoId:
-      metadataPresupuestoId ||
-      extractPresupuestoId(`${row.title}\n${row.description ?? ''}`),
-    snoozedUntil: row.snoozed_until,
+    reminderSnoozedUntil: row.reminderSnoozedUntil,
     status: row.status,
-    taskType: row.task_type ?? 'follow_up',
+    taskType: row.taskType ?? 'manual',
     title: row.title,
   };
+}
+
+async function loadContacts(ids: string[]): Promise<Map<string, ContactLookupRow>> {
+  if (ids.length === 0) {
+    return new Map();
+  }
+
+  const { data, error } = await supabase
+    .from('contacts')
+    .select('id, display_name, phone_number')
+    .in('id', ids);
+
+  if (error) {
+    return new Map();
+  }
+
+  const map = new Map<string, ContactLookupRow>();
+  for (const row of (data as ContactLookupRow[]) ?? []) {
+    map.set(row.id, row);
+  }
+  return map;
+}
+
+async function loadConversations(
+  ids: string[],
+): Promise<Map<string, ConversationLookupRow>> {
+  if (ids.length === 0) {
+    return new Map();
+  }
+
+  const { data, error } = await supabase
+    .from('conversations')
+    .select('id, external_contact_id')
+    .in('id', ids);
+
+  if (error) {
+    return new Map();
+  }
+
+  const map = new Map<string, ConversationLookupRow>();
+  for (const row of (data as ConversationLookupRow[]) ?? []) {
+    map.set(row.id, row);
+  }
+  return map;
+}
+
+async function loadFollowerTaskIds(params: {
+  organizationId: string;
+  taskIds: string[];
+  userId: string;
+}): Promise<Set<string>> {
+  if (params.taskIds.length === 0) {
+    return new Set();
+  }
+
+  const { data, error } = await supabase
+    .from('owner_task_followers')
+    .select('task_id')
+    .eq('organization_id', params.organizationId)
+    .eq('user_id', params.userId)
+    .in('task_id', params.taskIds);
+
+  if (error) {
+    return new Set();
+  }
+
+  const result = new Set<string>();
+  for (const row of (data as Array<{ task_id: string }>) ?? []) {
+    result.add(row.task_id);
+  }
+  return result;
+}
+
+function uniqueTruthy(values: Array<string | null | undefined>): string[] {
+  return Array.from(new Set(values.filter((value): value is string => Boolean(value))));
 }
 
 /** Match sell_quotes ids like PRES-MSHZXECG. */

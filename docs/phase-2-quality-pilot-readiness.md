@@ -77,7 +77,9 @@ Verification steps:
 - Confirm follow-up task generation uses persisted business center
   `ai_follow_up_delay_hours`.
 - Confirm owners can complete or snooze tasks and dismiss notifications.
-- Confirm “Todas las tareas” at `/(app)/tasks` shows live tasks and low-stock alerts with filters.
+- Confirm “Todas las tareas” at `/(app)/tasks` shows live tasks and low-stock alerts with filters (`pending` / `in_progress` / `postponed` / overdue).
+- Confirm manual create at `/(app)/tasks/new` requires title, subject, due datetime, and assignee.
+- Confirm task ⋮ menu supports postpone, silence reminder, follow, meeting, reassign, and cancel.
 - Confirm Home **Alertas recientes** and Notifications merge live `owner_tasks`
   and `owner_notifications` (not mock data).
 - Confirm “Ver todas las tareas” on Home and Notifications opens `/(app)/tasks`.
@@ -226,7 +228,7 @@ Use this checklist for each of the first 1-3 pilot businesses.
 Daily checks:
 
 - Review open conversations and unresolved AI drafts.
-- Review pending follow-ups and snoozed tasks.
+- Review pending follow-ups and postponed tasks.
 - Review low-stock alerts against actual stock.
 - Confirm copilot response time remains below 5 seconds for normal use.
 - Check production health at
@@ -269,7 +271,7 @@ Target: zero owner-reported missed hot-lead follow-ups during the two-week pilot
 
 Measurement:
 
-- Review `owner_tasks` pending, snoozed, and completed state daily.
+- Review `owner_tasks` pending, in_progress, postponed, and completed state daily.
 - Compare owner-reported missed follow-ups against generated follow-up tasks.
 - Treat any lead needing urgent attention without a pending/completed task as a
   miss.

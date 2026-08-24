@@ -249,12 +249,19 @@ track decimal quantities.
 
 ## Follow-Ups and Alerts
 
-KAN-69 adds an owner task surface to the mobile dashboard:
+KAN-69 / KAN-401 add an owner task surface to the mobile dashboard:
 
-- Loads pending and snoozed `owner_tasks` for the active business center.
-- Shows task contact/conversation context, due time, and snooze status.
-- Lets the owner mark follow-up tasks complete or snooze them for 24 hours.
-- Loads recent `owner_notifications` for low-stock alerts.
+- Loads open `owner_tasks` for the active business center (`pending`,
+  `in_progress`, `postponed`) via authenticated Nest `GET /tasks`.
+- Shows task contact/conversation context, due time, assignee, and postpone
+  status.
+- Manual create at `/(app)/tasks/new` requires title, subject (description),
+  due datetime, and assignee. Reminder lead minutes stay on
+  `user_notification_prefs` (Notificaciones → Recordatorios), not on the task.
+- Task rows expose a ⋮ overflow menu: follow/unfollow, create meeting, postpone
+  until, silence reminder 10 min, start, complete, reassign, and cancel
+  (Eliminar → `cancelled`). Assignee or owner/co-owner can manage the task.
+- Loads recent `owner_notifications` for low-stock and task-related alerts.
 - Lets the owner dismiss handled alerts.
 - Subscribes to center-scoped task and notification Realtime changes.
 - Shows foreground in-app alerts when a new notification arrives.
@@ -268,7 +275,9 @@ The mobile app exposes a unified work queue at `/(app)/tasks` that combines live
 Routes:
 
 - `/(app)/tasks` — “Todas las tareas”, a filtered portal
-  (`?filter=all|follow_up|stock|overdue|snoozed`)
+  (`?filter=all|pending|in_progress|postponed|overdue`; legacy `snoozed` maps to
+  `postponed`)
+- `/(app)/tasks/new` — manual create with mandatory fields
 - `/(app)/tasks/[taskId]` — task detail with `?returnTo=tasks-portal|notifications|home`
 - `/(app)/notifications` — live tasks and alerts (no mock data), with a
   “Ver todas las tareas” link; dismiss all notifications is supported
@@ -284,13 +293,15 @@ Navigation:
   the Task Portal according to their source.
 - Follow-up rows in the Task Portal open conversation or task detail.
 - Copi portal entry: “Pedile a Copi que cree o asigne tareas” opens chat.
+  Copi `create_task` requires confirmation and collects mandatory fields first.
 
-Jira: KAN-268 (Tasks Navigation), KAN-269 (list routes), KAN-270 (detail + cross-links), epic KAN-326.
+Jira: KAN-268 (Tasks Navigation), KAN-269 (list routes), KAN-270 (detail + cross-links),
+KAN-401 (task model replan), epic KAN-326.
 
 Known gaps (deferred):
 
-- No authenticated REST task CRUD on API; mobile uses Supabase RLS.
-- Notifications support only `low_stock`; no read/unread column.
+- Notifications still lean on low-stock for the Home alert strip; task push
+  types use `owner_notifications` + Expo with audiences documented in Confluence.
 - Push deep links into portal routes not yet implemented.
 - External scheduler must call `POST /tasks/run-maintenance`.
 
@@ -338,7 +349,7 @@ assistant with sessions, task actions, and OpenAI-backed multimodal features.
 - **Multi-task create:** Copi splits numbered create requests into multiple
   `owner_tasks` on confirm (`copi-task-parse.ts`). Inline “asignarlo a …”
   assigns to a matching org member; “mañana” is a due date, not snooze.
-- **Tasks screen:** `/(app)/tasks` lists seguimientos; Copi can propose task
+- **Tasks screen:** `/(app)/tasks` lists tasks + alerts with ⋮ actions; Copi can propose task
   writes when `copi_pro_agent` is on.
 - The AI and follow-up settings card edits active business center settings
   through authenticated Supabase RLS: `ai_auto_send`,

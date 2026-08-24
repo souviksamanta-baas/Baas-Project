@@ -285,10 +285,14 @@ task maintenance job (`POST /tasks/run-maintenance`, see `docs/api-deployment.md
 creates duplicate-safe `owner_tasks` follow-up rows when open conversations are
 idle beyond each center's `ai_follow_up_delay_hours`. Low-stock
 `owner_notifications` are created in the same job. The mobile Task Portal surfaces
-both item types; no webhook change is required for portal reads.
+both item types and also exposes authenticated Nest `/tasks` CRUD for manual and
+Copi-confirmed tasks (KAN-401); no WhatsApp webhook change is required for
+portal reads.
 
-Idle conversation → follow-up task flow is server-side automation only. Outbound
-task reminder pushes are not part of the current webhook surface.
+Idle conversation → follow-up task flow is server-side automation only. Task
+reminder and state-change pushes use Expo via the notifications domain (assignee
+on create; creator + followers on reminder / postpone / status), not the WhatsApp
+webhook surface.
 
 ## Duplicate Deliveries
 

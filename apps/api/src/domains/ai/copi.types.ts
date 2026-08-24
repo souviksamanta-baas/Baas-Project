@@ -33,6 +33,7 @@ export type CopiActionType =
   | 'create_presupuesto'
   | 'assign_task'
   | 'complete_task'
+  | 'start_task'
   | 'snooze_task'
   | 'cancel_task'
   | 'reassign_task'

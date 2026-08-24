@@ -46,9 +46,21 @@ export function buildCreateTaskPayload(
   timezone: string,
 ): Record<string, unknown> {
   const tasks = parseCreateTaskItems(question, timezone);
-  const clarifications = tasks
-    .map((task) => task.clarificationQuestion)
-    .filter((value): value is string => Boolean(value));
+  const clarifications: string[] = [];
+  for (const task of tasks) {
+    if (task.clarificationQuestion) {
+      clarifications.push(task.clarificationQuestion);
+    }
+    // KAN-401 mandatory fields: dueAt and assignee (creator is fallback).
+    if (!task.dueAt) {
+      clarifications.push(`¿Cuándo vence «${task.title}»?`);
+    }
+    if (!task.assigneeName && !task.assignedToUserId) {
+      clarifications.push(
+        `¿A quién asigno «${task.title}»? Si no me decís, te la asigno a vos.`,
+      );
+    }
+  }
 
   return {
     clarificationQuestions: clarifications,

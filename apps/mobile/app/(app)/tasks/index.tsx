@@ -9,6 +9,7 @@ import {
   productDetailRoute,
   routes,
   taskDetailRoute,
+  taskNewRoute,
 } from '../../../src/navigation/routes';
 import { TasksScreen } from '../../../src/screens/TasksScreen';
 
@@ -23,19 +24,34 @@ export default function TasksRoute(): ReactElement {
 
   return (
     <TasksScreen
+      actions={{
+        onCancelTask: tasksState.cancelTask,
+        onCompleteTask: tasksState.completeTask,
+        onCreateAppointmentFromTask: async (taskId, startsAt) => {
+          await tasksState.createAppointmentFromTask(taskId, startsAt);
+        },
+        onFollowTask: tasksState.followTask,
+        onPostponeTask: tasksState.postponeTask,
+        onReassignTask: tasksState.reassignTask,
+        onSnoozeReminder: tasksState.snoozeReminder,
+        onStartTask: tasksState.startTask,
+        onUnfollowTask: tasksState.unfollowTask,
+      }}
+      currentUserId={tasksState.currentUserId}
       initialFilter={initialFilter}
       isLoading={tasksState.isLoading}
       isSaving={tasksState.isSaving}
+      members={tasksState.members}
       notifications={tasksState.notifications}
-      onCompleteTask={tasksState.completeTask}
       onDismissAlert={tasksState.dismissNotification}
       onOpenAlertProduct={(productId) =>
         router.push(productDetailRoute(productId, 'tasks-portal'))
       }
       onOpenCopi={() => router.push(routes.appCopiChat)}
       onOpenConversation={(conversationId) => router.push(conversationRoute(conversationId))}
+      onOpenNewTask={() => router.push(taskNewRoute())}
       onOpenTaskDetail={(taskId) => router.push(taskDetailRoute(taskId, 'tasks-portal'))}
-      onSnoozeTask={tasksState.snoozeTask}
+      role={dashboard?.organization?.role}
       tasks={tasksState.tasks}
     />
   );

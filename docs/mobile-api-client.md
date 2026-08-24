@@ -89,20 +89,37 @@ Work in order. Each layer is a separate Jira story under KAN-278.
 | `approveAiDraft` / `rejectAiDraft` | `POST /ai/drafts/:id/approve\|reject` | Customer reply drafts |
 | `getPendingAiDrafts` | Supabase `ai_drafts` | RLS read + Realtime subscription |
 
-## `api/tasks.ts` (Supabase)
+## `api/tasks.ts` (Nest REST + enrichment)
 
-| Function | Data source | Notes |
+Authenticated Nest routes under `/tasks` (Bearer Supabase session). List/detail
+responses are enriched with assignee/contact labels and whether the current user
+follows the task.
+
+| Function | Endpoint / source | Notes |
 | --- | --- | --- |
-| `getOwnerTasks` / `getOwnerTask` | `owner_tasks` | Pending/snoozed list; single task for detail route |
-| `getOwnerNotifications` | `owner_notifications` | Live low-stock alerts for portal and Home |
-| `completeOwnerTask` / `snoozeOwnerTask` | `owner_tasks` | Status updates via RLS |
-| `dismissOwnerNotification` / `dismissAllOwnerNotifications` | `owner_notifications` | Dismiss alerts |
-| `registerOwnerPushToken` | `owner_device_tokens` | Expo push registration |
+| `getOwnerTasks` / `getOwnerTask` | `GET /tasks`, `GET /tasks/:id` | Org-wide list (limit 200); open statuses |
+| `createOwnerTask` | `POST /tasks` | Mandatory title, description, dueAt, assignedToUserId |
+| `startOwnerTask` / `completeOwnerTask` / `cancelOwnerTask` | `POST .../start\|complete\|cancel` | Assignee or owner/co-owner for cancel |
+| `reassignOwnerTask` | `POST .../assign` | Assignee or owner/co-owner |
+| `postponeOwnerTask` | `POST .../postpone` | Status `postponed` + `postponedUntil` |
+| `snoozeOwnerTaskReminder` | `POST .../snooze-reminder` | Sets `reminder_snoozed_until` (default 10 min) |
+| `followOwnerTask` / `unfollowOwnerTask` | `POST\|DELETE .../followers` | Org member follow |
+| `createAppointmentFromOwnerTask` | `POST .../appointments` | Links `appointments.task_id` |
+| `getOwnerNotifications` | Supabase `owner_notifications` | Live alerts for portal and Home |
+| `dismissOwnerNotification` / `dismissAllOwnerNotifications` | Supabase | Dismiss alerts |
+| `registerOwnerPushToken` | Supabase `owner_device_tokens` | Expo push registration |
 | `subscribeToOwnerTaskChanges` | Realtime | Tasks + notifications refresh |
 
+Statuses: `pending` \| `in_progress` \| `completed` \| `cancelled` \| `postponed`
+(legacy `snoozed` renamed). Reminder lead minutes live on
+`user_notification_prefs`, not on the task row.
+
+Push audiences (create → assignee; reminder / state / postpone → creator +
+followers) are implemented in the Nest notifications domain; maintenance still
+runs via `POST /tasks/run-maintenance` with `BAAS_TASKS_JOB_SECRET`.
+
 Presentation layer: `apps/mobile/src/lib/workQueue.ts` (`WorkQueueItem`) merges tasks
-and alerts for Centro de tareas. No NestJS task CRUD routes yet — see
-`docs/phase-3-scope.md`.
+and alerts for Centro de tareas. UI: `TaskActionsMenu`, `NewTaskScreen`.
 
 Feature visibility comes from dashboard `features` (`useFeatureVisibility`). See
 `docs/copi-architecture.md`.

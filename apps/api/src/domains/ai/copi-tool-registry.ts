@@ -244,7 +244,7 @@ export class CopiToolRegistry {
     const tasks = await this.tasksService.listTasks({
       businessCenterId: context.businessCenterId,
       organizationId: context.organizationId,
-      statuses: ['pending', 'snoozed'],
+      statuses: ['pending', 'in_progress', 'postponed'],
       limit: 10,
     });
 
@@ -669,7 +669,7 @@ export class CopiToolRegistry {
       dueBefore: endOfDay(context.now),
       dueFrom: startOfDay(context.now),
       organizationId: context.organizationId,
-      statuses: ['pending', 'snoozed'],
+      statuses: ['pending', 'in_progress', 'postponed'],
     });
 
     return {
@@ -683,7 +683,7 @@ export class CopiToolRegistry {
       businessCenterId: context.businessCenterId,
       dueBefore: context.now.toISOString(),
       organizationId: context.organizationId,
-      statuses: ['pending', 'snoozed'],
+      statuses: ['pending', 'in_progress', 'postponed'],
     });
 
     return {
@@ -698,7 +698,7 @@ export class CopiToolRegistry {
       businessCenterId: context.businessCenterId,
       contactHint,
       organizationId: context.organizationId,
-      statuses: ['pending', 'snoozed', 'completed'],
+      statuses: ['pending', 'in_progress', 'postponed', 'completed'],
       limit: 10,
     });
 
@@ -716,7 +716,7 @@ export class CopiToolRegistry {
       assignedToUserId: context.userId,
       businessCenterId: context.businessCenterId,
       organizationId: context.organizationId,
-      statuses: ['pending', 'snoozed'],
+      statuses: ['pending', 'in_progress', 'postponed'],
     });
 
     return {

@@ -8,6 +8,8 @@ export type NotificationTypeId =
   | 'task.reminder'
   | 'task.overdue'
   | 'task.snooze_wake'
+  | 'task.postpone_wake'
+  | 'task.status_changed'
   | 'appointment.reminder'
   | 'appointment.assigned'
   | 'appointment.starting'
@@ -22,7 +24,12 @@ export type NotificationTypeId =
   | 'copi.action_needed'
   | 'team.invite_accepted';
 
-export type NotificationAudience = 'admins' | 'assignee' | 'user' | 'creator_and_admins';
+export type NotificationAudience =
+  | 'admins'
+  | 'assignee'
+  | 'user'
+  | 'creator_and_admins'
+  | 'creator_and_followers';
 
 export type ReminderLeadMinutes = 15 | 30 | 60;
 
@@ -154,25 +161,39 @@ export const NOTIFICATION_CATALOG: Record<NotificationTypeId, NotificationCatalo
     titleEs: 'Tarea asignada',
   },
   'task.overdue': {
-    audience: 'assignee',
+    audience: 'creator_and_followers',
     channel: 'tareas',
     defaultEnabled: true,
     id: 'task.overdue',
     titleEs: 'Tarea vencida',
   },
+  'task.postpone_wake': {
+    audience: 'creator_and_followers',
+    channel: 'tareas',
+    defaultEnabled: true,
+    id: 'task.postpone_wake',
+    titleEs: 'Tarea reactivada',
+  },
   'task.reminder': {
-    audience: 'assignee',
+    audience: 'creator_and_followers',
     channel: 'tareas',
     defaultEnabled: true,
     id: 'task.reminder',
     titleEs: 'Recordatorio de tarea',
   },
   'task.snooze_wake': {
-    audience: 'assignee',
+    audience: 'creator_and_followers',
     channel: 'tareas',
     defaultEnabled: true,
     id: 'task.snooze_wake',
     titleEs: 'Tarea reactivada',
+  },
+  'task.status_changed': {
+    audience: 'creator_and_followers',
+    channel: 'tareas',
+    defaultEnabled: true,
+    id: 'task.status_changed',
+    titleEs: 'Cambio de estado de tarea',
   },
   'team.invite_accepted': {
     audience: 'admins',

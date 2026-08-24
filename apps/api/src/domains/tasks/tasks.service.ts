@@ -1,4 +1,11 @@
-import { Injectable, Inject, forwardRef, Optional } from '@nestjs/common';
+import {
+  BadRequestException,
+  Inject,
+  Injectable,
+  NotFoundException,
+  Optional,
+  forwardRef,
+} from '@nestjs/common';
 
 import { InventoryService, type InventoryProduct } from '../inventory/inventory.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -12,19 +19,28 @@ export interface TaskMaintenanceResult {
   pushNotificationsFailed: number;
 }
 
-export type OwnerTaskStatus = 'pending' | 'completed' | 'snoozed' | 'cancelled';
+export type OwnerTaskStatus =
+  | 'pending'
+  | 'in_progress'
+  | 'completed'
+  | 'cancelled'
+  | 'postponed';
 
 export type OwnerTaskType = 'follow_up' | 'manual' | 'copi' | 'inventory' | 'callback';
 
 export interface OwnerTaskRecord {
   assignedToUserId: string | null;
+  businessCenterId: string;
   contactId: string | null;
   conversationId: string | null;
   createdByUserId: string | null;
   description: string | null;
   dueAt: string | null;
   id: string;
+  organizationId: string;
+  postponedUntil: string | null;
   priority: 'low' | 'normal' | 'high';
+  reminderSnoozedUntil: string | null;
   status: OwnerTaskStatus;
   taskType: OwnerTaskType;
   title: string;
@@ -113,6 +129,9 @@ interface ExpoPushResponse {
 
 const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
 const TASK_MAINTENANCE_CONCURRENCY = 5;
+const DEFAULT_REMINDER_SNOOZE_MINUTES = 10;
+const TASK_SELECT =
+  'id, organization_id, business_center_id, title, description, status, due_at, postponed_until, reminder_snoozed_until, task_type, priority, contact_id, conversation_id, assigned_to_user_id, created_by_user_id';
 
 @Injectable()
 export class TasksService {
@@ -154,7 +173,8 @@ export class TasksService {
 
   async listTasks(params: {
     assignedToUserId?: string;
-    businessCenterId: string;
+    /** @deprecated Ignored for list — org-wide visibility (KAN-401). Kept for API compat. */
+    businessCenterId?: string;
     contactHint?: string;
     dueBefore?: string;
     dueFrom?: string;
@@ -166,12 +186,11 @@ export class TasksService {
     let query = client
       .from('owner_tasks')
       .select(
-        'id, title, description, status, due_at, task_type, priority, contact_id, conversation_id, assigned_to_user_id, created_by_user_id, contacts(display_name, phone_number)',
+        `${TASK_SELECT}, contacts(display_name, phone_number)`,
       )
       .eq('organization_id', params.organizationId)
-      .eq('business_center_id', params.businessCenterId)
       .order('due_at', { ascending: true, nullsFirst: false })
-      .limit(params.limit ?? 20);
+      .limit(params.limit ?? 200);
 
     if (params.statuses?.length) {
       query = query.in('status', params.statuses);
@@ -212,6 +231,31 @@ export class TasksService {
     return rows.map(toOwnerTaskRecord);
   }
 
+  async getTask(params: {
+    /** @deprecated Ignored — org-wide lookup by organization + task id. */
+    businessCenterId?: string;
+    organizationId: string;
+    taskId: string;
+  }): Promise<OwnerTaskRecord> {
+    const client = this.supabaseService.getServiceRoleClient();
+    const { data, error } = await client
+      .from('owner_tasks')
+      .select(TASK_SELECT)
+      .eq('id', params.taskId)
+      .eq('organization_id', params.organizationId)
+      .maybeSingle();
+
+    if (error) {
+      throw new Error(`Failed to load owner task: ${error.message}`);
+    }
+
+    if (!data) {
+      throw new NotFoundException('La tarea no existe o no pertenece a esta organización.');
+    }
+
+    return toOwnerTaskRecord(data as Record<string, unknown>);
+  }
+
   async createTask(params: {
     assignedToUserId?: string | null;
     businessCenterId: string;
@@ -227,6 +271,13 @@ export class TasksService {
     taskType?: OwnerTaskType;
     title: string;
   }): Promise<OwnerTaskRecord> {
+    this.assertCreateMandatoryFields({
+      assignedToUserId: params.assignedToUserId ?? null,
+      description: params.description ?? null,
+      dueAt: params.dueAt ?? null,
+      title: params.title,
+    });
+
     const client = this.supabaseService.getServiceRoleClient();
     const { data, error } = await client
       .from('owner_tasks')
@@ -246,9 +297,7 @@ export class TasksService {
         task_type: params.taskType ?? 'manual',
         title: params.title,
       })
-      .select(
-        'id, title, description, status, due_at, task_type, priority, contact_id, conversation_id, assigned_to_user_id, created_by_user_id',
-      )
+      .select(TASK_SELECT)
       .single();
 
     if (error) {
@@ -269,10 +318,63 @@ export class TasksService {
     return task;
   }
 
+  async updateTask(params: {
+    businessCenterId: string;
+    contactId?: string | null;
+    description?: string | null;
+    dueAt?: string | null;
+    organizationId: string;
+    priority?: 'low' | 'normal' | 'high';
+    taskId: string;
+    title?: string;
+  }): Promise<OwnerTaskRecord> {
+    const updates: Record<string, unknown> = {};
+    if (params.title !== undefined) {
+      if (typeof params.title !== 'string' || params.title.trim().length === 0) {
+        throw new BadRequestException('El título de la tarea no puede estar vacío.');
+      }
+      updates.title = params.title.trim();
+    }
+    if (params.description !== undefined) {
+      updates.description = params.description === null ? null : String(params.description).trim();
+    }
+    if (params.dueAt !== undefined) {
+      updates.due_at = params.dueAt;
+    }
+    if (params.priority !== undefined) {
+      updates.priority = params.priority;
+    }
+    if (params.contactId !== undefined) {
+      updates.contact_id = params.contactId;
+    }
+
+    if (Object.keys(updates).length === 0) {
+      throw new BadRequestException('No se proporcionaron cambios para la tarea.');
+    }
+
+    const client = this.supabaseService.getServiceRoleClient();
+    const { data, error } = await client
+      .from('owner_tasks')
+      .update(updates)
+      .eq('id', params.taskId)
+      .eq('organization_id', params.organizationId)
+      .select(TASK_SELECT)
+      .single();
+
+    if (error) {
+      throw new Error(`Failed to update owner task: ${error.message}`);
+    }
+
+    return toOwnerTaskRecord(data as Record<string, unknown>);
+  }
+
   async updateTaskStatus(params: {
+    actorUserId?: string | null;
     businessCenterId: string;
     completedByUserId?: string;
     organizationId: string;
+    postponedUntil?: string;
+    /** @deprecated Use postponedUntil. Retained for legacy callers. */
     snoozedUntil?: string;
     status: OwnerTaskStatus;
     taskId: string;
@@ -289,9 +391,15 @@ export class TasksService {
       }
     }
 
-    if (params.status === 'snoozed' && params.snoozedUntil) {
-      updates.snoozed_until = params.snoozedUntil;
-      updates.due_at = params.snoozedUntil;
+    const postponedUntil = params.postponedUntil ?? params.snoozedUntil;
+    if (params.status === 'postponed' && postponedUntil) {
+      updates.postponed_until = postponedUntil;
+      updates.due_at = postponedUntil;
+    }
+
+    // Starting a task clears any prior reminder snooze so recordatorios resume.
+    if (params.status === 'in_progress') {
+      updates.reminder_snoozed_until = null;
     }
 
     const { data, error } = await client
@@ -299,14 +407,76 @@ export class TasksService {
       .update(updates)
       .eq('id', params.taskId)
       .eq('organization_id', params.organizationId)
-      .eq('business_center_id', params.businessCenterId)
-      .select(
-        'id, title, description, status, due_at, task_type, priority, contact_id, conversation_id, assigned_to_user_id, created_by_user_id',
-      )
+      .select(TASK_SELECT)
       .single();
 
     if (error) {
       throw new Error(`Failed to update owner task: ${error.message}`);
+    }
+
+    const task = toOwnerTaskRecord(data as Record<string, unknown>);
+    await this.emitStatusChangedIfNeeded({
+      actorUserId: params.actorUserId ?? params.completedByUserId ?? null,
+      organizationId: params.organizationId,
+      task,
+    });
+
+    return task;
+  }
+
+  async postponeTask(params: {
+    actorUserId?: string | null;
+    businessCenterId: string;
+    organizationId: string;
+    postponedUntil: string;
+    taskId: string;
+  }): Promise<OwnerTaskRecord> {
+    const iso = this.assertIsoDate(params.postponedUntil, 'posponer');
+    return this.updateTaskStatus({
+      actorUserId: params.actorUserId,
+      businessCenterId: params.businessCenterId,
+      organizationId: params.organizationId,
+      postponedUntil: iso,
+      status: 'postponed',
+      taskId: params.taskId,
+    });
+  }
+
+  async startTask(params: {
+    actorUserId?: string | null;
+    businessCenterId: string;
+    organizationId: string;
+    taskId: string;
+  }): Promise<OwnerTaskRecord> {
+    return this.updateTaskStatus({
+      actorUserId: params.actorUserId,
+      businessCenterId: params.businessCenterId,
+      organizationId: params.organizationId,
+      status: 'in_progress',
+      taskId: params.taskId,
+    });
+  }
+
+  async snoozeReminder(params: {
+    businessCenterId: string;
+    minutes?: number;
+    organizationId: string;
+    taskId: string;
+  }): Promise<OwnerTaskRecord> {
+    const minutes = Math.max(1, Math.floor(params.minutes ?? DEFAULT_REMINDER_SNOOZE_MINUTES));
+    const reminderSnoozedUntil = new Date(Date.now() + minutes * 60_000).toISOString();
+
+    const client = this.supabaseService.getServiceRoleClient();
+    const { data, error } = await client
+      .from('owner_tasks')
+      .update({ reminder_snoozed_until: reminderSnoozedUntil })
+      .eq('id', params.taskId)
+      .eq('organization_id', params.organizationId)
+      .select(TASK_SELECT)
+      .single();
+
+    if (error) {
+      throw new Error(`Failed to snooze reminder: ${error.message}`);
     }
 
     return toOwnerTaskRecord(data as Record<string, unknown>);
@@ -318,16 +488,16 @@ export class TasksService {
     organizationId: string;
     taskId: string;
   }): Promise<OwnerTaskRecord> {
+    if (!params.assignedToUserId?.trim()) {
+      throw new BadRequestException('assignedToUserId es obligatorio.');
+    }
     const client = this.supabaseService.getServiceRoleClient();
     const { data, error } = await client
       .from('owner_tasks')
       .update({ assigned_to_user_id: params.assignedToUserId })
       .eq('id', params.taskId)
       .eq('organization_id', params.organizationId)
-      .eq('business_center_id', params.businessCenterId)
-      .select(
-        'id, title, description, status, due_at, task_type, priority, contact_id, conversation_id, assigned_to_user_id, created_by_user_id',
-      )
+      .select(TASK_SELECT)
       .single();
 
     if (error) {
@@ -338,7 +508,7 @@ export class TasksService {
     if (task.assignedToUserId && this.notificationsService) {
       await this.notificationsService.notifyTaskAssigned({
         assignedToUserId: task.assignedToUserId,
-        businessCenterId: params.businessCenterId,
+        businessCenterId: task.businessCenterId,
         organizationId: params.organizationId,
         taskId: task.id,
         title: task.title,
@@ -346,6 +516,138 @@ export class TasksService {
     }
 
     return task;
+  }
+
+  async addFollower(params: {
+    organizationId: string;
+    taskId: string;
+    userId: string;
+  }): Promise<{ added: boolean }> {
+    const client = this.supabaseService.getServiceRoleClient();
+    const { error } = await client
+      .from('owner_task_followers')
+      .upsert(
+        {
+          organization_id: params.organizationId,
+          task_id: params.taskId,
+          user_id: params.userId,
+        },
+        { ignoreDuplicates: true, onConflict: 'task_id,user_id' },
+      );
+
+    if (error) {
+      throw new Error(`Failed to follow task: ${error.message}`);
+    }
+
+    return { added: true };
+  }
+
+  async removeFollower(params: {
+    organizationId: string;
+    taskId: string;
+    userId: string;
+  }): Promise<{ removed: boolean }> {
+    const client = this.supabaseService.getServiceRoleClient();
+    const { error } = await client
+      .from('owner_task_followers')
+      .delete()
+      .eq('organization_id', params.organizationId)
+      .eq('task_id', params.taskId)
+      .eq('user_id', params.userId);
+
+    if (error) {
+      throw new Error(`Failed to unfollow task: ${error.message}`);
+    }
+
+    return { removed: true };
+  }
+
+  async listFollowerUserIds(params: {
+    organizationId: string;
+    taskId: string;
+  }): Promise<string[]> {
+    const client = this.supabaseService.getServiceRoleClient();
+    const { data, error } = await client
+      .from('owner_task_followers')
+      .select('user_id')
+      .eq('organization_id', params.organizationId)
+      .eq('task_id', params.taskId);
+
+    if (error) {
+      throw new Error(`Failed to list task followers: ${error.message}`);
+    }
+
+    return ((data ?? []) as Array<{ user_id: string }>)
+      .map((row) => row.user_id)
+      .filter((userId): userId is string => Boolean(userId));
+  }
+
+  private assertCreateMandatoryFields(params: {
+    assignedToUserId: string | null;
+    description: string | null;
+    dueAt: string | null;
+    title: string;
+  }): void {
+    const missing: string[] = [];
+    if (!params.title || typeof params.title !== 'string' || params.title.trim().length === 0) {
+      missing.push('title');
+    }
+    if (
+      !params.description ||
+      typeof params.description !== 'string' ||
+      params.description.trim().length === 0
+    ) {
+      missing.push('description');
+    }
+    if (!params.dueAt || typeof params.dueAt !== 'string' || params.dueAt.trim().length === 0) {
+      missing.push('dueAt');
+    } else if (Number.isNaN(Date.parse(params.dueAt))) {
+      throw new BadRequestException('dueAt debe ser una fecha ISO válida.');
+    }
+    if (!params.assignedToUserId || typeof params.assignedToUserId !== 'string') {
+      missing.push('assignedToUserId');
+    }
+
+    if (missing.length > 0) {
+      throw new BadRequestException(
+        `Faltan campos obligatorios para crear la tarea: ${missing.join(', ')}`,
+      );
+    }
+  }
+
+  private assertIsoDate(value: string, verb: string): string {
+    if (!value || typeof value !== 'string' || Number.isNaN(Date.parse(value))) {
+      throw new BadRequestException(`Fecha inválida para ${verb}.`);
+    }
+    return new Date(value).toISOString();
+  }
+
+  private async emitStatusChangedIfNeeded(params: {
+    actorUserId: string | null;
+    organizationId: string;
+    task: OwnerTaskRecord;
+  }): Promise<void> {
+    if (!this.notificationsService) {
+      return;
+    }
+
+    const creatorUserId = params.task.createdByUserId;
+    const followerUserIds = await this.listFollowerUserIds({
+      organizationId: params.organizationId,
+      taskId: params.task.id,
+    });
+
+    await this.notificationsService.notifyTaskStatusChanged({
+      actorUserId: params.actorUserId,
+      businessCenterId: params.task.businessCenterId,
+      creatorUserId,
+      followerUserIds,
+      newStatus: params.task.status,
+      organizationId: params.organizationId,
+      postponedUntil: params.task.postponedUntil,
+      taskId: params.task.id,
+      title: params.task.title,
+    });
   }
 
   private async runBusinessCenterMaintenance(
@@ -730,13 +1032,17 @@ function getContact(conversation: ConversationRow): ContactRow | null {
 function toOwnerTaskRecord(row: Record<string, unknown>): OwnerTaskRecord {
   return {
     assignedToUserId: (row.assigned_to_user_id as string | null) ?? null,
+    businessCenterId: (row.business_center_id as string | null) ?? '',
     contactId: (row.contact_id as string | null) ?? null,
     conversationId: (row.conversation_id as string | null) ?? null,
     createdByUserId: (row.created_by_user_id as string | null) ?? null,
     description: (row.description as string | null) ?? null,
     dueAt: (row.due_at as string | null) ?? null,
     id: row.id as string,
+    organizationId: (row.organization_id as string | null) ?? '',
+    postponedUntil: (row.postponed_until as string | null) ?? null,
     priority: (row.priority as OwnerTaskRecord['priority']) ?? 'normal',
+    reminderSnoozedUntil: (row.reminder_snoozed_until as string | null) ?? null,
     status: row.status as OwnerTaskStatus,
     taskType: (row.task_type as OwnerTaskType) ?? 'manual',
     title: row.title as string,

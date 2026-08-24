@@ -15,7 +15,8 @@ interface MembershipRow {
   role: 'owner' | 'staff';
 }
 
-const AUTO_EXECUTE_ACTIONS = new Set<CopiActionType>(['create_task', 'create_presupuesto']);
+// KAN-401: task mutations always propose + confirm; only presupuesto auto-executes.
+const AUTO_EXECUTE_ACTIONS = new Set<CopiActionType>(['create_presupuesto']);
 
 @Injectable()
 export class CopiOrchestratorService {

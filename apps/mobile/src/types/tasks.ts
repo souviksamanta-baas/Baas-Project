@@ -1,17 +1,28 @@
-export type OwnerTaskStatus = 'pending' | 'completed' | 'snoozed' | 'cancelled';
+export type OwnerTaskStatus =
+  | 'pending'
+  | 'in_progress'
+  | 'completed'
+  | 'cancelled'
+  | 'postponed';
 
 export type OwnerTaskType = 'follow_up' | 'manual' | 'copi' | 'inventory' | 'callback';
 
 export interface OwnerTask {
+  assignedToUserId: string | null;
+  assigneeLabel: string | null;
+  contactId: string | null;
   contactLabel: string | null;
   conversationId: string | null;
+  createdByUserId: string | null;
   description: string | null;
   dueAt: string | null;
   id: string;
+  isFollowing: boolean;
   metadata: Record<string, unknown>;
-  priority: 'low' | 'normal' | 'high';
+  postponedUntil: string | null;
   presupuestoId: string | null;
-  snoozedUntil: string | null;
+  priority: 'low' | 'normal' | 'high';
+  reminderSnoozedUntil: string | null;
   status: OwnerTaskStatus;
   taskType: OwnerTaskType;
   title: string;

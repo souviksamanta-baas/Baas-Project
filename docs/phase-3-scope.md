@@ -22,7 +22,8 @@ This document captures candidate Phase 3 work identified after the Task Portal M
 
 ### Task portal v2
 
-- Authenticated NestJS task CRUD endpoints (mobile today uses Supabase RLS direct access)
+- Authenticated NestJS task CRUD under `/tasks` — **shipped in KAN-401** (mobile
+  uses Nest REST; notifications still mix Supabase for alert dismiss)
 - Unified alert read/unread model and additional `owner_notifications` types (overdue task, Copi, sales)
 - Push notification deep links into task portal routes
 - Manual task creation, assignment, and due-date editing from mobile

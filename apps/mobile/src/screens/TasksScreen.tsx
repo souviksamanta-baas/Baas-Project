@@ -3,6 +3,9 @@ import { useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { ActionRow, Card, NotificationRow, ScreenContent, ScreenTitle } from '../components/ui';
+import { Icon } from '../components/icons';
+import { TaskActionsMenu, resolveTaskPermissions } from '../components/TaskActionsMenu';
+import type { OrganizationMember } from '../api/accountLifecycle';
 import {
   buildWorkQueue,
   filterWorkQueue,
@@ -15,35 +18,66 @@ import { colors } from '../theme';
 
 const FILTERS: Array<{ id: WorkQueueFilter; label: string }> = [
   { id: 'all', label: 'Todas' },
-  { id: 'follow_up', label: 'Seguimientos' },
-  { id: 'stock', label: 'Stock' },
+  { id: 'pending', label: 'Pendientes' },
+  { id: 'in_progress', label: 'En curso' },
+  { id: 'postponed', label: 'Pospuestas' },
   { id: 'overdue', label: 'Vencidas' },
-  { id: 'snoozed', label: 'Pospuestas' },
 ];
 
+export interface TasksScreenActions {
+  onCancelTask: (taskId: string) => Promise<void>;
+  onCompleteTask: (taskId: string) => Promise<void>;
+  onCreateAppointmentFromTask: (taskId: string, startsAt: Date) => Promise<void>;
+  onFollowTask: (taskId: string) => Promise<void>;
+  onPostponeTask: (taskId: string, postponedUntil: Date) => Promise<void>;
+  onReassignTask: (taskId: string, userId: string) => Promise<void>;
+  onSnoozeReminder: (taskId: string, minutes: number) => Promise<void>;
+  onStartTask: (taskId: string) => Promise<void>;
+  onUnfollowTask: (taskId: string) => Promise<void>;
+}
+
 export function TasksScreen(props: {
+  actions: TasksScreenActions;
+  currentUserId: string | null;
   initialFilter?: WorkQueueFilter;
   isLoading?: boolean;
   isSaving?: boolean;
+  members: OrganizationMember[];
   notifications: OwnerNotification[];
-  onCompleteTask: (taskId: string) => Promise<void>;
   onDismissAlert: (notificationId: string) => Promise<void>;
   onOpenAlertProduct: (productId: string) => void;
-  onOpenCopi: () => void;
   onOpenConversation: (conversationId: string) => void;
+  onOpenCopi: () => void;
+  onOpenNewTask: () => void;
   onOpenTaskDetail: (taskId: string) => void;
-  onSnoozeTask: (taskId: string) => Promise<void>;
+  role: 'owner' | 'co_owner' | 'manager' | 'staff' | undefined;
   tasks: OwnerTask[];
 }): ReactElement {
   const [activeFilter, setActiveFilter] = useState<WorkQueueFilter>(props.initialFilter ?? 'all');
+  const [openTaskId, setOpenTaskId] = useState<string | null>(null);
+
   const items = useMemo(
     () => filterWorkQueue(buildWorkQueue(props.tasks, props.notifications), activeFilter),
     [activeFilter, props.notifications, props.tasks],
   );
 
+  const openTask = useMemo(
+    () => props.tasks.find((task) => task.id === openTaskId) ?? null,
+    [openTaskId, props.tasks],
+  );
+
   return (
     <ScreenContent title="Todas las tareas">
       <ScreenTitle title="Todas las tareas" />
+
+      <Pressable
+        accessibilityRole="button"
+        onPress={props.onOpenNewTask}
+        style={({ pressed }) => [styles.newTaskCta, pressed && styles.newTaskCtaPressed]}
+      >
+        <Icon color={colors.surface} kind="plus" size={16} strokeWidth={2.2} />
+        <Text style={styles.newTaskLabel}>Nueva tarea</Text>
+      </Pressable>
 
       {props.isLoading ? <ActivityIndicator color={colors.primary} /> : null}
 
@@ -72,12 +106,11 @@ export function TasksScreen(props: {
               isSaving={props.isSaving}
               item={item}
               key={item.id}
-              onCompleteTask={props.onCompleteTask}
               onDismissAlert={props.onDismissAlert}
               onOpenAlertProduct={props.onOpenAlertProduct}
               onOpenConversation={props.onOpenConversation}
+              onOpenMenu={(taskId) => setOpenTaskId(taskId)}
               onOpenTaskDetail={props.onOpenTaskDetail}
-              onSnoozeTask={props.onSnoozeTask}
             />
           ))}
         </Card>
@@ -86,6 +119,36 @@ export function TasksScreen(props: {
       <Card flush>
         <ActionRow icon="message" onPress={props.onOpenCopi} title="Pedile a Copi que cree o asigne tareas" />
       </Card>
+
+      {openTask ? (
+        <TaskActionsMenu
+          members={props.members}
+          onCancelTask={() => void props.actions.onCancelTask(openTask.id)}
+          onClose={() => setOpenTaskId(null)}
+          onCompleteTask={() => void props.actions.onCompleteTask(openTask.id)}
+          onCreateAppointment={(startsAt) =>
+            void props.actions.onCreateAppointmentFromTask(openTask.id, startsAt)
+          }
+          onPostponeTask={(postponedUntil) =>
+            void props.actions.onPostponeTask(openTask.id, postponedUntil)
+          }
+          onReassignTask={(userId) => void props.actions.onReassignTask(openTask.id, userId)}
+          onSnoozeReminder={(minutes) => void props.actions.onSnoozeReminder(openTask.id, minutes)}
+          onStartTask={() => void props.actions.onStartTask(openTask.id)}
+          onToggleFollow={() =>
+            void (openTask.isFollowing
+              ? props.actions.onUnfollowTask(openTask.id)
+              : props.actions.onFollowTask(openTask.id))
+          }
+          permissions={resolveTaskPermissions({
+            currentUserId: props.currentUserId,
+            role: props.role,
+            task: openTask,
+          })}
+          task={openTask}
+          visible
+        />
+      ) : null}
     </ScreenContent>
   );
 }
@@ -93,12 +156,11 @@ export function TasksScreen(props: {
 function WorkQueueRow(props: {
   isSaving?: boolean;
   item: WorkQueueItem;
-  onCompleteTask: (taskId: string) => Promise<void>;
   onDismissAlert: (notificationId: string) => Promise<void>;
   onOpenAlertProduct: (productId: string) => void;
   onOpenConversation: (conversationId: string) => void;
+  onOpenMenu: (taskId: string) => void;
   onOpenTaskDetail: (taskId: string) => void;
-  onSnoozeTask: (taskId: string) => Promise<void>;
 }): ReactElement {
   const openItem = (): void => {
     if (props.item.kind === 'alert' && props.item.productId) {
@@ -136,38 +198,20 @@ function WorkQueueRow(props: {
       </Pressable>
       <View style={styles.actions}>
         {props.item.kind === 'task' && taskId ? (
-          <>
-            <Pressable
-              accessibilityRole="button"
-              disabled={props.isSaving}
-              hitSlop={6}
-              onPress={() => {
-                void props.onSnoozeTask(taskId);
-              }}
-              style={({ pressed }) => [
-                styles.actionButton,
-                pressed && styles.actionButtonPressed,
-                props.isSaving && styles.actionButtonDisabled,
-              ]}
-            >
-              <Text style={styles.actionText}>Posponer</Text>
-            </Pressable>
-            <Pressable
-              accessibilityRole="button"
-              disabled={props.isSaving}
-              hitSlop={6}
-              onPress={() => {
-                void props.onCompleteTask(taskId);
-              }}
-              style={({ pressed }) => [
-                styles.actionButtonPrimary,
-                pressed && styles.actionButtonPressed,
-                props.isSaving && styles.actionButtonDisabled,
-              ]}
-            >
-              <Text style={styles.actionTextPrimary}>Hecho</Text>
-            </Pressable>
-          </>
+          <Pressable
+            accessibilityLabel="Más acciones"
+            accessibilityRole="button"
+            disabled={props.isSaving}
+            hitSlop={10}
+            onPress={() => props.onOpenMenu(taskId)}
+            style={({ pressed }) => [
+              styles.menuButton,
+              pressed && styles.menuButtonPressed,
+              props.isSaving && styles.menuButtonDisabled,
+            ]}
+          >
+            <Icon color={colors.slate} kind="dots-vertical" size={20} strokeWidth={1.8} />
+          </Pressable>
         ) : notificationId ? (
           <Pressable
             accessibilityRole="button"
@@ -191,13 +235,6 @@ function WorkQueueRow(props: {
 }
 
 const styles = StyleSheet.create({
-  actionButton: {
-    borderColor: colors.border,
-    borderRadius: 999,
-    borderWidth: 1,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-  },
   actionButtonDisabled: {
     opacity: 0.5,
   },
@@ -210,19 +247,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 8,
   },
-  actionText: {
-    color: colors.slate,
-    fontSize: 15,
-    fontWeight: '500',
-  },
   actionTextPrimary: {
     color: colors.primary,
     fontSize: 15,
     fontWeight: '600',
   },
   actions: {
+    alignItems: 'center',
     flexDirection: 'row',
-    flexWrap: 'wrap',
     gap: 10,
     paddingBottom: 14,
     paddingHorizontal: 14,
@@ -257,6 +289,39 @@ const styles = StyleSheet.create({
     color: colors.slate,
     fontSize: 13,
     fontWeight: '300',
+  },
+  menuButton: {
+    alignItems: 'center',
+    borderColor: colors.border,
+    borderRadius: 999,
+    borderWidth: 1,
+    height: 32,
+    justifyContent: 'center',
+    width: 32,
+  },
+  menuButtonDisabled: {
+    opacity: 0.5,
+  },
+  menuButtonPressed: {
+    backgroundColor: colors.surfaceMint,
+  },
+  newTaskCta: {
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    backgroundColor: colors.primary,
+    borderRadius: 999,
+    flexDirection: 'row',
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  newTaskCtaPressed: {
+    opacity: 0.85,
+  },
+  newTaskLabel: {
+    color: colors.surface,
+    fontSize: 15,
+    fontWeight: '600',
   },
   row: {
     borderBottomColor: colors.borderSoft,

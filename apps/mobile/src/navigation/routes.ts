@@ -29,6 +29,7 @@ export const routes = {
   businessSettings: '/(app)/business-settings',
   arcaSettings: '/(app)/arca-settings',
   tasks: '/(app)/tasks',
+  taskNew: '/(app)/tasks/new',
   appointments: '/(app)/appointments',
   billing: '/(app)/billing',
   presupuestos: '/(app)/billing',
@@ -115,7 +116,15 @@ export function manageStockRoute(options?: { lowStock?: boolean }): string {
   return routes.inventoryManageStock;
 }
 
-export type WorkQueueFilter = 'all' | 'follow_up' | 'stock' | 'overdue' | 'snoozed' | 'completed';
+export type WorkQueueFilter =
+  | 'all'
+  | 'follow_up'
+  | 'stock'
+  | 'overdue'
+  | 'pending'
+  | 'in_progress'
+  | 'postponed'
+  | 'completed';
 
 export function tasksRoute(filter?: WorkQueueFilter): string {
   if (!filter || filter === 'all') {
@@ -123,6 +132,10 @@ export function tasksRoute(filter?: WorkQueueFilter): string {
   }
 
   return `${routes.tasks}?filter=${filter}`;
+}
+
+export function taskNewRoute(): string {
+  return routes.taskNew;
 }
 
 export function taskDetailRoute(taskId: string, returnTo?: TaskReturnTo): string {
@@ -207,10 +220,17 @@ export function parseWorkQueueFilter(value: string | string[] | undefined): Work
     raw === 'follow_up' ||
     raw === 'stock' ||
     raw === 'overdue' ||
-    raw === 'snoozed' ||
-    raw === 'completed'
+    raw === 'postponed' ||
+    raw === 'completed' ||
+    raw === 'pending' ||
+    raw === 'in_progress'
   ) {
     return raw;
+  }
+
+  // Legacy alias — old links used ?filter=snoozed.
+  if (raw === 'snoozed') {
+    return 'postponed';
   }
 
   return 'all';

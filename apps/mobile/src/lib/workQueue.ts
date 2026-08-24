@@ -1,17 +1,28 @@
 import type { Tone } from '../api/mockData';
 import type { OwnerNotification, OwnerTask, OwnerTaskStatus } from '../types/tasks';
 
-export type WorkQueueFilter = 'all' | 'follow_up' | 'stock' | 'overdue' | 'snoozed' | 'completed';
+export type WorkQueueFilter =
+  | 'all'
+  | 'follow_up'
+  | 'stock'
+  | 'overdue'
+  | 'pending'
+  | 'in_progress'
+  | 'postponed'
+  | 'completed';
 
 export type WorkQueueItemKind = 'task' | 'alert';
 
 export interface WorkQueueItem {
+  assigneeLabel: string | null;
   conversationId: string | null;
   dueAt: string | null;
   id: string;
+  isFollowing: boolean;
   isUnread: boolean;
   kind: WorkQueueItemKind;
   notificationId: string | null;
+  postponedUntil: string | null;
   productId: string | null;
   status: OwnerTaskStatus | OwnerNotification['status'];
   subtitle: string | null;
@@ -21,7 +32,10 @@ export interface WorkQueueItem {
   tone: Tone;
 }
 
-export function buildWorkQueue(tasks: OwnerTask[], notifications: OwnerNotification[]): WorkQueueItem[] {
+export function buildWorkQueue(
+  tasks: OwnerTask[],
+  notifications: OwnerNotification[],
+): WorkQueueItem[] {
   const taskItems = tasks.map(toWorkQueueTask);
   const alertItems = notifications.map(toWorkQueueAlert);
   return [...taskItems, ...alertItems].sort(compareWorkQueueItems);
@@ -41,10 +55,16 @@ export function filterWorkQueue(items: WorkQueueItem[], filter: WorkQueueFilter)
           item.kind === 'task' &&
           item.dueAt != null &&
           new Date(item.dueAt).getTime() < now &&
-          item.status !== 'completed',
+          item.status !== 'completed' &&
+          item.status !== 'cancelled' &&
+          item.status !== 'postponed',
       );
-    case 'snoozed':
-      return items.filter((item) => item.kind === 'task' && item.status === 'snoozed');
+    case 'pending':
+      return items.filter((item) => item.kind === 'task' && item.status === 'pending');
+    case 'in_progress':
+      return items.filter((item) => item.kind === 'task' && item.status === 'in_progress');
+    case 'postponed':
+      return items.filter((item) => item.kind === 'task' && item.status === 'postponed');
     case 'completed':
       return items.filter((item) => item.kind === 'task' && item.status === 'completed');
     case 'all':
@@ -80,20 +100,44 @@ function compareWorkQueueItems(left: WorkQueueItem, right: WorkQueueItem): numbe
 
 function toWorkQueueTask(task: OwnerTask): WorkQueueItem {
   return {
+    assigneeLabel: task.assigneeLabel,
     conversationId: task.conversationId,
     dueAt: task.dueAt,
     id: `task:${task.id}`,
+    isFollowing: task.isFollowing,
     isUnread: task.status === 'pending',
     kind: 'task',
     notificationId: null,
+    postponedUntil: task.postponedUntil,
     productId: null,
     status: task.status,
-    subtitle: task.contactLabel ?? task.description,
+    subtitle: buildTaskSubtitle(task),
     taskId: task.id,
-    timestamp: task.dueAt ?? task.snoozedUntil ?? new Date().toISOString(),
+    timestamp: task.dueAt ?? task.postponedUntil ?? new Date().toISOString(),
     title: compactTaskTitle(task.title),
-    tone: task.status === 'snoozed' ? 'blue' : 'orange',
+    tone: taskTone(task.status),
   };
+}
+
+function buildTaskSubtitle(task: OwnerTask): string | null {
+  const parts: string[] = [];
+  if (task.assigneeLabel) {
+    parts.push(task.assigneeLabel);
+  }
+  if (task.contactLabel && task.contactLabel !== task.assigneeLabel) {
+    parts.push(task.contactLabel);
+  } else if (!task.contactLabel && task.description) {
+    parts.push(task.description);
+  }
+  return parts.length > 0 ? parts.join(' · ') : null;
+}
+
+function taskTone(status: OwnerTaskStatus): Tone {
+  if (status === 'postponed') return 'blue';
+  if (status === 'in_progress') return 'purple';
+  if (status === 'completed') return 'green';
+  if (status === 'cancelled') return 'red';
+  return 'orange';
 }
 
 /** Keep list titles short — important action/product only. */
@@ -144,12 +188,15 @@ function compactProductLabel(value: string): string {
 
 function toWorkQueueAlert(notification: OwnerNotification): WorkQueueItem {
   return {
+    assigneeLabel: null,
     conversationId: null,
     dueAt: null,
     id: `alert:${notification.id}`,
+    isFollowing: false,
     isUnread: notification.status === 'pending' || notification.status === 'sent',
     kind: 'alert',
     notificationId: notification.id,
+    postponedUntil: null,
     productId: notification.productId,
     status: notification.status,
     subtitle: notification.productLabel ?? notification.body,

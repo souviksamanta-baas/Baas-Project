@@ -26,6 +26,7 @@ export interface EmitNotificationParams {
   body: string;
   businessCenterId: string;
   creatorUserId?: string | null;
+  followerUserIds?: string[] | null;
   organizationId: string;
   payload?: Record<string, unknown>;
   productId?: string | null;
@@ -263,6 +264,39 @@ export class NotificationsService {
     });
   }
 
+  async notifyTaskStatusChanged(params: {
+    actorUserId?: string | null;
+    businessCenterId: string;
+    creatorUserId: string | null;
+    followerUserIds?: string[];
+    newStatus: 'pending' | 'in_progress' | 'completed' | 'cancelled' | 'postponed';
+    organizationId: string;
+    postponedUntil?: string | null;
+    taskId: string;
+    title: string;
+  }): Promise<void> {
+    const body = formatStatusChangedBody(params.newStatus, params.title, params.postponedUntil);
+    const stamp =
+      params.newStatus === 'postponed' && params.postponedUntil
+        ? params.postponedUntil
+        : Date.now().toString();
+    await this.emit({
+      body,
+      businessCenterId: params.businessCenterId,
+      creatorUserId: params.creatorUserId ?? null,
+      followerUserIds: params.followerUserIds ?? [],
+      organizationId: params.organizationId,
+      payload: {
+        actorUserId: params.actorUserId ?? null,
+        newStatus: params.newStatus,
+        postponedUntil: params.postponedUntil ?? null,
+        taskId: params.taskId,
+      },
+      sourceKey: `task.status_changed:${params.taskId}:${params.newStatus}:${stamp}`,
+      type: 'task.status_changed',
+    });
+  }
+
   async notifyAppointmentAssigned(params: {
     assignedToUserId: string;
     appointmentId: string;
@@ -353,6 +387,19 @@ export class NotificationsService {
     const audience = NOTIFICATION_CATALOG[params.type].audience;
     if (audience === 'assignee' || audience === 'user') {
       return params.targetUserId ? [params.targetUserId] : [];
+    }
+
+    if (audience === 'creator_and_followers') {
+      const recipients = new Set<string>();
+      if (params.creatorUserId) {
+        recipients.add(params.creatorUserId);
+      }
+      for (const userId of params.followerUserIds ?? []) {
+        if (userId) {
+          recipients.add(userId);
+        }
+      }
+      return [...recipients];
     }
 
     const admins = await this.listAdminUserIds(params.organizationId);
@@ -624,7 +671,7 @@ export class NotificationsService {
         .select('id', { count: 'exact', head: true })
         .eq('organization_id', params.organizationId)
         .eq('business_center_id', params.businessCenterId)
-        .in('status', ['pending', 'snoozed']),
+        .in('status', ['pending', 'in_progress', 'postponed']),
       client
         .from('appointments')
         .select('id', { count: 'exact', head: true })
@@ -669,11 +716,12 @@ export class NotificationsService {
     const client = this.supabaseService.getServiceRoleClient();
     const { data, error } = await client
       .from('owner_tasks')
-      .select('id, title, due_at, snoozed_until, status, assigned_to_user_id')
+      .select(
+        'id, title, due_at, postponed_until, reminder_snoozed_until, status, assigned_to_user_id, created_by_user_id',
+      )
       .eq('organization_id', params.organizationId)
       .eq('business_center_id', params.businessCenterId)
-      .in('status', ['pending', 'snoozed'])
-      .not('assigned_to_user_id', 'is', null);
+      .in('status', ['pending', 'in_progress', 'postponed']);
 
     if (error) {
       throw new Error(`Failed to list tasks for reminders: ${error.message}`);
@@ -682,33 +730,53 @@ export class NotificationsService {
     let created = 0;
     let sent = 0;
     const rows = (data ?? []) as Array<{
-      assigned_to_user_id: string;
+      assigned_to_user_id: string | null;
+      created_by_user_id: string | null;
       due_at: string | null;
       id: string;
-      snoozed_until: string | null;
+      postponed_until: string | null;
+      reminder_snoozed_until: string | null;
       status: string;
       title: string;
     }>;
 
-    const prefs = await this.loadPrefsMap(
+    if (rows.length === 0) {
+      return { created, sent };
+    }
+
+    const followersByTaskId = await this.loadFollowersByTaskId(
       params.organizationId,
-      [...new Set(rows.map((row) => row.assigned_to_user_id))],
+      rows.map((row) => row.id),
     );
+    const anchorUserIds = new Set<string>();
+    for (const row of rows) {
+      if (row.created_by_user_id) anchorUserIds.add(row.created_by_user_id);
+      if (row.assigned_to_user_id) anchorUserIds.add(row.assigned_to_user_id);
+      for (const userId of followersByTaskId.get(row.id) ?? []) {
+        anchorUserIds.add(userId);
+      }
+    }
+    const prefs = await this.loadPrefsMap(params.organizationId, [...anchorUserIds]);
 
     for (const task of rows) {
-      const lead = prefs.get(task.assigned_to_user_id)?.reminderLeadMinutes ?? DEFAULT_REMINDER_LEAD_MINUTES;
+      const anchorForLead = task.created_by_user_id ?? task.assigned_to_user_id;
+      const lead = anchorForLead
+        ? prefs.get(anchorForLead)?.reminderLeadMinutes ?? DEFAULT_REMINDER_LEAD_MINUTES
+        : DEFAULT_REMINDER_LEAD_MINUTES;
+      const followerUserIds = followersByTaskId.get(task.id) ?? [];
 
-      if (task.status === 'snoozed' && task.snoozed_until) {
-        const wakeAt = new Date(task.snoozed_until).getTime();
+      if (task.status === 'postponed' && task.postponed_until) {
+        const wakeAt = new Date(task.postponed_until).getTime();
         if (wakeAt <= params.now.getTime() && wakeAt > params.now.getTime() - 15 * 60_000) {
           const result = await this.emit({
             body: `Se reactivó: ${task.title}`,
             businessCenterId: params.businessCenterId,
+            creatorUserId: task.created_by_user_id,
+            followerUserIds,
             organizationId: params.organizationId,
             payload: { taskId: task.id },
-            sourceKey: `task.snooze_wake:${task.id}:${task.snoozed_until}`,
-            targetUserId: task.assigned_to_user_id,
-            type: 'task.snooze_wake',
+            sourceKey: `task.postpone_wake:${task.id}:${task.postponed_until}`,
+            type: 'task.postpone_wake',
           });
           if (result.created) {
             created += 1;
@@ -717,13 +785,49 @@ export class NotificationsService {
         }
       }
 
+      // Reminder snooze wake (silenciar 10 min): fire reminder when period ends.
+      if (task.reminder_snoozed_until) {
+        const snoozeWakeAt = new Date(task.reminder_snoozed_until).getTime();
+        if (
+          snoozeWakeAt <= params.now.getTime() &&
+          snoozeWakeAt > params.now.getTime() - 15 * 60_000
+        ) {
+          const result = await this.emit({
+            body: `Recordatorio: ${task.title}`,
+            businessCenterId: params.businessCenterId,
+            creatorUserId: task.created_by_user_id,
+            followerUserIds,
+            organizationId: params.organizationId,
+            payload: { taskId: task.id },
+            sourceKey: `task.reminder:snooze_wake:${task.id}:${task.reminder_snoozed_until}`,
+            type: 'task.reminder',
+          });
+          if (result.created) {
+            created += 1;
+            sent += result.sent;
+          }
+          await client
+            .from('owner_tasks')
+            .update({ reminder_snoozed_until: null })
+            .eq('id', task.id)
+            .eq('organization_id', params.organizationId);
+        }
+      }
+
       if (!task.due_at) {
         continue;
       }
 
+      // Skip reminder while user snoozed reminder (silenciar 10 min).
+      const reminderSnoozedUntil = task.reminder_snoozed_until
+        ? new Date(task.reminder_snoozed_until).getTime()
+        : 0;
+      const isReminderSnoozed = reminderSnoozedUntil > params.now.getTime();
+
       const dueAt = new Date(task.due_at).getTime();
       const reminderAt = dueAt - lead * 60_000;
       if (
+        !isReminderSnoozed &&
         reminderAt <= params.now.getTime() &&
         reminderAt > params.now.getTime() - 15 * 60_000 &&
         dueAt > params.now.getTime()
@@ -731,10 +835,11 @@ export class NotificationsService {
         const result = await this.emit({
           body: `En ${lead} min: ${task.title}`,
           businessCenterId: params.businessCenterId,
+          creatorUserId: task.created_by_user_id,
+          followerUserIds,
           organizationId: params.organizationId,
           payload: { taskId: task.id },
           sourceKey: `task.reminder:${task.id}:${task.due_at}:${lead}`,
-          targetUserId: task.assigned_to_user_id,
           type: 'task.reminder',
         });
         if (result.created) {
@@ -743,14 +848,19 @@ export class NotificationsService {
         }
       }
 
-      if (dueAt <= params.now.getTime() && dueAt > params.now.getTime() - 15 * 60_000) {
+      if (
+        !isReminderSnoozed &&
+        dueAt <= params.now.getTime() &&
+        dueAt > params.now.getTime() - 15 * 60_000
+      ) {
         const result = await this.emit({
           body: `Vencida: ${task.title}`,
           businessCenterId: params.businessCenterId,
+          creatorUserId: task.created_by_user_id,
+          followerUserIds,
           organizationId: params.organizationId,
           payload: { taskId: task.id },
           sourceKey: `task.overdue:${task.id}:${task.due_at}`,
-          targetUserId: task.assigned_to_user_id,
           type: 'task.overdue',
         });
         if (result.created) {
@@ -761,6 +871,35 @@ export class NotificationsService {
     }
 
     return { created, sent };
+  }
+
+  private async loadFollowersByTaskId(
+    organizationId: string,
+    taskIds: string[],
+  ): Promise<Map<string, string[]>> {
+    const map = new Map<string, string[]>();
+    if (taskIds.length === 0) {
+      return map;
+    }
+
+    const client = this.supabaseService.getServiceRoleClient();
+    const { data, error } = await client
+      .from('owner_task_followers')
+      .select('task_id, user_id')
+      .eq('organization_id', organizationId)
+      .in('task_id', taskIds);
+
+    if (error) {
+      this.logger.warn(`Failed to list task followers: ${error.message}`);
+      return map;
+    }
+
+    for (const row of (data ?? []) as Array<{ task_id: string; user_id: string }>) {
+      const list = map.get(row.task_id) ?? [];
+      list.push(row.user_id);
+      map.set(row.task_id, list);
+    }
+    return map;
   }
 
   private async sendAppointmentScheduleNotifications(params: {
@@ -1014,4 +1153,42 @@ export class NotificationsService {
     const { year, month, day } = this.zonedParts(date, timeZone);
     return new Date(`${year}-${month}-${day}T23:59:59`).toISOString();
   }
+}
+
+function formatStatusChangedBody(
+  status: 'pending' | 'in_progress' | 'completed' | 'cancelled' | 'postponed',
+  title: string,
+  postponedUntil?: string | null,
+): string {
+  switch (status) {
+    case 'in_progress':
+      return `Iniciada: ${title}`;
+    case 'completed':
+      return `Completada: ${title}`;
+    case 'cancelled':
+      return `Cancelada: ${title}`;
+    case 'postponed': {
+      if (postponedUntil) {
+        const formatted = formatSpanishDate(postponedUntil);
+        return `Pospuesta hasta ${formatted}: ${title}`;
+      }
+      return `Pospuesta: ${title}`;
+    }
+    default:
+      return `Pendiente: ${title}`;
+  }
+}
+
+function formatSpanishDate(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) {
+    return iso;
+  }
+  return date.toLocaleString('es-AR', {
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    month: 'short',
+    timeZone: 'America/Argentina/Cordoba',
+  });
 }

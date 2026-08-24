@@ -42,7 +42,12 @@ export default function TaskDetailRoute(): ReactElement {
     let mounted = true;
     setIsLoading(true);
 
-    getOwnerTask(organizationId, businessCenterId, taskId)
+    getOwnerTask({
+      businessCenterId,
+      currentUserId: tasksState.currentUserId,
+      organizationId,
+      taskId,
+    })
       .then((nextTask) => {
         if (mounted) {
           setTask(nextTask);
@@ -57,7 +62,7 @@ export default function TaskDetailRoute(): ReactElement {
     return () => {
       mounted = false;
     };
-  }, [businessCenterId, organizationId, taskId]);
+  }, [businessCenterId, organizationId, taskId, tasksState.currentUserId, tasksState.tasks]);
 
   if (isLoading) {
     return (
@@ -70,28 +75,58 @@ export default function TaskDetailRoute(): ReactElement {
   if (!task) {
     return (
       <ScreenContent>
-        <Text>No se encontro la tarea.</Text>
+        <Text>No se encontró la tarea.</Text>
       </ScreenContent>
     );
   }
 
+  const goBack = (): void => {
+    router.replace(resolveTaskReturnRoute(returnTo));
+  };
+
   return (
     <TaskDetailScreen
+      currentUserId={tasksState.currentUserId}
       isSaving={tasksState.isSaving}
-      onBack={() => router.replace(resolveTaskReturnRoute(returnTo))}
+      members={tasksState.members}
+      onBack={goBack}
+      onCancelTask={async () => {
+        await tasksState.cancelTask(task.id);
+        goBack();
+      }}
       onCompleteTask={async () => {
         await tasksState.completeTask(task.id);
-        router.replace(resolveTaskReturnRoute(returnTo));
+        goBack();
+      }}
+      onCreateAppointment={async (startsAt) => {
+        await tasksState.createAppointmentFromTask(task.id, startsAt);
+      }}
+      onFollowTask={async () => {
+        await tasksState.followTask(task.id);
       }}
       onOpenConversation={(conversationId) => router.push(conversationRoute(conversationId))}
       onOpenPresupuesto={(quoteId) =>
         router.push(presupuestoDetailRoute(quoteId, 'tasks-portal'))
       }
-      onSnoozeTask={async () => {
-        await tasksState.snoozeTask(task.id);
-        router.replace(resolveTaskReturnRoute(returnTo));
+      onPostponeTask={async (postponedUntil) => {
+        await tasksState.postponeTask(task.id, postponedUntil);
       }}
-      task={task}
+      onReassignTask={async (userId) => {
+        await tasksState.reassignTask(task.id, userId);
+      }}
+      onSnoozeReminder={async (minutes) => {
+        await tasksState.snoozeReminder(task.id, minutes);
+      }}
+      onStartTask={async () => {
+        await tasksState.startTask(task.id);
+      }}
+      onUnfollowTask={async () => {
+        await tasksState.unfollowTask(task.id);
+      }}
+      role={dashboard?.organization?.role}
+      task={
+        tasksState.tasks.find((item) => item.id === task.id) ?? task
+      }
     />
   );
 }

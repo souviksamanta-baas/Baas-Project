@@ -62,9 +62,11 @@ needed by app, AI, copilot, and low-stock workflows.
 
 - `TasksService` for follow-up task automation, low-stock alert generation, Expo
   push notification dispatch, and Copi Pro task CRUD (create, assign, complete,
-  snooze, cancel, reassign).
-- `TasksController` for the secured `POST /tasks/run-maintenance` trigger used
-  by a scheduler or manual backend job runner.
+  snooze, postpone, cancel, reassign).
+- `TasksController` for secured `POST /tasks/run-maintenance` (scheduler or
+  manual backend job) plus authenticated owner task CRUD under `/tasks` (list,
+  create, assign, status, postpone, snooze-reminder, followers,
+  appointments-from-task; KAN-401).
 
 `WhatsAppModule` exposes:
 

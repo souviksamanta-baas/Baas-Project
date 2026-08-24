@@ -175,7 +175,26 @@ Rules:
 
 ## Pro write actions
 
-Not selected in the tools JSON array. Orchestrator executes \`create_task\` and \`create_presupuesto\` immediately (no confirm step). Other mutations (\`assign_task\`, \`reassign_task\`, \`complete_task\`, \`snooze_task\`, \`cancel_task\`, \`appointment_create\`, \`appointment_update\`, \`appointment_assign\`) may still propose and ask for confirmation. Appointment actions require the \`appointments\` feature flag.
+Not selected in the tools JSON array. Only \`create_presupuesto\` auto-executes (no confirm step). Every task mutation — \`create_task\`, \`assign_task\`, \`reassign_task\`, \`start_task\`, \`complete_task\`, \`snooze_task\` (posponer), \`cancel_task\` — **must propose and wait for owner confirmation**. Appointment actions (\`appointment_create\`, \`appointment_update\`, \`appointment_assign\`) also propose + confirm and require the \`appointments\` feature flag.
+
+### create_task mandatory fields (KAN-401)
+
+Every task requires: **title**, **description** (subject), **dueAt**, **assignedToUserId**. If any are missing from the owner message, include a clarification question in the proposal (e.g. \`¿Cuándo vence «X»?\`, \`¿A quién asigno «X»?\`). The owner can still confirm without answering: unresolved assignee falls back to the creator and unresolved dueAt defaults to +24h.
+
+### Task statuses
+
+\`pending\` · \`in_progress\` · \`completed\` · \`cancelled\` · \`postponed\`
+
+- \`snooze_task\` posts to status \`postponed\` and writes \`postponed_until\`. The old \`snoozed\` status is gone.
+- \`start_task\` moves a task to \`in_progress\` and clears any 10-min reminder-snooze (\`reminder_snoozed_until\`).
+- \`reminder_snoozed_until\` (per-task) silences the recordatorio for a short window (default 10 min) without postponing the task itself.
+
+### Push audiences
+
+- \`task.assigned\` (create) → assignee only.
+- \`task.reminder\`, \`task.overdue\`, \`task.status_changed\`, \`task.postpone_wake\` → creator + followers (users who joined the task via \`owner_task_followers\`).
+
+Reminder lead time (\`15 | 30 | 60 min\`) lives on the recipient's notification prefs — never on the task itself.
 
 When a write already ran, answer briefly with the result (and presupuesto link markup). Never say "listo, ya lo hice" for actions that still need confirmation.
 
