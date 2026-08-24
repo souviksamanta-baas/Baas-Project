@@ -61,8 +61,8 @@ Use tools and real data for:
 - Review follow-ups / tasks (overview, due today, overdue, by contact, mine)
 - View staff roster
 - Attention / priority snapshot of the day
-- Propose task actions with Copi Pro (create / assign / complete / snooze / cancel). Create/assign task and create presupuesto execute immediately (no confirm step).
-- Create a POS presupuesto (with catalog lines when possible) and a follow-up task assigned to a teammate — Copi Pro, executed immediately
+- Propose task actions with Copi Pro (create / assign / complete / postpone / cancel / start). Task mutations **propose and wait for owner confirmation** in the app — never invent a request for title/description when those can be inferred from the owner message. Only \`create_presupuesto\` auto-executes (no confirm step).
+- Create a POS presupuesto (with catalog lines when possible) and optionally a follow-up task assigned to a teammate — Copi Pro; presupuesto executes immediately, tasks still confirm
 
 ## Owner asks you understand, but tools are not ready yet
 

@@ -35,6 +35,14 @@ describe('inferCopiActionType', () => {
     ).toBe('create_presupuesto');
   });
 
+  it('treats “asigna una tarea a …” as create_task (not assign_task)', () => {
+    expect(
+      inferCopiActionType(
+        'Asigna una tarea a Souv para hablar con Diego mañana a las 10 de la mañana',
+      ),
+    ).toBe('create_task');
+  });
+
   it('keeps presupuesto-inside-task requests as create_task', () => {
     expect(
       inferCopiActionType('Creá una tarea para crear presupuesto para Pablo'),

@@ -755,7 +755,7 @@ export function inferCopiActionType(question: string): CopiActionType {
 
   const mentionsAppointment = mentionsAppointmentIntent(question);
   if (mentionsAppointment) {
-    if (/\b(asign|assign|reassign|pasale)\b/.test(normalized)) {
+    if (/\b(asign\w*|assign\w*|reassign|pasale)\b/.test(normalized)) {
       return 'appointment_assign';
     }
     if (
@@ -769,19 +769,25 @@ export function inferCopiActionType(question: string): CopiActionType {
   }
 
   const mentionsTask = /\btareas?\b/.test(normalized);
-  const isCreate =
-    mentionsTask &&
-    /\b(crea|crear|creas|creame|necesito\s+que\s+creas?|recorda|recordar|anota|anotar)\b/.test(
+  // "asigna una tarea a X para…" is create+assign, not reassign of an existing task.
+  const isAssignNewTask =
+    /\b(?:asign\w*|assign\w*)\s+(?:una\s+|a\s+)?(?:nueva\s+)?(?:tarea|task|seguimiento)\b/.test(
       normalized,
     );
+  const isCreate =
+    isAssignNewTask ||
+    (mentionsTask &&
+      /\b(crea|crear|creas|creame|necesito\s+que\s+creas?|recorda|recordar|anota|anotar)\b/.test(
+        normalized,
+      ));
 
   // Creating tasks always wins — phrases like "mañana" must not become snooze.
   if (isCreate) {
     return 'create_task';
   }
 
-  if (/\b(asign|assign|reassign|pasale)\b/.test(normalized)) {
-    return /\b(reassign|pasale)\b/.test(normalized) ? 'reassign_task' : 'assign_task';
+  if (/\b(asign\w*|assign\w*|reassign|pasale)\b/.test(normalized)) {
+    return /\b(reassign|reasign\w*|pasale)\b/.test(normalized) ? 'reassign_task' : 'assign_task';
   }
   if (/\b(empez|empeza|empezar|comenz|comenza|comenzar|iniciar|inicia|arranc|start|starting)\b/.test(normalized) && mentionsTask) {
     return 'start_task';

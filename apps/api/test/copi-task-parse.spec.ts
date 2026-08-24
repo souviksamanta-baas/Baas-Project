@@ -52,4 +52,18 @@ describe('parseCreateTaskItems', () => {
     expect(tasks[2]?.title).toMatch(/hacer pedido|comprar leche/i);
     expect(tasks[2]?.dueAt).toBeTruthy();
   });
+
+  it('parses “asigna una tarea a X para …” into title, assignee, and due', () => {
+    const tasks = parseCreateTaskItems(
+      'Asigna una tarea a Souv para hablar con Diego mañana a las 10 de la mañana',
+      'America/Argentina/Cordoba',
+    );
+
+    expect(tasks).toHaveLength(1);
+    expect(tasks[0]?.assigneeName).toBe('Souv');
+    expect(tasks[0]?.title).toBe('Hablar con Diego');
+    expect(tasks[0]?.description.toLocaleLowerCase('es-AR')).toMatch(/hablar con diego/);
+    expect(tasks[0]?.description).not.toMatch(/Asigna una tarea/i);
+    expect(tasks[0]?.dueAt).toBeTruthy();
+  });
 });

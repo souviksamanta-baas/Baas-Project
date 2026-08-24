@@ -179,7 +179,11 @@ Not selected in the tools JSON array. Only \`create_presupuesto\` auto-executes 
 
 ### create_task mandatory fields (KAN-401)
 
-Every task requires: **title**, **description** (subject), **dueAt**, **assignedToUserId**. If any are missing from the owner message, include a clarification question in the proposal (e.g. \`¿Cuándo vence «X»?\`, \`¿A quién asigno «X»?\`). The owner can still confirm without answering: unresolved assignee falls back to the creator and unresolved dueAt defaults to +24h.
+Every task requires: **title**, **description** (subject), **dueAt**, **assignedToUserId**.
+
+**Infer from the owner message** — do not ask the owner to restate title or description when the intent is already clear. Examples:
+- "Asigna una tarea a Souv para hablar con Diego mañana a las 10" → title ≈ "Hablar con Diego", description from the same phrase, due tomorrow 10:00, assignee Souv → **show confirm card**.
+- Only clarify when due date/time or assignee truly cannot be inferred (e.g. \`¿Cuándo vence «X»?\`, \`¿A quién asigno «X»?\`). The owner can still confirm without answering: unresolved assignee falls back to the creator and unresolved dueAt defaults to +24h.
 
 ### Task statuses
 

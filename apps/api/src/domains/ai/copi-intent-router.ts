@@ -301,9 +301,11 @@ export function isSalesFollowUpDetail(
 export function detectProActionIntent(question: string): boolean {
   const normalized = normalizeCopiQuestion(question);
   // Keep conjugations in sync with inferCopiActionType / copi-task-parse
-  // ("creas una tarea", "necesito que crees…", "creame…", "anotá…").
+  // ("creas una tarea", "asigna una tarea…", "necesito que crees…", "creame…", "anotá…").
+  // Use asign\w*|assign\w* so "asigna"/"asignar"/"asigname" match (plain "asign" does not:
+  // there is no word boundary between "asign" and the trailing "a").
   return (
-    /\b(creas?|crear|creame|crees?|asign|assign|marca|marcar|complet|cancel|pospon|snooze|recorda|recordar|anota|anotar|reagenda|reagendar|reprograma|reprogramar|reservar|reservame)\b/.test(
+    /\b(creas?|crear|creame|crees?|asign\w*|assign\w*|marca|marcar|complet|cancel|pospon|snooze|recorda|recordar|anota|anotar|reagenda|reagendar|reprograma|reprogramar|reservar|reservame)\b/.test(
       normalized,
     ) ||
     /\bnecesito\s+que\s+creas?\b/.test(normalized) ||

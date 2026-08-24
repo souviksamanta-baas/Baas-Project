@@ -140,7 +140,20 @@ describe('detectProActionIntent / create-task vs stock', () => {
       ),
     ).toBe(true);
     expect(detectProActionIntent('creame una tarea para revisar stock')).toBe(true);
+    expect(
+      detectProActionIntent(
+        'Asigna una tarea a Souv para hablar con Diego mañana a las 10 de la mañana',
+      ),
+    ).toBe(true);
     expect(detectProActionIntent('¿Qué productos tienen bajo stock?')).toBe(false);
+  });
+
+  it('infers create_task for “asigna una tarea a …”', () => {
+    expect(
+      inferCopiActionType(
+        'Asigna una tarea a Souv para hablar con Diego mañana a las 10 de la mañana',
+      ),
+    ).toBe('create_task');
   });
 
   it('does not route create-task-about-stock to low_stock tools', () => {

@@ -10,8 +10,9 @@ export type ParsedTaskItem = {
 
 const REMINDER_LEAD_MS = 30 * 60 * 1000;
 
+// "asigna una tarea a Souv", "asignalo a Beto", "asígnale a Juli", …
 const ASSIGNEE_PATTERN =
-  /\b(?:y\s+)?(?:asignarl[oa]s?|as[ií]gnal[oa]s?|asignar(?:la|lo|las|los)?|asignada?|pasale|pasársela|pasarsela|dale|que\s+lo\s+haga|para\s+que\s+lo\s+haga)\s+a\s+([a-záéíóúñü]+)\b/gi;
+  /\b(?:y\s+)?(?:asign[aá](?:r)?\s+(?:(?:una|la|el|esta|este)\s+)?(?:tarea|task|seguimiento)\s+a|(?:asignarl[oa]s?|as[ií]gnal[oa]s?|asignar(?:la|lo|las|los)?|asignada?|pasale|pasársela|pasarsela|dale|que\s+lo\s+haga|para\s+que\s+lo\s+haga)\s+a)\s+([a-záéíóúñü][\wáéíóúñü'-]{0,40})\b/gi;
 
 /**
  * Splits a Copi "create task(s)" message into one or more cleaned task items,
@@ -28,12 +29,17 @@ export function parseCreateTaskItems(question: string, timezone: string): Parsed
       due.needsExactTime && title.length > 0
         ? `¿A qué hora exacta querés completar «${title}»?`
         : null;
+    const description =
+      text
+        .replace(/^(para\s+)/i, '')
+        .replace(/\s+/g, ' ')
+        .trim() || segment.trim();
 
     return {
       assigneeName,
       assignedToUserId: null,
       clarificationQuestion,
-      description: text.trim() || segment.trim(),
+      description,
       dueAt: due.dueAt,
       remindAt: due.remindAt,
       title: title.length > 0 ? title.slice(0, 48) : 'Tarea de Copi',
@@ -412,6 +418,7 @@ function cleanTaskTitle(segment: string): string {
   // (e.g. "Mañana por la mañana hacer pedido…" must not become "Mañana").
   cleaned = cleaned
     .replace(/\bpasado\s+mañana\b/gi, ' ')
+    .replace(/\bde\s+la\s+(mañana|tarde|noche)\b/gi, ' ')
     .replace(/\b(esta|por\s+la)\s+mañana\b/gi, ' ')
     .replace(/\b(esta|a\s+la|por\s+la)\s+tarde\b/gi, ' ')
     .replace(/\bantes\s+de\s+las?\s+\d{1,2}(?:[:h]\d{2})?\s*(?:am|pm|hs|hrs|horas)?\b/gi, ' ')
@@ -441,7 +448,7 @@ function sentenceCase(value: string): string {
   const lower = value.toLocaleLowerCase('es-AR');
   const withFirst = lower.replace(/^[a-záéíóúñü]/i, (letter) => letter.toLocaleUpperCase('es-AR'));
 
-  return withFirst.replace(/\b(para|a|de)\s+([a-záéíóúñü]+)\b/gi, (_match, prep: string, name: string) => {
+  return withFirst.replace(/\b(para|a|de|con)\s+([a-záéíóúñü]+)\b/gi, (_match, prep: string, name: string) => {
     return `${prep} ${name.charAt(0).toLocaleUpperCase('es-AR')}${name.slice(1)}`;
   });
 }
