@@ -363,12 +363,11 @@ export function OwnerAppNavigator(props: { onSignOut: () => void }): ReactElemen
             ) : route === 'notifications' ? (
               <NotificationsScreen
                 notifications={[]}
-                onDismissAll={async () => undefined}
                 onDismissNotification={async () => undefined}
+                onMarkAllRead={async () => undefined}
                 onOpenNotification={() => undefined}
                 onOpenTaskDetail={() => undefined}
                 onOpenTasks={() => undefined}
-                tasks={[]}
               />
             ) : route === 'account' ? (
               <AccountScreen

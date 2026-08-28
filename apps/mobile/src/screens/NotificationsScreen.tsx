@@ -1,11 +1,12 @@
 import type { ReactElement } from 'react';
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
   getNotificationPrefs,
   updateNotificationPrefs,
+  type NotificationTypeId,
   type ReminderLeadMinutes,
 } from '../api/notifications';
 import { Icon } from '../components/icons';
@@ -29,12 +30,37 @@ const FILTERS: Array<{ id: WorkQueueFilter | 'unread'; label: string }> = [
 
 const LEAD_OPTIONS: ReminderLeadMinutes[] = [15, 30, 60];
 
+/** Types still without a production emitter — shown disabled as Próximamente. */
+export const NOTIFICATION_TYPES_COMING_SOON = new Set<NotificationTypeId>([]);
+
+const TOGGLE_TYPES: Array<{ id: NotificationTypeId; label: string }> = [
+  { id: 'stock.low', label: 'Stock bajo' },
+  { id: 'stock.movement', label: 'Movimiento de stock' },
+  { id: 'task.assigned', label: 'Tarea asignada' },
+  { id: 'task.reminder', label: 'Recordatorio de tarea' },
+  { id: 'task.overdue', label: 'Tarea vencida' },
+  { id: 'inbox.new_message', label: 'Nuevo mensaje' },
+  { id: 'inbox.unanswered', label: 'Sin responder' },
+  { id: 'sales.completed', label: 'Venta registrada' },
+  { id: 'payment.received', label: 'Pago recibido' },
+  { id: 'payment.failed', label: 'Problema de pago' },
+  { id: 'quote.accepted', label: 'Presupuesto aceptado' },
+  { id: 'invoice.overdue', label: 'Factura vencida' },
+  { id: 'appointment.reminder', label: 'Recordatorio de turno' },
+  { id: 'digest.daily', label: 'Resumen diario' },
+  { id: 'copi.action_needed', label: 'Copi necesita confirmación' },
+  { id: 'team.invite_accepted', label: 'Miembro se unió' },
+];
+
 export function NotificationsScreen(props: {
+  hasMore?: boolean;
   isLoading?: boolean;
+  isLoadingMore?: boolean;
   isSaving?: boolean;
   notifications: OwnerNotification[];
-  onDismissAll: () => Promise<void>;
   onDismissNotification: (notificationId: string) => Promise<void>;
+  onLoadMore?: () => Promise<void>;
+  onMarkAllRead: () => Promise<void>;
   onOpenNotification: (notificationId: string) => void;
   onOpenTaskDetail: (taskId: string) => void;
   onOpenTasks: () => void;
@@ -42,6 +68,7 @@ export function NotificationsScreen(props: {
 }): ReactElement {
   const [activeFilter, setActiveFilter] = useState<WorkQueueFilter | 'unread'>('all');
   const [reminderLeadMinutes, setReminderLeadMinutes] = useState<ReminderLeadMinutes>(30);
+  const [enabledMap, setEnabledMap] = useState<Partial<Record<NotificationTypeId, boolean>>>({});
   const [prefsSaving, setPrefsSaving] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const flags = useFeatureVisibility();
@@ -49,14 +76,20 @@ export function NotificationsScreen(props: {
   const showFilters = flags.notificationsFilters;
 
   const items = useMemo(() => {
-    // Alerts only — task rows live on Tareas (avoids gating this screen on Nest /tasks).
-    const queue = buildWorkQueue([], props.notifications);
+    const queue = buildWorkQueue([], props.notifications).sort(
+      (left, right) => new Date(right.timestamp).getTime() - new Date(left.timestamp).getTime(),
+    );
     if (activeFilter === 'unread') {
       return queue.filter((item) => item.isUnread);
     }
 
     return filterWorkQueue(queue, activeFilter);
   }, [activeFilter, props.notifications]);
+
+  const unreadCount = useMemo(
+    () => props.notifications.filter((item) => item.isUnread).length,
+    [props.notifications],
+  );
 
   const activeFilterLabel =
     activeFilter === 'all' ? null : (FILTERS.find((filter) => filter.id === activeFilter)?.label ?? null);
@@ -70,10 +103,11 @@ export function NotificationsScreen(props: {
       .then((prefs) => {
         if (mounted) {
           setReminderLeadMinutes(prefs.reminderLeadMinutes);
+          setEnabledMap(prefs.enabled ?? {});
         }
       })
       .catch(() => {
-        // Keep default.
+        // Keep defaults.
       });
     return () => {
       mounted = false;
@@ -90,6 +124,23 @@ export function NotificationsScreen(props: {
       await updateNotificationPrefs({
         organizationId: props.organizationId,
         reminderLeadMinutes: minutes,
+      });
+    } finally {
+      setPrefsSaving(false);
+    }
+  }
+
+  async function saveToggle(typeId: NotificationTypeId, value: boolean): Promise<void> {
+    if (!props.organizationId || NOTIFICATION_TYPES_COMING_SOON.has(typeId)) {
+      return;
+    }
+    const next = { ...enabledMap, [typeId]: value };
+    setEnabledMap(next);
+    setPrefsSaving(true);
+    try {
+      await updateNotificationPrefs({
+        enabled: next,
+        organizationId: props.organizationId,
       });
     } finally {
       setPrefsSaving(false);
@@ -127,10 +178,14 @@ export function NotificationsScreen(props: {
       </Pressable>
 
       <FeatureGate feature="notificationsList">
-        {props.isLoading ? <Text style={styles.emptyText}>Cargando alertas...</Text> : null}
+        {props.isLoading ? <Text style={styles.emptyText}>Cargando notificaciones...</Text> : null}
         {!props.isLoading && items.length === 0 ? (
           <Card style={styles.emptyCard}>
-            <Text style={styles.emptyText}>No hay alertas activas.</Text>
+            <Text style={styles.emptyText}>
+              {activeFilter === 'unread' || unreadCount === 0
+                ? 'No hay notificaciones nuevas.'
+                : 'No hay notificaciones.'}
+            </Text>
           </Card>
         ) : (
           <Card flush>
@@ -193,6 +248,20 @@ export function NotificationsScreen(props: {
             })}
           </Card>
         )}
+
+        {props.hasMore ? (
+          <Pressable
+            disabled={props.isLoadingMore}
+            onPress={() => {
+              void props.onLoadMore?.();
+            }}
+            style={({ pressed }) => [styles.loadMoreButton, pressed && styles.menuButtonPressed]}
+          >
+            <Text style={styles.loadMoreText}>
+              {props.isLoadingMore ? 'Cargando...' : 'Ver más notificaciones'}
+            </Text>
+          </Pressable>
+        ) : null}
       </FeatureGate>
 
       <MobileContainedModal
@@ -210,7 +279,7 @@ export function NotificationsScreen(props: {
         <Pressable
           disabled={props.isSaving}
           onPress={() => {
-            void props.onDismissAll();
+            void props.onMarkAllRead();
             setMenuOpen(false);
           }}
           style={({ pressed }) => [styles.menuAction, pressed && styles.menuActionPressed]}
@@ -237,6 +306,29 @@ export function NotificationsScreen(props: {
               </Pressable>
             ))}
           </View>
+        </View>
+
+        <View style={styles.menuSection}>
+          <Text style={styles.menuSectionTitle}>Tipos de notificación</Text>
+          <Text style={styles.menuSectionHint}>Elegí qué querés recibir</Text>
+          {TOGGLE_TYPES.map((entry) => {
+            const comingSoon = NOTIFICATION_TYPES_COMING_SOON.has(entry.id);
+            const value = enabledMap[entry.id];
+            const isOn = typeof value === 'boolean' ? value : true;
+            return (
+              <View key={entry.id} style={styles.toggleRow}>
+                <View style={styles.toggleCopy}>
+                  <Text style={styles.toggleLabel}>{entry.label}</Text>
+                  {comingSoon ? <Text style={styles.comingSoon}>Próximamente</Text> : null}
+                </View>
+                <Switch
+                  disabled={comingSoon || prefsSaving}
+                  onValueChange={(next) => void saveToggle(entry.id, next)}
+                  value={comingSoon ? false : isOn}
+                />
+              </View>
+            );
+          })}
         </View>
 
         {showFilters ? (
@@ -300,6 +392,11 @@ const styles = StyleSheet.create({
     color: colors.primary,
     fontSize: 13,
     fontWeight: '600',
+  },
+  comingSoon: {
+    color: colors.slate,
+    fontSize: 12,
+    marginTop: 2,
   },
   dismissButton: {
     alignSelf: 'center',
@@ -370,6 +467,20 @@ const styles = StyleSheet.create({
   },
   leadTextActive: {
     color: colors.primary,
+  },
+  loadMoreButton: {
+    alignItems: 'center',
+    borderColor: colors.border,
+    borderRadius: 10,
+    borderWidth: 1,
+    marginTop: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  loadMoreText: {
+    color: colors.primary,
+    fontSize: 15,
+    fontWeight: '600',
   },
   menuAction: {
     borderColor: colors.border,
@@ -449,5 +560,21 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     flexDirection: 'row',
     justifyContent: 'space-between',
+  },
+  toggleCopy: {
+    flex: 1,
+    minWidth: 0,
+    paddingRight: 12,
+  },
+  toggleLabel: {
+    color: colors.navy,
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  toggleRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 12,
   },
 });

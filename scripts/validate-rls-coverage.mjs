@@ -25,7 +25,12 @@ const tenantTables = [
   'ai_draft_events',
 ];
 
-const serviceOnlyTables = ['whatsapp_config', 'whatsapp_message_events'];
+const serviceOnlyTables = [
+  'whatsapp_config',
+  'whatsapp_message_events',
+  'instagram_message_events',
+  'facebook_message_events',
+];
 const expectedTables = [...tenantTables, ...serviceOnlyTables];
 const failures = [];
 

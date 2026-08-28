@@ -225,10 +225,10 @@ export function HomeScreen(props: {
       <FeatureGate feature="homeAlerts">
         <ListBox
           headerAction={{ label: 'Ver todas las tareas', onPress: props.onOpenTasks }}
-          title="Alertas recientes"
+          title="Notificaciones recientes"
         >
           {recentAlerts.length === 0 ? (
-            <Text style={styles.emptyBody}>No hay alertas activas.</Text>
+            <Text style={styles.emptyBody}>No hay notificaciones nuevas.</Text>
           ) : null}
           {recentAlerts.map((alert, index) => (
             <NotificationRow

@@ -9,10 +9,12 @@ import { HeaderChromeProvider } from '../../src/context/HeaderChromeProvider';
 import { InboxProvider } from '../../src/context/InboxProvider';
 import { LoadPurchaseProvider } from '../../src/context/LoadPurchaseProvider';
 import { useOwnerSessionContext } from '../../src/context/OwnerSessionProvider';
-import { OwnerTasksProvider } from '../../src/context/OwnerTasksProvider';
+import { OwnerTasksProvider, useOwnerTasks } from '../../src/context/OwnerTasksProvider';
 import { ProductCatalogProvider } from '../../src/context/ProductCatalogProvider';
 import { SellCartProvider } from '../../src/context/SellCartProvider';
 import { useAndroidKeyboardVisible } from '../../src/hooks/useAndroidKeyboard';
+import { useAndroidRootExitBack } from '../../src/hooks/useAndroidUnsavedBack';
+import { usePushNotificationRouting } from '../../src/hooks/usePushNotificationRouting';
 import { hasSupabaseConfig } from '../../src/lib/supabase';
 import {
   getNavShortcutOption,
@@ -25,15 +27,26 @@ import {
   shouldHideBottomNav,
   tabRoute,
 } from '../../src/navigation/routes';
-import { useAndroidRootExitBack } from '../../src/hooks/useAndroidUnsavedBack';
 import { LoadingScreen } from '../../src/screens/LoadingScreen';
 import { colors } from '../../src/theme';
 
 export default function AppLayout(): ReactElement {
+  return (
+    <HeaderChromeProvider>
+      <OwnerTasksProvider>
+        <AuthenticatedAppShell />
+      </OwnerTasksProvider>
+    </HeaderChromeProvider>
+  );
+}
+
+function AuthenticatedAppShell(): ReactElement {
   const router = useRouter();
   const pathname = usePathname();
   const { authPhase, dashboard } = useOwnerSessionContext();
   const androidKeyboardVisible = useAndroidKeyboardVisible();
+  const tasksState = useOwnerTasks();
+  usePushNotificationRouting(Boolean(hasSupabaseConfig) && authPhase === 'authenticated');
 
   const routeHidesBottomNav = shouldHideBottomNav(pathname);
   // Android edge-to-edge: hide the tab bar while typing so it doesn’t sit under the
@@ -84,44 +97,41 @@ export default function AppLayout(): ReactElement {
   }
 
   return (
-    <HeaderChromeProvider>
-      <View style={[styles.root, Platform.OS === 'web' && styles.webRoot]}>
-        <AppHeader
-          onOpenAccount={() => {
-            router.push(routes.account);
-          }}
-          onOpenNotifications={() => {
-            router.push(routes.notifications);
-          }}
+    <View style={[styles.root, Platform.OS === 'web' && styles.webRoot]}>
+      <AppHeader
+        onOpenAccount={() => {
+          router.push(routes.account);
+        }}
+        onOpenNotifications={() => {
+          router.push(routes.notifications);
+        }}
+        unreadNotificationCount={tasksState.unreadNotificationCount}
+      />
+      <InboxProvider>
+        <ProductCatalogProvider>
+          <SellCartProvider>
+            <LoadPurchaseProvider>
+              <MobileOverlayProvider>
+                <View style={styles.content}>
+                  <Slot />
+                </View>
+              </MobileOverlayProvider>
+            </LoadPurchaseProvider>
+          </SellCartProvider>
+        </ProductCatalogProvider>
+      </InboxProvider>
+      {hideBottomNav ? null : (
+        <BottomNavigation
+          activeTab={activeTab}
+          onOpenShortcut={openShortcut}
+          onSelectTab={selectTab}
+          shortcutActive={shortcutActive}
+          shortcutIcon={shortcut.icon}
+          shortcutIsCash={shortcut.id === 'ventas'}
+          shortcutLabel={shortcut.label}
         />
-        <InboxProvider>
-          <OwnerTasksProvider>
-            <ProductCatalogProvider>
-              <SellCartProvider>
-                <LoadPurchaseProvider>
-                  <MobileOverlayProvider>
-                    <View style={styles.content}>
-                      <Slot />
-                    </View>
-                  </MobileOverlayProvider>
-                </LoadPurchaseProvider>
-              </SellCartProvider>
-            </ProductCatalogProvider>
-          </OwnerTasksProvider>
-        </InboxProvider>
-        {hideBottomNav ? null : (
-          <BottomNavigation
-            activeTab={activeTab}
-            onOpenShortcut={openShortcut}
-            onSelectTab={selectTab}
-            shortcutActive={shortcutActive}
-            shortcutIcon={shortcut.icon}
-            shortcutIsCash={shortcut.id === 'ventas'}
-            shortcutLabel={shortcut.label}
-          />
-        )}
-      </View>
-    </HeaderChromeProvider>
+      )}
+    </View>
   );
 }
 

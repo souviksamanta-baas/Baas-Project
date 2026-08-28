@@ -19,11 +19,14 @@ export default function NotificationsRoute(): ReactElement {
 
   return (
     <NotificationsScreen
+      hasMore={tasksState.hasMoreNotifications}
       isLoading={tasksState.isLoading && tasksState.notifications.length === 0}
+      isLoadingMore={tasksState.isLoadingMoreNotifications}
       isSaving={tasksState.isSaving}
       notifications={tasksState.notifications}
-      onDismissAll={tasksState.dismissAllNotifications}
       onDismissNotification={tasksState.dismissNotification}
+      onLoadMore={tasksState.loadMoreNotifications}
+      onMarkAllRead={tasksState.markAllNotificationsRead}
       onOpenNotification={(notificationId) => router.push(notificationDetailRoute(notificationId))}
       onOpenTaskDetail={(taskId) => router.push(taskDetailRoute(taskId, 'notifications'))}
       onOpenTasks={() => router.push(tasksRoute())}

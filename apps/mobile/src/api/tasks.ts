@@ -53,6 +53,7 @@ interface OwnerNotificationRow {
   error_message: string | null;
   id: string;
   notification_type: string;
+  owner_notification_reads?: Array<{ read_at: string; user_id: string }> | null;
   payload: {
     productId?: string;
     reorderThreshold?: number;
@@ -64,6 +65,8 @@ interface OwnerNotificationRow {
   status: 'pending' | 'sent' | 'failed' | 'dismissed';
   title: string;
 }
+
+export const NOTIFICATIONS_PAGE_SIZE = 20;
 
 export interface OwnerTaskAssigneeInfo {
   displayName: string;
@@ -352,10 +355,14 @@ export async function createAppointmentFromOwnerTask(params: {
 export async function getOwnerNotifications(
   organizationId: string,
   businessCenterId: string,
-  limit = 50,
-  currentUserId?: string | null,
+  options: {
+    currentUserId?: string | null;
+    limit?: number;
+    /** Exclusive upper bound for pagination (created_at ISO). */
+    beforeCreatedAt?: string | null;
+  } = {},
 ): Promise<OwnerNotification[]> {
-  let userId = currentUserId ?? null;
+  let userId = options.currentUserId ?? null;
   if (!userId) {
     const {
       data: { user },
@@ -372,10 +379,12 @@ export async function getOwnerNotifications(
     userId = user.id;
   }
 
-  const { data, error } = await supabase
+  const limit = options.limit ?? NOTIFICATIONS_PAGE_SIZE;
+
+  let query = supabase
     .from('owner_notifications')
     .select(
-      'id, title, body, status, notification_type, payload, product_id, push_sent_at, error_message, created_at, products(id, name, stock_quantity, reorder_threshold)',
+      'id, title, body, status, notification_type, payload, product_id, push_sent_at, error_message, created_at, products(id, name, stock_quantity, reorder_threshold), owner_notification_reads(read_at, user_id)',
     )
     .eq('organization_id', organizationId)
     .eq('business_center_id', businessCenterId)
@@ -386,11 +395,90 @@ export async function getOwnerNotifications(
     .order('created_at', { ascending: false })
     .limit(limit);
 
+  if (options.beforeCreatedAt) {
+    query = query.lt('created_at', options.beforeCreatedAt);
+  }
+
+  const { data, error } = await query;
+
   if (error) {
     throw new Error(error.message);
   }
 
-  return (data as OwnerNotificationRow[]).map(toOwnerNotification);
+  return (data as OwnerNotificationRow[]).map((row) => toOwnerNotification(row, userId));
+}
+
+export async function countUnreadOwnerNotifications(
+  organizationId: string,
+  businessCenterId: string,
+  currentUserId?: string | null,
+): Promise<number> {
+  const rows = await getOwnerNotifications(organizationId, businessCenterId, {
+    currentUserId,
+    limit: 100,
+  });
+  return rows.filter((row) => row.isUnread).length;
+}
+
+export async function markOwnerNotificationRead(notificationId: string): Promise<void> {
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+
+  if (userError) {
+    throw new Error(userError.message);
+  }
+
+  if (!user) {
+    throw new Error('Sign in before marking notifications as read.');
+  }
+
+  const { error } = await supabase.from('owner_notification_reads').upsert(
+    {
+      notification_id: notificationId,
+      read_at: new Date().toISOString(),
+      user_id: user.id,
+    },
+    { onConflict: 'notification_id,user_id' },
+  );
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
+export async function markOwnerNotificationsRead(notificationIds: string[]): Promise<void> {
+  if (notificationIds.length === 0) {
+    return;
+  }
+
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+
+  if (userError) {
+    throw new Error(userError.message);
+  }
+
+  if (!user) {
+    throw new Error('Sign in before marking notifications as read.');
+  }
+
+  const readAt = new Date().toISOString();
+  const { error } = await supabase.from('owner_notification_reads').upsert(
+    notificationIds.map((notificationId) => ({
+      notification_id: notificationId,
+      read_at: readAt,
+      user_id: user.id,
+    })),
+    { onConflict: 'notification_id,user_id' },
+  );
+
+  if (error) {
+    throw new Error(error.message);
+  }
 }
 
 export async function dismissOwnerNotification(
@@ -410,6 +498,7 @@ export async function dismissOwnerNotification(
   }
 }
 
+/** @deprecated Prefer markOwnerNotificationsRead — keeps history. */
 export async function dismissAllOwnerNotifications(
   organizationId: string,
   businessCenterId: string,
@@ -497,7 +586,7 @@ export function subscribeToOwnerTaskChanges(
       (payload) => {
         if (payload.eventType === 'INSERT') {
           handlers.onNotificationInsert(
-            toOwnerNotification(payload.new as OwnerNotificationRow),
+            toOwnerNotification(payload.new as OwnerNotificationRow, null),
           );
         }
         handlers.onRefresh();
@@ -677,15 +766,24 @@ export function extractPresupuestoId(text: string): string | null {
   return match?.[0]?.toUpperCase() ?? null;
 }
 
-function toOwnerNotification(row: OwnerNotificationRow): OwnerNotification {
+function toOwnerNotification(
+  row: OwnerNotificationRow,
+  currentUserId?: string | null,
+): OwnerNotification {
   const product = Array.isArray(row.products) ? row.products[0] : row.products;
   const productId = row.product_id ?? row.payload?.productId ?? product?.id ?? null;
+  const reads = row.owner_notification_reads ?? [];
+  const ownRead = currentUserId
+    ? reads.find((read) => read.user_id === currentUserId)
+    : reads[0];
+  const readAt = ownRead?.read_at ?? null;
 
   return {
     body: row.body,
     createdAt: row.created_at,
     errorMessage: row.error_message,
     id: row.id,
+    isUnread: !readAt,
     notificationType: row.notification_type,
     payload: row.payload ?? {},
     productId,
@@ -693,6 +791,7 @@ function toOwnerNotification(row: OwnerNotificationRow): OwnerNotification {
       ? `${product.name}: ${product.stock_quantity}/${product.reorder_threshold}`
       : null,
     pushSentAt: row.push_sent_at,
+    readAt,
     status: row.status,
     title: row.title,
   };

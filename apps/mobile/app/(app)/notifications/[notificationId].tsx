@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react';
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { Alert, Pressable, StyleSheet, Text } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
@@ -36,10 +36,19 @@ export default function NotificationDetailRoute(): ReactElement {
     router.replace(routes.notifications);
   };
 
+  useEffect(() => {
+    if (!notificationId || !notification?.isUnread) {
+      return;
+    }
+    void tasksState.markNotificationRead(notificationId);
+    // Intentionally only when opening an unread notification.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [notificationId, notification?.isUnread]);
+
   if (!notificationId || !notification) {
     return (
       <ScreenContent>
-        <Text style={styles.message}>No se encontró la alerta.</Text>
+        <Text style={styles.message}>No se encontró la notificación.</Text>
         <Pressable onPress={goBack}>
           <Text style={styles.link}>Volver</Text>
         </Pressable>

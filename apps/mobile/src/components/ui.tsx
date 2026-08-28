@@ -57,11 +57,13 @@ export function useHeaderCollapseOnScroll(): (offsetY: number) => void {
 export function AppHeader(props: {
   onOpenAccount: () => void;
   onOpenNotifications: () => void;
+  unreadNotificationCount?: number;
 }): ReactElement {
   const insets = useSafeAreaInsets();
   const chrome = useHeaderChromeOptional();
   const profile = useProfileChromeOptional();
   const showCollapsed = chrome.collapseEnabled && chrome.collapsed;
+  const hasUnread = (props.unreadNotificationCount ?? 0) > 0;
 
   return (
     <View style={[styles.header, { paddingTop: Math.max(insets.top, spacing.sm) }]}>
@@ -93,9 +95,17 @@ export function AppHeader(props: {
           </View>
         )}
         <View style={styles.headerActions}>
-          <Pressable onPress={props.onOpenNotifications} style={styles.headerIcon}>
+          <Pressable
+            accessibilityLabel={
+              hasUnread
+                ? `Notificaciones, ${props.unreadNotificationCount} sin leer`
+                : 'Notificaciones'
+            }
+            onPress={props.onOpenNotifications}
+            style={styles.headerIcon}
+          >
             <Icon kind="bell" size={26} strokeWidth={1.7} />
-            <View style={styles.unreadDot} />
+            {hasUnread ? <View style={styles.unreadDot} /> : null}
           </Pressable>
           <Pressable onPress={props.onOpenAccount} style={styles.ownerAvatar}>
             {profile.avatarUrl ? (

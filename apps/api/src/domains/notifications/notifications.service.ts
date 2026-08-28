@@ -489,6 +489,27 @@ export class NotificationsService {
     return this.emit(params);
   }
 
+  async notifyPaymentFailed(params: {
+    body: string;
+    businessCenterId: string;
+    invoiceId: string;
+    organizationId: string;
+    reason?: string | null;
+  }): Promise<{ created: boolean; sent: number }> {
+    return this.emit({
+      body: params.body,
+      businessCenterId: params.businessCenterId,
+      organizationId: params.organizationId,
+      payload: {
+        invoiceId: params.invoiceId,
+        reason: params.reason ?? null,
+      },
+      sourceKey: `payment.failed:${params.invoiceId}`,
+      title: 'Problema de pago',
+      type: 'payment.failed',
+    });
+  }
+
   private async resolveRecipients(params: EmitNotificationParams): Promise<string[]> {
     const audience = NOTIFICATION_CATALOG[params.type].audience;
     if (audience === 'assignee' || audience === 'user') {

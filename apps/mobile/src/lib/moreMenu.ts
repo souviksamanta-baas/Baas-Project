@@ -11,6 +11,7 @@ export type MoreMenuRowId =
   | 'compras'
   | 'manage-purchases'
   | 'load-purchase'
+  | 'notifications'
   | 'notifications-tasks'
   | 'appointments'
   | 'billing'
@@ -66,7 +67,8 @@ export const moreMenuSections: MoreMenuSection[] = [
     feature: 'moreSettings',
     id: 'settings',
     rows: [
-      { icon: 'bell', id: 'notifications-tasks', title: 'Notificaciones y tareas' },
+      { icon: 'bell', id: 'notifications', title: 'Notificaciones' },
+      { icon: 'document', id: 'notifications-tasks', title: 'Tareas' },
       { icon: 'users', id: 'suppliers', title: 'Proveedores' },
       { icon: 'puzzle', id: 'integrations', title: 'Integraciones' },
       { icon: 'qr', id: 'browser-session', title: 'Abrir sesión en el navegador' },
@@ -93,6 +95,7 @@ const ROW_FEATURE_FLAG: Partial<Record<MoreMenuRowId, keyof OrganizationFeatureF
   'browser-session': 'browser_session',
   help: 'help_privacy',
   privacy: 'help_privacy',
+  notifications: 'notifications',
   'notifications-tasks': 'tasks',
 };
 
@@ -104,8 +107,11 @@ export function filterMoreMenuSections(
     .map((section) => ({
       ...section,
       rows: section.rows.filter((row) => {
+        if (row.id === 'notifications') {
+          return flags.notifications;
+        }
         if (row.id === 'notifications-tasks') {
-          return flags.tasks || flags.notifications;
+          return flags.tasks;
         }
         const key = ROW_FEATURE_FLAG[row.id];
         if (!key) {

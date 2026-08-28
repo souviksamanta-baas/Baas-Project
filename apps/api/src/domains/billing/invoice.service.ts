@@ -5,6 +5,7 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 
 import { assertOrgMembership, resolveAuthUser } from '../../auth/request-auth.helper';
@@ -14,6 +15,7 @@ import { ArcaConnectionService } from '../arca/arca-connection.service';
 import { ArcaPdfService } from '../arca/arca-pdf.service';
 import { ArcaQrService } from '../arca/arca-qr.service';
 import { ArcaWsfeService } from '../arca/arca-wsfe.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import {
   AFIP_DOC_TYPE_CODES,
   AFIP_VOUCHER_TYPE_CODES,
@@ -53,6 +55,7 @@ export class InvoiceService {
     private readonly qr: ArcaQrService,
     private readonly supabaseService: SupabaseService,
     private readonly wsfe: ArcaWsfeService,
+    @Optional() private readonly notificationsService?: NotificationsService,
   ) {}
 
   async issueInvoice(params: {
@@ -330,6 +333,13 @@ export class InvoiceService {
             arca_response: { error: String(error) },
           })
           .eq('id', invoiceId);
+        void this.notifyPaymentFailedSafe({
+          body: `No se pudo emitir la factura: error al solicitar CAE`,
+          invoiceId,
+          organizationId: account.organization_id,
+          reason: error instanceof Error ? error.message : 'Error al solicitar CAE',
+          sellQuoteId: input.sellQuoteId ?? null,
+        });
         throw error instanceof Error ? error : new BadRequestException(String(error));
       }
     }
@@ -343,6 +353,13 @@ export class InvoiceService {
           arca_response: { raw: caeResult.raw },
         })
         .eq('id', invoiceId);
+      void this.notifyPaymentFailedSafe({
+        body: `Factura rechazada por ARCA`,
+        invoiceId,
+        organizationId: account.organization_id,
+        reason: caeResult.rejectionReason ?? 'Rechazada por ARCA',
+        sellQuoteId: input.sellQuoteId ?? null,
+      });
       throw new BadRequestException(caeResult.rejectionReason ?? 'ARCA rechazó la factura.');
     }
 
@@ -797,6 +814,60 @@ export class InvoiceService {
     if (error) {
       throw new BadRequestException(
         'Hay otra emisión de factura en curso para este punto de venta. Reintentá en unos segundos.',
+      );
+    }
+  }
+
+  private async notifyPaymentFailedSafe(params: {
+    body: string;
+    invoiceId: string;
+    organizationId: string;
+    reason: string;
+    sellQuoteId: string | null;
+  }): Promise<void> {
+    if (!this.notificationsService) {
+      return;
+    }
+
+    try {
+      const client = this.supabaseService.getServiceRoleClient();
+      let businessCenterId: string | null = null;
+
+      if (params.sellQuoteId) {
+        const { data } = await client
+          .from('sell_quotes')
+          .select('business_center_id')
+          .eq('id', params.sellQuoteId)
+          .maybeSingle<{ business_center_id: string | null }>();
+        businessCenterId = data?.business_center_id ?? null;
+      }
+
+      if (!businessCenterId) {
+        const { data } = await client
+          .from('business_centers')
+          .select('id')
+          .eq('organization_id', params.organizationId)
+          .eq('is_active', true)
+          .order('is_default', { ascending: false })
+          .limit(1)
+          .maybeSingle<{ id: string }>();
+        businessCenterId = data?.id ?? null;
+      }
+
+      if (!businessCenterId) {
+        return;
+      }
+
+      await this.notificationsService.notifyPaymentFailed({
+        body: params.body,
+        businessCenterId,
+        invoiceId: params.invoiceId,
+        organizationId: params.organizationId,
+        reason: params.reason,
+      });
+    } catch (error) {
+      this.logger.warn(
+        `payment.failed notify skipped: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
   }

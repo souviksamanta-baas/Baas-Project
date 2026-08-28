@@ -10,6 +10,8 @@ export type NotificationTypeId =
   | 'task.reminder'
   | 'task.overdue'
   | 'task.snooze_wake'
+  | 'task.postpone_wake'
+  | 'task.status_changed'
   | 'appointment.reminder'
   | 'appointment.assigned'
   | 'appointment.starting'

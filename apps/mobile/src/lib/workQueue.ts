@@ -201,7 +201,7 @@ function toWorkQueueAlert(notification: OwnerNotification): WorkQueueItem {
     dueAt: null,
     id: `alert:${notification.id}`,
     isFollowing: false,
-    isUnread: notification.status === 'pending' || notification.status === 'sent',
+    isUnread: notification.isUnread,
     kind: 'alert',
     notificationId: notification.id,
     postponedUntil: null,

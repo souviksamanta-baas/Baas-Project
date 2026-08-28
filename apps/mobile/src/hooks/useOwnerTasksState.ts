@@ -3,7 +3,6 @@ import * as Notifications from 'expo-notifications';
 import { Alert } from 'react-native';
 
 import { ensureAndroidNotificationChannels } from '../lib/androidNotificationChannels';
-import { showPermissionDeniedAlert } from '../lib/androidPermissions';
 import { getEasProjectId } from '../lib/easProject';
 
 import {
@@ -11,11 +10,13 @@ import {
   completeOwnerTask,
   createAppointmentFromOwnerTask,
   createOwnerTask,
-  dismissAllOwnerNotifications,
   dismissOwnerNotification,
   followOwnerTask,
   getOwnerNotifications,
   getOwnerTasks,
+  markOwnerNotificationRead,
+  markOwnerNotificationsRead,
+  NOTIFICATIONS_PAGE_SIZE,
   postponeOwnerTask,
   reassignOwnerTask,
   registerOwnerPushToken,
@@ -46,19 +47,24 @@ export interface OwnerTasksState {
     OwnerTask | null
   >;
   currentUserId: string | null;
-  dismissAllNotifications: () => Promise<void>;
   dismissNotification: (notificationId: string) => Promise<void>;
   enablePushNotifications: () => Promise<void>;
   errorMessage: string | null;
   followTask: (taskId: string) => Promise<void>;
+  hasMoreNotifications: boolean;
   isLoading: boolean;
+  isLoadingMoreNotifications: boolean;
   isSaving: boolean;
+  loadMoreNotifications: () => Promise<void>;
+  markAllNotificationsRead: () => Promise<void>;
+  markNotificationRead: (notificationId: string) => Promise<void>;
   members: OrganizationMember[];
   notifications: OwnerNotification[];
   postponeTask: (taskId: string, postponedUntil: Date) => Promise<void>;
   pushRegistrationStatus: string | null;
   reassignTask: (taskId: string, assignedToUserId: string) => Promise<void>;
   refresh: () => Promise<void>;
+  unreadNotificationCount: number;
   /** @deprecated Alias kept for legacy callers. Uses default 24h postpone. */
   snoozeTask: (taskId: string) => Promise<void>;
   snoozeReminder: (taskId: string, minutes?: number) => Promise<void>;
@@ -82,6 +88,8 @@ export function useOwnerTasksState(
   const [isSaving, setIsSaving] = useState(false);
   const [members, setMembers] = useState<OrganizationMember[]>([]);
   const [notifications, setNotifications] = useState<OwnerNotification[]>([]);
+  const [hasMoreNotifications, setHasMoreNotifications] = useState(false);
+  const [isLoadingMoreNotifications, setIsLoadingMoreNotifications] = useState(false);
   const [pushRegistrationStatus, setPushRegistrationStatus] = useState<string | null>(null);
   const [tasks, setTasks] = useState<OwnerTask[]>([]);
 
@@ -132,6 +140,7 @@ export function useOwnerTasksState(
   const loadTasks = useCallback(async (): Promise<void> => {
     if (!organizationId || !businessCenterId) {
       setNotifications([]);
+      setHasMoreNotifications(false);
       setTasks([]);
       return;
     }
@@ -147,11 +156,13 @@ export function useOwnerTasksState(
       }).then((nextTasks) => {
         setTasks(nextTasks);
       }),
-      getOwnerNotifications(organizationId, businessCenterId, 50, userId).then(
-        (nextNotifications) => {
-          setNotifications(nextNotifications);
-        },
-      ),
+      getOwnerNotifications(organizationId, businessCenterId, {
+        currentUserId: userId,
+        limit: NOTIFICATIONS_PAGE_SIZE,
+      }).then((nextNotifications) => {
+        setNotifications(nextNotifications);
+        setHasMoreNotifications(nextNotifications.length >= NOTIFICATIONS_PAGE_SIZE);
+      }),
     ]);
   }, [businessCenterId, organizationId]);
 
@@ -541,35 +552,118 @@ export function useOwnerTasksState(
     [businessCenterId, loadTasks, notifications, organizationId],
   );
 
-  const dismissAllNotifications = useCallback(async (): Promise<void> => {
-    if (!organizationId || !businessCenterId) {
+  const markNotificationRead = useCallback(
+    async (notificationId: string): Promise<void> => {
+      const target = notifications.find((item) => item.id === notificationId);
+      if (!target || !target.isUnread) {
+        return;
+      }
+
+      const readAt = new Date().toISOString();
+      setNotifications((current) =>
+        current.map((item) =>
+          item.id === notificationId ? { ...item, isUnread: false, readAt } : item,
+        ),
+      );
+
+      try {
+        await markOwnerNotificationRead(notificationId);
+      } catch (error) {
+        setNotifications((current) =>
+          current.map((item) =>
+            item.id === notificationId
+              ? { ...item, isUnread: true, readAt: null }
+              : item,
+          ),
+        );
+        const message = error instanceof Error ? error.message : 'Error desconocido';
+        setErrorMessage(message);
+      }
+    },
+    [notifications],
+  );
+
+  const markAllNotificationsRead = useCallback(async (): Promise<void> => {
+    const unreadIds = notifications.filter((item) => item.isUnread).map((item) => item.id);
+    if (unreadIds.length === 0) {
       return;
     }
 
     const previous = notifications;
-    setNotifications([]);
+    const readAt = new Date().toISOString();
+    setNotifications((current) =>
+      current.map((item) =>
+        item.isUnread ? { ...item, isUnread: false, readAt } : item,
+      ),
+    );
 
     setIsSaving(true);
     setErrorMessage(null);
     try {
-      await dismissAllOwnerNotifications(organizationId, businessCenterId);
-      await loadTasks();
+      await markOwnerNotificationsRead(unreadIds);
     } catch (error) {
       setNotifications(previous);
       const message = error instanceof Error ? error.message : 'Error desconocido';
       setErrorMessage(message);
-      Alert.alert('No se pudieron descartar las alertas', message);
+      Alert.alert('No se pudieron marcar como leídas', message);
     } finally {
       setIsSaving(false);
     }
-  }, [businessCenterId, loadTasks, notifications, organizationId]);
+  }, [notifications]);
+
+  const loadMoreNotifications = useCallback(async (): Promise<void> => {
+    if (!organizationId || !businessCenterId || isLoadingMoreNotifications || !hasMoreNotifications) {
+      return;
+    }
+
+    const oldest = notifications[notifications.length - 1];
+    if (!oldest) {
+      return;
+    }
+
+    setIsLoadingMoreNotifications(true);
+    try {
+      const nextPage = await getOwnerNotifications(organizationId, businessCenterId, {
+        beforeCreatedAt: oldest.createdAt,
+        currentUserId: currentUserIdRef.current,
+        limit: NOTIFICATIONS_PAGE_SIZE,
+      });
+      setNotifications((current) => {
+        const seen = new Set(current.map((item) => item.id));
+        const merged = [...current];
+        for (const item of nextPage) {
+          if (!seen.has(item.id)) {
+            merged.push(item);
+          }
+        }
+        return merged;
+      });
+      setHasMoreNotifications(nextPage.length >= NOTIFICATIONS_PAGE_SIZE);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Error desconocido';
+      setErrorMessage(message);
+      Alert.alert('No se pudieron cargar más notificaciones', message);
+    } finally {
+      setIsLoadingMoreNotifications(false);
+    }
+  }, [
+    businessCenterId,
+    hasMoreNotifications,
+    isLoadingMoreNotifications,
+    notifications,
+    organizationId,
+  ]);
+
+  const unreadNotificationCount = useMemo(
+    () => notifications.filter((item) => item.isUnread).length,
+    [notifications],
+  );
 
   const enablePushNotifications = useCallback(async (): Promise<void> => {
     if (!organizationId || !businessCenterId) {
       return;
     }
 
-    setIsSaving(true);
     setErrorMessage(null);
 
     try {
@@ -581,9 +675,6 @@ export function useOwnerTasksState(
         : await Notifications.requestPermissionsAsync();
 
       if (!finalPermissions.granted) {
-        showPermissionDeniedAlert('notifications', {
-          canAskAgain: finalPermissions.canAskAgain !== false,
-        });
         setPushRegistrationStatus('No se otorgó el permiso de notificaciones.');
         return;
       }
@@ -593,16 +684,23 @@ export function useOwnerTasksState(
         projectId ? { projectId } : undefined,
       );
       await registerOwnerPushToken(organizationId, businessCenterId, token.data);
-      setPushRegistrationStatus('Las alertas push quedan activas en este dispositivo.');
+      setPushRegistrationStatus('Las notificaciones push quedan activas en este dispositivo.');
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown push registration error';
       setErrorMessage(message);
-      setPushRegistrationStatus('Push registration failed on this device.');
-      Alert.alert('Could not enable push alerts', message);
-    } finally {
-      setIsSaving(false);
+      setPushRegistrationStatus('No se pudieron activar las notificaciones push.');
     }
   }, [businessCenterId, organizationId]);
+
+
+  useEffect(() => {
+    if (!authReady || !organizationId || !businessCenterId) {
+      return;
+    }
+    void enablePushNotifications().catch(() => {
+      // Permission denied / simulator — non-blocking.
+    });
+  }, [authReady, businessCenterId, enablePushNotifications, organizationId]);
 
   return {
     cancelTask,
@@ -610,13 +708,17 @@ export function useOwnerTasksState(
     createAppointmentFromTask: createAppointmentFromTaskHandler,
     createTask: createTaskHandler,
     currentUserId,
-    dismissAllNotifications,
     dismissNotification,
     enablePushNotifications,
     errorMessage,
     followTask,
+    hasMoreNotifications,
     isLoading,
+    isLoadingMoreNotifications,
     isSaving,
+    loadMoreNotifications,
+    markAllNotificationsRead,
+    markNotificationRead,
     members,
     notifications,
     postponeTask,
@@ -628,6 +730,7 @@ export function useOwnerTasksState(
     startTask,
     tasks: tasksWithLabels,
     unfollowTask,
+    unreadNotificationCount,
   };
 }
 

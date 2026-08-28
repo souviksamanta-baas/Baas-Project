@@ -45,7 +45,7 @@ export function NotificationDetailScreen(props: {
           <Text style={styles.backText}>‹</Text>
         </Pressable>
         <View style={styles.flex}>
-          <ScreenTitle onBack={props.onBack} title="Detalle de alerta" />
+          <ScreenTitle onBack={props.onBack} title="Detalle de notificación" />
         </View>
       </View>
 

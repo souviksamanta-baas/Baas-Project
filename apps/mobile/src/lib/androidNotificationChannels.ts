@@ -18,7 +18,7 @@ export const ANDROID_NOTIFICATION_CHANNELS = [
   {
     id: 'ventas',
     name: 'Ventas',
-    description: 'Alertas de ventas y presupuestos',
+    description: 'Notificaciones de ventas y presupuestos',
     importance: Notifications.AndroidImportance.DEFAULT,
   },
   {

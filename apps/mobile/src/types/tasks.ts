@@ -33,6 +33,8 @@ export interface OwnerNotification {
   createdAt: string;
   errorMessage: string | null;
   id: string;
+  /** True when this user has not read the notification yet. */
+  isUnread: boolean;
   notificationType: string;
   payload: {
     actionId?: string;
@@ -52,6 +54,7 @@ export interface OwnerNotification {
   productId: string | null;
   productLabel: string | null;
   pushSentAt: string | null;
+  readAt: string | null;
   status: 'pending' | 'sent' | 'failed' | 'dismissed';
   title: string;
 }

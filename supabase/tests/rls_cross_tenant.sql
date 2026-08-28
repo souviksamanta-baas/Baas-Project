@@ -70,6 +70,38 @@ exception
 end;
 $$;
 
+create function pg_temp.assert_instagram_message_events_select_denied(label text)
+returns text
+language plpgsql
+as $$
+declare
+  row_count bigint;
+begin
+  select count(*) into row_count from public.instagram_message_events;
+
+  raise exception '% expected select to be denied, got % rows', label, row_count;
+exception
+  when insufficient_privilege then
+    return 'pass: ' || label;
+end;
+$$;
+
+create function pg_temp.assert_facebook_message_events_select_denied(label text)
+returns text
+language plpgsql
+as $$
+declare
+  row_count bigint;
+begin
+  select count(*) into row_count from public.facebook_message_events;
+
+  raise exception '% expected select to be denied, got % rows', label, row_count;
+exception
+  when insufficient_privilege then
+    return 'pass: ' || label;
+end;
+$$;
+
 insert into auth.users (
   id,
   instance_id,
@@ -700,6 +732,8 @@ with updated_settings as (
 select pg_temp.assert_equal((select count(*) from updated_settings), 0::bigint, 'Tenant A cannot update Tenant B settings');
 select pg_temp.assert_whatsapp_config_select_denied('user A cannot read whatsapp_config');
 select pg_temp.assert_whatsapp_message_events_select_denied('user A cannot read whatsapp_message_events');
+select pg_temp.assert_instagram_message_events_select_denied('user A cannot read instagram_message_events');
+select pg_temp.assert_facebook_message_events_select_denied('user A cannot read facebook_message_events');
 select pg_temp.assert_membership_insert_denied('22222222-2222-4222-8222-222222222222', 'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa', 'user A cannot write membership rows for Tenant B');
 
 set local request.jwt.claim.sub = 'bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb';
@@ -734,5 +768,7 @@ with updated_settings as (
 select pg_temp.assert_equal((select count(*) from updated_settings), 0::bigint, 'Tenant B cannot update Tenant A settings');
 select pg_temp.assert_whatsapp_config_select_denied('user B cannot read whatsapp_config');
 select pg_temp.assert_whatsapp_message_events_select_denied('user B cannot read whatsapp_message_events');
+select pg_temp.assert_instagram_message_events_select_denied('user B cannot read instagram_message_events');
+select pg_temp.assert_facebook_message_events_select_denied('user B cannot read facebook_message_events');
 
 rollback;

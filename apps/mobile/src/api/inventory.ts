@@ -550,6 +550,16 @@ export async function addStock(
     throw new Error(movementError.message);
   }
 
+  void emitStockMovementNotification({
+    businessCenterId,
+    movementType: 'restock',
+    note: movementNote,
+    organizationId,
+    productId: targetProduct.id,
+    quantityDelta: quantity,
+    unitCode,
+  });
+
   if (targetProduct.parentProductId && parentStockDeduction) {
     await applyParentStockDeduction({
       businessCenterId,
@@ -685,6 +695,16 @@ export async function reversePurchaseLotStock(options: {
     throw new Error(movementError.message);
   }
 
+  void emitStockMovementNotification({
+    businessCenterId,
+    movementType: 'adjustment',
+    note: movementNote,
+    organizationId,
+    productId: product.id,
+    quantityDelta: -quantity,
+    unitCode: lot.unit_code || product.unitCode,
+  });
+
   if (product.parentProductId) {
     const parentDeduction = computeParentStockDeduction(quantity, product);
 
@@ -730,6 +750,16 @@ export async function reversePurchaseLotStock(options: {
         if (parentMovementError) {
           throw new Error(parentMovementError.message);
         }
+
+        void emitStockMovementNotification({
+          businessCenterId,
+          movementType: 'conversion_in',
+          note: `Reverso por anulación de compra en ${product.name}`,
+          organizationId,
+          productId: product.parentProductId,
+          quantityDelta: parentDeduction,
+          unitCode: parentInventoryItem.unit_code,
+        });
       }
     }
   }
@@ -866,6 +896,16 @@ async function applyParentStockDeduction(
   if (parentMovementError) {
     throw new Error(parentMovementError.message);
   }
+
+  void emitStockMovementNotification({
+    businessCenterId: input.businessCenterId,
+    movementType: 'adjustment',
+    note: `Deducción por subproducto ${input.subproductName}`,
+    organizationId: input.organizationId,
+    productId: input.parentProductId,
+    quantityDelta: -parentDeduction,
+    unitCode: parentUnit,
+  });
 }
 
 interface SaleInventoryRow {
@@ -1004,6 +1044,16 @@ export async function confirmSale(
     if (movementError) {
       throw new Error(movementError.message);
     }
+
+    void emitStockMovementNotification({
+      businessCenterId,
+      movementType: 'sale',
+      note: buildSaleMovementNote(saleLine.line, saleLine.unitCode, checkout.clientLabel),
+      organizationId,
+      productId: saleLine.line.productId,
+      quantityDelta: -saleLine.soldQuantity,
+      unitCode: saleLine.unitCode,
+    });
   }
 
   const totalCents = computeCartSubtotalCents(checkout.cart);
@@ -1045,6 +1095,45 @@ async function emitSaleNotifications(params: {
     });
   } catch {
     // Non-blocking: sale already completed.
+  }
+}
+
+const STOCK_MOVEMENT_THROTTLE_MS = 5 * 60_000;
+
+async function emitStockMovementNotification(params: {
+  businessCenterId: string;
+  movementType: string;
+  note?: string | null;
+  organizationId: string;
+  productId: string;
+  quantityDelta: number;
+  unitCode: string;
+}): Promise<void> {
+  if (params.quantityDelta === 0) {
+    return;
+  }
+
+  try {
+    const { emitNotificationEvent } = await import('./notifications');
+    const bucket = Math.floor(Date.now() / STOCK_MOVEMENT_THROTTLE_MS);
+    const signed =
+      params.quantityDelta > 0 ? `+${params.quantityDelta}` : `${params.quantityDelta}`;
+    await emitNotificationEvent({
+      body:
+        params.note?.trim() ||
+        `Movimiento ${params.movementType}: ${signed} ${params.unitCode}`,
+      businessCenterId: params.businessCenterId,
+      organizationId: params.organizationId,
+      payload: {
+        movementType: params.movementType,
+        productId: params.productId,
+        quantityDelta: params.quantityDelta,
+      },
+      sourceKey: `stock.movement:${params.organizationId}:${params.businessCenterId}:${params.productId}:${bucket}`,
+      type: 'stock.movement',
+    });
+  } catch {
+    // Non-blocking.
   }
 }
 
@@ -1458,6 +1547,16 @@ export async function createProductDetails(
     if (movementError) {
       throw new Error(movementError.message);
     }
+
+    void emitStockMovementNotification({
+      businessCenterId,
+      movementType: 'restock',
+      note: movementNote,
+      organizationId,
+      productId: product.id,
+      quantityDelta: stockQuantity,
+      unitCode: baseUnitCode,
+    });
 
     if (isSubproduct && parentProductId && baseUnitEquivalent != null && createdLotId) {
       const parentStockDeduction = await resolveParentStockDeduction({
