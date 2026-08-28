@@ -25,9 +25,9 @@ export async function getOwnerDashboard(
 ): Promise<OwnerDashboard> {
   const preferred =
     organizationId === undefined ? await getPreferredOrganizationId() : organizationId;
-  const { data, error } = preferred
-    ? await supabase.rpc('get_owner_dashboard', { p_organization_id: preferred })
-    : await supabase.rpc('get_owner_dashboard');
+  const { data, error } = await supabase.rpc('get_owner_dashboard', {
+    p_organization_id: preferred ?? null,
+  });
 
   if (error) {
     throw new Error(error.message);

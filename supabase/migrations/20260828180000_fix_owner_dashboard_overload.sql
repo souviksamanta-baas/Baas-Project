@@ -1,4 +1,11 @@
--- Allow choosing which organization get_owner_dashboard returns for multi-company users.
+-- Fix ambiguous get_owner_dashboard overloads from org-switch migration.
+-- Having both get_owner_dashboard() and get_owner_dashboard(uuid default null)
+-- made zero-arg calls fail with "function is not unique", so the app loaded
+-- shouldOnboard=true and looked like the organization disappeared.
+
+drop function if exists public.get_owner_dashboard();
+drop function if exists public.get_owner_dashboard(uuid);
+
 create or replace function public.get_owner_dashboard(p_organization_id uuid default null)
 returns jsonb
 language sql
@@ -12,6 +19,7 @@ as $$
       my_org.name,
       my_org.role,
       organizations.vertical_id,
+      ov.slug as vertical_slug,
       organizations.feature_flags,
       organizations.nav_shortcut,
       default_centers.id as business_center_id,
@@ -29,6 +37,8 @@ as $$
       on default_centers.organization_id = my_org.organization_id
      and default_centers.is_default = true
      and default_centers.is_active = true
+    left join public.organization_verticals ov
+      on ov.id = organizations.vertical_id
     where p_organization_id is null
        or my_org.organization_id = p_organization_id
     order by
@@ -36,7 +46,7 @@ as $$
         when p_organization_id is not null and my_org.organization_id = p_organization_id then 0
         else 1
       end,
-      my_org.created_at asc
+      my_org.created_at desc
     limit 1
   ),
   whatsapp_connection as (
@@ -68,13 +78,27 @@ as $$
      and ao.business_center_id = ic.business_center_id
     limit 1
   ),
+  facebook_connection as (
+    select
+      fc.page_id,
+      fc.page_name,
+      fc.connection_status,
+      fc.verified_at,
+      fc.last_status_check_at,
+      fc.last_error
+    from public.facebook_config fc
+    join active_org ao
+      on ao.organization_id = fc.organization_id
+     and ao.business_center_id = fc.business_center_id
+    limit 1
+  ),
   dashboard_metrics as (
     select
       coalesce((select count(*) from public.contacts c join active_org ao on ao.organization_id = c.organization_id and ao.business_center_id = c.business_center_id), 0) as contacts,
       coalesce((select count(*) from public.conversations cv join active_org ao on ao.organization_id = cv.organization_id and ao.business_center_id = cv.business_center_id where cv.status = 'open'), 0) as open_conversations,
       coalesce((select count(*) from public.products p join active_org ao on ao.organization_id = p.organization_id where p.is_active = true), 0) as products,
       coalesce((select count(*) from public.inventory_items i join active_org ao on ao.organization_id = i.organization_id and ao.business_center_id = i.business_center_id join public.products p on p.id = i.product_id where p.is_active = true and i.quantity_on_hand <= i.reorder_threshold), 0) as low_stock_items,
-      coalesce((select count(*) from public.owner_tasks t join active_org ao on ao.organization_id = t.organization_id and ao.business_center_id = t.business_center_id where t.status in ('pending', 'snoozed')), 0) as pending_follow_ups,
+      coalesce((select count(*) from public.owner_tasks t join active_org ao on ao.organization_id = t.organization_id and ao.business_center_id = t.business_center_id where t.status in ('pending', 'postponed', 'snoozed')), 0) as pending_follow_ups,
       coalesce((select count(*) from public.ai_drafts d join active_org ao on ao.organization_id = d.organization_id and ao.business_center_id = d.business_center_id where d.status = 'pending_approval'), 0) as pending_ai_drafts,
       coalesce((
         select count(*)
@@ -107,6 +131,7 @@ as $$
         'name', name,
         'role', role,
         'verticalId', vertical_id,
+        'verticalSlug', vertical_slug,
         'timezone', timezone,
         'navShortcut', coalesce(nav_shortcut, 'ventas'),
         'aiAutoSend', ai_auto_send,
@@ -166,6 +191,27 @@ as $$
         'pageId', null,
         'igUserId', null,
         'igUsername', null,
+        'verifiedAt', null,
+        'lastStatusCheckAt', null,
+        'lastError', null
+      )
+    ),
+    'facebookConnection', coalesce(
+      (
+        select jsonb_build_object(
+          'status', connection_status,
+          'pageId', page_id,
+          'pageName', page_name,
+          'verifiedAt', verified_at,
+          'lastStatusCheckAt', last_status_check_at,
+          'lastError', last_error
+        )
+        from facebook_connection
+      ),
+      jsonb_build_object(
+        'status', 'not_configured',
+        'pageId', null,
+        'pageName', null,
         'verifiedAt', null,
         'lastStatusCheckAt', null,
         'lastError', null
