@@ -1,8 +1,7 @@
-import { useOwnerSessionContext } from '../context/OwnerSessionProvider';
-import { hasMultipleSucursales } from '../types/features';
+import { useBusinessCenters } from './useBusinessCenters';
 
-/** True only when the org explicitly enables multi-sucursales (default: false). */
+/** True when the org has more than one business center (Sucursal field visible). */
 export function useHasMultipleSucursales(): boolean {
-  const { dashboard } = useOwnerSessionContext();
-  return hasMultipleSucursales(dashboard?.features);
+  const businessCenters = useBusinessCenters();
+  return businessCenters.length > 1;
 }

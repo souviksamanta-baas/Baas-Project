@@ -74,6 +74,7 @@ export default function SellProductsRoute(): ReactElement {
       onEditProduct={sellNav.onEditProduct}
       onOpenConfirmPayment={() => void handleOpenConfirmPayment()}
       onOpenProductDetail={sellNav.onOpenProductDetail}
+      onOpenSavedQuote={(quoteId) => router.push(presupuestoDetailRoute(quoteId, 'sell'))}
       onScanCode={() => router.push(inventoryScanRoute({ mode: 'sell' }))}
       products={products}
     />

@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import { parseCreateTaskItems } from '../src/domains/ai/copi-task-parse';
+import {
+  parseCreateAppointmentRequest,
+  parseCreateTaskItems,
+} from '../src/domains/ai/copi-task-parse';
 
 describe('parseCreateTaskItems', () => {
   it('splits numbered create-task requests into cleaned titles', () => {
@@ -65,5 +68,46 @@ describe('parseCreateTaskItems', () => {
     expect(tasks[0]?.description.toLocaleLowerCase('es-AR')).toMatch(/hablar con diego/);
     expect(tasks[0]?.description).not.toMatch(/Asigna una tarea/i);
     expect(tasks[0]?.dueAt).toBeTruthy();
+  });
+});
+
+describe('parseCreateAppointmentRequest', () => {
+  it('extracts title, schedule, and attendee email', () => {
+    const parsed = parseCreateAppointmentRequest(
+      'Agendá un turno con María mañana a las 10, correo maria@ejemplo.com',
+      'America/Argentina/Cordoba',
+    );
+
+    expect(parsed.attendeeEmail).toBe('maria@ejemplo.com');
+    expect(parsed.startsAt).toBeTruthy();
+    expect(parsed.endsAt).toBeTruthy();
+    expect(parsed.title.toLocaleLowerCase('es-AR')).toMatch(/maría|maria/);
+    expect(parsed.clarificationQuestions).toHaveLength(0);
+  });
+
+  it('asks for Para email when missing', () => {
+    const parsed = parseCreateAppointmentRequest(
+      'Agendá una cita con Juan mañana a las 15',
+      'America/Argentina/Cordoba',
+    );
+
+    expect(parsed.attendeeEmail).toBeNull();
+    expect(parsed.startsAt).toBeTruthy();
+    expect(parsed.clarificationQuestions.some((item) => /correo|Para/i.test(item))).toBe(
+      true,
+    );
+  });
+
+  it('asks for schedule when missing', () => {
+    const parsed = parseCreateAppointmentRequest(
+      'Agendá un turno con Ana, ana@ejemplo.com',
+      'America/Argentina/Cordoba',
+    );
+
+    expect(parsed.attendeeEmail).toBe('ana@ejemplo.com');
+    expect(parsed.startsAt).toBeNull();
+    expect(parsed.clarificationQuestions.some((item) => /cuándo|cuando/i.test(item))).toBe(
+      true,
+    );
   });
 });

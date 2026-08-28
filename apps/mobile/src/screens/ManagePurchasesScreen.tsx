@@ -17,7 +17,8 @@ import {
 } from '../lib/purchases';
 import { confirmPurchaseStock, unconfirmPurchaseStock } from '../lib/purchaseStock';
 import { formatCurrency } from '../lib/sellCart';
-import { routes } from '../navigation/routes';
+import { sharePurchasePdf } from '../lib/sharePurchasePdf';
+import { purchaseDetailRoute, routes } from '../navigation/routes';
 import { colors } from '../theme';
 
 const DATES_PAGE_SIZE = 10;
@@ -230,7 +231,10 @@ export function ManagePurchasesScreen(props: { onBack: () => void }): ReactEleme
 
                       return (
                         <View key={purchase.id} style={styles.detailRow}>
-                          <View style={styles.flex}>
+                          <Pressable
+                            onPress={() => router.push(purchaseDetailRoute(purchase.id))}
+                            style={styles.flex}
+                          >
                             <Text style={styles.rowTitle}>{purchase.number}</Text>
                             <Text style={styles.rowMeta}>{purchase.supplier}</Text>
                             <Text style={styles.rowMeta}>
@@ -255,7 +259,7 @@ export function ManagePurchasesScreen(props: { onBack: () => void }): ReactEleme
                                 {purchaseStatusLabel(purchase.status)}
                               </Text>
                             </View>
-                          </View>
+                          </Pressable>
                           <View style={styles.rightCol}>
                             <Text style={styles.costText}>
                               {formatCurrency(purchase.totalCostCents)}
@@ -313,6 +317,19 @@ export function ManagePurchasesScreen(props: { onBack: () => void }): ReactEleme
         <Pressable
           onPress={() => {
             if (menuPurchase) {
+              const purchaseId = menuPurchase.id;
+              setMenuPurchase(null);
+              router.push(purchaseDetailRoute(purchaseId));
+            }
+          }}
+          style={styles.actionRow}
+        >
+          <Text style={styles.actionRowText}>Ver detalle</Text>
+        </Pressable>
+
+        <Pressable
+          onPress={() => {
+            if (menuPurchase) {
               void handleToggleStatus(menuPurchase);
             }
           }}
@@ -331,9 +348,32 @@ export function ManagePurchasesScreen(props: { onBack: () => void }): ReactEleme
               handleEditPurchase(menuPurchase);
             }
           }}
-          style={[styles.actionRow, styles.actionRowLast]}
+          style={styles.actionRow}
         >
           <Text style={styles.actionRowText}>Editar compra</Text>
+        </Pressable>
+
+        <Pressable
+          onPress={() => {
+            if (!menuPurchase) {
+              return;
+            }
+            const purchase = menuPurchase;
+            setMenuPurchase(null);
+            void (async () => {
+              try {
+                await sharePurchasePdf(purchase);
+              } catch (error) {
+                Alert.alert(
+                  'No se pudo compartir',
+                  error instanceof Error ? error.message : 'Error desconocido',
+                );
+              }
+            })();
+          }}
+          style={[styles.actionRow, styles.actionRowLast]}
+        >
+          <Text style={styles.actionRowText}>Compartir PDF</Text>
         </Pressable>
       </MobileContainedModal>
     </ScreenContent>

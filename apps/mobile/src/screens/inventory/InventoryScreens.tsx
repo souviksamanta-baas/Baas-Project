@@ -37,6 +37,7 @@ import { BrandSuccessModal } from '../../components/BrandSuccessModal';
 import { useProductCatalog } from '../../context/ProductCatalogProvider';
 import { useHasMultipleSucursales } from '../../hooks/useHasMultipleSucursales';
 import { pickAndUploadProductPhoto } from '../../lib/productPhoto';
+import { BarcodeScannerScreen } from '../BarcodeScannerScreen';
 import {
   CartLineRow,
   CobrarButton,
@@ -271,8 +272,7 @@ export function AddProductScreen(props: {
     () => previewLotCode(formValues.receivedDate, []),
     [formValues.receivedDate],
   );
-  const initialStock = Number.parseInt(formValues.stockQuantity.trim(), 10);
-  const showLotFields = Number.isInteger(initialStock) && initialStock > 0;
+  const [isScanningCode, setIsScanningCode] = useState(false);
 
   const categoryOptions = useMemo(
     () =>
@@ -306,6 +306,26 @@ export function AddProductScreen(props: {
         error instanceof Error ? error.message : 'Error desconocido',
       );
     }
+  }
+
+  if (isScanningCode) {
+    return (
+      <BarcodeScannerScreen
+        hint="Escaneá el código QR o de barras del producto"
+        onBack={() => setIsScanningCode(false)}
+        onScanned={(payload) => {
+          setFormValues((current) => ({
+            ...current,
+            associatedCode: payload.value.trim(),
+            associatedCodeType: payload.value.trim().startsWith('http')
+              ? 'qr'
+              : current.associatedCodeType,
+          }));
+          setIsScanningCode(false);
+        }}
+        title="Asociar código"
+      />
+    );
   }
 
   return (
@@ -419,21 +439,19 @@ export function AddProductScreen(props: {
             }
           />
         ) : null}
-        {showLotFields ? (
-          <View style={styles.fieldRow}>
-            <InventoryDateField
-              label="Fecha de lote"
-              onChange={(receivedDate) => setFormValues((current) => ({ ...current, receivedDate }))}
-              value={formValues.receivedDate}
-            />
-            <InventoryDateField
-              label="Vencimiento"
-              onChange={(expiresDate) => setFormValues((current) => ({ ...current, expiresDate }))}
-              value={formValues.expiresDate}
-            />
-            <InventoryReadOnlyField label="Lote" value={lotPreview} />
-          </View>
-        ) : null}
+        <View style={styles.fieldRow}>
+          <InventoryDateField
+            label="Fecha de lote"
+            onChange={(receivedDate) => setFormValues((current) => ({ ...current, receivedDate }))}
+            value={formValues.receivedDate}
+          />
+          <InventoryDateField
+            label="Vencimiento"
+            onChange={(expiresDate) => setFormValues((current) => ({ ...current, expiresDate }))}
+            value={formValues.expiresDate}
+          />
+          <InventoryReadOnlyField label="Lote" value={lotPreview} />
+        </View>
         <InventoryTextField
           full
           label="Notas"
@@ -441,6 +459,32 @@ export function AddProductScreen(props: {
           onChangeText={(description) => setFormValues((current) => ({ ...current, description }))}
           value={formValues.description}
         />
+      </SectionCard>
+      <SectionCard title="Asociar QR / código de barras">
+        <View style={styles.fieldRow}>
+          <InventorySelectField
+            label="Tipo"
+            onChange={(associatedCodeType: 'codigo_de_barras' | 'qr') =>
+              setFormValues((current) => ({ ...current, associatedCodeType }))
+            }
+            options={[
+              { label: 'Código de barras', value: 'codigo_de_barras' },
+              { label: 'QR', value: 'qr' },
+            ]}
+            value={formValues.associatedCodeType}
+          />
+          <InventoryTextField
+            label="Código"
+            onChangeText={(associatedCode) =>
+              setFormValues((current) => ({ ...current, associatedCode }))
+            }
+            value={formValues.associatedCode}
+          />
+        </View>
+        <Pressable onPress={() => setIsScanningCode(true)} style={styles.addAnotherRow}>
+          <Icon color={colors.primary} kind="qr" size={14} strokeWidth={2} />
+          <Text style={styles.addStockSaveAnotherButtonText}>Escanear QR / código de barras</Text>
+        </Pressable>
       </SectionCard>
       <InfoBanner>
         Para agregar presentaciones derivadas, guarda el producto y usa Agregar subproducto en su
@@ -1712,6 +1756,7 @@ export function SellProductsScreen(
     onEditProduct: (productId: string) => void;
     onOpenConfirmPayment: () => void;
     onOpenProductDetail: (productId: string) => void;
+    onOpenSavedQuote?: (quoteId: string) => void;
     onScanCode?: () => void;
     products?: SellProductMock[];
   },
@@ -1795,7 +1840,7 @@ export function SellProductsScreen(
 
   return (
     <ScreenContent>
-      <InventoryScreenTitle showBack={false} title="Ventas" />
+      <InventoryScreenTitle showBack={false} title="Vender" />
       <SearchFilterRow
         onChangeText={setSearchQuery}
         onPressCamera={props.onScanCode}
@@ -1834,7 +1879,18 @@ export function SellProductsScreen(
         )}
       </View>
       <SectionCard title="Cobrar">
-        {sellCart.quoteMessage ? <InfoBanner>{sellCart.quoteMessage}</InfoBanner> : null}
+        {sellCart.lastSavedQuoteId ? (
+          <Pressable
+            onPress={() => props.onOpenSavedQuote?.(sellCart.lastSavedQuoteId!)}
+            style={styles.quoteSavedBanner}
+          >
+            <Icon color={colors.info} kind="info" size={14} strokeWidth={1.8} />
+            <Text style={styles.quoteSavedText}>
+              Presupuesto guardado. ID:{' '}
+              <Text style={styles.quoteSavedLink}>{sellCart.lastSavedQuoteId}</Text>
+            </Text>
+          </Pressable>
+        ) : null}
         {sellCart.cart.length === 0 ? (
           <Text style={styles.rowMeta}>Agrega productos con + para iniciar una venta.</Text>
         ) : (
@@ -2172,6 +2228,29 @@ const styles = StyleSheet.create({
   },
   actionLabelInfo: {
     color: colors.info,
+  },
+  quoteSavedBanner: {
+    alignItems: 'flex-start',
+    backgroundColor: colors.infoSoft,
+    borderRadius: radius.md,
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 8,
+    marginTop: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  quoteSavedLink: {
+    color: colors.info,
+    fontWeight: '700',
+    textDecorationLine: 'underline',
+  },
+  quoteSavedText: {
+    color: colors.navy,
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '300',
+    lineHeight: 15,
   },
   addAnotherRow: {
     alignItems: 'center',

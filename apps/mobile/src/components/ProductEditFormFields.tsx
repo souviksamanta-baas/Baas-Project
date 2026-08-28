@@ -244,6 +244,7 @@ export function InventoryDateField(props: {
 }): ReactElement {
   const [focused, setFocused] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerMode, setPickerMode] = useState<'days' | 'months' | 'years'>('days');
   const selectedDate = parseDateInput(props.value) ?? new Date();
   const [visibleMonth, setVisibleMonth] = useState(
     () => new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1),
@@ -262,6 +263,7 @@ export function InventoryDateField(props: {
   function openPicker(): void {
     const current = parseDateInput(props.value) ?? new Date();
     setVisibleMonth(new Date(current.getFullYear(), current.getMonth(), 1));
+    setPickerMode('days');
     setPickerOpen(true);
   }
 
@@ -271,10 +273,8 @@ export function InventoryDateField(props: {
     setPickerOpen(false);
   }
 
-  const monthLabel = visibleMonth.toLocaleDateString('es-AR', {
-    month: 'long',
-    year: 'numeric',
-  });
+  const monthName = visibleMonth.toLocaleDateString('es-AR', { month: 'long' });
+  const yearLabel = String(visibleMonth.getFullYear());
   const firstWeekday = new Date(
     visibleMonth.getFullYear(),
     visibleMonth.getMonth(),
@@ -286,9 +286,11 @@ export function InventoryDateField(props: {
     0,
   ).getDate();
   const leadingBlanks = (firstWeekday + 6) % 7; // Monday-first
+  // Always 6 weeks so modal height does not jump between months.
   const calendarCells = [
-    ...Array.from({ length: leadingBlanks }, () => null),
+    ...Array.from({ length: leadingBlanks }, () => null as number | null),
     ...Array.from({ length: daysInMonth }, (_, index) => index + 1),
+    ...Array.from({ length: Math.max(0, 42 - leadingBlanks - daysInMonth) }, () => null),
   ];
   const parsed = parseDateInput(props.value);
   const selectedDay =
@@ -300,6 +302,9 @@ export function InventoryDateField(props: {
   const isoValue = parsed
     ? `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, '0')}-${String(parsed.getDate()).padStart(2, '0')}`
     : '';
+  const currentYear = new Date().getFullYear();
+  const yearOptions = Array.from({ length: 21 }, (_, index) => currentYear - 10 + index);
+  const monthOptions = Array.from({ length: 12 }, (_, index) => index);
 
   return (
     <View style={styles.field}>
@@ -356,7 +361,22 @@ export function InventoryDateField(props: {
           >
             <Icon color={colors.navy} kind="arrow-left" size={16} strokeWidth={2} />
           </Pressable>
-          <Text style={styles.calendarMonthLabel}>{monthLabel}</Text>
+          <View style={styles.calendarHeaderLabels}>
+            <Pressable
+              accessibilityLabel="Elegir mes"
+              onPress={() => setPickerMode((mode) => (mode === 'months' ? 'days' : 'months'))}
+              style={styles.calendarHeaderChip}
+            >
+              <Text style={styles.calendarMonthLabel}>{monthName}</Text>
+            </Pressable>
+            <Pressable
+              accessibilityLabel="Elegir año"
+              onPress={() => setPickerMode((mode) => (mode === 'years' ? 'days' : 'years'))}
+              style={styles.calendarHeaderChip}
+            >
+              <Text style={styles.calendarMonthLabel}>{yearLabel}</Text>
+            </Pressable>
+          </View>
           <Pressable
             accessibilityLabel="Mes siguiente"
             hitSlop={8}
@@ -370,38 +390,99 @@ export function InventoryDateField(props: {
             <Icon color={colors.navy} kind="chevron-right" size={16} strokeWidth={2} />
           </Pressable>
         </View>
-        <View style={styles.calendarWeekdays}>
-          {['L', 'M', 'X', 'J', 'V', 'S', 'D'].map((day) => (
-            <Text key={day} style={styles.calendarWeekday}>
-              {day}
-            </Text>
-          ))}
-        </View>
-        <View style={styles.calendarGrid}>
-          {calendarCells.map((day, index) =>
-            day == null ? (
-              <View key={`blank-${index}`} style={styles.calendarDayCell} />
-            ) : (
-              <Pressable
-                key={`day-${day}`}
-                onPress={() => selectDay(day)}
-                style={[
-                  styles.calendarDayCell,
-                  selectedDay === day && styles.calendarDayCellSelected,
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.calendarDayText,
-                    selectedDay === day && styles.calendarDayTextSelected,
-                  ]}
+        {pickerMode === 'months' ? (
+          <View style={styles.calendarPickerGrid}>
+            {monthOptions.map((monthIndex) => {
+              const name = new Date(2000, monthIndex, 1).toLocaleDateString('es-AR', {
+                month: 'short',
+              });
+              const selected = visibleMonth.getMonth() === monthIndex;
+              return (
+                <Pressable
+                  key={monthIndex}
+                  onPress={() => {
+                    setVisibleMonth(
+                      (current) => new Date(current.getFullYear(), monthIndex, 1),
+                    );
+                    setPickerMode('days');
+                  }}
+                  style={[styles.calendarPickerCell, selected && styles.calendarDayCellSelected]}
                 >
+                  <Text
+                    style={[
+                      styles.calendarDayText,
+                      selected && styles.calendarDayTextSelected,
+                    ]}
+                  >
+                    {name}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        ) : null}
+        {pickerMode === 'years' ? (
+          <View style={styles.calendarPickerGrid}>
+            {yearOptions.map((year) => {
+              const selected = visibleMonth.getFullYear() === year;
+              return (
+                <Pressable
+                  key={year}
+                  onPress={() => {
+                    setVisibleMonth((current) => new Date(year, current.getMonth(), 1));
+                    setPickerMode('days');
+                  }}
+                  style={[styles.calendarPickerCell, selected && styles.calendarDayCellSelected]}
+                >
+                  <Text
+                    style={[
+                      styles.calendarDayText,
+                      selected && styles.calendarDayTextSelected,
+                    ]}
+                  >
+                    {year}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        ) : null}
+        {pickerMode === 'days' ? (
+          <>
+            <View style={styles.calendarWeekdays}>
+              {['L', 'M', 'X', 'J', 'V', 'S', 'D'].map((day) => (
+                <Text key={day} style={styles.calendarWeekday}>
                   {day}
                 </Text>
-              </Pressable>
-            ),
-          )}
-        </View>
+              ))}
+            </View>
+            <View style={styles.calendarGrid}>
+              {calendarCells.map((day, index) =>
+                day == null ? (
+                  <View key={`blank-${index}`} style={styles.calendarDayCell} />
+                ) : (
+                  <Pressable
+                    key={`day-${day}`}
+                    onPress={() => selectDay(day)}
+                    style={[
+                      styles.calendarDayCell,
+                      selectedDay === day && styles.calendarDayCellSelected,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.calendarDayText,
+                        selectedDay === day && styles.calendarDayTextSelected,
+                      ]}
+                    >
+                      {day}
+                    </Text>
+                  </Pressable>
+                ),
+              )}
+            </View>
+          </>
+        ) : null}
       </MobileContainedModal>
     </View>
   );
@@ -482,6 +563,7 @@ const styles = StyleSheet.create({
   calendarGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
+    height: 216,
     marginTop: 4,
   },
   calendarHeader: {
@@ -490,9 +572,19 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 12,
   },
+  calendarHeaderChip: {
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+  },
+  calendarHeaderLabels: {
+    alignItems: 'center',
+    flex: 1,
+    flexDirection: 'row',
+    gap: 4,
+    justifyContent: 'center',
+  },
   calendarMonthLabel: {
     color: colors.navy,
-    flex: 1,
     fontSize: 15,
     fontWeight: '600',
     textAlign: 'center',
@@ -503,6 +595,18 @@ const styles = StyleSheet.create({
     height: 32,
     justifyContent: 'center',
     width: 32,
+  },
+  calendarPickerCell: {
+    alignItems: 'center',
+    height: 44,
+    justifyContent: 'center',
+    marginBottom: 8,
+    width: '33.33%',
+  },
+  calendarPickerGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    minHeight: 216,
   },
   calendarWeekday: {
     color: colors.slate,

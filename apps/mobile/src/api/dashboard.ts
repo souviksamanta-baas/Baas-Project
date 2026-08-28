@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { getPreferredOrganizationId } from '../lib/activeOrganization';
 import { normalizeNavShortcutId } from '../lib/navShortcut';
 import type { OwnerDashboard } from '../types/dashboard';
 import type { OrganizationFeatureFlags } from '../types/features';
@@ -12,8 +13,21 @@ export type OrganizationVertical = {
   suggested_feature_flags: OrganizationFeatureFlags;
 };
 
-export async function getOwnerDashboard(): Promise<OwnerDashboard> {
-  const { data, error } = await supabase.rpc('get_owner_dashboard');
+export type MyOrganization = {
+  createdAt: string;
+  name: string;
+  organizationId: string;
+  role: string;
+};
+
+export async function getOwnerDashboard(
+  organizationId?: string | null,
+): Promise<OwnerDashboard> {
+  const preferred =
+    organizationId === undefined ? await getPreferredOrganizationId() : organizationId;
+  const { data, error } = preferred
+    ? await supabase.rpc('get_owner_dashboard', { p_organization_id: preferred })
+    : await supabase.rpc('get_owner_dashboard');
 
   if (error) {
     throw new Error(error.message);
@@ -25,6 +39,25 @@ export async function getOwnerDashboard(): Promise<OwnerDashboard> {
   }
 
   return dashboard;
+}
+
+export async function listMyOrganizations(): Promise<MyOrganization[]> {
+  const { data, error } = await supabase.rpc('get_my_organizations');
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return ((data ?? []) as Array<{
+    created_at: string;
+    name: string;
+    organization_id: string;
+    role: string;
+  }>).map((row) => ({
+    createdAt: row.created_at,
+    name: row.name,
+    organizationId: row.organization_id,
+    role: row.role,
+  }));
 }
 
 export async function listOrganizationVerticals(): Promise<OrganizationVertical[]> {

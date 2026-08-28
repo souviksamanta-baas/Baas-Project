@@ -1,9 +1,12 @@
 import type { ReactElement } from 'react';
+import { useEffect, useState } from 'react';
 import { Alert, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { listMyOrganizations, type MyOrganization } from '../api/dashboard';
 import { Icon } from '../components/icons';
 import { ActionRow, Card, ScreenContent, ScreenTitle } from '../components/ui';
 import { FeatureGate } from '../hooks/useFeatureVisibility';
+import { setPreferredOrganizationId } from '../lib/activeOrganization';
 import { canManageBusinessSettings, memberRoleLabel } from '../lib/orgRoles';
 import type { OwnerDashboard } from '../types/dashboard';
 import { whatsappConnectionLabel } from '../lib/whatsappPresentation';
@@ -32,8 +35,10 @@ export function AccountScreen(props: {
   onOpenPrivacyData: () => void;
   onOpenStaffInvite: () => void;
   onOpenWhatsAppSetup: () => void;
+  onOrganizationSwitched?: () => Promise<void> | void;
   onSignOut: () => void;
   onUploadAvatar: () => Promise<void>;
+  organizationId: string | null;
   role: OwnerDashboard['organization'] extends infer T
     ? T extends { role: infer R }
       ? R
@@ -54,6 +59,25 @@ export function AccountScreen(props: {
   const displayName = props.fullName.trim() || 'Tu nombre';
   const initials = initialsFromName(displayName);
   const canManageBusiness = canManageBusinessSettings(props.role);
+  const [organizations, setOrganizations] = useState<MyOrganization[]>([]);
+
+  useEffect(() => {
+    let mounted = true;
+    void listMyOrganizations()
+      .then((rows) => {
+        if (mounted) {
+          setOrganizations(rows);
+        }
+      })
+      .catch(() => {
+        if (mounted) {
+          setOrganizations([]);
+        }
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [props.organizationId]);
 
   async function handleUploadAvatar(): Promise<void> {
     try {
@@ -70,9 +94,48 @@ export function AccountScreen(props: {
     }
   }
 
+  async function handleSwitchOrganization(organizationId: string): Promise<void> {
+    if (organizationId === props.organizationId) {
+      return;
+    }
+
+    try {
+      await setPreferredOrganizationId(organizationId);
+      await props.onOrganizationSwitched?.();
+    } catch (error) {
+      Alert.alert(
+        'No se pudo cambiar de empresa',
+        error instanceof Error ? error.message : 'Error desconocido',
+      );
+    }
+  }
+
   return (
     <ScreenContent title="Mi cuenta">
       <ScreenTitle title="Mi cuenta" />
+
+      {organizations.length > 1 ? (
+        <Card flush>
+          <View style={styles.orgHeader}>
+            <Text style={styles.orgHeaderTitle}>Cambiar empresa</Text>
+          </View>
+          {organizations.map((org, index) => {
+            const selected = org.organizationId === props.organizationId;
+            return (
+              <ActionRow
+                icon="store"
+                key={org.organizationId}
+                onPress={() => {
+                  void handleSwitchOrganization(org.organizationId);
+                }}
+                showDivider={index < organizations.length - 1}
+                subtitle={selected ? 'Activa' : memberRoleLabel(org.role)}
+                title={org.name}
+              />
+            );
+          })}
+        </Card>
+      ) : null}
 
       <FeatureGate feature="accountProfile">
         <View style={styles.profileCard}>
@@ -151,6 +214,17 @@ const styles = StyleSheet.create({
   },
   flex: {
     flex: 1,
+  },
+  orgHeader: {
+    borderBottomColor: colors.border,
+    borderBottomWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  orgHeaderTitle: {
+    color: colors.navy,
+    fontSize: 15,
+    fontWeight: '600',
   },
   pencilBadge: {
     alignItems: 'center',

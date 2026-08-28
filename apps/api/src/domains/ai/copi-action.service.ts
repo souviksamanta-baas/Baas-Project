@@ -11,9 +11,11 @@ import {
   normalizeCopiQuestion,
 } from './copi-intent-router';
 import {
+  buildCreateAppointmentPayload,
   buildCreateTaskPayload,
   parseCreatePresupuestoRequest,
   readTaskItems,
+  summarizeCreateAppointmentPayload,
   summarizeCreateTaskPayload,
   wantsCreatePresupuestoAction,
 } from './copi-task-parse';
@@ -437,26 +439,70 @@ export class CopiActionService {
           typeof params.payload.title === 'string' && params.payload.title.trim()
             ? params.payload.title.trim()
             : 'Nuevo turno';
-        const startsAt = readRequiredIsoDate(params.payload.startsAt, 'agendar');
+        const startsAt =
+          typeof params.payload.startsAt === 'string' && params.payload.startsAt.trim()
+            ? readRequiredIsoDate(params.payload.startsAt, 'agendar')
+            : new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
         const endsAt =
           typeof params.payload.endsAt === 'string' && params.payload.endsAt.trim()
             ? params.payload.endsAt
             : new Date(new Date(startsAt).getTime() + 30 * 60 * 1000).toISOString();
+        const attendeeEmail =
+          typeof params.payload.attendeeEmail === 'string' &&
+          params.payload.attendeeEmail.trim()
+            ? params.payload.attendeeEmail.trim().toLowerCase()
+            : null;
+        const notes =
+          typeof params.payload.notes === 'string' ? params.payload.notes : null;
+        const fromLabel = await this.resolveUserDisplayName(params.userId);
         const appointment = await this.appointmentsService.createAppointment({
           assignedToUserId: readOptionalUuid(params.payload.assignedToUserId),
           businessCenterId: params.businessCenterId,
           contactId: readOptionalUuid(params.payload.contactId),
           createdByUserId: params.userId,
           endsAt,
-          notes:
-            typeof params.payload.notes === 'string' ? params.payload.notes : null,
+          metadata: {
+            attendeeEmail,
+            fromLabel,
+          },
+          notes,
           organizationId: params.organizationId,
           startsAt,
           title,
         });
+
+        let inviteEmailSent = false;
+        if (attendeeEmail) {
+          try {
+            await this.appointmentsService.sendInviteEmail({
+              endsAt: appointment.endsAt,
+              fromLabel,
+              notes: appointment.notes,
+              startsAt: appointment.startsAt,
+              title: appointment.title,
+              toEmail: attendeeEmail,
+            });
+            inviteEmailSent = true;
+          } catch (error) {
+            // Appointment is already created; surface invite failure in the result.
+            return {
+              appointmentId: appointment.id,
+              attendeeEmail,
+              endsAt: appointment.endsAt,
+              inviteEmailError:
+                error instanceof Error ? error.message : 'No se pudo enviar la invitación.',
+              inviteEmailSent: false,
+              startsAt: appointment.startsAt,
+              title: appointment.title,
+            };
+          }
+        }
+
         return {
           appointmentId: appointment.id,
+          attendeeEmail,
           endsAt: appointment.endsAt,
+          inviteEmailSent,
           startsAt: appointment.startsAt,
           title: appointment.title,
         };
@@ -523,6 +569,22 @@ export class CopiActionService {
     if (!(data.feature_flags ?? {}).appointments) {
       throw new Error('La Agenda no está habilitada para esta organización.');
     }
+  }
+
+  private async resolveUserDisplayName(userId: string): Promise<string | null> {
+    const client = this.supabaseService.getServiceRoleClient();
+    const { data, error } = await client.auth.admin.getUserById(userId);
+    if (error || !data.user) {
+      return null;
+    }
+    const metadata = (data.user.user_metadata ?? {}) as {
+      full_name?: unknown;
+      preferred_name?: unknown;
+    };
+    const preferred =
+      typeof metadata.preferred_name === 'string' ? metadata.preferred_name.trim() : '';
+    const fullName = typeof metadata.full_name === 'string' ? metadata.full_name.trim() : '';
+    return preferred || fullName || data.user.email || null;
   }
 
   private async resolveMemberUserId(
@@ -828,11 +890,11 @@ function buildActionPayload(
     };
   }
 
-  if (
-    actionType === 'appointment_create' ||
-    actionType === 'appointment_update' ||
-    actionType === 'appointment_assign'
-  ) {
+  if (actionType === 'appointment_create') {
+    return buildCreateAppointmentPayload(question, timezone);
+  }
+
+  if (actionType === 'appointment_update' || actionType === 'appointment_assign') {
     return {
       appointmentId: null,
       question,
@@ -872,6 +934,33 @@ export function recoverCreateTaskProposal(
     return { actionType, payload };
   }
 
+  if (actionType === 'appointment_create') {
+    const question = readProposalQuestion(payload);
+    const timezone =
+      typeof payload.timezone === 'string' && payload.timezone.trim()
+        ? payload.timezone
+        : DEFAULT_TIMEZONE;
+    if (!question) {
+      return { actionType, payload };
+    }
+    // Rebuild from the original question when older proposals only stored placeholders.
+    if (
+      typeof payload.startsAt !== 'string' ||
+      !payload.startsAt.trim() ||
+      typeof payload.title !== 'string' ||
+      !payload.title.trim()
+    ) {
+      return {
+        actionType,
+        payload: {
+          ...payload,
+          ...buildCreateAppointmentPayload(question, timezone),
+        },
+      };
+    }
+    return { actionType, payload };
+  }
+
   const question = readProposalQuestion(payload);
   if (!question) {
     return { actionType, payload };
@@ -894,6 +983,20 @@ export function recoverCreateTaskProposal(
         question,
         timezone,
         title: parsed.title,
+      },
+    };
+  }
+
+  if (inferred === 'appointment_create') {
+    const timezone =
+      typeof payload.timezone === 'string' && payload.timezone.trim()
+        ? payload.timezone
+        : DEFAULT_TIMEZONE;
+    return {
+      actionType: 'appointment_create',
+      payload: {
+        ...payload,
+        ...buildCreateAppointmentPayload(question, timezone),
       },
     };
   }
@@ -1027,7 +1130,7 @@ function summarizeProposal(actionType: CopiActionType, payload: Record<string, u
     case 'cancel_task':
       return 'Cancelar tarea';
     case 'appointment_create':
-      return 'Crear turno en la agenda';
+      return summarizeCreateAppointmentPayload(payload);
     case 'appointment_update':
       return 'Actualizar turno';
     case 'appointment_assign':

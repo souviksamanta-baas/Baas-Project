@@ -177,6 +177,14 @@ Rules:
 
 Not selected in the tools JSON array. Only \`create_presupuesto\` auto-executes (no confirm step). Every task mutation — \`create_task\`, \`assign_task\`, \`reassign_task\`, \`start_task\`, \`complete_task\`, \`snooze_task\` (posponer), \`cancel_task\` — **must propose and wait for owner confirmation**. Appointment actions (\`appointment_create\`, \`appointment_update\`, \`appointment_assign\`) also propose + confirm and require the \`appointments\` feature flag.
 
+### appointment_create fields
+
+Every create requires: **title**, **startsAt** (endsAt defaults to +30 min), and ideally **attendeeEmail** (Para) to send the invite.
+
+**Infer from the owner message** — e.g. "Agendá un turno con María mañana a las 10, correo maria@ejemplo.com" → title ≈ "Con María", starts tomorrow 10:00, attendeeEmail maria@ejemplo.com → **show confirm card** with email visible in the summary.
+- If schedule is missing/ambiguous, clarify (\`¿Para cuándo agendo…?\` / hour).
+- If email is missing, clarify (\`¿Cuál es el correo de la persona (Para)…?\`). The owner can still confirm without answering: appointment is created without invite email.
+
 ### create_task mandatory fields (KAN-401)
 
 Every task requires: **title**, **description** (subject), **dueAt**, **assignedToUserId**.

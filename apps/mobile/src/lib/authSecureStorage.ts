@@ -8,6 +8,11 @@ import * as SecureStore from 'expo-secure-store';
 const CHUNK_SIZE = 1800;
 const memoryFallback = new Map<string, string>();
 
+const SECURE_OPTIONS: SecureStore.SecureStoreOptions = {
+  // Survives app kill / reboot once the device has been unlocked once.
+  keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK,
+};
+
 function chunkCountKey(key: string): string {
   return `${key}__chunk_count`;
 }
@@ -18,7 +23,11 @@ function chunkKey(key: string, index: number): string {
 
 async function secureGet(key: string): Promise<string | null> {
   try {
-    return await SecureStore.getItemAsync(key);
+    const value = await SecureStore.getItemAsync(key, SECURE_OPTIONS);
+    if (value != null) {
+      memoryFallback.set(key, value);
+    }
+    return value ?? memoryFallback.get(key) ?? null;
   } catch {
     return memoryFallback.get(key) ?? null;
   }
@@ -27,16 +36,22 @@ async function secureGet(key: string): Promise<string | null> {
 async function secureSet(key: string, value: string): Promise<void> {
   memoryFallback.set(key, value);
   try {
-    await SecureStore.setItemAsync(key, value);
-  } catch {
-    // Keep memory fallback for the current session.
+    await SecureStore.setItemAsync(key, value, SECURE_OPTIONS);
+    // Verify the write so silent SecureStore failures do not leave us
+    // with only an in-memory session that dies on process exit.
+    const readBack = await SecureStore.getItemAsync(key, SECURE_OPTIONS);
+    if (readBack !== value) {
+      console.warn('[authSecureStorage] SecureStore write verification failed for', key);
+    }
+  } catch (error) {
+    console.warn('[authSecureStorage] SecureStore set failed; session may not survive restart', error);
   }
 }
 
 async function secureDelete(key: string): Promise<void> {
   memoryFallback.delete(key);
   try {
-    await SecureStore.deleteItemAsync(key);
+    await SecureStore.deleteItemAsync(key, SECURE_OPTIONS);
   } catch {
     // Ignore native delete failures.
   }

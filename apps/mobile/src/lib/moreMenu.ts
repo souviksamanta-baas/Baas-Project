@@ -45,7 +45,7 @@ export const moreMenuSections: MoreMenuSection[] = [
     feature: 'moreInventory',
     id: 'inventory',
     rows: [
-      { icon: 'money', id: 'ventas', title: 'Ventas' },
+      { icon: 'money', id: 'ventas', title: 'Vender' },
       { icon: 'box', id: 'manage-stock', title: 'Gestionar stock' },
       { icon: 'cart', id: 'load-purchase', title: 'Cargar compras' },
       { icon: 'plus', id: 'add-product', title: 'Agregar producto' },
@@ -58,7 +58,7 @@ export const moreMenuSections: MoreMenuSection[] = [
     rows: [
       { icon: 'document', id: 'manage-purchases', title: 'Gestionar compras' },
       { icon: 'calendar', id: 'appointments', title: 'Agenda' },
-      { icon: 'bill', id: 'billing', title: 'Presupuestos' },
+      { icon: 'bill', id: 'billing', title: 'Ventas y presupuestos' },
       { icon: 'bill', id: 'invoices', title: 'Facturas' },
       { disabled: true, icon: 'cash', id: 'cash', title: 'Caja' },
     ],

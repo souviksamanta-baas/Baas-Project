@@ -290,6 +290,10 @@ export function inventoryScanRoute(options?: {
   return `${routes.inventoryScanCode}?mode=${options.mode}`;
 }
 
+export function purchaseDetailRoute(purchaseId: string): string {
+  return `/(app)/inventory/purchases/${purchaseId}`;
+}
+
 export type InventoryReturnTo =
   | 'manage-stock'
   | 'load-purchase'

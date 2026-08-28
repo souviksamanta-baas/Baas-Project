@@ -181,13 +181,13 @@ export function BillingQuotesScreen(props: {
   }
 
   return (
-    <ScreenContent title="Presupuestos">
+    <ScreenContent title="Ventas y presupuestos">
       <View style={styles.headerRow}>
         <Pressable hitSlop={8} onPress={props.onBack} style={styles.backPressable}>
           <Text style={styles.backText}>‹</Text>
         </Pressable>
         <View style={styles.flex}>
-          <ScreenTitle onBack={props.onBack} title="Presupuestos" />
+          <ScreenTitle onBack={props.onBack} title="Ventas y presupuestos" />
         </View>
       </View>
 

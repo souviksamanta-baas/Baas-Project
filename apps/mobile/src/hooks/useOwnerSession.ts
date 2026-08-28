@@ -22,19 +22,19 @@ import {
   type OrganizationFeatureFlags,
 } from '../types/features';
 
-function isInvalidSessionError(error: unknown): boolean {
+/** Only definitive Auth failures should wipe the local session. */
+function isDefinitiveAuthFailure(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error ?? '');
   const normalized = message.toLowerCase();
   return (
-    normalized.includes('jwt') ||
-    normalized.includes('session') ||
-    normalized.includes('not authenticated') ||
-    normalized.includes('invalid claim') ||
     normalized.includes('user not found') ||
     normalized.includes('user_not_found') ||
-    normalized.includes('refresh_token') ||
-    normalized.includes('401') ||
-    normalized.includes('403')
+    normalized.includes('invalid refresh token') ||
+    normalized.includes('refresh_token_not_found') ||
+    normalized.includes('session_not_found') ||
+    normalized.includes('auth session missing') ||
+    normalized.includes('not authenticated') ||
+    normalized.includes('invalid claim')
   );
 }
 
@@ -122,7 +122,13 @@ export function useOwnerSession(): OwnerSessionState {
       // getSession can keep a zombie JWT after the Auth user was deleted (member remove).
       // getUser() hits the Auth server and fails for purged accounts.
       const { data: userData, error: userError } = await supabase.auth.getUser();
-      if (userError || !userData.user) {
+      if (userError) {
+        if (isDefinitiveAuthFailure(userError)) {
+          await clearLocalSession();
+          return;
+        }
+        // Transient/network errors must not force re-login on every cold start.
+      } else if (!userData.user) {
         await clearLocalSession();
         return;
       }
@@ -131,10 +137,11 @@ export function useOwnerSession(): OwnerSessionState {
       setDashboard(nextDashboard);
       setOtpSent(false);
     } catch (error) {
-      setDashboard(null);
-      if (isInvalidSessionError(error)) {
+      if (isDefinitiveAuthFailure(error)) {
+        setDashboard(null);
         await clearLocalSession();
       }
+      // Keep existing dashboard/session on transient failures (offline, timeout).
     } finally {
       if (!silent) {
         setIsResolvingDashboard(false);
@@ -152,7 +159,9 @@ export function useOwnerSession(): OwnerSessionState {
       }
 
       if (error) {
-        await clearLocalSession();
+        if (isDefinitiveAuthFailure(error)) {
+          await clearLocalSession();
+        }
         setBootstrapped(true);
         return;
       }
@@ -164,6 +173,8 @@ export function useOwnerSession(): OwnerSessionState {
         }
       });
     })();
+
+    void supabase.auth.startAutoRefresh();
 
     const {
       data: { subscription },
@@ -181,18 +192,20 @@ export function useOwnerSession(): OwnerSessionState {
     });
 
     const onAppStateChange = (status: AppStateStatus): void => {
-      if (status !== 'active') {
+      if (status === 'active') {
+        void supabase.auth.startAutoRefresh();
+        void (async () => {
+          const { data } = await supabase.auth.getSession();
+          if (!mounted || !data.session) {
+            return;
+          }
+
+          await bootstrapRoute(data.session, { silent: true });
+        })();
         return;
       }
 
-      void (async () => {
-        const { data } = await supabase.auth.getSession();
-        if (!mounted || !data.session) {
-          return;
-        }
-
-        await bootstrapRoute(data.session, { silent: true });
-      })();
+      void supabase.auth.stopAutoRefresh();
     };
 
     const appStateSubscription = AppState.addEventListener('change', onAppStateChange);

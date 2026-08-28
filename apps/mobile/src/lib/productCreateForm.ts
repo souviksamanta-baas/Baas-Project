@@ -14,6 +14,8 @@ import type { AddProductFormValues, Product } from '../types/products';
 
 export function createEmptyAddProductForm(businessCenterId: string): AddProductFormValues {
   return {
+    associatedCode: '',
+    associatedCodeType: 'codigo_de_barras',
     baseUnitCode: 'unit',
     baseUnitEquivalent: '',
     brand: '',

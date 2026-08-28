@@ -42,6 +42,8 @@ export interface ProductEditFormValues {
 export type ProductTypeSlug = 'producto' | 'subproducto';
 
 export interface AddProductFormValues {
+  associatedCode: string;
+  associatedCodeType: 'codigo_de_barras' | 'qr';
   baseUnitCode: string;
   baseUnitEquivalent: string;
   brand: string;

@@ -17,8 +17,8 @@ export type NavShortcutOption = {
 const VENTAS_OPTION: NavShortcutOption = {
   icon: 'money',
   id: 'ventas',
-  label: 'Ventas',
-  title: 'Ventas',
+  label: 'Vender',
+  title: 'Vender',
 };
 
 /** Options for the custom bottom-nav shortcut (all Más items; Ventas first as default). */

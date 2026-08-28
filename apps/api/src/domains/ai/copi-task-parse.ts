@@ -78,6 +78,126 @@ export function buildCreateTaskPayload(
   };
 }
 
+const APPOINTMENT_DURATION_MS = 30 * 60 * 1000;
+const EMAIL_PATTERN = /\b([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})\b/i;
+
+export type ParsedAppointmentRequest = {
+  attendeeEmail: string | null;
+  clarificationQuestions: string[];
+  endsAt: string | null;
+  startsAt: string | null;
+  title: string;
+};
+
+/**
+ * Parses a Copi "create appointment" message into title, schedule, and Para email.
+ */
+export function parseCreateAppointmentRequest(
+  question: string,
+  timezone: string,
+): ParsedAppointmentRequest {
+  const attendeeEmail = extractAttendeeEmail(question);
+  const schedule = inferTaskSchedule(question, timezone);
+  const startsAt = schedule.dueAt;
+  const endsAt = startsAt
+    ? new Date(new Date(startsAt).getTime() + APPOINTMENT_DURATION_MS).toISOString()
+    : null;
+  const title = cleanAppointmentTitle(question, attendeeEmail);
+  const clarificationQuestions: string[] = [];
+
+  if (!startsAt || schedule.needsExactTime) {
+    clarificationQuestions.push(
+      startsAt
+        ? `¿A qué hora exacta es el turno «${title}»?`
+        : `¿Para cuándo agendo «${title}»?`,
+    );
+  }
+  if (!attendeeEmail) {
+    clarificationQuestions.push(
+      `¿Cuál es el correo de la persona (Para) para enviar la invitación de «${title}»?`,
+    );
+  }
+
+  return {
+    attendeeEmail,
+    clarificationQuestions,
+    endsAt,
+    startsAt,
+    title,
+  };
+}
+
+export function buildCreateAppointmentPayload(
+  question: string,
+  timezone: string,
+): Record<string, unknown> {
+  const parsed = parseCreateAppointmentRequest(question, timezone);
+  return {
+    attendeeEmail: parsed.attendeeEmail,
+    clarificationQuestions: parsed.clarificationQuestions,
+    endsAt: parsed.endsAt,
+    question,
+    startsAt: parsed.startsAt,
+    timezone,
+    title: parsed.title,
+  };
+}
+
+export function summarizeCreateAppointmentPayload(payload: Record<string, unknown>): string {
+  const title =
+    typeof payload.title === 'string' && payload.title.trim()
+      ? payload.title.trim()
+      : 'Nuevo turno';
+  const startsAt =
+    typeof payload.startsAt === 'string' && payload.startsAt.trim()
+      ? ` · ${formatDueHint(payload.startsAt)}`
+      : ' · horario a confirmar';
+  const email =
+    typeof payload.attendeeEmail === 'string' && payload.attendeeEmail.trim()
+      ? ` · Para: ${payload.attendeeEmail.trim().toLowerCase()}`
+      : ' · sin correo de invitación';
+  return `Crear turno: ${title}${startsAt}${email}`;
+}
+
+function extractAttendeeEmail(question: string): string | null {
+  const match = question.match(EMAIL_PATTERN);
+  if (!match?.[1]) {
+    return null;
+  }
+  return match[1].trim().toLowerCase();
+}
+
+function cleanAppointmentTitle(question: string, attendeeEmail: string | null): string {
+  let cleaned = question
+    .replace(
+      /^(hola\s+copi[,!]?\s*)?(necesito\s+que\s+)?(agend[aáe]|crear|creá|creas|anotá|anotar|program[aáe])\s+(un\s+|una\s+)?(turno|cita|reunión|reunion)\s*/i,
+      '',
+    )
+    .replace(/^(hola\s+copi[,!]?\s*)?/i, '')
+    .replace(/\b(turno|cita|reunión|reunion|agenda)\b/gi, ' ')
+    .replace(EMAIL_PATTERN, ' ')
+    .replace(/\b(correo|email|mail|e-mail)\b/gi, ' ')
+    .replace(/\bpara\s*$/i, ' ')
+    .trim();
+
+  if (attendeeEmail) {
+    cleaned = cleaned.replace(attendeeEmail, ' ').trim();
+  }
+
+  cleaned = cleanTaskTitle(cleaned || question);
+  cleaned = cleaned
+    .replace(/\b(con|para)\s*$/i, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!cleaned) {
+    return 'Nuevo turno';
+  }
+
+  const capped = cleaned.slice(0, 80);
+  return capped.charAt(0).toLocaleUpperCase('es-AR') + capped.slice(1);
+}
+
 export function summarizeCreateTaskPayload(payload: Record<string, unknown>): string {
   const tasks = readTaskItems(payload);
 

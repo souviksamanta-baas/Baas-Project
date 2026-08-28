@@ -47,6 +47,7 @@ type SellCartContextValue = {
   focusLineGrams: (lineId: string) => void;
   increaseLineQuantity: (lineId: string) => void;
   loadQuoteIntoCart: (quote: SavedSellQuote) => void;
+  lastSavedQuoteId: string | null;
   quoteMessage: string | null;
   receiptLabel: string;
   removeLine: (lineId: string) => void;
@@ -75,6 +76,7 @@ export function SellCartProvider(props: { children: ReactNode }): ReactElement {
   const [editingQuoteId, setEditingQuoteId] = useState<string | null>(null);
   const [isCartDirty, setIsCartDirty] = useState(false);
   const [quoteMessage, setQuoteMessage] = useState<string | null>(null);
+  const [lastSavedQuoteId, setLastSavedQuoteId] = useState<string | null>(null);
 
   const markDirty = useCallback(() => {
     setIsCartDirty(true);
@@ -317,6 +319,7 @@ export function SellCartProvider(props: { children: ReactNode }): ReactElement {
     setReceiptLabelState(DEFAULT_RECEIPT_LABEL);
     setEditingQuoteId(null);
     setIsCartDirty(false);
+    setLastSavedQuoteId(quoteId);
     setQuoteMessage(`Presupuesto guardado. ID: ${quoteId}`);
     return quoteId;
   }, [
@@ -345,6 +348,7 @@ export function SellCartProvider(props: { children: ReactNode }): ReactElement {
       focusLineGrams,
       increaseLineQuantity,
       loadQuoteIntoCart,
+      lastSavedQuoteId,
       quoteMessage,
       receiptLabel,
       removeLine,
@@ -372,6 +376,7 @@ export function SellCartProvider(props: { children: ReactNode }): ReactElement {
       focusLineGrams,
       increaseLineQuantity,
       loadQuoteIntoCart,
+      lastSavedQuoteId,
       quoteMessage,
       receiptLabel,
       removeLine,

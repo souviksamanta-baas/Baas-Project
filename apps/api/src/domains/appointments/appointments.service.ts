@@ -244,6 +244,94 @@ export class AppointmentsService {
 
     return appointment;
   }
+
+  async sendInviteEmail(params: {
+    endsAt: string;
+    fromLabel: string | null;
+    notes: string | null;
+    startsAt: string;
+    title: string;
+    toEmail: string;
+  }): Promise<void> {
+    const apiKey = process.env.RESEND_API_KEY?.trim();
+    const from =
+      process.env.NEXOLIA_AUTH_EMAIL_FROM?.trim() || 'Nexolia <noreply@nexolia.com.ar>';
+    const toEmail = params.toEmail.trim().toLowerCase();
+    if (!toEmail) {
+      throw new Error('El correo del destinatario es obligatorio.');
+    }
+
+    const starts = new Date(params.startsAt);
+    const ends = new Date(params.endsAt);
+    const whenLabel = Number.isNaN(starts.getTime())
+      ? params.startsAt
+      : starts.toLocaleString('es-AR', {
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+          month: 'long',
+          weekday: 'long',
+        });
+    const endLabel = Number.isNaN(ends.getTime())
+      ? params.endsAt
+      : ends.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+    const fromLine = params.fromLabel?.trim()
+      ? `<p><strong>Con:</strong> ${escapeHtml(params.fromLabel.trim())}</p>`
+      : '';
+    const notesLine = params.notes?.trim()
+      ? `<p><strong>Notas:</strong> ${escapeHtml(params.notes.trim())}</p>`
+      : '';
+
+    if (!apiKey) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.info(`[appointments] Dev mode — invite email to ${toEmail} skipped (no RESEND_API_KEY).`);
+        return;
+      }
+      throw new Error('El envío de correo no está configurado (RESEND_API_KEY).');
+    }
+
+    const response = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from,
+        to: [toEmail],
+        subject: `Invitación: ${params.title}`,
+        html: [
+          '<h2>Tenés un turno agendado</h2>',
+          `<p><strong>${escapeHtml(params.title)}</strong></p>`,
+          `<p><strong>Cuándo:</strong> ${escapeHtml(whenLabel)} – ${escapeHtml(endLabel)}</p>`,
+          fromLine,
+          notesLine,
+          '<p style="color:#56627b;font-size:14px;">Enviado desde Nexolia.</p>',
+        ].join(''),
+        text: [
+          `Tenés un turno agendado: ${params.title}`,
+          `Cuándo: ${whenLabel} – ${endLabel}`,
+          params.fromLabel ? `Con: ${params.fromLabel}` : '',
+          params.notes ? `Notas: ${params.notes}` : '',
+        ]
+          .filter(Boolean)
+          .join('\n'),
+      }),
+    });
+
+    if (!response.ok) {
+      const body = (await response.json().catch(() => ({}))) as { message?: string };
+      throw new Error(body.message || `No se pudo enviar el correo (HTTP ${response.status}).`);
+    }
+  }
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;');
 }
 
 function toAppointmentRecord(row: AppointmentRow): AppointmentRecord {

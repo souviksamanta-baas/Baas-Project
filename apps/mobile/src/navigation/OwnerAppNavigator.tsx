@@ -381,6 +381,7 @@ export function OwnerAppNavigator(props: { onSignOut: () => void }): ReactElemen
                 onOpenWhatsAppSetup={() => setRoute('account')}
                 onSignOut={props.onSignOut}
                 onUploadAvatar={async () => undefined}
+                organizationId={null}
                 role="owner"
                 timezoneLabel="Argentina / Cordoba"
                 whatsappConnection={legacyWhatsAppConnection}
@@ -430,7 +431,7 @@ export function OwnerAppNavigator(props: { onSignOut: () => void }): ReactElemen
           shortcutActive={route === 'sell-products' || route === 'confirm-payment'}
           shortcutIcon="money"
           shortcutIsCash
-          shortcutLabel="Ventas"
+          shortcutLabel="Vender"
         />
       )}
     </View>

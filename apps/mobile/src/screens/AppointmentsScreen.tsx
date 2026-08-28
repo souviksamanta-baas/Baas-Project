@@ -2,18 +2,25 @@ import type { ReactElement } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import * as Contacts from 'expo-contacts';
 
+import {
+  openAppointmentWhatsAppInvite,
+  sendAppointmentInviteEmail,
+} from '../api/appointmentInvites';
 import { ActionRow, Card, ScreenContent, ScreenTitle } from '../components/ui';
 import { MobileContainedModal } from '../components/MobileContainedModal';
 import { Icon } from '../components/icons';
 import { GhostButton, PrimaryButton, TextField } from '../design-system';
 import { normalizeEmail } from '../services/email';
+import { normalizePhoneNumber } from '../services/phone';
 import type { Appointment, AppointmentInput, AppointmentOrganizer } from '../types/appointments';
 import { colors } from '../theme';
 
@@ -32,6 +39,7 @@ type ComposeDraft = {
   startsAt: Date;
   title: string;
   toEmail: string;
+  toPhone: string;
 };
 
 export function AppointmentsScreen(props: {
@@ -40,7 +48,7 @@ export function AppointmentsScreen(props: {
   isLoading?: boolean;
   isSaving?: boolean;
   now?: Date;
-  onCreateAppointment: (input: AppointmentInput) => Promise<unknown>;
+  onCreateAppointment: (input: AppointmentInput) => Promise<Appointment | null | false | void>;
   onOpenAppointment: (appointmentId: string) => void;
   onOpenCopi?: () => void;
   organizers?: AppointmentOrganizer[];
@@ -99,6 +107,7 @@ export function AppointmentsScreen(props: {
       startsAt,
       title: '',
       toEmail: '',
+      toPhone: '',
     });
   }
 
@@ -117,19 +126,67 @@ export function AppointmentsScreen(props: {
     if (draft.toEmail.trim() && !attendeeEmail) {
       return;
     }
+    const attendeePhone = draft.toPhone.trim()
+      ? normalizePhoneNumber(draft.toPhone)
+      : null;
+    if (draft.toPhone.trim() && !attendeePhone) {
+      Alert.alert('Teléfono inválido', 'Ingresá el número como +54911… o 011….');
+      return;
+    }
 
     const organizer = organizers.find((member) => member.userId === draft.fromUserId) ?? null;
+    const fromLabel = organizerLabel(organizer, props.currentUserId ?? null, false);
     const created = await props.onCreateAppointment({
       assignedToUserId: draft.fromUserId,
       attendeeEmail,
       endsAt: draft.endsAt.toISOString(),
-      fromLabel: organizerLabel(organizer, props.currentUserId ?? null, false),
+      fromLabel,
       notes: draft.notes.trim() || null,
       startsAt: draft.startsAt.toISOString(),
       title,
     });
-    if (created) {
-      setDraft(null);
+    if (!created || typeof created !== 'object') {
+      return;
+    }
+
+    setDraft(null);
+
+    if (attendeeEmail) {
+      try {
+        await sendAppointmentInviteEmail({
+          endsAt: created.endsAt,
+          fromLabel,
+          notes: created.notes,
+          startsAt: created.startsAt,
+          title: created.title,
+          toEmail: attendeeEmail,
+        });
+      } catch (error) {
+        Alert.alert(
+          'Turno creado',
+          error instanceof Error
+            ? `No se pudo enviar el correo: ${error.message}`
+            : 'No se pudo enviar el correo de invitación.',
+        );
+      }
+    }
+
+    if (attendeePhone) {
+      try {
+        await openAppointmentWhatsAppInvite({
+          endsAt: created.endsAt,
+          fromLabel,
+          notes: created.notes,
+          phone: attendeePhone,
+          startsAt: created.startsAt,
+          title: created.title,
+        });
+      } catch (error) {
+        Alert.alert(
+          'WhatsApp',
+          error instanceof Error ? error.message : 'No se pudo abrir WhatsApp.',
+        );
+      }
     }
   }
 
@@ -472,18 +529,63 @@ function ComposeAppointmentModal(props: {
               : null}
           </View>
 
+          <View style={styles.toFieldRow}>
+            <View style={styles.toFieldGrow}>
+              <TextField
+                autoCapitalize="none"
+                autoCorrect={false}
+                error={toEmailInvalid}
+                focused={toFocused}
+                keyboardType="email-address"
+                label="Para (correo)"
+                onBlur={() => setToFocused(false)}
+                onChangeText={(toEmail) => props.onChange({ ...props.draft!, toEmail })}
+                onFocus={() => setToFocused(true)}
+                placeholder="nombre@correo.com"
+                value={props.draft.toEmail}
+              />
+            </View>
+            <Pressable
+              accessibilityLabel="Elegir contacto"
+              onPress={() => {
+                void (async () => {
+                  const permission = await Contacts.requestPermissionsAsync();
+                  if (!permission.granted) {
+                    Alert.alert(
+                      'Contactos',
+                      'Necesitamos permiso para elegir un número de tu agenda.',
+                    );
+                    return;
+                  }
+                  const result = await Contacts.presentContactPickerAsync();
+                  if (!result) {
+                    return;
+                  }
+                  const phone =
+                    result.phoneNumbers?.find((entry) => entry.number)?.number?.trim() ?? '';
+                  const email =
+                    result.emails?.find((entry) => entry.email)?.email?.trim() ?? '';
+                  props.onChange({
+                    ...props.draft!,
+                    ...(email ? { toEmail: email } : {}),
+                    ...(phone ? { toPhone: phone } : {}),
+                  });
+                })();
+              }}
+              style={styles.contactPickerButton}
+            >
+              <Icon color={colors.primary} kind="user" size={18} strokeWidth={1.8} />
+            </Pressable>
+          </View>
+
           <TextField
             autoCapitalize="none"
             autoCorrect={false}
-            error={toEmailInvalid}
-            focused={toFocused}
-            keyboardType="email-address"
-            label="Para"
-            onBlur={() => setToFocused(false)}
-            onChangeText={(toEmail) => props.onChange({ ...props.draft!, toEmail })}
-            onFocus={() => setToFocused(true)}
-            placeholder="nombre@correo.com"
-            value={props.draft.toEmail}
+            keyboardType="phone-pad"
+            label="Para (WhatsApp)"
+            onChangeText={(toPhone) => props.onChange({ ...props.draft!, toPhone })}
+            placeholder="+54911…"
+            value={props.draft.toPhone}
           />
 
           <TextField
@@ -580,6 +682,17 @@ function shiftStart(draft: ComposeDraft, deltaMinutes: number): ComposeDraft {
     ...draft,
     endsAt: new Date(startsAt.getTime() + durationMs),
     startsAt,
+  };
+}
+
+function shiftEnd(draft: ComposeDraft, deltaMinutes: number): ComposeDraft {
+  const endsAt = addMinutes(draft.endsAt, deltaMinutes);
+  if (endsAt.getTime() <= draft.startsAt.getTime()) {
+    return draft;
+  }
+  return {
+    ...draft,
+    endsAt,
   };
 }
 
@@ -680,6 +793,23 @@ const styles = StyleSheet.create({
     gap: 12,
     justifyContent: 'flex-end',
     marginTop: 8,
+  },
+  contactPickerButton: {
+    alignItems: 'center',
+    backgroundColor: colors.primarySoft,
+    borderRadius: 12,
+    height: 44,
+    justifyContent: 'center',
+    marginTop: 22,
+    width: 44,
+  },
+  toFieldGrow: {
+    flex: 1,
+  },
+  toFieldRow: {
+    alignItems: 'flex-start',
+    flexDirection: 'row',
+    gap: 8,
   },
   composeDate: {
     color: colors.slate,

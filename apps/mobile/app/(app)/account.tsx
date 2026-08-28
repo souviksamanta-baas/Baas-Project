@@ -17,7 +17,7 @@ function formatTimezoneLabel(timezone: string | null | undefined): string {
 
 export default function AccountRoute(): ReactElement {
   const router = useRouter();
-  const { dashboard, signOut } = useOwnerSessionContext();
+  const { dashboard, refreshDashboard, signOut } = useOwnerSessionContext();
   const profile = useProfileChrome();
   const isOwnerOrCoOwner = canManageBusinessSettings(dashboard?.organization?.role);
 
@@ -38,8 +38,10 @@ export default function AccountRoute(): ReactElement {
       onOpenPrivacyData={() => router.push(routes.privacyData)}
       onOpenStaffInvite={() => router.push(routes.staffInvite)}
       onOpenWhatsAppSetup={() => router.push(routes.whatsappConnect)}
+      onOrganizationSwitched={refreshDashboard}
       onSignOut={signOut}
       onUploadAvatar={profile.uploadAvatar}
+      organizationId={dashboard?.organization?.id ?? null}
       role={dashboard?.organization?.role ?? null}
       timezoneLabel={formatTimezoneLabel(dashboard?.organization?.timezone)}
       whatsappConnection={dashboard?.whatsappConnection ?? null}

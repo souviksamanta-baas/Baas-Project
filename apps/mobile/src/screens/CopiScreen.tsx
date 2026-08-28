@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -9,13 +9,12 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 
-import {
-  copiProSuggestedQuestions,
-  copiSuggestedQuestions,
-} from '../lib/copiSuggestedQuestions';
+import type { CopiSuggestedQuestion } from '../lib/copiSuggestedQuestions';
+import { listCopiHomeQuestions, saveCustomCopiQuestions } from '../lib/copiCustomQuestions';
 import { formatConversationTime } from '../lib/inboxPresentation';
 import {
   ActionRow,
@@ -28,6 +27,7 @@ import {
 } from '../components/ui';
 import { Icon } from '../components/icons';
 import { colors as dsColors } from '../design-system';
+import { useOwnerSessionContext } from '../context/OwnerSessionProvider';
 import { useAndroidKeyboardHeight } from '../hooks/useAndroidKeyboard';
 import { FeatureGate, useFeatureVisibility } from '../hooks/useFeatureVisibility';
 import { useHeaderScreenOptions } from '../hooks/useHeaderScreenOptions';
@@ -70,9 +70,54 @@ export function CopiScreen(props: {
   setQuestionDraft: (value: string) => void;
 }): ReactElement {
   const visibility = useFeatureVisibility();
+  const { dashboard } = useOwnerSessionContext();
+  const organizationId = dashboard?.organization?.id ?? null;
+  const hasCopiPro = !visibility.copiProUpsell;
+  const [suggestedQuestions, setSuggestedQuestions] = useState<CopiSuggestedQuestion[]>([]);
+  const [customDraft, setCustomDraft] = useState('');
   const openConversations = props.metrics?.openConversations ?? 0;
   const lowStockItems = props.metrics?.lowStockItems ?? 0;
   const pendingFollowUps = props.metrics?.pendingFollowUps ?? 0;
+
+  useEffect(() => {
+    let mounted = true;
+    void listCopiHomeQuestions({ hasCopiPro, organizationId }).then((questions) => {
+      if (mounted) {
+        setSuggestedQuestions(questions);
+      }
+    });
+    return () => {
+      mounted = false;
+    };
+  }, [hasCopiPro, organizationId]);
+
+  async function handleAddCustomQuestion(): Promise<void> {
+    const text = customDraft.trim();
+    if (!text || !organizationId || !hasCopiPro) {
+      return;
+    }
+
+    const builtIns = new Set(
+      suggestedQuestions
+        .filter((question) => question.tier === 'copi')
+        .map((question) => question.text),
+    );
+    const existingCustom = suggestedQuestions.filter(
+      (question) => question.tier === 'copi_pro' && !builtIns.has(question.text),
+    );
+    // Keep prior custom + new (built-in pro questions stay in defaults loader).
+    const nextCustom = [
+      ...existingCustom.filter(
+        (question) =>
+          question.text !== 'Creá una tarea para llamar a un cliente mañana' &&
+          question.text !== 'Asigná la tarea pendiente al equipo',
+      ),
+      { text, tier: 'copi_pro' as const },
+    ];
+    await saveCustomCopiQuestions(organizationId, nextCustom);
+    setCustomDraft('');
+    setSuggestedQuestions(await listCopiHomeQuestions({ hasCopiPro, organizationId }));
+  }
 
   return (
     <ScreenContent>
@@ -153,46 +198,42 @@ export function CopiScreen(props: {
           <View style={styles.listHeader}>
             <Text style={styles.sectionTitle}>Preguntas sugeridas</Text>
           </View>
-          {copiSuggestedQuestions.map((question, index) => (
+          {suggestedQuestions.map((question, index) => (
             <ActionRow
               icon="message"
-              key={question}
+              key={`${question.tier}-${question.text}`}
               onPress={() =>
                 askAndOpenChat({
                   onAskQuestion: props.onAskQuestion,
                   onOpenChat: props.onOpenChat,
-                  question,
+                  question: question.text,
                 })
               }
-              showDivider={index < copiSuggestedQuestions.length - 1}
-              title={question}
+              showDivider={index < suggestedQuestions.length - 1 || hasCopiPro}
+              title={question.text}
             />
           ))}
+          {hasCopiPro ? (
+            <View style={styles.customQuestionRow}>
+              <TextInput
+                onChangeText={setCustomDraft}
+                placeholder="Agregar pregunta (Copi Pro)"
+                placeholderTextColor={colors.slate}
+                style={styles.customQuestionInput}
+                value={customDraft}
+              />
+              <Pressable
+                onPress={() => {
+                  void handleAddCustomQuestion();
+                }}
+                style={styles.customQuestionButton}
+              >
+                <Text style={styles.customQuestionButtonText}>Agregar</Text>
+              </Pressable>
+            </View>
+          ) : null}
         </Card>
       </FeatureGate>
-
-      {!visibility.copiProUpsell ? (
-        <Card flush>
-          <View style={styles.listHeader}>
-            <Text style={styles.sectionTitle}>Copi Pro</Text>
-          </View>
-          {copiProSuggestedQuestions.map((question, index) => (
-            <ActionRow
-              icon="message"
-              key={question}
-              onPress={() =>
-                askAndOpenChat({
-                  onAskQuestion: props.onAskQuestion,
-                  onOpenChat: props.onOpenChat,
-                  question,
-                })
-              }
-              showDivider={index < copiProSuggestedQuestions.length - 1}
-              title={question}
-            />
-          ))}
-        </Card>
-      ) : null}
 
       <FeatureGate feature="copiQuickSummary" visibility={visibility}>
         <Card style={styles.summaryCard}>
@@ -444,6 +485,33 @@ const styles = StyleSheet.create({
   listHeader: {
     borderBottomColor: colors.borderSoft,
     borderBottomWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  customQuestionButton: {
+    backgroundColor: colors.primarySoft,
+    borderRadius: 10,
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  customQuestionButtonText: {
+    color: colors.primary,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  customQuestionInput: {
+    color: colors.navy,
+    flex: 1,
+    fontSize: 14,
+    paddingVertical: 8,
+  },
+  customQuestionRow: {
+    alignItems: 'center',
+    borderTopColor: colors.borderSoft,
+    borderTopWidth: 1,
+    flexDirection: 'row',
+    gap: 8,
     paddingHorizontal: 14,
     paddingVertical: 10,
   },

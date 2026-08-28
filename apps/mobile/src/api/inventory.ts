@@ -1486,6 +1486,14 @@ export async function createProductDetails(
   const createdProduct = toProduct({ ...inventoryItem, products: product });
   let createdLotId: string | null = null;
 
+  const associatedCode = values.associatedCode.trim();
+  if (associatedCode.length > 0) {
+    await updateProductAssociatedCode(organizationId, product.id, {
+      code: associatedCode,
+      codeType: values.associatedCodeType,
+    });
+  }
+
   if (stockQuantity > 0) {
     const receivedAtIso = dateInputToIso(values.receivedDate);
 

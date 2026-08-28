@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Icon } from '../components/icons';
 import {
@@ -22,6 +22,7 @@ import {
   type SavedSellQuote,
   type SellCartLine,
 } from '../lib/sellCart';
+import { escapeHtml, shareHtmlAsPdf } from '../lib/sharePdf';
 import { colors } from '../theme';
 
 export function PresupuestoDetailScreen(props: {
@@ -73,24 +74,84 @@ export function PresupuestoDetailScreen(props: {
     );
   }
 
+  const activeQuote = quote;
   const subtotalCents = computeCartSubtotalCents(props.cart);
   const discountTotalCents = computeDiscountCents(
     subtotalCents,
-    quote.draft.discountMode,
-    quote.draft.discountValue,
+    activeQuote.draft.discountMode,
+    activeQuote.draft.discountValue,
   );
   const totalCents = computeSaleTotalCents(
     subtotalCents,
-    quote.draft.discountMode,
-    quote.draft.discountValue,
+    activeQuote.draft.discountMode,
+    activeQuote.draft.discountValue,
   );
-  const statusLabel = SELL_QUOTE_STATUS_LABELS[quote.status];
-  const isGuardado = quote.status === 'guardado';
+  const statusLabel = SELL_QUOTE_STATUS_LABELS[activeQuote.status];
+  const isGuardado = activeQuote.status === 'guardado';
+
+  async function handleSharePdf(): Promise<void> {
+    const linesHtml = props.cart
+      .map((line) => {
+        const view = mapCartLineToView(line);
+        return `<tr>
+          <td>${escapeHtml(view.name)}</td>
+          <td>${escapeHtml(view.quantityLabel)}</td>
+          <td style="text-align:right">${escapeHtml(formatCurrency(getCartLineSubtotalCents(line)))}</td>
+        </tr>`;
+      })
+      .join('');
+
+    const html = `
+      <html><head><meta charset="utf-8" />
+      <style>
+        body { font-family: -apple-system, Helvetica, Arial, sans-serif; padding: 24px; color: #0f172a; }
+        h1 { font-size: 20px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 16px; }
+        td, th { border-bottom: 1px solid #e2e8f0; padding: 8px 4px; font-size: 13px; text-align: left; }
+        .meta { color: #64748b; font-size: 13px; }
+        .total { font-size: 16px; font-weight: 700; margin-top: 16px; text-align: right; }
+      </style></head><body>
+        <h1>Presupuesto ${escapeHtml(activeQuote.id)}</h1>
+        <p class="meta">Cliente: ${escapeHtml(activeQuote.draft.clientLabel)}</p>
+        <p class="meta">Estado: ${escapeHtml(statusLabel)}</p>
+        <table>
+          <thead><tr><th>Producto</th><th>Cant.</th><th style="text-align:right">Importe</th></tr></thead>
+          <tbody>${linesHtml}</tbody>
+        </table>
+        <p class="total">Total: ${escapeHtml(formatCurrency(totalCents))}</p>
+      </body></html>`;
+
+    try {
+      await shareHtmlAsPdf({
+        fileName: `presupuesto-${activeQuote.id}.pdf`,
+        html,
+        shareTitle: `Presupuesto ${activeQuote.id}`,
+      });
+    } catch (error) {
+      Alert.alert(
+        'No se pudo compartir',
+        error instanceof Error ? error.message : 'Error desconocido',
+      );
+    }
+  }
 
   return (
     <ScreenContent>
-      <InventoryScreenTitle onBack={props.onBack} title={pageTitle} />
-
+      <View style={styles.titleRow}>
+        <View style={styles.titleGrow}>
+          <InventoryScreenTitle onBack={props.onBack} title={pageTitle} />
+        </View>
+        <Pressable
+          accessibilityLabel="Compartir presupuesto"
+          hitSlop={8}
+          onPress={() => {
+            void handleSharePdf();
+          }}
+          style={styles.shareButton}
+        >
+          <Icon color={colors.primary} kind="document" size={18} strokeWidth={1.8} />
+        </Pressable>
+      </View>
       <View
         style={[
           styles.statusCard,
@@ -255,6 +316,20 @@ const styles = StyleSheet.create({
   },
   flex: {
     flex: 1,
+  },
+  shareButton: {
+    alignItems: 'center',
+    height: 36,
+    justifyContent: 'center',
+    marginRight: 4,
+    width: 36,
+  },
+  titleGrow: {
+    flex: 1,
+  },
+  titleRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
   },
   footerNote: {
     alignItems: 'center',
