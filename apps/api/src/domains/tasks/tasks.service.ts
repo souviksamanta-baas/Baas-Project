@@ -773,7 +773,7 @@ export class TasksService {
       .from('owner_tasks')
       .upsert(rows, {
         ignoreDuplicates: true,
-        onConflict: 'source_key',
+        onConflict: 'organization_id,source_key',
       })
       .select('id, contact_id');
 
