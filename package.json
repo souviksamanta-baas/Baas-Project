@@ -38,6 +38,7 @@
     "railway:build": "npm run build --workspace @baas/api",
     "railway:install": "npm ci --workspace @baas/api --include-workspace-root=false --include=dev",
     "railway:start": "npm run start:prod --workspace @baas/api",
+    "railway:maintenance": "node scripts/run-maintenance-job.mjs",
     "start:api": "npm run start -w @baas/api",
     "start:api:prod": "npm run start:prod -w @baas/api",
     "test": "npm run test -w @baas/api",
@@ -53,6 +54,7 @@
     "@eslint/js": "^10.0.1",
     "eslint": "^10.4.1",
     "globals": "^17.6.0",
+    "railway": "^3.11.0",
     "typescript-eslint": "^8.60.1"
   }
 }

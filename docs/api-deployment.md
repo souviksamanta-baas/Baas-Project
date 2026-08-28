@@ -193,10 +193,75 @@ The trigger:
 - Creates duplicate-safe follow-up tasks for idle open conversations based on
   each organization's `ai_follow_up_delay_hours`.
 - Creates duplicate-safe low-stock notification rows from inventory data.
+- Runs scheduled notification digests/reminders (tasks, appointments, inbox,
+  invoices, Copi nudges) via `NotificationsService.runScheduled()`.
 - Sends Expo push notifications to active tokens in `owner_device_tokens`.
 
 If `BAAS_TASKS_JOB_SECRET` is missing or the header does not match, the endpoint
 does not run the job.
+
+### Railway cron service
+
+Create a **second service** in the same Railway project (do not change the API
+service `Baas-Project`).
+
+Config as Code (`railway.json` / `railway.toml`) is deprecated for **new**
+services. Prefer Infrastructure as Code (`.railway/railway.ts`) or dashboard
+settings. See [Railway IaC migration](https://docs.railway.com/infrastructure-as-code#migrating-from-config-as-code).
+
+#### Infrastructure as Code (recommended)
+
+The repo ships a named partial in `.railway/railway.ts` that owns only
+`baas-maintenance-cron` (build/start/cron + env). Requires Railway CLI ≥ 5.42.1
+and the `railway` npm package:
+
+```bash
+# From repo root (already linked to BaaS Project / production)
+railway config plan
+railway config apply
+```
+
+That sets:
+
+- **Cron Schedule**: `*/10 * * * *` (UTC)
+- **Start**: `node scripts/run-maintenance-job.mjs`
+- **Restart policy**: never
+- **Variables**: `API_BASE_URL`, `BAAS_TASKS_JOB_SECRET` (preserved / referenced)
+
+Do **not** set a Config-as-code path on this service.
+
+#### Dashboard setup (alternative)
+
+1. Open the project: [BaaS Project on Railway](https://railway.com/project/502259e6-9eec-49fe-bc3d-f3022c722787)
+2. **Create** → **GitHub Repo** → select `souviksamanta-baas/Baas-Project`
+3. Name the service `baas-maintenance-cron`
+4. Service **Settings** (leave Config-as-code path empty):
+   - **Build Command**: `node -e "console.log('baas-maintenance-cron ready')"`
+   - **Start Command**: `node scripts/run-maintenance-job.mjs`
+   - **Cron Schedule**: `*/10 * * * *` (UTC)
+   - **Restart Policy**: never
+5. Service **Variables** (add both):
+   - `API_BASE_URL` = `https://baas-project-production.up.railway.app`
+   - `BAAS_TASKS_JOB_SECRET` → **Add reference** from service `Baas-Project` →
+     variable `BAAS_TASKS_JOB_SECRET` (do not paste a second copy)
+6. Deploy / wait for the next cron tick (up to ~10 minutes)
+7. Open **Deployments → Logs** and look for `Maintenance job ok`
+
+The script `scripts/run-maintenance-job.mjs` POSTs `/tasks/run-maintenance` and
+exits so Railway can schedule the next run.
+
+#### Legacy API Config as Code
+
+The API service `Baas-Project` still reads root `railway.json` until you migrate
+it with `railway config migrate` / pull into `.railway/railway.ts`. Existing CaC
+stops being read on **2026-12-01**.
+
+#### Manual smoke test (optional)
+
+```bash
+curl -X POST https://baas-project-production.up.railway.app/tasks/run-maintenance \
+  -H "x-baas-job-secret: $BAAS_TASKS_JOB_SECRET"
+```
 
 ### Task Portal REST (KAN-401)
 
