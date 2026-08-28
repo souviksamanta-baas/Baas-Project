@@ -1,11 +1,12 @@
 import { useRouter } from 'expo-router';
 import type { ReactElement } from 'react';
-import { Alert, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Linking, StyleSheet, Text, View } from 'react-native';
 
 import { BarcodeScannerScreen } from '../../src/screens/BarcodeScannerScreen';
-import { colors, radius } from '../../src/theme';
+import { colors } from '../../src/theme';
 
-const BROWSER_SESSION_WEB_URL = 'https://nexolia.com.ar';
+const BROWSER_SESSION_WEB_URL = 'https://web.nexolia.com.ar';
+const BROWSER_SESSION_WEB_HOST = 'web.nexolia.com.ar';
 
 function resolveBrowserSessionUrl(raw: string): string | null {
   const value = raw.trim();
@@ -85,18 +86,10 @@ export default function BrowserSessionScanRoute(): ReactElement {
             }}
             style={styles.link}
           >
-            {BROWSER_SESSION_WEB_URL}
+            {BROWSER_SESSION_WEB_HOST}
           </Text>
           , iniciá sesión y escaneá el código QR que aparece en pantalla.
         </Text>
-        <Pressable
-          onPress={() => {
-            void Linking.openURL(BROWSER_SESSION_WEB_URL);
-          }}
-          style={styles.linkButton}
-        >
-          <Text style={styles.linkButtonText}>Abrir enlace</Text>
-        </Pressable>
       </View>
       <View style={styles.scannerWrap}>
         <BarcodeScannerScreen
@@ -118,19 +111,6 @@ const styles = StyleSheet.create({
     color: colors.info,
     fontWeight: '700',
     textDecorationLine: 'underline',
-  },
-  linkButton: {
-    alignSelf: 'flex-start',
-    backgroundColor: colors.primarySoft,
-    borderRadius: radius.pill,
-    marginTop: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  linkButtonText: {
-    color: colors.primary,
-    fontSize: 13,
-    fontWeight: '600',
   },
   messageBody: {
     color: colors.slate,
