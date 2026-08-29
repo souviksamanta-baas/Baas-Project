@@ -187,6 +187,7 @@ export function CopiScreen(props: {
               })();
             }}
             pendingImageUri={props.composer.pendingImageUri}
+            voiceMode="stt"
             placeholder="Escribí tu pregunta..."
             value={props.questionDraft}
           />
@@ -363,6 +364,7 @@ export function CopiChatScreen(props: {
           pendingImageUri={props.composer.pendingImageUri}
           placeholder="Escribí un mensaje..."
           value={props.copilot.inputValue}
+          voiceMode="stt"
         />
       </FeatureGate>
     </KeyboardAvoidingView>

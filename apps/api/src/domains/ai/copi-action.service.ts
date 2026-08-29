@@ -452,17 +452,39 @@ export class CopiActionService {
           params.payload.attendeeEmail.trim()
             ? params.payload.attendeeEmail.trim().toLowerCase()
             : null;
+        const attendeePhone =
+          typeof params.payload.attendeePhone === 'string' &&
+          params.payload.attendeePhone.trim()
+            ? params.payload.attendeePhone.trim()
+            : null;
+        if (!attendeeEmail && !attendeePhone) {
+          throw new Error(
+            'Falta el correo o teléfono de la persona (Para) para enviar la invitación del turno.',
+          );
+        }
         const notes =
           typeof params.payload.notes === 'string' ? params.payload.notes : null;
         const fromLabel = await this.resolveUserDisplayName(params.userId);
+        let assignedToUserId = readOptionalUuid(params.payload.assignedToUserId);
+        if (
+          !assignedToUserId &&
+          typeof params.payload.assigneeName === 'string' &&
+          params.payload.assigneeName.trim()
+        ) {
+          assignedToUserId = await this.resolveMemberUserId(
+            params.organizationId,
+            params.payload.assigneeName,
+          );
+        }
         const appointment = await this.appointmentsService.createAppointment({
-          assignedToUserId: readOptionalUuid(params.payload.assignedToUserId),
+          assignedToUserId,
           businessCenterId: params.businessCenterId,
           contactId: readOptionalUuid(params.payload.contactId),
           createdByUserId: params.userId,
           endsAt,
           metadata: {
             attendeeEmail,
+            attendeePhone,
             fromLabel,
           },
           notes,
@@ -488,6 +510,7 @@ export class CopiActionService {
             return {
               appointmentId: appointment.id,
               attendeeEmail,
+              attendeePhone,
               endsAt: appointment.endsAt,
               inviteEmailError:
                 error instanceof Error ? error.message : 'No se pudo enviar la invitación.',
@@ -501,6 +524,7 @@ export class CopiActionService {
         return {
           appointmentId: appointment.id,
           attendeeEmail,
+          attendeePhone,
           endsAt: appointment.endsAt,
           inviteEmailSent,
           startsAt: appointment.startsAt,
@@ -533,7 +557,11 @@ export class CopiActionService {
       }
       case 'appointment_assign': {
         await this.assertAppointmentsEnabled(params.organizationId);
-        const appointmentId = readRequiredUuid(params.payload.appointmentId, 'asignar turno');
+        const appointmentId = readRequiredUuid(
+          params.payload.appointmentId,
+          'asignar el turno',
+          'Falta el turno a asignar. Indicá cuál turno querés reasignar (o pedime crear uno nuevo).',
+        );
         const assignedToUserId = readOptionalUuid(params.payload.assignedToUserId);
         if (!assignedToUserId) {
           throw new Error('Falta el usuario al que asignar el turno.');
@@ -815,13 +843,20 @@ export function inferCopiActionType(question: string): CopiActionType {
 
   const mentionsAppointment = mentionsAppointmentIntent(question);
   if (mentionsAppointment) {
-    if (/\b(asign\w*|assign\w*|reassign|pasale)\b/.test(normalized)) {
+    const wantsCreateAppointment =
+      /\b(crea|crear|creas|creame|agend|program|nuevo|nueva)\b/.test(normalized);
+    // "asignada a JP" on a create request is organizer assignment, not appointment_assign.
+    if (
+      /\b(asign\w*|assign\w*|reassign|pasale)\b/.test(normalized) &&
+      !wantsCreateAppointment
+    ) {
       return 'appointment_assign';
     }
     if (
       /\b(reagenda|reagendar|reprograma|reprogramar|actualiza|actualizar|modifica|modificar|cambia|cambiar|cancel|completa|completar|marca)\b/.test(
         normalized,
-      )
+      ) &&
+      !wantsCreateAppointment
     ) {
       return 'appointment_update';
     }
@@ -1055,10 +1090,10 @@ function readRequiredTaskId(
   return taskId;
 }
 
-function readRequiredUuid(value: unknown, verb: string): string {
+function readRequiredUuid(value: unknown, verb: string, customMessage?: string): string {
   const id = typeof value === 'string' ? value.trim() : '';
   if (!id || id === 'null' || id === 'undefined' || !isValidUuid(id)) {
-    throw new Error(`Falta el ID para ${verb}.`);
+    throw new Error(customMessage ?? `Falta el ID para ${verb}.`);
   }
   return id;
 }

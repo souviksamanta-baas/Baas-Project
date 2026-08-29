@@ -66,3 +66,57 @@ export async function sendConversationImage(
     method: 'POST',
   });
 }
+
+export interface SendConversationAudioParams {
+  audioBase64: string;
+  businessCenterId: string;
+  conversationId: string;
+  durationMs?: number;
+  mimeType?: string;
+  organizationId: string;
+}
+
+export async function sendConversationAudio(
+  params: SendConversationAudioParams,
+): Promise<SendConversationReplyResult> {
+  return apiFetchAuthJson<SendConversationReplyResult>('/whatsapp/messages/send-audio', {
+    body: JSON.stringify(params),
+    method: 'POST',
+  });
+}
+
+export async function editConversationMessage(params: {
+  body: string;
+  businessCenterId: string;
+  messageId: string;
+  organizationId: string;
+}): Promise<{ status: 'edited' }> {
+  return apiFetchAuthJson('/whatsapp/messages/edit', {
+    body: JSON.stringify(params),
+    method: 'POST',
+  });
+}
+
+export async function reactToConversationMessage(params: {
+  businessCenterId: string;
+  emoji: string;
+  messageId: string;
+  organizationId: string;
+}): Promise<{ status: 'reacted' }> {
+  return apiFetchAuthJson('/whatsapp/messages/react', {
+    body: JSON.stringify(params),
+    method: 'POST',
+  });
+}
+
+export async function forwardConversationMessage(params: {
+  businessCenterId: string;
+  messageId: string;
+  organizationId: string;
+  targetConversationId: string;
+}): Promise<SendConversationReplyResult> {
+  return apiFetchAuthJson('/whatsapp/messages/forward', {
+    body: JSON.stringify(params),
+    method: 'POST',
+  });
+}

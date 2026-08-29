@@ -20,6 +20,7 @@ export default function InboxRoute(): ReactElement {
       isLoading={inbox.isLoading}
       onOpenConversation={(conversationId) => router.push(conversationRoute(conversationId))}
       onOpenWhatsAppSetup={() => router.push(routes.whatsappConnect)}
+      onReload={inbox.reloadConversations}
       whatsappConnection={dashboard?.whatsappConnection ?? null}
     />
   );

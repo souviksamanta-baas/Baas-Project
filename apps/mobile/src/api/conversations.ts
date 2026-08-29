@@ -9,12 +9,17 @@ interface ConversationMessageRow {
   body: string | null;
   created_at: string;
   direction: 'inbound' | 'outbound';
+  edited_at?: string | null;
+  link_preview?: Record<string, unknown> | null;
+  media_duration_ms?: number | null;
   media_mime_type: string | null;
   media_storage_path: string | null;
   media_url: string | null;
   message_status: string;
   message_type: string | null;
+  owner_hidden_at?: string | null;
   recipient_phone: string | null;
+  reply_to_message_id?: string | null;
   sender_phone: string | null;
 }
 
@@ -22,14 +27,26 @@ interface ContactRow {
   id: string | null;
   display_name: string | null;
   phone_number: string | null;
-  lead_status: 'new' | 'active' | 'cold' | 'won' | 'lost' | null;
+  lead_status:
+    | 'new'
+    | 'active'
+    | 'cold'
+    | 'won'
+    | 'lost'
+    | 'opportunity'
+    | 'finished'
+    | null;
 }
 
 interface ConversationRow {
   id: string;
+  archived_at: string | null;
   channel: ConversationChannel;
+  deleted_at: string | null;
   external_contact_id: string;
   customer_display_name: string | null;
+  last_owner_read_at: string | null;
+  messages_cleared_at: string | null;
   status: 'open' | 'closed';
   last_message_at: string | null;
   contacts: ContactRow | ContactRow[] | null;
@@ -47,10 +64,11 @@ export async function getInboxConversations(
   let query = supabase
     .from('conversations')
     .select(
-      'id, channel, external_contact_id, customer_display_name, status, last_message_at, contacts(id, display_name, phone_number, lead_status)',
+      'id, channel, external_contact_id, customer_display_name, status, last_message_at, last_owner_read_at, archived_at, deleted_at, messages_cleared_at, contacts(id, display_name, phone_number, lead_status)',
     )
     .eq('organization_id', organizationId)
     .eq('business_center_id', businessCenterId)
+    .is('deleted_at', null)
     .order('last_message_at', { ascending: false, nullsFirst: false });
 
   if (options?.limit) {
@@ -70,10 +88,18 @@ export async function getInboxConversations(
     conversations.map((conversation) => conversation.id),
   );
 
-  return conversations.map((conversation) => ({
-    ...conversation,
-    latestMessage: latestMessagesByConversation.get(conversation.id) ?? null,
-  }));
+  return conversations.map((conversation) => {
+    const latest = latestMessagesByConversation.get(conversation.id) ?? null;
+    return {
+      ...conversation,
+      latestMessage: latest,
+      unreadCount: computeUnreadCount({
+        direction: latest?.direction,
+        lastMessageAt: conversation.lastMessageAt,
+        lastOwnerReadAt: conversation.lastOwnerReadAt,
+      }),
+    };
+  });
 }
 
 export async function getInboxConversationById(
@@ -84,11 +110,12 @@ export async function getInboxConversationById(
   const { data, error } = await supabase
     .from('conversations')
     .select(
-      'id, channel, external_contact_id, customer_display_name, status, last_message_at, contacts(id, display_name, phone_number, lead_status)',
+      'id, channel, external_contact_id, customer_display_name, status, last_message_at, last_owner_read_at, archived_at, deleted_at, messages_cleared_at, contacts(id, display_name, phone_number, lead_status)',
     )
     .eq('id', conversationId)
     .eq('organization_id', organizationId)
     .eq('business_center_id', businessCenterId)
+    .is('deleted_at', null)
     .maybeSingle();
 
   if (error) {
@@ -165,12 +192,22 @@ export async function getRecentConversationMessages(
 
 export async function getConversationMessages(
   conversationId: string,
+  options?: { messagesClearedAt?: string | null },
 ): Promise<WhatsAppMessagePreview[]> {
-  const { data, error } = await supabase
+  let query = supabase
     .from('conversation_messages')
-    .select('id, conversation_id, direction, body, message_type, message_status, media_url, media_storage_path, media_mime_type, sender_phone, recipient_phone, created_at')
+    .select(
+      'id, conversation_id, direction, body, message_type, message_status, media_url, media_storage_path, media_mime_type, media_duration_ms, sender_phone, recipient_phone, created_at, edited_at, reply_to_message_id, link_preview, owner_hidden_at',
+    )
     .eq('conversation_id', conversationId)
+    .is('owner_hidden_at', null)
     .order('created_at', { ascending: true });
+
+  if (options?.messagesClearedAt) {
+    query = query.gt('created_at', options.messagesClearedAt);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     throw new Error(error.message);
@@ -266,26 +303,57 @@ export function subscribeToInboxChanges(
 }
 
 function toWhatsAppMessagePreview(row: ConversationMessageRow): WhatsAppMessagePreview {
+  const preview = row.link_preview ?? null;
   return {
     conversationId: row.conversation_id,
     id: row.id,
     body: row.body,
     createdAt: row.created_at,
     direction: row.direction,
+    editedAt: row.edited_at ?? null,
+    linkPreview:
+      preview && typeof preview === 'object'
+        ? {
+            description:
+              typeof preview.description === 'string' ? preview.description : null,
+            imageUrl: typeof preview.image_url === 'string' ? preview.image_url : null,
+            title: typeof preview.title === 'string' ? preview.title : null,
+            url: typeof preview.url === 'string' ? preview.url : null,
+          }
+        : null,
+    mediaDurationMs: row.media_duration_ms ?? null,
     mediaMimeType: row.media_mime_type ?? null,
     mediaStoragePath: row.media_storage_path ?? null,
     mediaUrl: row.media_url ?? null,
     messageStatus: row.message_status,
     messageType: row.message_type ?? 'text',
     recipientPhone: row.recipient_phone,
+    replyToMessageId: row.reply_to_message_id ?? null,
     senderPhone: row.sender_phone,
   };
+}
+
+function computeUnreadCount(params: {
+  direction: 'inbound' | 'outbound' | null | undefined;
+  lastMessageAt: string | null;
+  lastOwnerReadAt: string | null;
+}): number {
+  if (!params.lastMessageAt || params.direction !== 'inbound') {
+    return 0;
+  }
+  if (!params.lastOwnerReadAt) {
+    return 1;
+  }
+  return new Date(params.lastMessageAt).getTime() > new Date(params.lastOwnerReadAt).getTime()
+    ? 1
+    : 0;
 }
 
 function toInboxConversationSummary(row: ConversationRow): InboxConversationSummary {
   const contact = Array.isArray(row.contacts) ? row.contacts[0] : row.contacts;
 
   return {
+    archivedAt: row.archived_at ?? null,
     channel: row.channel ?? 'whatsapp',
     contact: {
       displayName: contact?.display_name ?? row.customer_display_name,
@@ -293,10 +361,14 @@ function toInboxConversationSummary(row: ConversationRow): InboxConversationSumm
       leadStatus: contact?.lead_status ?? null,
       phoneNumber: contact?.phone_number ?? (row.channel === 'whatsapp' ? row.external_contact_id : null),
     },
+    deletedAt: row.deleted_at ?? null,
     externalContactId: row.external_contact_id,
     id: row.id,
     lastMessageAt: row.last_message_at,
+    lastOwnerReadAt: row.last_owner_read_at ?? null,
     latestMessage: null,
+    messagesClearedAt: row.messages_cleared_at ?? null,
     status: row.status,
+    unreadCount: 0,
   };
 }

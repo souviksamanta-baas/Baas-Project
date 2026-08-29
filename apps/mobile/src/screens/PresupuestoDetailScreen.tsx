@@ -149,7 +149,7 @@ export function PresupuestoDetailScreen(props: {
           }}
           style={styles.shareButton}
         >
-          <Icon color={colors.primary} kind="document" size={18} strokeWidth={1.8} />
+          <Icon color={colors.primary} kind="share" size={18} strokeWidth={1.8} />
         </Pressable>
       </View>
       <View

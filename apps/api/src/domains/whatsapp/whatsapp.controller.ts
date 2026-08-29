@@ -236,4 +236,137 @@ export class WhatsAppController {
       throw error;
     }
   }
+
+  @Post('messages/edit')
+  @HttpCode(200)
+  @ApiOperation({
+    summary: 'Edit an outbound WhatsApp text message',
+    description:
+      'Owner-secured Meta Cloud API edit for an outbound message within the allowed window.',
+  })
+  async editMessage(
+    @Headers('authorization') authorizationHeader: string | undefined,
+    @Body()
+    body: {
+      body: string;
+      businessCenterId: string;
+      messageId: string;
+      organizationId: string;
+    },
+  ): Promise<{ status: 'edited' }> {
+    try {
+      return await this.messagingService.editConversationMessage({
+        authorizationHeader,
+        body: body.body,
+        businessCenterId: body.businessCenterId,
+        messageId: body.messageId,
+        organizationId: body.organizationId,
+      });
+    } catch (error) {
+      if (error instanceof Error && error.message.toLocaleLowerCase().includes('token')) {
+        throw new UnauthorizedException(error.message);
+      }
+      throw error;
+    }
+  }
+
+  @Post('messages/react')
+  @HttpCode(200)
+  @ApiOperation({
+    summary: 'React to a WhatsApp message',
+    description: 'Owner-secured Meta Cloud API reaction.',
+  })
+  async reactToMessage(
+    @Headers('authorization') authorizationHeader: string | undefined,
+    @Body()
+    body: {
+      businessCenterId: string;
+      emoji: string;
+      messageId: string;
+      organizationId: string;
+    },
+  ): Promise<{ status: 'reacted' }> {
+    try {
+      return await this.messagingService.reactToConversationMessage({
+        authorizationHeader,
+        businessCenterId: body.businessCenterId,
+        emoji: body.emoji,
+        messageId: body.messageId,
+        organizationId: body.organizationId,
+      });
+    } catch (error) {
+      if (error instanceof Error && error.message.toLocaleLowerCase().includes('token')) {
+        throw new UnauthorizedException(error.message);
+      }
+      throw error;
+    }
+  }
+
+  @Post('messages/send-audio')
+  @HttpCode(200)
+  @ApiOperation({
+    summary: 'Send a WhatsApp audio/voice note',
+    description: 'Owner-secured upload + send of an audio message via WhatsApp Cloud API.',
+  })
+  async sendAudio(
+    @Headers('authorization') authorizationHeader: string | undefined,
+    @Body()
+    body: {
+      audioBase64: string;
+      businessCenterId: string;
+      conversationId: string;
+      durationMs?: number;
+      mimeType?: string;
+      organizationId: string;
+    },
+  ): Promise<{ externalMessageId: string | null; status: 'sent' }> {
+    try {
+      return await this.messagingService.sendConversationAudioMessage({
+        audioBase64: body.audioBase64,
+        authorizationHeader,
+        businessCenterId: body.businessCenterId,
+        conversationId: body.conversationId,
+        durationMs: body.durationMs,
+        mimeType: body.mimeType,
+        organizationId: body.organizationId,
+      });
+    } catch (error) {
+      if (error instanceof Error && error.message.toLocaleLowerCase().includes('token')) {
+        throw new UnauthorizedException(error.message);
+      }
+      throw error;
+    }
+  }
+
+  @Post('messages/forward')
+  @HttpCode(200)
+  @ApiOperation({
+    summary: 'Forward a message to another conversation',
+    description: 'Resends message content as a new outbound in the target conversation.',
+  })
+  async forwardMessage(
+    @Headers('authorization') authorizationHeader: string | undefined,
+    @Body()
+    body: {
+      businessCenterId: string;
+      messageId: string;
+      organizationId: string;
+      targetConversationId: string;
+    },
+  ): Promise<{ externalMessageId: string | null; status: 'sent' }> {
+    try {
+      return await this.messagingService.forwardConversationMessage({
+        authorizationHeader,
+        businessCenterId: body.businessCenterId,
+        messageId: body.messageId,
+        organizationId: body.organizationId,
+        targetConversationId: body.targetConversationId,
+      });
+    } catch (error) {
+      if (error instanceof Error && error.message.toLocaleLowerCase().includes('token')) {
+        throw new UnauthorizedException(error.message);
+      }
+      throw error;
+    }
+  }
 }

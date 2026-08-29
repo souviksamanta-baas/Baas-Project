@@ -103,6 +103,7 @@ export function OnboardingScreen(props: {
   initialStep?: OnboardingStep;
   isSubmitting: boolean;
   navShortcut: NavShortcutId;
+  onBack?: () => void;
   onChangeBusinessName: (businessName: string) => void;
   onChangeFeatureFlags: (featureFlags: OrganizationFeatureFlags) => void;
   onChangeNavShortcut: (navShortcut: NavShortcutId) => void;
@@ -110,6 +111,7 @@ export function OnboardingScreen(props: {
   onCreateOrganization: () => void;
   onJoinWithInviteToken: (inviteToken: string) => void;
   onSignOut: () => void;
+  submitLabel?: string;
   verticalId: string | null;
 }): ReactElement {
   const [step, setStep] = useState<OnboardingStep>(props.initialStep ?? 'choice');
@@ -297,6 +299,10 @@ export function OnboardingScreen(props: {
         <Pressable
           hitSlop={8}
           onPress={() => {
+            if (props.onBack) {
+              props.onBack();
+              return;
+            }
             if (props.initialStep === 'create') {
               props.onSignOut();
               return;
@@ -306,13 +312,21 @@ export function OnboardingScreen(props: {
           style={styles.backRow}
         >
           <Text style={styles.backText}>
-            {props.initialStep === 'create' ? '‹ Cerrar sesión' : '‹ Volver'}
+            {props.onBack
+              ? '‹ Volver'
+              : props.initialStep === 'create'
+                ? '‹ Cerrar sesión'
+                : '‹ Volver'}
           </Text>
         </Pressable>
 
-        <Text style={baseStyles.heading}>Creá tu negocio</Text>
+        <Text style={baseStyles.heading}>
+          {props.onBack ? 'Creá otro negocio' : 'Creá tu negocio'}
+        </Text>
         <Text style={baseStyles.bodyText}>
-          Elegí el rubro, activá los módulos que necesitás y ponele nombre a tu negocio.
+          {props.onBack
+            ? 'Vas a ser dueño de este negocio. Después podés cambiar entre negocios desde Mi cuenta → Negocios.'
+            : 'Elegí el rubro, activá los módulos que necesitás y ponele nombre a tu negocio.'}
         </Text>
 
         <Text style={styles.sectionLabel}>Rubro</Text>
@@ -439,7 +453,11 @@ export function OnboardingScreen(props: {
       <View style={styles.footer}>
         <PrimaryButton
           disabled={props.isSubmitting}
-          label={props.isSubmitting ? 'Creando…' : 'Crear negocio'}
+          label={
+            props.isSubmitting
+              ? 'Creando…'
+              : (props.submitLabel ?? 'Crear negocio')
+          }
           onPress={props.onCreateOrganization}
         />
       </View>

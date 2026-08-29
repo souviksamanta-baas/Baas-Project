@@ -15,7 +15,7 @@ Treat tester devices and the public API as untrusted.
 | OTP harden (#7) | Done | HMAC-SHA256 + pepper, resend cooldown, timing-safe compare, no OTP/phone in logs |
 | ValidationPipe (#8) | Done | Global whitelist/forbid; Copi/auth/invite DTOs |
 | SecureStore (#9) | Done | Supabase session via `authSecureStorage` (chunked SecureStore) |
-| Expo hygiene (#14/#16/#17) | Done | Aligned native deps; block `WRITE_CONTACTS`; legacy navigator marked unreachable |
+| Expo hygiene (#14/#16/#17) | Done | Aligned native deps; `WRITE_CONTACTS` allowed for Chats **Agregar contacto**; legacy navigator marked unreachable |
 | Log redaction (#19) | Done | OTP paths redact phone; never log codes |
 | Swagger (#20) | Done | `/docs` off in production unless `BAAS_ENABLE_OPENAPI_DOCS=true` |
 

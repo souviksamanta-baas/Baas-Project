@@ -1,3 +1,4 @@
+import type { AssigneeAvailability } from '../lib/appointmentAvailability';
 import { supabase } from '../lib/supabase';
 import type {
   Appointment,
@@ -113,6 +114,7 @@ export async function createAppointment(
       ends_at: input.endsAt,
       metadata: {
         attendeeEmail: input.attendeeEmail ?? null,
+        attendeePhone: input.attendeePhone ?? null,
         fromLabel: input.fromLabel ?? null,
       },
       notes: input.notes ?? null,
@@ -186,12 +188,69 @@ export async function assignAppointment(
   return toAppointment(data as AppointmentRow);
 }
 
+/**
+ * Returns whether each assignee is available or busy for the given slot,
+ * based on overlapping scheduled appointments.
+ */
+export async function getAssigneesAvailability(
+  organizationId: string,
+  businessCenterId: string,
+  params: {
+    endsAt: string;
+    excludeAppointmentId?: string | null;
+    startsAt: string;
+    userIds: string[];
+  },
+): Promise<Record<string, AssigneeAvailability>> {
+  const availability: Record<string, AssigneeAvailability> = {};
+  for (const userId of params.userIds) {
+    availability[userId] = 'available';
+  }
+
+  const userIds = [...new Set(params.userIds.filter(Boolean))];
+  if (userIds.length === 0) {
+    return availability;
+  }
+
+  let query = supabase
+    .from('appointments')
+    .select('id, assigned_to_user_id')
+    .eq('organization_id', organizationId)
+    .eq('business_center_id', businessCenterId)
+    .eq('status', 'scheduled')
+    .in('assigned_to_user_id', userIds)
+    .lt('starts_at', params.endsAt)
+    .gt('ends_at', params.startsAt);
+
+  if (params.excludeAppointmentId) {
+    query = query.neq('id', params.excludeAppointmentId);
+  }
+
+  const { data, error } = await query;
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  for (const row of data ?? []) {
+    const userId = (row as { assigned_to_user_id: string | null }).assigned_to_user_id;
+    if (userId) {
+      availability[userId] = 'busy';
+    }
+  }
+
+  return availability;
+}
+
 function toAppointment(row: AppointmentRow): Appointment {
   const contact = Array.isArray(row.contacts) ? row.contacts[0] : row.contacts;
   const metadata = (row.metadata ?? {}) as Record<string, unknown>;
   const attendeeEmail =
     typeof metadata.attendeeEmail === 'string' && metadata.attendeeEmail.trim()
       ? metadata.attendeeEmail.trim()
+      : null;
+  const attendeePhone =
+    typeof metadata.attendeePhone === 'string' && metadata.attendeePhone.trim()
+      ? metadata.attendeePhone.trim()
       : null;
   const fromLabel =
     typeof metadata.fromLabel === 'string' && metadata.fromLabel.trim()
@@ -200,6 +259,7 @@ function toAppointment(row: AppointmentRow): Appointment {
   return {
     assignedToUserId: row.assigned_to_user_id,
     attendeeEmail,
+    attendeePhone,
     businessCenterId: row.business_center_id,
     contactId: row.contact_id,
     contactLabel: contact?.display_name ?? contact?.phone_number ?? null,

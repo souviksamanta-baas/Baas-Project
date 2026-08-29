@@ -793,7 +793,7 @@ export class TasksService {
     const client = this.supabaseService.getServiceRoleClient();
     const { error } = await client
       .from('contacts')
-      .update({ lead_status: 'cold' })
+      .update({ lead_status: 'cold', cold_at: new Date().toISOString() })
       .in('id', uniqueContactIds)
       .in('lead_status', ['new', 'active']);
 

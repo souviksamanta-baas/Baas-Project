@@ -92,15 +92,20 @@ export function leadStatusLabel(
 ): string | undefined {
   switch (status) {
     case 'new':
-      return 'Nuevo lead';
+      return 'Nuevo';
+    case 'opportunity':
+      return 'Oportunidad';
     case 'active':
-      return 'Seguimiento';
+      return 'Seguimiento pendiente';
     case 'cold':
-      return 'Frío';
+      // Hidden in UI — cold is for Oportunidad calculation only.
+      return undefined;
     case 'won':
       return 'Ganado';
     case 'lost':
       return 'Perdido';
+    case 'finished':
+      return 'Terminado';
     default:
       return undefined;
   }
@@ -115,6 +120,12 @@ export function messageBubbleText(message: WhatsAppMessagePreview): string {
   if (body) {
     return body;
   }
+  if (
+    message.messageType === 'audio' ||
+    (message.mediaMimeType?.startsWith('audio/') ?? false)
+  ) {
+    return '🎤 Nota de voz';
+  }
   if (message.messageType === 'image' || message.mediaUrl || message.mediaStoragePath) {
     return '';
   }
@@ -122,6 +133,12 @@ export function messageBubbleText(message: WhatsAppMessagePreview): string {
 }
 
 export function messageHasImage(message: WhatsAppMessagePreview): boolean {
+  if (
+    message.messageType === 'audio' ||
+    (message.mediaMimeType?.startsWith('audio/') ?? false)
+  ) {
+    return false;
+  }
   return Boolean(
     message.messageType === 'image' || message.mediaUrl || message.mediaStoragePath,
   );

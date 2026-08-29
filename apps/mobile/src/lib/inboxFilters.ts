@@ -3,7 +3,7 @@ import type { InboxConversationSummary } from '../types/messages';
 import { conversationDisplayName, conversationPreview } from './inboxPresentation';
 
 export type InboxChannelFilter = Channel | 'all';
-export type InboxStatusFilter = 'all' | 'new' | 'open' | 'archived';
+export type InboxStatusFilter = 'all' | 'new' | 'opportunity' | 'open' | 'archived';
 
 export interface InboxListFilters {
   channel: InboxChannelFilter;
@@ -24,19 +24,36 @@ export function filterInboxConversations(
   const normalizedQuery = filters.query.trim().toLowerCase();
 
   return conversations.filter((conversation) => {
+    if (conversation.deletedAt) {
+      return false;
+    }
+
     if (filters.channel !== 'all' && conversation.channel !== filters.channel) {
       return false;
     }
 
-    if (filters.status === 'open' && conversation.status !== 'open') {
-      return false;
+    if (filters.status === 'open') {
+      if (conversation.status !== 'open' || conversation.archivedAt) {
+        return false;
+      }
     }
 
-    if (filters.status === 'archived' && conversation.status !== 'closed') {
-      return false;
+    if (filters.status === 'archived') {
+      if (!(conversation.status === 'closed' || conversation.archivedAt)) {
+        return false;
+      }
+    } else if (!normalizedQuery && (conversation.status === 'closed' || conversation.archivedAt)) {
+      // Default list hides archived unless searching or filtering Archivado.
+      if (filters.status === 'all') {
+        return false;
+      }
     }
 
     if (filters.status === 'new' && conversation.contact.leadStatus !== 'new') {
+      return false;
+    }
+
+    if (filters.status === 'opportunity' && conversation.contact.leadStatus !== 'opportunity') {
       return false;
     }
 

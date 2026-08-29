@@ -4,6 +4,7 @@ import { SupabaseService } from '../../supabase/supabase.service';
 
 const WHATSAPP_MEDIA_BUCKET = 'whatsapp-media';
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+const MAX_AUDIO_BYTES = 16 * 1024 * 1024;
 const SIGNED_URL_TTL_SECONDS = 60 * 60 * 24 * 30; // 30 days
 
 const ALLOWED_IMAGE_MIME_TYPES = new Set([
@@ -12,6 +13,16 @@ const ALLOWED_IMAGE_MIME_TYPES = new Set([
   'image/png',
   'image/webp',
   'image/gif',
+]);
+
+const ALLOWED_AUDIO_MIME_TYPES = new Set([
+  'audio/aac',
+  'audio/amr',
+  'audio/mpeg',
+  'audio/mp4',
+  'audio/ogg',
+  'audio/opus',
+  'audio/webm',
 ]);
 
 interface MetaMediaMetadataResponse {
@@ -56,6 +67,35 @@ export class WhatsAppMediaService {
     return normalized;
   }
 
+  normalizeAudioMimeType(mimeType: string | null | undefined): string {
+    let normalized = (mimeType ?? 'audio/ogg').trim().toLowerCase();
+    if (normalized.includes(';')) {
+      normalized = normalized.split(';')[0]?.trim() ?? normalized;
+    }
+    if (normalized === 'audio/opus') {
+      normalized = 'audio/ogg';
+    }
+    if (normalized === 'audio/m4a' || normalized === 'audio/x-m4a') {
+      normalized = 'audio/mp4';
+    }
+    if (normalized === 'audio/wav' || normalized === 'audio/wave' || normalized === 'audio/x-wav') {
+      // WhatsApp accepts ogg/mp4 better; treat wav as mp4 container fallback label for upload typing.
+      normalized = 'audio/mp4';
+    }
+    if (!ALLOWED_AUDIO_MIME_TYPES.has(normalized) && normalized !== 'audio/ogg') {
+      throw new Error('Solo se admiten audios AAC, AMR, MP3, MP4, OGG u Opus.');
+    }
+    return normalized === 'audio/webm' ? 'audio/ogg' : normalized;
+  }
+
+  normalizeStoreMimeType(mimeType: string): string {
+    const normalized = mimeType.trim().toLowerCase().split(';')[0]?.trim() ?? mimeType;
+    if (ALLOWED_IMAGE_MIME_TYPES.has(normalized) || normalized === 'image/jpg') {
+      return this.normalizeImageMimeType(normalized);
+    }
+    return this.normalizeAudioMimeType(normalized);
+  }
+
   decodeBase64Image(params: {
     imageBase64: string;
     mimeType?: string | null;
@@ -72,6 +112,27 @@ export class WhatsAppMediaService {
     }
     if (buffer.byteLength > MAX_IMAGE_BYTES) {
       throw new Error('La imagen supera el límite de 5 MB de WhatsApp.');
+    }
+
+    return { buffer, mimeType };
+  }
+
+  decodeBase64Audio(params: {
+    audioBase64: string;
+    mimeType?: string | null;
+  }): DownloadedWhatsAppMedia {
+    const mimeType = this.normalizeAudioMimeType(params.mimeType);
+    const cleaned = params.audioBase64.replace(/^data:[^;]+;base64,/, '').trim();
+    if (!cleaned) {
+      throw new Error('audioBase64 is required');
+    }
+
+    const buffer = Buffer.from(cleaned, 'base64');
+    if (buffer.byteLength === 0) {
+      throw new Error('El audio está vacío.');
+    }
+    if (buffer.byteLength > MAX_AUDIO_BYTES) {
+      throw new Error('El audio supera el límite de 16 MB de WhatsApp.');
     }
 
     return { buffer, mimeType };
@@ -130,8 +191,8 @@ export class WhatsAppMediaService {
     mimeType: string;
     phoneNumberId: string;
   }): Promise<string> {
-    const mimeType = this.normalizeImageMimeType(params.mimeType);
-    const filename = params.filename ?? `image.${this.extensionForMime(mimeType)}`;
+    const mimeType = this.normalizeStoreMimeType(params.mimeType);
+    const filename = params.filename ?? `media.${this.extensionForMime(mimeType)}`;
     const form = new FormData();
     form.append('messaging_product', 'whatsapp');
     form.append('type', mimeType);
@@ -166,7 +227,7 @@ export class WhatsAppMediaService {
     mimeType: string;
     organizationId: string;
   }): Promise<StoredWhatsAppMedia> {
-    const mimeType = this.normalizeImageMimeType(params.mimeType);
+    const mimeType = this.normalizeStoreMimeType(params.mimeType);
     const extension = this.extensionForMime(mimeType);
     const mediaStoragePath = [
       params.organizationId,
@@ -225,15 +286,26 @@ export class WhatsAppMediaService {
   }
 
   extensionForMime(mimeType: string): string {
-    switch (this.normalizeImageMimeType(mimeType)) {
+    const normalized = this.normalizeStoreMimeType(mimeType);
+    switch (normalized) {
       case 'image/png':
         return 'png';
       case 'image/webp':
         return 'webp';
       case 'image/gif':
         return 'gif';
+      case 'audio/aac':
+        return 'aac';
+      case 'audio/amr':
+        return 'amr';
+      case 'audio/mpeg':
+        return 'mp3';
+      case 'audio/mp4':
+        return 'm4a';
+      case 'audio/ogg':
+        return 'ogg';
       default:
-        return 'jpg';
+        return normalized.startsWith('audio/') ? 'ogg' : 'jpg';
     }
   }
 }

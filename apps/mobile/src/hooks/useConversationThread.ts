@@ -17,7 +17,7 @@ import {
   sendInstagramReply,
   type InstagramMessagingWindowState,
 } from '../api/instagram';
-import { sendConversationImage, sendConversationReply } from '../api/whatsapp';
+import { sendConversationAudio, sendConversationImage, sendConversationReply } from '../api/whatsapp';
 import type { InboxConversationSummary, WhatsAppMessagePreview } from '../types/messages';
 
 export function useInboxConversation(params: {
@@ -68,6 +68,7 @@ export function useConversationThread(params: {
   businessCenterId: string | null;
   channel?: string | null;
   conversationId: string | null;
+  messagesClearedAt?: string | null;
   organizationId: string | null;
 }): {
   composerBlockedMessage: string | null;
@@ -75,6 +76,11 @@ export function useConversationThread(params: {
   isLoading: boolean;
   messages: WhatsAppMessagePreview[];
   messagingWindowState: InstagramMessagingWindowState | FacebookMessagingWindowState | null;
+  sendAudioReply: (params: {
+    audioBase64: string;
+    durationMs?: number;
+    mimeType?: string;
+  }) => Promise<void>;
   sendImageReply: (params: {
     caption?: string;
     imageBase64: string;
@@ -99,7 +105,9 @@ export function useConversationThread(params: {
     setIsLoading(true);
     setErrorMessage(null);
 
-    getConversationMessages(params.conversationId)
+    getConversationMessages(params.conversationId, {
+      messagesClearedAt: params.messagesClearedAt,
+    })
       .then((threadMessages) => {
         if (mounted) {
           setMessages(threadMessages);
@@ -143,7 +151,12 @@ export function useConversationThread(params: {
       mounted = false;
       unsubscribe();
     };
-  }, [params.businessCenterId, params.conversationId, params.organizationId]);
+  }, [
+    params.businessCenterId,
+    params.conversationId,
+    params.messagesClearedAt,
+    params.organizationId,
+  ]);
 
   useEffect(() => {
     if (
@@ -249,6 +262,32 @@ export function useConversationThread(params: {
     [params.businessCenterId, params.channel, params.conversationId, params.organizationId],
   );
 
+  const sendAudioReply = useCallback(
+    async (audioParams: {
+      audioBase64: string;
+      durationMs?: number;
+      mimeType?: string;
+    }): Promise<void> => {
+      if (!params.organizationId || !params.businessCenterId || !params.conversationId) {
+        throw new Error('Missing conversation context.');
+      }
+
+      if (params.channel === 'instagram' || params.channel === 'facebook') {
+        throw new Error('Las notas de voz solo están disponibles en WhatsApp por ahora.');
+      }
+
+      await sendConversationAudio({
+        audioBase64: audioParams.audioBase64,
+        businessCenterId: params.businessCenterId,
+        conversationId: params.conversationId,
+        durationMs: audioParams.durationMs,
+        mimeType: audioParams.mimeType,
+        organizationId: params.organizationId,
+      });
+    },
+    [params.businessCenterId, params.channel, params.conversationId, params.organizationId],
+  );
+
   const windowCopy = messagingWindowState
     ? params.channel === 'facebook'
       ? facebookWindowComposerCopy(messagingWindowState as FacebookMessagingWindowState)
@@ -263,6 +302,7 @@ export function useConversationThread(params: {
     isLoading,
     messages,
     messagingWindowState,
+    sendAudioReply,
     sendImageReply,
     sendReply,
   };

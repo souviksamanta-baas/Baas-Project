@@ -93,7 +93,7 @@ describe('parseCreateAppointmentRequest', () => {
 
     expect(parsed.attendeeEmail).toBeNull();
     expect(parsed.startsAt).toBeTruthy();
-    expect(parsed.clarificationQuestions.some((item) => /correo|Para/i.test(item))).toBe(
+    expect(parsed.clarificationQuestions.some((item) => /correo|Para|tel[eé]fono/i.test(item))).toBe(
       true,
     );
   });

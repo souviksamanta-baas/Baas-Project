@@ -458,8 +458,18 @@ function ActionIcon(props: { color: string; kind: IconKind }): ReactElement {
 
 export function MessageBubble(props: {
   direction: 'inbound' | 'outbound';
+  editedAt?: string | null;
+  linkPreview?: {
+    description?: string | null;
+    imageUrl?: string | null;
+    title?: string | null;
+    url?: string | null;
+  } | null;
+  mediaMimeType?: string | null;
   mediaStoragePath?: string | null;
   mediaUrl?: string | null;
+  messageType?: string | null;
+  onLongPress?: () => void;
   onPressPresupuesto?: (quoteId: string) => void;
   onPressProduct?: (productId: string) => void;
   source?: MessageSource;
@@ -470,10 +480,19 @@ export function MessageBubble(props: {
   const showCopiTag = props.source === 'copi';
   const parts = parseCopiRichText(props.text);
   const hasText = Boolean(props.text.trim());
-  const hasImage = Boolean(props.mediaUrl || props.mediaStoragePath);
+  const isAudio =
+    props.messageType === 'audio' ||
+    (props.mediaMimeType?.startsWith('audio/') ?? false);
+  const hasImage = !isAudio && Boolean(props.mediaUrl || props.mediaStoragePath);
+  const preview = props.linkPreview;
+  const hasPreview = Boolean(preview?.url || preview?.title);
 
   return (
-    <View style={[styles.messageWrap, outbound && styles.outboundMessageWrap]}>
+    <Pressable
+      delayLongPress={280}
+      onLongPress={props.onLongPress}
+      style={[styles.messageWrap, outbound && styles.outboundMessageWrap]}
+    >
       <View style={[styles.messageBubble, outbound && styles.outboundMessageBubble]}>
         {showCopiTag ? <MessageSourceBadge source="copi" /> : null}
         {hasImage ? (
@@ -481,6 +500,28 @@ export function MessageBubble(props: {
             mediaStoragePath={props.mediaStoragePath}
             mediaUrl={props.mediaUrl}
           />
+        ) : null}
+        {hasPreview ? (
+          <View style={styles.linkPreviewCard}>
+            {preview?.imageUrl ? (
+              <Image source={{ uri: preview.imageUrl }} style={styles.linkPreviewImage} />
+            ) : null}
+            {preview?.title ? (
+              <Text numberOfLines={2} style={styles.linkPreviewTitle}>
+                {preview.title}
+              </Text>
+            ) : null}
+            {preview?.description ? (
+              <Text numberOfLines={2} style={styles.linkPreviewDescription}>
+                {preview.description}
+              </Text>
+            ) : null}
+            {preview?.url ? (
+              <Text numberOfLines={1} style={styles.linkPreviewUrl}>
+                {preview.url}
+              </Text>
+            ) : null}
+          </View>
         ) : null}
         {hasText ? (
           <Text style={styles.messageText}>
@@ -529,9 +570,11 @@ export function MessageBubble(props: {
             })}
           </Text>
         ) : null}
-        <Text style={styles.messageTime}>{props.time}</Text>
+        <Text style={styles.messageTime}>
+          {props.editedAt ? `Editado · ${props.time}` : props.time}
+        </Text>
       </View>
-    </View>
+    </Pressable>
   );
 }
 
@@ -632,19 +675,21 @@ export function ReplyComposer(props: {
   pendingImageUri?: string | null;
   placeholder: string;
   value?: string;
+  /** Client chats: voice notes. Copi: speech-to-text into the text box. */
+  voiceMode?: 'voice-note' | 'stt';
 }): ReactElement {
   const hasText = Boolean(props.value?.trim());
   const hasPendingImage = Boolean(props.pendingImageUri);
   const busy = props.isSending || props.isTranscribingVoice || props.isAnalyzingImage;
   const canSend = Boolean(props.onSend && (hasText || hasPendingImage) && !busy);
   const showVoice = Boolean(props.canUseVoice && !hasText && !hasPendingImage && props.onPressVoice);
-  // Mic affordance when the field is empty — even if voice is gated off (handler explains Pro).
-  // Never wire empty-composer taps to onSend (that yields "Escribí un mensaje…").
   const emptyComposerUsesVoice = Boolean(!hasText && !hasPendingImage && props.onPressVoice);
   const showAttachmentSheet = Boolean(
     props.attachmentMenuOpen && (props.onPressAttachCamera || props.onPressAttachLibrary),
   );
   const insets = useSafeAreaInsets();
+  const recordingShowsSend =
+    Boolean(props.isRecordingVoice) && (props.voiceMode === 'voice-note' || !props.voiceMode);
 
   function closeAttachmentSheet(): void {
     if (props.attachmentMenuOpen && props.onPressPlus) {
@@ -653,7 +698,7 @@ export function ReplyComposer(props: {
   }
 
   function handleTrailingPress(): void {
-    if (showVoice || emptyComposerUsesVoice) {
+    if (showVoice || emptyComposerUsesVoice || props.isRecordingVoice) {
       props.onPressVoice?.();
       return;
     }
@@ -661,6 +706,18 @@ export function ReplyComposer(props: {
       props.onSend?.();
     }
   }
+
+  const trailingKind =
+    recordingShowsSend || canSend
+      ? 'send'
+      : showVoice || emptyComposerUsesVoice
+        ? 'mic'
+        : 'send';
+
+  const recordingHint =
+    props.voiceMode === 'stt'
+      ? 'Escuchando… tocá el micrófono para terminar. Revisá el texto antes de enviar.'
+      : 'Grabando… tocá enviar para mandar el audio.';
 
   return (
     <View
@@ -706,22 +763,15 @@ export function ReplyComposer(props: {
             >
               {busy ? (
                 <ActivityIndicator color={colors.surface} size="small" />
-              ) : props.isRecordingVoice ? (
-                <Icon color={colors.surface} kind="mic" size={19} strokeWidth={2.2} />
               ) : (
-                <Icon
-                  color={colors.surface}
-                  kind={canSend ? 'message' : 'mic'}
-                  size={19}
-                  strokeWidth={2.2}
-                />
+                <Icon color={colors.surface} kind={trailingKind} size={19} strokeWidth={2.2} />
               )}
             </Pressable>
           }
         />
       </View>
       {props.isRecordingVoice ? (
-        <Text style={styles.recordingHint}>Grabando… tocá el micrófono para terminar.</Text>
+        <Text style={styles.recordingHint}>{recordingHint}</Text>
       ) : null}
 
       <Modal
@@ -1434,9 +1484,9 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
   },
   messageSourceText: {
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: '600',
-    lineHeight: 11,
+    lineHeight: 16,
   },
   messageText: {
     color: colors.navy,
@@ -1469,6 +1519,34 @@ const styles = StyleSheet.create({
     fontSize: 13,
     marginTop: 2,
     textAlign: 'right',
+  },
+  linkPreviewCard: {
+    backgroundColor: 'rgba(0,0,0,0.04)',
+    borderRadius: 10,
+    gap: 4,
+    marginBottom: 6,
+    overflow: 'hidden',
+    padding: 8,
+  },
+  linkPreviewDescription: {
+    color: colors.slate,
+    fontSize: 13,
+    lineHeight: 17,
+  },
+  linkPreviewImage: {
+    borderRadius: 8,
+    height: 120,
+    marginBottom: 4,
+    width: '100%',
+  },
+  linkPreviewTitle: {
+    color: colors.navy,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  linkPreviewUrl: {
+    color: colors.slateLight,
+    fontSize: 12,
   },
   productLinkText: {
     color: colors.primary,

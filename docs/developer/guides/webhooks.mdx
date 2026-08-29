@@ -45,11 +45,16 @@ Nexolia validates the raw request body against `x-hub-signature-256` when `WHATS
 After validation, the API:
 
 - Resolves the WhatsApp business phone configuration.
-- Persists inbound message events.
-- Upserts customer contact state.
+- Persists inbound message events (including audio/`message_type` when present).
+- Upserts customer contact state; may promote `cold` → `opportunity` when
+  `cold_at` is older than one year.
 - Links conversations to contacts and business centers.
+- Stores optional `link_preview` for inbound text URLs.
 - Triggers downstream sales AI draft generation where applicable.
 - Returns `{ "status": "received" }` to Meta.
+
+Owner-authenticated Meta actions (edit, react, send-audio, forward) use Nest
+routes under `/whatsapp/messages/*` — see `docs/whatsapp-webhook.md`.
 
 ## Idempotency
 

@@ -14,6 +14,7 @@ export const routes = {
   authVerify: '/(auth)/verify',
   authOnboarding: '/(auth)/onboarding',
   account: '/(app)/account',
+  negocios: '/(app)/negocios',
   notifications: '/(app)/notifications',
   inventoryManageStock: '/(app)/inventory/manage-stock',
   inventoryLotsMovements: '/(app)/inventory/lots-movements',
@@ -25,6 +26,7 @@ export const routes = {
   whatsappConnect: '/(app)/whatsapp-connect',
   staffInvite: '/(app)/staff-invite',
   staffInviteAccept: '/(auth)/invite-accept',
+  createOrganization: '/(app)/create-organization',
   editProfile: '/(app)/edit-profile',
   businessSettings: '/(app)/business-settings',
   arcaSettings: '/(app)/arca-settings',
@@ -501,6 +503,8 @@ export function shouldHideBottomNav(pathname: string): boolean {
     pathname.endsWith('/copi/chat') ||
     pathname.endsWith('/whatsapp-connect') ||
     pathname.endsWith('/staff-invite') ||
+    pathname.endsWith('/negocios') ||
+    pathname.endsWith('/create-organization') ||
     pathname.endsWith('/suppliers/add') ||
     pathname.endsWith('/edit-profile') ||
     pathname.endsWith('/business-settings') ||

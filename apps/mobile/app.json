@@ -81,13 +81,12 @@
         "backgroundColor": "#0f172a",
         "monochromeImage": "./assets/images/nexolia-notification-icon.png"
       },
-      "blockedPermissions": [
-        "android.permission.WRITE_CONTACTS"
-      ],
+      "blockedPermissions": [],
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO",
         "android.permission.READ_CONTACTS",
+        "android.permission.WRITE_CONTACTS",
         "android.permission.POST_NOTIFICATIONS"
       ],
       "intentFilters": [

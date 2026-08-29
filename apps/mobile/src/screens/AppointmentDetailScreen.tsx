@@ -44,6 +44,8 @@ export function AppointmentDetailScreen(props: {
         ) : null}
         {props.appointment.attendeeEmail ? (
           <Text style={styles.meta}>Para: {props.appointment.attendeeEmail}</Text>
+        ) : props.appointment.attendeePhone ? (
+          <Text style={styles.meta}>Para: {props.appointment.attendeePhone}</Text>
         ) : null}
         {props.appointment.contactLabel ? (
           <Text style={styles.meta}>Contacto: {props.appointment.contactLabel}</Text>

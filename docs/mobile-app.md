@@ -219,7 +219,8 @@ Phase 2 expands the dashboard preview into a lightweight Universal Inbox:
 - Opens a selected thread and loads persisted `conversation_messages`.
 - Groups message bubbles by `inbound` and `outbound` direction.
 - Shows contact identity, phone number, and lead status inline (see
-  `docs/crm-lead-status.md` — tags are static until KAN-313).
+  `docs/crm-lead-status.md` — KAN-313 legends: Nuevo, Oportunidad, Seguimiento
+  pendiente; cold is hidden; Ganado/Perdido/Terminado via message menu).
 - Subscribes to conversation and message changes through Supabase Realtime and
   cleans up the subscription when the dashboard unmounts.
 
@@ -394,8 +395,19 @@ sends can happen.
 - Conversation detail and Copi chat use a WhatsApp-style full-bleed thread (no
   card border); contact/Copi title appears in the collapsed app header.
 - The **Chats** screen (page title / tab label; path still `/(app)/inbox`) shows
-  channel filters, status tabs, conversation rows, and a selected thread state
-  using the existing inbox provider. Collapsed header title updates on FlatList scroll.
+  search + filter chips (channel / Nuevo / Oportunidad / Abierto / Archivado),
+  swipeable conversation rows (No leído / Más / Archivar·Desarchivar), unread
+  badges from `last_owner_read_at`, and thread actions (Vaciar / Eliminar). Fake
+  “Abiertos / Todos los canales” tabs are removed. Collapsed header title
+  updates on FlatList scroll.
+- Thread: mark read on open; **Agregar contacto** writes to the device phonebook
+  only. Message long-press: reactions, reply quote, edit, forward, copy, ask
+  Copi, **Cambiar estado a**, hide. Link preview cards when `link_preview` is
+  present. Client voice notes: empty composer → mic; recording → WhatsApp send
+  icon to send audio (`POST /whatsapp/messages/send-audio`). Dictation into the
+  text field uses the OS keyboard mic only.
+- Copi composer: mic = STT into the text box (review before send); send uses the
+  same WhatsApp-style paper-plane icon. Copi does not send voice-note blobs.
 - The Copi screen supports a hub state and continuous chat using
   `useOwnerCopilot`.
 - The More screen (`Más`) uses flat card groups **without** Inventarios /
@@ -544,9 +556,11 @@ Jira epic [KAN-304](https://souviksamanta.atlassian.net/browse/KAN-304). Conflue
 `supabase/migrations/20260703163000_jul_pilot_dashboard_channels_invites.sql` and
 redeploy Railway API (staff invite multi-branch).
 
-**Deferred:** contact lead status tags — epic
-[KAN-313](https://souviksamanta.atlassian.net/browse/KAN-313), see
-`docs/crm-lead-status.md`.
+**Lead status:** epic
+[KAN-313](https://souviksamanta.atlassian.net/browse/KAN-313) — see
+`docs/crm-lead-status.md`. WhatsApp-like Chats UX (gestures, Meta edit/react/
+forward, link previews, voice notes) is covered under the Chats redesign epic
+([KAN-402](https://souviksamanta.atlassian.net/browse/KAN-402)).
 
 ## Local Commands
 

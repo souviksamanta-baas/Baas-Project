@@ -41,6 +41,7 @@ export type IconKind =
   | 'qr'
   | 'report'
   | 'search'
+  | 'send'
   | 'shield'
   | 'store'
   | 'trash'
@@ -52,6 +53,7 @@ export type IconKind =
   | 'info'
   | 'lightbulb'
   | 'document'
+  | 'share'
   | 'dots-vertical'
   | 'x';
 
@@ -252,6 +254,7 @@ function iconPath(kind: IconKind, color: string, filled?: boolean): ReactElement
       </>
     );
   }
+  if (kind === 'send') return <Path d="M3.5 11.5 20 4l-5.5 17-2.8-7.2L3.5 11.5Z" />;
   if (kind === 'plus') return <><Path d="M12 5v14" /><Path d="M5 12h14" /></>;
   if (kind === 'edit') return <><Path d="M4 20h4l10.5-10.5a2.1 2.1 0 0 0-3-3L5 17v3Z" /><Path d="m14 8 2 2" /></>;
   if (kind === 'camera') return <><Path d="M7 7h2l1.2-2h3.6L15 7h2a2 2 0 0 1 2 2v7.5a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Z" /><Circle cx="12" cy="12.6" r="3" /></>;
@@ -295,6 +298,17 @@ function iconPath(kind: IconKind, color: string, filled?: boolean): ReactElement
         <Path d="M16 4v4h4" />
         <Path d="M11 13h6" />
         <Path d="M11 17h6" />
+      </>
+    );
+  }
+  if (kind === 'share') {
+    return (
+      <>
+        <Circle cx="18" cy="5" r="2.4" />
+        <Circle cx="6" cy="12" r="2.4" />
+        <Circle cx="18" cy="19" r="2.4" />
+        <Path d="M8.2 10.8 15.8 6.2" />
+        <Path d="M8.2 13.2 15.8 17.8" />
       </>
     );
   }

@@ -15,15 +15,31 @@ import {
   type NativeSyntheticEvent,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import {
+  RecordingPresets,
+  requestRecordingPermissionsAsync,
+  setAudioModeAsync,
+  useAudioRecorder,
+  useAudioRecorderState,
+} from 'expo-audio';
 
 import { showPermissionDeniedAlert } from '../lib/androidPermissions';
+import { guessAudioMimeType, readAudioAsBase64 } from '../lib/copiAudio';
 import { readImageAssetAsBase64 } from '../lib/readImageAssetAsBase64';
 import { useAndroidBackHandler } from '../hooks/useAndroidBackHandler';
 import { useAndroidKeyboardHeight } from '../hooks/useAndroidKeyboard';
 
 import { MobileContainedModal } from '../components/MobileContainedModal';
+import { SwipeableChatRow } from '../components/SwipeableChatRow';
 
 import type { Channel } from '../api/mockData';
+import {
+  archiveConversation,
+  clearConversationMessages,
+  deleteConversation,
+  markConversationUnread,
+  unarchiveConversation,
+} from '../api/conversationActions';
 import {
   Card,
   ConversationRow,
@@ -51,7 +67,6 @@ import {
   leadStatusLabel,
   messageBubbleText,
   messageBubbleTime,
-  openConversationCount,
 } from '../lib/inboxPresentation';
 import type { OwnerDashboard } from '../types/dashboard';
 import type { InboxConversationSummary, WhatsAppMessagePreview } from '../types/messages';
@@ -70,6 +85,7 @@ const CHANNEL_OPTIONS: Array<{ id: InboxChannelFilter; label: string }> = [
 const STATUS_OPTIONS: Array<{ id: InboxStatusFilter; label: string }> = [
   { id: 'all', label: 'Todos' },
   { id: 'new', label: 'Nuevo' },
+  { id: 'opportunity', label: 'Oportunidad' },
   { id: 'open', label: 'Abierto' },
   { id: 'archived', label: 'Archivado' },
 ];
@@ -80,6 +96,7 @@ export function InboxScreen(props: {
   isLoading: boolean;
   onOpenConversation: (conversationId: string) => void;
   onOpenWhatsAppSetup: () => void;
+  onReload?: () => Promise<void> | void;
   whatsappConnection: OwnerDashboard['whatsappConnection'] | null;
 }): ReactElement {
   const [filters, setFilters] = useState<InboxListFilters>(defaultInboxFilters);
@@ -97,10 +114,88 @@ export function InboxScreen(props: {
     () => filterInboxConversations(props.conversations, filters),
     [filters, props.conversations],
   );
-  const openCount = openConversationCount(props.conversations);
   const setHeaderCollapsedFromScroll = useHeaderCollapseOnScroll();
   const insets = useSafeAreaInsets();
   const bottomClearance = getBottomNavClearance(insets.bottom);
+
+  const runAction = useCallback(
+    async (action: () => Promise<void>, errorTitle: string): Promise<void> => {
+      try {
+        await action();
+        await props.onReload?.();
+      } catch (error) {
+        Alert.alert(errorTitle, error instanceof Error ? error.message : 'Error desconocido');
+      }
+    },
+    [props],
+  );
+
+  function openConversationMenu(conversation: InboxConversationSummary): void {
+    const archived = Boolean(conversation.archivedAt || conversation.status === 'closed');
+    Alert.alert(conversationDisplayName(conversation), undefined, [
+      {
+        text: 'Marcar como no leído',
+        onPress: () => {
+          void runAction(() => markConversationUnread(conversation.id), 'No se pudo marcar');
+        },
+      },
+      {
+        text: archived ? 'Desarchivar' : 'Archivar',
+        onPress: () => {
+          void runAction(
+            () =>
+              archived
+                ? unarchiveConversation(conversation.id)
+                : archiveConversation(conversation.id),
+            'No se pudo archivar',
+          );
+        },
+      },
+      {
+        text: 'Vaciar chat',
+        onPress: () => {
+          Alert.alert(
+            'Vaciar chat',
+            'Se van a ocultar los mensajes de este chat para tu negocio. El chat sigue abierto.',
+            [
+              { text: 'Cancelar', style: 'cancel' },
+              {
+                text: 'Vaciar',
+                style: 'destructive',
+                onPress: () => {
+                  void runAction(
+                    () => clearConversationMessages(conversation.id),
+                    'No se pudo vaciar',
+                  );
+                },
+              },
+            ],
+          );
+        },
+      },
+      {
+        text: 'Eliminar chat',
+        style: 'destructive',
+        onPress: () => {
+          Alert.alert(
+            'Eliminar chat',
+            'El chat se oculta de todos los filtros para tu negocio. No borra el historial del cliente en WhatsApp.',
+            [
+              { text: 'Cancelar', style: 'cancel' },
+              {
+                text: 'Eliminar',
+                style: 'destructive',
+                onPress: () => {
+                  void runAction(() => deleteConversation(conversation.id), 'No se pudo eliminar');
+                },
+              },
+            ],
+          );
+        },
+      },
+      { text: 'Cancelar', style: 'cancel' },
+    ]);
+  }
 
   return (
     <ScreenContent disableScroll title="Chats">
@@ -155,29 +250,45 @@ export function InboxScreen(props: {
                 showFilter
               />
             </FeatureGate>
-
-            <FeatureGate feature="inboxTabs">
-              <View style={styles.statusTabs}>
-                <Text style={styles.activeStatusTab}>Abiertos {openCount}</Text>
-                <Text style={styles.statusTab}>
-                  {filters.channel === 'all' ? 'Todos los canales' : filters.channel}
-                </Text>
-              </View>
-            </FeatureGate>
           </View>
         }
-        renderItem={({ item: conversation, index }) => (
-          <ConversationRow
-            avatar={conversationAvatarLabel(conversation)}
-            channel={conversation.channel as Channel}
-            name={conversationDisplayName(conversation)}
-            onPress={() => props.onOpenConversation(conversation.id)}
-            preview={conversationPreview(conversation)}
-            showDivider={index < filteredConversations.length - 1}
-            statusLabel={leadStatusLabel(conversation.contact.leadStatus)}
-            time={formatConversationTime(conversation.lastMessageAt)}
-          />
-        )}
+        renderItem={({ item: conversation, index }) => {
+          const archived = Boolean(conversation.archivedAt || conversation.status === 'closed');
+          return (
+            <SwipeableChatRow
+              archived={archived}
+              onArchive={() => {
+                void runAction(() => archiveConversation(conversation.id), 'No se pudo archivar');
+              }}
+              onLongPress={() => openConversationMenu(conversation)}
+              onMore={() => openConversationMenu(conversation)}
+              onUnarchive={() => {
+                void runAction(
+                  () => unarchiveConversation(conversation.id),
+                  'No se pudo desarchivar',
+                );
+              }}
+              onUnread={() => {
+                void runAction(
+                  () => markConversationUnread(conversation.id),
+                  'No se pudo marcar',
+                );
+              }}
+            >
+              <ConversationRow
+                avatar={conversationAvatarLabel(conversation)}
+                channel={conversation.channel as Channel}
+                name={conversationDisplayName(conversation)}
+                onPress={() => props.onOpenConversation(conversation.id)}
+                preview={conversationPreview(conversation)}
+                showDivider={index < filteredConversations.length - 1}
+                statusLabel={leadStatusLabel(conversation.contact.leadStatus)}
+                time={formatConversationTime(conversation.lastMessageAt)}
+                unreadCount={conversation.unreadCount || undefined}
+              />
+            </SwipeableChatRow>
+          );
+        }}
         onScroll={(event: NativeSyntheticEvent<NativeScrollEvent>) => {
           setHeaderCollapsedFromScroll(event.nativeEvent.contentOffset.y);
         }}
@@ -272,13 +383,23 @@ export function ConversationDetailScreen(props: {
   displayPhoneNumber?: string | null;
   isLoading: boolean;
   messages: WhatsAppMessagePreview[];
+  onAddDeviceContact?: () => void;
   onBack: () => void;
+  onMessageLongPress?: (message: WhatsAppMessagePreview) => void;
+  onSendAudio?: (params: {
+    audioBase64: string;
+    durationMs?: number;
+    mimeType?: string;
+  }) => Promise<void>;
   onSendImage?: (params: {
     caption?: string;
     imageBase64: string;
     mimeType?: string;
   }) => Promise<void>;
   onSendReply?: (body: string) => Promise<void>;
+  phoneNumber?: string | null;
+  replySeed?: string | null;
+  showAddContact?: boolean;
   statusLabel?: string;
   threadAvatar?: string;
 }): ReactElement {
@@ -292,13 +413,33 @@ export function ConversationDetailScreen(props: {
     uri: string;
   } | null>(null);
   const [stickToBottom, setStickToBottom] = useState(true);
+  const [isRecordingVoice, setIsRecordingVoice] = useState(false);
+  const [recordingStartedAt, setRecordingStartedAt] = useState<number | null>(null);
   const messagesScrollRef = useRef<ScrollView>(null);
+  const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const recorderState = useAudioRecorderState(audioRecorder);
   const androidKeyboardHeight = useAndroidKeyboardHeight();
   useHeaderScreenOptions({
     forceCollapsed: true,
     onBack: props.onBack,
     title: props.customerName || props.displayPhoneNumber || 'Chat',
   });
+
+  useEffect(() => {
+    if (!props.replySeed) {
+      return;
+    }
+    const separator = props.replySeed.indexOf('|');
+    const quote =
+      separator >= 0 ? props.replySeed.slice(separator + 1) : props.replySeed;
+    if (!quote.trim()) {
+      return;
+    }
+    setDraft((current) => {
+      const prefix = `> ${quote}\n\n`;
+      return current.startsWith(prefix) ? current : `${prefix}${current}`;
+    });
+  }, [props.replySeed]);
 
   useEffect(() => {
     if (!stickToBottom) {
@@ -415,6 +556,76 @@ export function ConversationDetailScreen(props: {
     }
   }
 
+  const handleVoicePress = useCallback(async (): Promise<void> => {
+    if (props.composerBlockedMessage || !props.onSendAudio) {
+      return;
+    }
+
+    if (isRecordingVoice || recorderState.isRecording) {
+      try {
+        await audioRecorder.stop();
+        setIsRecordingVoice(false);
+        const uri = audioRecorder.uri;
+        if (!uri) {
+          throw new Error('No se pudo leer la nota de voz.');
+        }
+        const recorded = await readAudioAsBase64(uri);
+        const durationMs = recordingStartedAt
+          ? Math.max(500, Date.now() - recordingStartedAt)
+          : undefined;
+        setRecordingStartedAt(null);
+        setIsSending(true);
+        setSendError(null);
+        await props.onSendAudio({
+          audioBase64: recorded.base64,
+          durationMs,
+          mimeType: recorded.mimeType || guessAudioMimeType(uri),
+        });
+      } catch (error) {
+        setSendError(
+          error instanceof Error ? error.message : 'No se pudo enviar la nota de voz.',
+        );
+      } finally {
+        setIsSending(false);
+        setIsRecordingVoice(false);
+        setRecordingStartedAt(null);
+      }
+      return;
+    }
+
+    try {
+      const permission = await requestRecordingPermissionsAsync();
+      if (!permission.granted) {
+        showPermissionDeniedAlert('microphone', {
+          canAskAgain: permission.canAskAgain !== false,
+        });
+        return;
+      }
+      await setAudioModeAsync({
+        allowsRecording: true,
+        playsInSilentMode: true,
+      });
+      await audioRecorder.prepareToRecordAsync();
+      audioRecorder.record();
+      setRecordingStartedAt(Date.now());
+      setIsRecordingVoice(true);
+      setSendError(null);
+    } catch (error) {
+      setIsRecordingVoice(false);
+      setRecordingStartedAt(null);
+      Alert.alert(
+        'Micrófono',
+        error instanceof Error ? error.message : 'No se pudo iniciar la grabación.',
+      );
+    }
+  }, [
+    audioRecorder,
+    isRecordingVoice,
+    props,
+    recorderState.isRecording,
+    recordingStartedAt,
+  ]);
+
   const canSend = Boolean(
     (pendingImage && props.onSendImage) || (draft.trim() && props.onSendReply),
   );
@@ -440,6 +651,11 @@ export function ConversationDetailScreen(props: {
           <Text style={styles.backText}>‹</Text>
         </Pressable>
         {props.statusLabel ? <Text style={styles.leadBadge}>{props.statusLabel}</Text> : null}
+        {props.showAddContact && props.onAddDeviceContact ? (
+          <Pressable hitSlop={8} onPress={props.onAddDeviceContact} style={styles.addContactButton}>
+            <Text style={styles.addContactText}>Agregar contacto</Text>
+          </Pressable>
+        ) : null}
       </View>
       <View style={styles.detailBody}>
         <FeatureGate feature="chatMessages">
@@ -463,9 +679,14 @@ export function ConversationDetailScreen(props: {
             {props.messages.map((message) => (
               <MessageBubble
                 direction={message.direction === 'outbound' ? 'outbound' : 'inbound'}
+                editedAt={message.editedAt}
                 key={message.id}
+                linkPreview={message.linkPreview}
+                mediaMimeType={message.mediaMimeType}
                 mediaStoragePath={message.mediaStoragePath}
                 mediaUrl={message.mediaUrl}
+                messageType={message.messageType}
+                onLongPress={() => props.onMessageLongPress?.(message)}
                 text={messageBubbleText(message)}
                 time={messageBubbleTime(message)}
               />
@@ -480,7 +701,9 @@ export function ConversationDetailScreen(props: {
         ) : null}
         <ReplyComposer
           attachmentMenuOpen={attachmentMenuOpen}
+          canUseVoice={Boolean(props.onSendAudio && !props.composerBlockedMessage)}
           editable={!props.composerBlockedMessage}
+          isRecordingVoice={isRecordingVoice || recorderState.isRecording}
           isSending={isSending}
           onChangeText={setDraft}
           onClearPendingImage={() => setPendingImage(null)}
@@ -505,15 +728,25 @@ export function ConversationDetailScreen(props: {
                   setAttachmentMenuOpen((open) => !open);
                 }
           }
+          onPressVoice={
+            props.onSendAudio && !props.composerBlockedMessage
+              ? () => {
+                  void handleVoicePress();
+                }
+              : undefined
+          }
           onSend={canSend && !props.composerBlockedMessage ? handleSend : undefined}
           pendingImageHint="Foto lista. Escribí un texto (opcional) y enviá."
           pendingImageUri={pendingImage?.uri ?? null}
           placeholder={
             props.composerBlockedMessage
               ? 'Respuesta no disponible'
-              : 'Escribi un mensaje...'
+              : isRecordingVoice
+                ? 'Grabando nota de voz…'
+                : 'Escribi un mensaje...'
           }
           value={draft}
+          voiceMode="voice-note"
         />
       </FeatureGate>
     </KeyboardAvoidingView>
@@ -590,6 +823,16 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingHorizontal: 8,
     paddingVertical: 4,
+  },
+  addContactButton: {
+    marginLeft: 'auto',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  addContactText: {
+    color: colors.primary,
+    fontSize: 14,
+    fontWeight: '600',
   },
   chip: {
     backgroundColor: colors.surfaceMint,

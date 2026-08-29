@@ -65,6 +65,7 @@ export default function AppointmentsRoute(): ReactElement {
   return (
     <AppointmentsScreen
       appointments={appointmentsState.appointments}
+      businessCenterId={businessCenterId}
       currentUserId={currentUserId}
       isLoading={appointmentsState.isLoading}
       isSaving={appointmentsState.isSaving}
@@ -73,6 +74,7 @@ export default function AppointmentsRoute(): ReactElement {
         router.push(appointmentDetailRoute(appointmentId, 'agenda'))
       }
       onOpenCopi={() => router.push(routes.appCopiChat)}
+      organizationId={organizationId}
       organizers={organizers}
     />
   );

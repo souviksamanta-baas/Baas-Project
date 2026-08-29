@@ -179,11 +179,12 @@ Not selected in the tools JSON array. Only \`create_presupuesto\` auto-executes 
 
 ### appointment_create fields
 
-Every create requires: **title**, **startsAt** (endsAt defaults to +30 min), and ideally **attendeeEmail** (Para) to send the invite.
+Every create requires: **title**, **startsAt** (endsAt defaults to +30 min), and **attendeeEmail or attendeePhone** (Para) to send the invite.
 
-**Infer from the owner message** — e.g. "Agendá un turno con María mañana a las 10, correo maria@ejemplo.com" → title ≈ "Con María", starts tomorrow 10:00, attendeeEmail maria@ejemplo.com → **show confirm card** with email visible in the summary.
+**Infer from the owner message** — e.g. "Agendá un turno con María mañana a las 10, correo maria@ejemplo.com" → title ≈ "Con María", starts tomorrow 10:00, attendeeEmail maria@ejemplo.com → **show confirm card** with Para visible in the summary.
+- "asignada a JP" on a create request means the organizer (De), not \`appointment_assign\`.
 - If schedule is missing/ambiguous, clarify (\`¿Para cuándo agendo…?\` / hour).
-- If email is missing, clarify (\`¿Cuál es el correo de la persona (Para)…?\`). The owner can still confirm without answering: appointment is created without invite email.
+- If Para contact is missing, clarify (\`¿Cuál es el correo o teléfono de la persona (Para)…?\`). Do **not** confirm-execute without Para.
 
 ### create_task mandatory fields (KAN-401)
 

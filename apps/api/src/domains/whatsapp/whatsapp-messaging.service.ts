@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 
 import { SupabaseService } from '../../supabase/supabase.service';
+import { WhatsAppConversationMessageRepository } from './whatsapp-conversation-message.repository';
 import {
   WhatsAppOutboundMessageService,
   type SendWhatsAppTextMessageResult,
@@ -34,11 +35,46 @@ export interface SendConversationImageMessageParams {
   organizationId: string;
 }
 
+export interface SendConversationAudioMessageParams {
+  audioBase64: string;
+  authorizationHeader: string | undefined;
+  businessCenterId: string;
+  conversationId: string;
+  durationMs?: number | null;
+  mimeType?: string | null;
+  organizationId: string;
+}
+
+export interface EditConversationMessageParams {
+  authorizationHeader: string | undefined;
+  body: string;
+  businessCenterId: string;
+  messageId: string;
+  organizationId: string;
+}
+
+export interface ReactToConversationMessageParams {
+  authorizationHeader: string | undefined;
+  businessCenterId: string;
+  emoji: string;
+  messageId: string;
+  organizationId: string;
+}
+
+export interface ForwardConversationMessageParams {
+  authorizationHeader: string | undefined;
+  businessCenterId: string;
+  messageId: string;
+  organizationId: string;
+  targetConversationId: string;
+}
+
 @Injectable()
 export class WhatsAppMessagingService {
   constructor(
     private readonly supabaseService: SupabaseService,
     private readonly outboundMessageService: WhatsAppOutboundMessageService,
+    private readonly messageRepository: WhatsAppConversationMessageRepository,
   ) {}
 
   async sendConversationTextMessage(
@@ -95,6 +131,152 @@ export class WhatsAppMessagingService {
       mimeType: params.mimeType,
       organizationId: conversation.organization_id,
       recipientPhone: conversation.external_contact_id,
+    });
+  }
+
+  async sendConversationAudioMessage(
+    params: SendConversationAudioMessageParams,
+  ): Promise<SendWhatsAppTextMessageResult> {
+    if (!params.audioBase64?.trim()) {
+      throw new Error('audioBase64 is required');
+    }
+
+    await this.assertMember({
+      authorizationHeader: params.authorizationHeader,
+      organizationId: params.organizationId,
+    });
+
+    const conversation = await this.getConversation({
+      businessCenterId: params.businessCenterId,
+      conversationId: params.conversationId,
+      organizationId: params.organizationId,
+    });
+
+    return this.outboundMessageService.sendAudioMessage({
+      audioBase64: params.audioBase64,
+      businessCenterId: conversation.business_center_id,
+      conversationId: params.conversationId,
+      durationMs: params.durationMs,
+      mimeType: params.mimeType,
+      organizationId: conversation.organization_id,
+      recipientPhone: conversation.external_contact_id,
+    });
+  }
+
+  async editConversationMessage(
+    params: EditConversationMessageParams,
+  ): Promise<{ status: 'edited' }> {
+    await this.assertMember({
+      authorizationHeader: params.authorizationHeader,
+      organizationId: params.organizationId,
+    });
+
+    return this.outboundMessageService.editTextMessage({
+      body: params.body,
+      businessCenterId: params.businessCenterId,
+      messageId: params.messageId,
+      organizationId: params.organizationId,
+    });
+  }
+
+  async reactToConversationMessage(
+    params: ReactToConversationMessageParams,
+  ): Promise<{ status: 'reacted' }> {
+    await this.assertMember({
+      authorizationHeader: params.authorizationHeader,
+      organizationId: params.organizationId,
+    });
+
+    const message = await this.messageRepository.getMessageById({
+      businessCenterId: params.businessCenterId,
+      messageId: params.messageId,
+      organizationId: params.organizationId,
+    });
+    if (!message) {
+      throw new Error('Message not found');
+    }
+
+    const conversation = await this.getConversation({
+      businessCenterId: params.businessCenterId,
+      conversationId: message.conversationId,
+      organizationId: params.organizationId,
+    });
+
+    return this.outboundMessageService.reactToMessage({
+      businessCenterId: params.businessCenterId,
+      emoji: params.emoji,
+      messageId: params.messageId,
+      organizationId: params.organizationId,
+      recipientPhone: conversation.external_contact_id,
+    });
+  }
+
+  async forwardConversationMessage(
+    params: ForwardConversationMessageParams,
+  ): Promise<SendWhatsAppTextMessageResult> {
+    await this.assertMember({
+      authorizationHeader: params.authorizationHeader,
+      organizationId: params.organizationId,
+    });
+
+    const message = await this.messageRepository.getMessageById({
+      businessCenterId: params.businessCenterId,
+      messageId: params.messageId,
+      organizationId: params.organizationId,
+    });
+    if (!message) {
+      throw new Error('Message not found');
+    }
+
+    const target = await this.getConversation({
+      businessCenterId: params.businessCenterId,
+      conversationId: params.targetConversationId,
+      organizationId: params.organizationId,
+    });
+
+    if (message.messageType === 'audio' && message.mediaUrl) {
+      const audioResponse = await fetch(message.mediaUrl);
+      if (!audioResponse.ok) {
+        throw new Error('No se pudo leer el audio a reenviar');
+      }
+      const buffer = Buffer.from(await audioResponse.arrayBuffer());
+      return this.outboundMessageService.sendAudioMessage({
+        audioBase64: buffer.toString('base64'),
+        businessCenterId: target.business_center_id,
+        conversationId: params.targetConversationId,
+        mimeType: message.mediaMimeType,
+        organizationId: target.organization_id,
+        recipientPhone: target.external_contact_id,
+      });
+    }
+
+    if (message.messageType === 'image' && message.mediaUrl) {
+      const imageResponse = await fetch(message.mediaUrl);
+      if (!imageResponse.ok) {
+        throw new Error('No se pudo leer la imagen a reenviar');
+      }
+      const buffer = Buffer.from(await imageResponse.arrayBuffer());
+      return this.outboundMessageService.sendImageMessage({
+        body: message.body,
+        businessCenterId: target.business_center_id,
+        conversationId: params.targetConversationId,
+        imageBase64: buffer.toString('base64'),
+        mimeType: message.mediaMimeType,
+        organizationId: target.organization_id,
+        recipientPhone: target.external_contact_id,
+      });
+    }
+
+    const body = (message.body ?? '').trim();
+    if (!body) {
+      throw new Error('No hay contenido para reenviar');
+    }
+
+    return this.outboundMessageService.sendTextMessage({
+      body,
+      businessCenterId: target.business_center_id,
+      organizationId: target.organization_id,
+      recipientPhone: target.external_contact_id,
     });
   }
 

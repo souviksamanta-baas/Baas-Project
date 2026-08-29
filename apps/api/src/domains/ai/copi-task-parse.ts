@@ -80,9 +80,15 @@ export function buildCreateTaskPayload(
 
 const APPOINTMENT_DURATION_MS = 30 * 60 * 1000;
 const EMAIL_PATTERN = /\b([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})\b/i;
+const PHONE_PATTERN =
+  /(?:\+?\d{1,3}[\s.-]?)?(?:\(?\d{2,4}\)?[\s.-]?)?\d{3,4}[\s.-]?\d{3,4}\b/;
+const APPOINTMENT_ASSIGNEE_PATTERN =
+  /\b(?:asignad[oa]|asignar|asignalo|asignala|as[ií]gnalo|as[ií]gnala)\s+a\s+([a-záéíóúñü][\wáéíóúñü'.-]{0,40})\b/i;
 
 export type ParsedAppointmentRequest = {
+  assigneeName: string | null;
   attendeeEmail: string | null;
+  attendeePhone: string | null;
   clarificationQuestions: string[];
   endsAt: string | null;
   startsAt: string | null;
@@ -90,13 +96,16 @@ export type ParsedAppointmentRequest = {
 };
 
 /**
- * Parses a Copi "create appointment" message into title, schedule, and Para email.
+ * Parses a Copi "create appointment" message into title, schedule, and Para contact.
  */
 export function parseCreateAppointmentRequest(
   question: string,
   timezone: string,
 ): ParsedAppointmentRequest {
   const attendeeEmail = extractAttendeeEmail(question);
+  const attendeePhone = attendeeEmail ? null : extractAttendeePhone(question);
+  const assigneeMatch = question.match(APPOINTMENT_ASSIGNEE_PATTERN);
+  const assigneeName = assigneeMatch?.[1]?.trim() ?? null;
   const schedule = inferTaskSchedule(question, timezone);
   const startsAt = schedule.dueAt;
   const endsAt = startsAt
@@ -112,14 +121,16 @@ export function parseCreateAppointmentRequest(
         : `¿Para cuándo agendo «${title}»?`,
     );
   }
-  if (!attendeeEmail) {
+  if (!attendeeEmail && !attendeePhone) {
     clarificationQuestions.push(
-      `¿Cuál es el correo de la persona (Para) para enviar la invitación de «${title}»?`,
+      `¿Cuál es el correo o teléfono de la persona (Para) para enviar la invitación de «${title}»?`,
     );
   }
 
   return {
+    assigneeName,
     attendeeEmail,
+    attendeePhone,
     clarificationQuestions,
     endsAt,
     startsAt,
@@ -133,7 +144,9 @@ export function buildCreateAppointmentPayload(
 ): Record<string, unknown> {
   const parsed = parseCreateAppointmentRequest(question, timezone);
   return {
+    assigneeName: parsed.assigneeName,
     attendeeEmail: parsed.attendeeEmail,
+    attendeePhone: parsed.attendeePhone,
     clarificationQuestions: parsed.clarificationQuestions,
     endsAt: parsed.endsAt,
     question,
@@ -154,9 +167,22 @@ export function summarizeCreateAppointmentPayload(payload: Record<string, unknow
       : ' · horario a confirmar';
   const email =
     typeof payload.attendeeEmail === 'string' && payload.attendeeEmail.trim()
-      ? ` · Para: ${payload.attendeeEmail.trim().toLowerCase()}`
-      : ' · sin correo de invitación';
-  return `Crear turno: ${title}${startsAt}${email}`;
+      ? payload.attendeeEmail.trim().toLowerCase()
+      : null;
+  const phone =
+    typeof payload.attendeePhone === 'string' && payload.attendeePhone.trim()
+      ? payload.attendeePhone.trim()
+      : null;
+  const para = email
+    ? ` · Para: ${email}`
+    : phone
+      ? ` · Para: ${phone}`
+      : ' · falta correo o teléfono (Para)';
+  const assignee =
+    typeof payload.assigneeName === 'string' && payload.assigneeName.trim()
+      ? ` · De: ${payload.assigneeName.trim()}`
+      : '';
+  return `Crear turno: ${title}${startsAt}${para}${assignee}`;
 }
 
 function extractAttendeeEmail(question: string): string | null {
@@ -165,6 +191,20 @@ function extractAttendeeEmail(question: string): string | null {
     return null;
   }
   return match[1].trim().toLowerCase();
+}
+
+function extractAttendeePhone(question: string): string | null {
+  const withoutEmail = question.replace(EMAIL_PATTERN, ' ');
+  const match = withoutEmail.match(PHONE_PATTERN);
+  if (!match?.[0]) {
+    return null;
+  }
+  const digits = match[0].replace(/\D/g, '');
+  // Avoid matching bare times like "10" from "a las 10".
+  if (digits.length < 8) {
+    return null;
+  }
+  return match[0].trim();
 }
 
 function cleanAppointmentTitle(question: string, attendeeEmail: string | null): string {

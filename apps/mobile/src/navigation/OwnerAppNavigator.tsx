@@ -60,6 +60,7 @@ const legacyWhatsAppConnection: OwnerDashboard['whatsappConnection'] = {
 };
 
 const legacyInboxConversations: InboxConversationSummary[] = conversations.map((conversation) => ({
+  archivedAt: null,
   channel: conversation.channel,
   contact: {
     displayName: conversation.customerName,
@@ -67,9 +68,11 @@ const legacyInboxConversations: InboxConversationSummary[] = conversations.map((
     leadStatus: 'new',
     phoneNumber: null,
   },
+  deletedAt: null,
   externalContactId: conversation.id,
   id: conversation.id,
   lastMessageAt: null,
+  lastOwnerReadAt: null,
   latestMessage: {
     body: conversation.preview,
     conversationId: conversation.id,
@@ -84,7 +87,9 @@ const legacyInboxConversations: InboxConversationSummary[] = conversations.map((
     recipientPhone: null,
     senderPhone: null,
   },
+  messagesClearedAt: null,
   status: 'open',
+  unreadCount: 0,
 }));
 
 export type InventoryRoute =
@@ -376,12 +381,12 @@ export function OwnerAppNavigator(props: { onSignOut: () => void }): ReactElemen
                 fullName={ownerProfile.businessName}
                 onOpenEditProfile={() => undefined}
                 onOpenHelpSupport={() => undefined}
+                onOpenNegocios={() => undefined}
                 onOpenPrivacyData={() => undefined}
                 onOpenStaffInvite={() => undefined}
                 onOpenWhatsAppSetup={() => setRoute('account')}
                 onSignOut={props.onSignOut}
                 onUploadAvatar={async () => undefined}
-                organizationId={null}
                 role="owner"
                 timezoneLabel="Argentina / Cordoba"
                 whatsappConnection={legacyWhatsAppConnection}

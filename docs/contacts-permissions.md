@@ -1,14 +1,18 @@
 # Contacts Permission and Privacy
 
-Nexolia reads device contacts only when the owner explicitly opens the contact picker (staff invite, proveedores, or CRM contact creation).
+Nexolia reads device contacts when the owner opens the contact picker (staff
+invite, proveedores, CRM) and can **write** a single contact when using
+**Agregar contacto** in a WhatsApp thread (device phonebook only — no new CRM
+store).
 
 ## Behavior
 
-- Permission is requested on first use via `expo-contacts` (`requestPermissionsAsync`)
-- Contacts are loaded with the class API: `Contact.getAllDetails([FULL_NAME, PHONES])`
-  (no hard limit; do not call deprecated `getContactsAsync` from the root package — it throws)
-- If denied, the user can still type a phone number manually
-- Only the **selected** contact name and phone are sent to the API
+- Permission is requested on first use via `expo-contacts`
+  (`requestPermissionsAsync`)
+- Read path uses the contacts API for pickers / “is this number already saved?”
+- **Agregar contacto** calls `Contacts.addContactAsync` with display name + phone
+- If denied, the user can still type a phone number manually where pickers apply
+- Only the **selected** contact name and phone are sent to Nexolia APIs
 - The full address book is never uploaded to Nexolia servers
 
 ## Staff invite
@@ -28,9 +32,10 @@ when importing a vendor from the phone book. Normalize Argentina formats (`011�
 
 - **iOS / Android:** contacts permission copy is set in `apps/mobile/app.json`
   (`expo-contacts` plugin)
-- **Web:** contact picker is unavailable; manual entry only
+- **Web:** contact picker / write are unavailable; manual entry only
 
 ## Android
 
-The app reads contacts only. `android.permission.WRITE_CONTACTS` is blocked in
-`apps/mobile/app.json` (`blockedPermissions`) so the contact picker cannot request write access.
+`android.permission.READ_CONTACTS` and `android.permission.WRITE_CONTACTS` are
+declared in `apps/mobile/app.json` so Chats can save a number to the device
+phonebook. WRITE is only used for **Agregar contacto** (user-initiated).

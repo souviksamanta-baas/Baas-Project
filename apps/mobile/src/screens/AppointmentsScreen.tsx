@@ -15,10 +15,16 @@ import {
   openAppointmentWhatsAppInvite,
   sendAppointmentInviteEmail,
 } from '../api/appointmentInvites';
+import { getAssigneesAvailability } from '../api/appointments';
 import { ActionRow, Card, ScreenContent, ScreenTitle } from '../components/ui';
 import { MobileContainedModal } from '../components/MobileContainedModal';
 import { Icon } from '../components/icons';
 import { GhostButton, PrimaryButton, TextField } from '../design-system';
+import {
+  assigneeAvailabilityAt,
+  availabilityLabel,
+  type AssigneeAvailability,
+} from '../lib/appointmentAvailability';
 import { normalizeEmail } from '../services/email';
 import { normalizePhoneNumber } from '../services/phone';
 import type { Appointment, AppointmentInput, AppointmentOrganizer } from '../types/appointments';
@@ -38,12 +44,12 @@ type ComposeDraft = {
   notes: string;
   startsAt: Date;
   title: string;
-  toEmail: string;
-  toPhone: string;
+  toRecipient: string;
 };
 
 export function AppointmentsScreen(props: {
   appointments: Appointment[];
+  businessCenterId?: string | null;
   currentUserId?: string | null;
   isLoading?: boolean;
   isSaving?: boolean;
@@ -51,6 +57,7 @@ export function AppointmentsScreen(props: {
   onCreateAppointment: (input: AppointmentInput) => Promise<Appointment | null | false | void>;
   onOpenAppointment: (appointmentId: string) => void;
   onOpenCopi?: () => void;
+  organizationId?: string | null;
   organizers?: AppointmentOrganizer[];
 }): ReactElement {
   const now = props.now ?? new Date();
@@ -106,8 +113,7 @@ export function AppointmentsScreen(props: {
       notes: '',
       startsAt,
       title: '',
-      toEmail: '',
-      toPhone: '',
+      toRecipient: '',
     });
   }
 
@@ -122,15 +128,15 @@ export function AppointmentsScreen(props: {
     if (draft.endsAt.getTime() <= draft.startsAt.getTime()) {
       return;
     }
-    const attendeeEmail = draft.toEmail.trim() ? normalizeEmail(draft.toEmail) : null;
-    if (draft.toEmail.trim() && !attendeeEmail) {
-      return;
-    }
-    const attendeePhone = draft.toPhone.trim()
-      ? normalizePhoneNumber(draft.toPhone)
-      : null;
-    if (draft.toPhone.trim() && !attendeePhone) {
-      Alert.alert('Teléfono inválido', 'Ingresá el número como +54911… o 011….');
+    const recipient = draft.toRecipient.trim();
+    const attendeeEmail = recipient.includes('@') ? normalizeEmail(recipient) : null;
+    const attendeePhone =
+      !attendeeEmail && recipient ? normalizePhoneNumber(recipient) : null;
+    if (recipient && !attendeeEmail && !attendeePhone) {
+      Alert.alert(
+        'Destinatario inválido',
+        'Ingresá un correo (nombre@correo.com) o un teléfono (+54911…).',
+      );
       return;
     }
 
@@ -139,6 +145,7 @@ export function AppointmentsScreen(props: {
     const created = await props.onCreateAppointment({
       assignedToUserId: draft.fromUserId,
       attendeeEmail,
+      attendeePhone,
       endsAt: draft.endsAt.toISOString(),
       fromLabel,
       notes: draft.notes.trim() || null,
@@ -292,12 +299,15 @@ export function AppointmentsScreen(props: {
       </Card>
 
       <ComposeAppointmentModal
+        appointments={props.appointments}
+        businessCenterId={props.businessCenterId ?? null}
         currentUserId={props.currentUserId ?? null}
         draft={draft}
         isSaving={props.isSaving === true}
         onChange={setDraft}
         onClose={() => setDraft(null)}
         onSave={() => void saveDraft()}
+        organizationId={props.organizationId ?? null}
         organizers={organizers}
       />
     </ScreenContent>
@@ -440,18 +450,25 @@ function DayTimeline(props: {
 }
 
 function ComposeAppointmentModal(props: {
+  appointments: Appointment[];
+  businessCenterId: string | null;
   currentUserId: string | null;
   draft: ComposeDraft | null;
   isSaving: boolean;
   onChange: (draft: ComposeDraft | null) => void;
   onClose: () => void;
   onSave: () => void;
+  organizationId: string | null;
   organizers: AppointmentOrganizer[];
 }): ReactElement {
   const [titleFocused, setTitleFocused] = useState(false);
   const [toFocused, setToFocused] = useState(false);
   const [notesFocused, setNotesFocused] = useState(false);
   const [fromPickerOpen, setFromPickerOpen] = useState(false);
+  const [liveAvailability, setLiveAvailability] = useState<Record<
+    string,
+    AssigneeAvailability
+  > | null>(null);
 
   useEffect(() => {
     if (!props.draft) {
@@ -459,13 +476,84 @@ function ComposeAppointmentModal(props: {
       setToFocused(false);
       setNotesFocused(false);
       setFromPickerOpen(false);
+      setLiveAvailability(null);
     }
   }, [props.draft]);
 
+  const organizerIdsKey = props.organizers.map((member) => member.userId).join(',');
+  const draftStartsKey = props.draft?.startsAt.toISOString() ?? '';
+  const draftEndsKey = props.draft?.endsAt.toISOString() ?? '';
+
+  useEffect(() => {
+    if (!props.draft || !props.organizationId || !props.businessCenterId) {
+      setLiveAvailability(null);
+      return;
+    }
+
+    const userIds = props.organizers.map((member) => member.userId);
+    if (userIds.length === 0) {
+      setLiveAvailability(null);
+      return;
+    }
+
+    let cancelled = false;
+    setLiveAvailability(null);
+    void getAssigneesAvailability(props.organizationId, props.businessCenterId, {
+      endsAt: props.draft.endsAt.toISOString(),
+      startsAt: props.draft.startsAt.toISOString(),
+      userIds,
+    })
+      .then((next) => {
+        if (!cancelled) {
+          setLiveAvailability(next);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setLiveAvailability(null);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    draftEndsKey,
+    draftStartsKey,
+    organizerIdsKey,
+    props.businessCenterId,
+    props.draft,
+    props.organizationId,
+    props.organizers,
+  ]);
+
+  function availabilityFor(userId: string): AssigneeAvailability {
+    if (liveAvailability?.[userId]) {
+      return liveAvailability[userId]!;
+    }
+    if (!props.draft) {
+      return 'available';
+    }
+    return assigneeAvailabilityAt({
+      appointments: props.appointments,
+      endsAt: props.draft.endsAt,
+      startsAt: props.draft.startsAt,
+      userId,
+    });
+  }
+
   const selectedOrganizer =
     props.organizers.find((member) => member.userId === props.draft?.fromUserId) ?? null;
-  const toEmailInvalid =
-    Boolean(props.draft?.toEmail.trim()) && normalizeEmail(props.draft?.toEmail ?? '') == null;
+  const selectedAvailability = props.draft?.fromUserId
+    ? availabilityFor(props.draft.fromUserId)
+    : null;
+  const toRecipient = props.draft?.toRecipient.trim() ?? '';
+  const toRecipientLooksEmail = toRecipient.includes('@');
+  const toRecipientInvalid =
+    Boolean(toRecipient) &&
+    (toRecipientLooksEmail
+      ? normalizeEmail(toRecipient) == null
+      : normalizePhoneNumber(toRecipient) == null);
 
   return (
     <MobileContainedModal
@@ -496,6 +584,9 @@ function ComposeAppointmentModal(props: {
               <Text numberOfLines={1} style={styles.fromValue}>
                 {organizerLabel(selectedOrganizer, props.currentUserId, true)}
               </Text>
+              {selectedAvailability ? (
+                <AvailabilityBadge availability={selectedAvailability} />
+              ) : null}
               <Icon
                 color={colors.slate}
                 kind={fromPickerOpen ? 'chevron-up' : 'chevron-down'}
@@ -506,6 +597,7 @@ function ComposeAppointmentModal(props: {
             {fromPickerOpen
               ? props.organizers.map((member) => {
                   const selected = member.userId === props.draft!.fromUserId;
+                  const availability = availabilityFor(member.userId);
                   return (
                     <Pressable
                       key={member.userId}
@@ -515,11 +607,17 @@ function ComposeAppointmentModal(props: {
                       }}
                       style={[styles.fromOption, selected && styles.fromOptionSelected]}
                     >
-                      <Text
-                        style={[styles.fromOptionTitle, selected && styles.fromOptionTitleSelected]}
-                      >
-                        {organizerLabel(member, props.currentUserId, true)}
-                      </Text>
+                      <View style={styles.fromOptionHeader}>
+                        <Text
+                          style={[
+                            styles.fromOptionTitle,
+                            selected && styles.fromOptionTitleSelected,
+                          ]}
+                        >
+                          {organizerLabel(member, props.currentUserId, true)}
+                        </Text>
+                        <AvailabilityBadge availability={availability} />
+                      </View>
                       {member.email && member.userId !== props.currentUserId ? (
                         <Text style={styles.fromOptionEmail}>{member.email}</Text>
                       ) : null}
@@ -534,15 +632,17 @@ function ComposeAppointmentModal(props: {
               <TextField
                 autoCapitalize="none"
                 autoCorrect={false}
-                error={toEmailInvalid}
+                error={toRecipientInvalid}
                 focused={toFocused}
-                keyboardType="email-address"
-                label="Para (correo)"
+                keyboardType="default"
+                label="Para"
                 onBlur={() => setToFocused(false)}
-                onChangeText={(toEmail) => props.onChange({ ...props.draft!, toEmail })}
+                onChangeText={(toRecipientValue) =>
+                  props.onChange({ ...props.draft!, toRecipient: toRecipientValue })
+                }
                 onFocus={() => setToFocused(true)}
-                placeholder="nombre@correo.com"
-                value={props.draft.toEmail}
+                placeholder="correo o teléfono"
+                value={props.draft.toRecipient}
               />
             </View>
             <Pressable
@@ -553,7 +653,7 @@ function ComposeAppointmentModal(props: {
                   if (!permission.granted) {
                     Alert.alert(
                       'Contactos',
-                      'Necesitamos permiso para elegir un número de tu agenda.',
+                      'Necesitamos permiso para elegir un contacto de tu agenda.',
                     );
                     return;
                   }
@@ -567,8 +667,7 @@ function ComposeAppointmentModal(props: {
                     result.emails?.find((entry) => entry.email)?.email?.trim() ?? '';
                   props.onChange({
                     ...props.draft!,
-                    ...(email ? { toEmail: email } : {}),
-                    ...(phone ? { toPhone: phone } : {}),
+                    toRecipient: email || phone,
                   });
                 })();
               }}
@@ -577,16 +676,6 @@ function ComposeAppointmentModal(props: {
               <Icon color={colors.primary} kind="user" size={18} strokeWidth={1.8} />
             </Pressable>
           </View>
-
-          <TextField
-            autoCapitalize="none"
-            autoCorrect={false}
-            keyboardType="phone-pad"
-            label="Para (WhatsApp)"
-            onChangeText={(toPhone) => props.onChange({ ...props.draft!, toPhone })}
-            placeholder="+54911…"
-            value={props.draft.toPhone}
-          />
 
           <TextField
             focused={titleFocused}
@@ -654,7 +743,7 @@ function ComposeAppointmentModal(props: {
               disabled={
                 props.isSaving ||
                 props.draft.title.trim().length === 0 ||
-                toEmailInvalid
+                toRecipientInvalid
               }
               label={props.isSaving ? 'Guardando…' : 'Guardar'}
               onPress={props.onSave}
@@ -663,6 +752,17 @@ function ComposeAppointmentModal(props: {
         </ScrollView>
       ) : null}
     </MobileContainedModal>
+  );
+}
+
+function AvailabilityBadge(props: { availability: AssigneeAvailability }): ReactElement {
+  const busy = props.availability === 'busy';
+  return (
+    <View style={[styles.availabilityBadge, busy && styles.availabilityBadgeBusy]}>
+      <Text style={[styles.availabilityBadgeText, busy && styles.availabilityBadgeTextBusy]}>
+        {availabilityLabel(props.availability)}
+      </Text>
+    </View>
   );
 }
 
@@ -835,6 +935,23 @@ const styles = StyleSheet.create({
     minHeight: 44,
     paddingHorizontal: 12,
   },
+  availabilityBadge: {
+    backgroundColor: colors.badgeGreenBg,
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  availabilityBadgeBusy: {
+    backgroundColor: colors.badgeOrangeBg,
+  },
+  availabilityBadgeText: {
+    color: colors.primary,
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  availabilityBadgeTextBusy: {
+    color: colors.warning,
+  },
   fromOption: {
     borderColor: colors.borderSoft,
     borderRadius: 10,
@@ -847,12 +964,19 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 2,
   },
+  fromOptionHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 8,
+    justifyContent: 'space-between',
+  },
   fromOptionSelected: {
     backgroundColor: colors.primarySoft,
     borderColor: colors.primary,
   },
   fromOptionTitle: {
     color: colors.navy,
+    flex: 1,
     fontSize: 15,
     fontWeight: '500',
   },

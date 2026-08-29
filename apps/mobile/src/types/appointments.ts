@@ -3,6 +3,7 @@ export type AppointmentStatus = 'scheduled' | 'completed' | 'cancelled';
 export interface Appointment {
   assignedToUserId: string | null;
   attendeeEmail: string | null;
+  attendeePhone: string | null;
   businessCenterId: string;
   contactId: string | null;
   contactLabel: string | null;
@@ -29,6 +30,7 @@ export interface AppointmentOrganizer {
 export interface AppointmentInput {
   assignedToUserId?: string | null;
   attendeeEmail?: string | null;
+  attendeePhone?: string | null;
   contactId?: string | null;
   endsAt: string;
   fromLabel?: string | null;

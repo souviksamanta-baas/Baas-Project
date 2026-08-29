@@ -211,6 +211,59 @@ export class AppointmentsService {
     return toAppointmentRecord(data as AppointmentRow);
   }
 
+  /**
+   * Marks each user as available or busy for [startsAt, endsAt) based on
+   * overlapping scheduled appointments (same assignee).
+   */
+  async getAssigneesAvailability(params: {
+    businessCenterId: string;
+    endsAt: string;
+    excludeAppointmentId?: string | null;
+    organizationId: string;
+    startsAt: string;
+    userIds: string[];
+  }): Promise<Array<{ availability: 'available' | 'busy'; userId: string }>> {
+    const userIds = [...new Set(params.userIds.filter(Boolean))];
+    const availability = new Map<string, 'available' | 'busy'>(
+      userIds.map((userId) => [userId, 'available']),
+    );
+
+    if (userIds.length === 0) {
+      return [];
+    }
+
+    const client = this.supabaseService.getServiceRoleClient();
+    let query = client
+      .from('appointments')
+      .select('id, assigned_to_user_id')
+      .eq('organization_id', params.organizationId)
+      .eq('business_center_id', params.businessCenterId)
+      .eq('status', 'scheduled')
+      .in('assigned_to_user_id', userIds)
+      .lt('starts_at', params.endsAt)
+      .gt('ends_at', params.startsAt);
+
+    if (params.excludeAppointmentId) {
+      query = query.neq('id', params.excludeAppointmentId);
+    }
+
+    const { data, error } = await query;
+    if (error) {
+      throw new Error(`Failed to check assignee availability: ${error.message}`);
+    }
+
+    for (const row of (data ?? []) as Array<{ assigned_to_user_id: string | null }>) {
+      if (row.assigned_to_user_id) {
+        availability.set(row.assigned_to_user_id, 'busy');
+      }
+    }
+
+    return userIds.map((userId) => ({
+      availability: availability.get(userId) ?? 'available',
+      userId,
+    }));
+  }
+
   async assignAppointment(params: {
     appointmentId: string;
     assignedToUserId: string;

@@ -313,6 +313,27 @@ not grow with every historical WhatsApp message ID. A bounded cache can still be
 added later as a performance hint, but persistent event storage remains the
 source of truth.
 
+## Owner message actions (Cloud API)
+
+Authenticated Nest routes under `/whatsapp/messages/*` (owner JWT):
+
+| Route | Behavior |
+| --- | --- |
+| `POST /whatsapp/messages/edit` | Meta edit for outbound text; sets `edited_at` + optional `link_preview` |
+| `POST /whatsapp/messages/react` | Meta reaction emoji on a message |
+| `POST /whatsapp/messages/send-audio` | Upload + send voice note (`message_type = audio`) |
+| `POST /whatsapp/messages/forward` | Resend text/image/audio into another org conversation |
+
+Conversation list actions (read / unread / archive / clear / soft-delete) are
+applied from the mobile client via Supabase RLS on `conversations`
+(`last_owner_read_at`, `archived_at`, `messages_cleared_at`, `deleted_at`).
+
+Outbound text messages with URLs store OG `link_preview` jsonb. Inbound text
+also attempts OG enrichment when a URL is present.
+
+On inbound, contacts that are `cold` with `cold_at` older than 365 days are
+promoted to `opportunity` (see `docs/crm-lead-status.md`).
+
 ## Local Commands
 
 Install dependencies:

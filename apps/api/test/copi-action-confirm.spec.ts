@@ -12,6 +12,14 @@ import {
 } from '../src/domains/ai/copi-task-parse';
 
 describe('inferCopiActionType', () => {
+  it('creates appointments even when the organizer is named with asignada a', () => {
+    expect(
+      inferCopiActionType(
+        'Crear una agenda con marisabel para mañana a las 10 de la mañana asignada a JP',
+      ),
+    ).toBe('appointment_create');
+  });
+
   it('prefers create_task when the message both creates tasks and mentions mañana', () => {
     const question =
       'Crear 3 tareas: 1. Para notificar a juli para retirar el pedido. 2. Tarea para crear paquetes de harina 500 gramos y asignarlo a neto, 3. Mañana por la mañana hacer pedido para comprar leche';
