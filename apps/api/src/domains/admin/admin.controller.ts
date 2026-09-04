@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -17,6 +18,7 @@ import {
 
 import { AdminGrokService } from './admin-grok.service';
 import { AdminLeadsService } from './admin-leads.service';
+import { AdminPasswordResetService } from './admin-password-reset.service';
 import {
   AdminDashboardService,
   AdminOrgsService,
@@ -381,7 +383,10 @@ export class AdminController {
 @ApiTags('Public')
 @Controller('public')
 export class PublicLeadsController {
-  constructor(private readonly leadsService: AdminLeadsService) {}
+  constructor(
+    private readonly leadsService: AdminLeadsService,
+    private readonly passwordResetService: AdminPasswordResetService,
+  ) {}
 
   @Post('leads')
   @HttpCode(200)
@@ -424,6 +429,22 @@ export class PublicLeadsController {
       id: created.id,
       status: 'new',
     };
+  }
+
+  @Post('admin/password-reset')
+  @HttpCode(200)
+  @ApiOperation({
+    summary: 'Request staff password reset email (Spanish, invite/staff only)',
+  })
+  @ApiOkResponse({ description: 'Always ok (no enumeration).' })
+  async requestAdminPasswordReset(@Body() body: { email?: string }) {
+    try {
+      return await this.passwordResetService.requestReset(body.email ?? '');
+    } catch (err) {
+      throw new BadRequestException(
+        err instanceof Error ? err.message : 'Ingresá un correo válido.',
+      );
+    }
   }
 }
 

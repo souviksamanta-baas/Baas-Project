@@ -34,6 +34,10 @@ refresh_token_reuse_interval = 10
 subject = "Tu código para ingresar a Nexolia"
 content_path = "./supabase/templates/magic_link.html"
 
+[auth.email.template.recovery]
+subject = "Restablecé tu contraseña de Nexolia Admin"
+content_path = "./supabase/templates/recovery.html"
+
 [auth.sms]
 enable_signup = true
 enable_confirmations = false

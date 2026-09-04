@@ -4,6 +4,7 @@ import { SupabaseService } from '../../supabase/supabase.service';
 import { AdminController, PublicLeadsController } from './admin.controller';
 import { AdminGrokService } from './admin-grok.service';
 import { AdminLeadsService } from './admin-leads.service';
+import { AdminPasswordResetService } from './admin-password-reset.service';
 import {
   AdminDashboardService,
   AdminOrgsService,
@@ -22,6 +23,7 @@ import { RegisteredOwnerClaimService } from './registered-owner-claim.service';
     AdminPaymentsService,
     AdminDashboardService,
     AdminGrokService,
+    AdminPasswordResetService,
     RegisteredOwnerClaimService,
   ],
   exports: [AdminLeadsService, RegisteredOwnerClaimService],
