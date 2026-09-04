@@ -1,12 +1,14 @@
 import type { ReactElement } from 'react';
 import { useState } from 'react';
-import { Alert, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Linking, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AuthScreenShell } from '../components/AuthScreenShell';
 import { PrimaryButton, SecondaryButton, colors, spacing, textStyles } from '../design-system';
 import { parseStaffInviteToken } from '../lib/staffInviteToken';
 import { BarcodeScannerScreen } from './BarcodeScannerScreen';
+
+const COMENZAR_URL = 'https://nexolia.com.ar/comenzar';
 
 export function WelcomeIntentScreen(props: {
   onCreateBusiness: () => void;
@@ -26,7 +28,19 @@ export function WelcomeIntentScreen(props: {
           label="Unirme con invitación (QR)"
           onPress={() => setScanning(true)}
         />
-        <SecondaryButton fullWidth label="Crear un negocio nuevo" onPress={props.onCreateBusiness} />
+        <SecondaryButton
+          fullWidth
+          label="Quiero registrar mi negocio"
+          onPress={() => {
+            void Linking.openURL(COMENZAR_URL).catch(() => {
+              props.onCreateBusiness();
+            });
+          }}
+        />
+        <Text style={styles.hint}>
+          El alta del negocio se hace en nexolia.com.ar. En la app solo ingresás si ya estás
+          registrado o tenés una invitación.
+        </Text>
         <Pressable onPress={props.onSignIn} style={styles.signIn}>
           <Text style={styles.signInText}>Ya tengo cuenta — Iniciar sesión</Text>
         </Pressable>
@@ -56,6 +70,12 @@ export function WelcomeIntentScreen(props: {
 }
 
 const styles = StyleSheet.create({
+  hint: {
+    ...textStyles.bodySm,
+    color: colors.textSecondary,
+    marginTop: spacing.sm,
+    textAlign: 'center',
+  },
   scanModal: {
     backgroundColor: colors.background,
     flex: 1,

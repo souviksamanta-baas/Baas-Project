@@ -12,6 +12,7 @@ features expand the API surface.
 
 | Module | Responsibility |
 | --- | --- |
+| `admin/` | Platform-staff operations for nexolia-web: leads, cross-tenant org CRUD, plans, license payments, registered owners, dashboard KPIs, Grok assistant proxy. Guarded by `nexolia_staff`. |
 | `organizations/` | Organization lookup, owner/staff membership use cases, verticals, business centers, settings, and tenant-level operations. |
 | `customers/` | Customer/contact identity, deduplication, and CRM profile use cases. |
 | `conversations/` | Conversation threads, message persistence, inbox state, and channel event normalization. |

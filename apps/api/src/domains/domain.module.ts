@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 
+import { AdminModule } from './admin/admin.module';
 import { AuthModule } from './auth/auth.module';
 import { AiModule } from './ai/ai.module';
 import { AppointmentsModule } from './appointments/appointments.module';
@@ -17,6 +18,7 @@ import { WhatsAppModule } from './whatsapp/whatsapp.module';
 
 @Module({
   imports: [
+    AdminModule,
     AuthModule,
     OrganizationsModule,
     CustomersModule,
@@ -33,6 +35,7 @@ import { WhatsAppModule } from './whatsapp/whatsapp.module';
     AppointmentsModule,
   ],
   exports: [
+    AdminModule,
     AuthModule,
     OrganizationsModule,
     CustomersModule,

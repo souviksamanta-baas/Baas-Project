@@ -1,11 +1,15 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 
+import { RegisteredOwnerClaimService } from '../admin/registered-owner-claim.service';
 import { SupabaseService } from '../../supabase/supabase.service';
 import { phoneToSyntheticEmail } from './auth-phone.util';
 
 @Injectable()
 export class AuthSessionService {
-  constructor(private readonly supabaseService: SupabaseService) {}
+  constructor(
+    private readonly supabaseService: SupabaseService,
+    @Optional() private readonly registeredOwnerClaimService?: RegisteredOwnerClaimService,
+  ) {}
 
   async createSessionTokenHashForPhone(phoneE164: string): Promise<string> {
     const email = phoneToSyntheticEmail(phoneE164);
@@ -44,7 +48,17 @@ export class AuthSessionService {
       throw new Error(`Failed to create auth user: ${createError.message}`);
     }
 
-    return this.mintMagicLinkTokenHash(normalizedEmail);
+    const tokenHash = await this.mintMagicLinkTokenHash(normalizedEmail);
+
+    if (this.registeredOwnerClaimService) {
+      try {
+        await this.registeredOwnerClaimService.claimOwnerByEmail(normalizedEmail);
+      } catch {
+        // Non-blocking: session still works; claim can retry on next login
+      }
+    }
+
+    return tokenHash;
   }
 
   private async mintMagicLinkTokenHash(email: string): Promise<string> {

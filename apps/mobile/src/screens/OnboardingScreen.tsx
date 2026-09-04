@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Linking,
   Modal,
   Pressable,
   ScrollView,
@@ -252,12 +253,18 @@ export function OnboardingScreen(props: {
       <View style={baseStyles.card}>
         <Text style={baseStyles.heading}>¿Cómo querés continuar?</Text>
         <Text style={baseStyles.bodyText}>
-          Podés unirte a un negocio existente con el QR del dueño, o crear uno nuevo.
+          Si te invitaron a un negocio, escaneá el QR. Si todavía no estás registrado como
+          propietario, completá el alta en la web.
         </Text>
 
         <PrimaryButton label="Unirme con invitación (QR)" onPress={() => setStep('scan')} />
         <View style={styles.spacer} />
-        <SecondaryButton label="Crear un negocio nuevo" onPress={() => setStep('create')} />
+        <SecondaryButton
+          label="Abrir nexolia.com.ar/comenzar"
+          onPress={() => {
+            void Linking.openURL('https://nexolia.com.ar/comenzar');
+          }}
+        />
 
         <Pressable onPress={props.onSignOut} style={styles.signOut}>
           <Text style={styles.signOutText}>Cerrar sesión</Text>
@@ -286,6 +293,31 @@ export function OnboardingScreen(props: {
           />
         </SafeAreaView>
       </Modal>
+    );
+  }
+
+  // Self-serve create-org is retired: owners are provisioned via nexolia.com.ar.
+  // Keep invite scan; if we landed on create, show the web gate instead.
+  if (step === 'create' || props.initialStep === 'create') {
+    return (
+      <View style={baseStyles.card}>
+        <Text style={baseStyles.heading}>Registro en la web</Text>
+        <Text style={baseStyles.bodyText}>
+          Ya no se crea el negocio desde la app. Completá el alta en nexolia.com.ar/comenzar y
+          esperá la confirmación de Nexolia. Después iniciá sesión acá con el mismo email.
+        </Text>
+        <PrimaryButton
+          label="Abrir /comenzar"
+          onPress={() => {
+            void Linking.openURL('https://nexolia.com.ar/comenzar');
+          }}
+        />
+        <View style={styles.spacer} />
+        <SecondaryButton label="Unirme con invitación (QR)" onPress={() => setStep('scan')} />
+        <Pressable onPress={props.onSignOut} style={styles.signOut}>
+          <Text style={styles.signOutText}>Cerrar sesión</Text>
+        </Pressable>
+      </View>
     );
   }
 

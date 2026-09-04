@@ -1,0 +1,69 @@
+---
+title: "Admin API"
+description: "Staff admin and public lead endpoints for nexolia.com.ar / admin.nexolia.com.ar."
+---
+
+The Admin API powers the Nexolia website staff portal (`admin.nexolia.com.ar`) and the public onboarding lead form (`nexolia.com.ar/comenzar`). It lives in the NestJS API (`baas-mvp`) and uses the same Supabase project as the mobile app.
+
+## Auth models
+
+| Actor | How they authenticate | Where |
+| --- | --- | --- |
+| Prospect | **None** | Public `POST` lead only |
+| Nexolia staff | Supabase email/password or Google → JWT | `admin.nexolia.com.ar` |
+| Client (owner/staff) | OTP (email / WhatsApp / SMS) → JWT | Mobile app only |
+
+Staff must be listed in `nexolia_staff`. Nest rejects non-staff tokens on `/admin/*`. Do **not** put Nexolia staff into client `organization_members`.
+
+## CORS
+
+Allow:
+
+- `https://nexolia.com.ar`
+- `https://admin.nexolia.com.ar`
+- Local Next.js origins for development
+
+Configured via `BAAS_CORS_ALLOWED_ORIGINS`.
+
+## Public lead
+
+```http
+POST /public/leads
+Content-Type: application/json
+```
+
+Body (v1): email, vertical slug, selected services / feature flags, plan slug, billing cycle (`monthly` | `annual`), marketing opt-in.
+
+Creates a `leads` row (`status = new`). Does **not** create an org or a customer session.
+
+## Staff admin (`/admin/*`)
+
+All routes require `Authorization: Bearer <staff-supabase-jwt>` and a staff guard.
+
+Typical surface:
+
+| Area | Operations |
+| --- | --- |
+| Leads | List, convert (register owner email + create org + assign plan) |
+| Organizations | CRUD, members, business centers, feature flags |
+| Plans | Catalog, assign to org |
+| Payments | Record cash/transfer, confirm / reject reception |
+| Dashboard | KPI aggregates (activos, prueba, pagos por confirmar, vencimientos) |
+| Assistant | `POST /admin/grok/chat` — Grok tools over the same admin actions |
+
+License activates only after payment status `confirmed` (or staff grants `trial`).
+
+## Grok assistant
+
+- Browser calls Nest; Nest holds `XAI_API_KEY`.
+- Mutations audit as `actor_staff_id` + `via: grok | ui`.
+- If the key is missing, chat returns a setup message; other admin routes still work.
+
+## Webhooks
+
+This surface adds **no** Meta webhook receivers. WhatsApp / Instagram / Messenger inbound stay on existing channel webhooks — see [Webhook operations](/guides/webhooks).
+
+## Related
+
+- [Authentication](/guides/authentication)
+- Epic [KAN-405](https://souviksamanta.atlassian.net/browse/KAN-405)

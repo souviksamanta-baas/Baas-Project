@@ -5,6 +5,10 @@ description: "How API clients authenticate with Nexolia endpoints."
 
 Nexolia uses different authentication mechanisms depending on the endpoint type.
 
+## Staff admin authentication (website)
+
+Staff on `admin.nexolia.com.ar` use Supabase Auth **email/password** or **Google OAuth**. Tokens are sent as `Authorization: Bearer <supabase-access-token>` to Nest `/admin/*`. The API rejects callers who are not in `nexolia_staff`. Client OTP is **not** used for the staff portal. See [Admin API](/guides/admin-api).
+
 ## Owner API authentication
 
 Owner-facing endpoints use Supabase Auth access tokens.
