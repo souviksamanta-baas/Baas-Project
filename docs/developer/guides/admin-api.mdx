@@ -10,7 +10,7 @@ The Admin API powers the Nexolia website staff portal (`admin.nexolia.com.ar`) a
 | Actor | How they authenticate | Where |
 | --- | --- | --- |
 | Prospect | **None** | Public `POST` lead only |
-| Nexolia staff | Supabase email/password or Google → JWT | `admin.nexolia.com.ar` |
+| Nexolia staff | Supabase email/password → JWT (Google OAuth later) | `admin.nexolia.com.ar` |
 | Client (owner/staff) | OTP (email / WhatsApp / SMS) → JWT | Mobile app only |
 
 Staff must be listed in `nexolia_staff`, **or** hold a pending row in `nexolia_staff_invites` (claimed on first successful login). Nest rejects everyone else on `/admin/*`. Do **not** put Nexolia staff into client `organization_members`.
