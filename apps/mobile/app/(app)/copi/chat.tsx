@@ -66,6 +66,7 @@ export default function CopiChatRoute(): ReactElement {
         router.push(presupuestoDetailRoute(quoteId, 'copi-chat'))
       }
       onOpenProduct={(productId) => router.push(productDetailRoute(productId, 'copi-chat'))}
+      onOpenSupport={() => router.push(routes.helpSupport)}
       onSend={handleSend}
     />
   );

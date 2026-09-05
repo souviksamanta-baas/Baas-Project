@@ -361,6 +361,7 @@ export function OwnerAppNavigator(props: { onSignOut: () => void }): ReactElemen
                 metrics={null}
                 onAskQuestion={async () => undefined}
                 onOpenChat={() => setRoute('copi-chat')}
+                onOpenSupport={() => undefined}
                 onResolveImageAsk={async (draft) => ({ question: draft.trim() || 'Hola' })}
                 questionDraft={copiDraft}
                 setQuestionDraft={setCopiDraft}

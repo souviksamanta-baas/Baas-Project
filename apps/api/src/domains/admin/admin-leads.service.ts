@@ -592,11 +592,6 @@ const SELECTABLE_FEATURE_KEYS = [
   'copi_vision',
   'copi_custom_reports',
   'notifications',
-  'integrations_whatsapp',
-  'integrations_instagram',
-  'integrations_messenger',
-  'integrations_email',
-  'integrations_sms',
   'multi_sucursales',
 ] as const;
 
@@ -610,6 +605,13 @@ const BASELINE_FEATURE_FLAGS: Record<string, true> = {
   copi_enabled: true,
   copi_basic_reports: true,
   copi_freeform_questions: true,
+  commerce_nav_shortcut: true,
+  notifications: true,
+  integrations_whatsapp: true,
+  integrations_instagram: true,
+  integrations_messenger: true,
+  integrations_email: true,
+  integrations_sms: true,
 };
 
 function buildFeatureFlagsFromSelection(
@@ -617,8 +619,22 @@ function buildFeatureFlagsFromSelection(
 ): Record<string, boolean> {
   const selectedSet = new Set(selected);
   const flags: Record<string, boolean> = { ...BASELINE_FEATURE_FLAGS };
+  const copiProKeys = [
+    'copi_pro_agent',
+    'copi_voice',
+    'copi_vision',
+    'copi_custom_reports',
+  ] as const;
+  const hasCopiPro = copiProKeys.some((key) => selectedSet.has(key));
+
   for (const key of SELECTABLE_FEATURE_KEYS) {
+    if ((copiProKeys as readonly string[]).includes(key)) {
+      continue;
+    }
     flags[key] = selectedSet.has(key);
+  }
+  for (const key of copiProKeys) {
+    flags[key] = hasCopiPro;
   }
   return flags;
 }
@@ -629,9 +645,10 @@ function planDisplayName(slug: string | null): string {
       return 'Básico';
     case 'pro':
       return 'Pro';
+    case 'enterprise':
     case 'max':
     case 'advanced':
-      return 'Max';
+      return 'Enterprise';
     case 'starter':
       return 'Starter';
     default:

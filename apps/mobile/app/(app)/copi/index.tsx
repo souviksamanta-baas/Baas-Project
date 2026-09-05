@@ -62,6 +62,7 @@ export default function CopiRoute(): ReactElement {
       metrics={dashboard?.metrics ?? null}
       onAskQuestion={handleAsk}
       onOpenChat={() => router.push(routes.appCopiChat)}
+      onOpenSupport={() => router.push(routes.helpSupport)}
       onResolveImageAsk={media.resolveImageAsk}
       questionDraft={draft}
       setQuestionDraft={setDraft}

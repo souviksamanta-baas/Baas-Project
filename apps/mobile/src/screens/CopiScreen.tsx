@@ -65,6 +65,7 @@ export function CopiScreen(props: {
   metrics: OwnerDashboard['metrics'] | null;
   onAskQuestion: (question: string, imageContext?: string) => Promise<void>;
   onOpenChat: () => void;
+  onOpenSupport: () => void;
   onResolveImageAsk: (draft: string) => Promise<{ imageContext?: string; question: string }>;
   questionDraft: string;
   setQuestionDraft: (value: string) => void;
@@ -124,31 +125,48 @@ export function CopiScreen(props: {
       <ScreenTitle title="Copi" />
 
       <FeatureGate feature="copiQuickSummary" visibility={visibility}>
-        <Pressable onPress={props.onOpenChat} style={styles.copiCard}>
+        <Pressable
+          onPress={hasCopiPro ? props.onOpenChat : undefined}
+          style={styles.copiCard}
+        >
           <RobotAvatar />
           <View style={[styles.flex, styles.flexShrink]}>
             <Text style={styles.homeCardTitle}>Copi - Tu asistente IA</Text>
             <Text numberOfLines={2} style={styles.cardDescription}>
-              Preguntame sobre tus ventas, stock, clientes y mas.
+              {hasCopiPro
+                ? 'Preguntame sobre tus ventas, stock, clientes y mas.'
+                : 'Elegí una de las 5 preguntas sugeridas para consultar a Copi.'}
             </Text>
           </View>
-          <Pressable
-            accessibilityRole="button"
-            hitSlop={8}
-            onPress={props.onOpenChat}
-            style={styles.chatButton}
-          >
-            <Icon color={colors.primary} kind="message" size={18} strokeWidth={1.8} />
-          </Pressable>
+          {hasCopiPro ? (
+            <Pressable
+              accessibilityRole="button"
+              hitSlop={8}
+              onPress={props.onOpenChat}
+              style={styles.chatButton}
+            >
+              <Icon color={colors.primary} kind="message" size={18} strokeWidth={1.8} />
+            </Pressable>
+          ) : null}
         </Pressable>
       </FeatureGate>
 
       <FeatureGate feature="copiProUpsell" visibility={visibility}>
         <Card style={styles.upsellCard}>
-          <Text style={styles.upsellTitle}>Copi Pro</Text>
+          <Text style={styles.upsellTitle}>Activá Copi Pro</Text>
           <Text style={styles.cardDescription}>
-            Activá acciones, voz, visión e informes personalizados para que Copi haga tareas por vos.
+            Con Copi básico solo podés usar las preguntas preconfiguradas. Activá Copi Pro para
+            escribirle libremente, usar el micrófono, crear tareas y turnos, reportes a medida y
+            análisis de fotos.
           </Text>
+          <Pressable
+            accessibilityRole="link"
+            hitSlop={8}
+            onPress={props.onOpenSupport}
+            style={styles.supportLink}
+          >
+            <Text style={styles.supportLinkText}>Contactanos para habilitar Copi Pro</Text>
+          </Pressable>
         </Card>
       </FeatureGate>
 
@@ -255,11 +273,13 @@ export function CopiChatScreen(props: {
   onBack: () => void;
   onOpenPresupuesto?: (quoteId: string) => void;
   onOpenProduct?: (productId: string) => void;
+  onOpenSupport?: () => void;
   onSend: () => Promise<void> | void;
 }): ReactElement {
   const visibility = useFeatureVisibility();
   const scrollRef = useRef<ScrollView>(null);
   const androidKeyboardHeight = useAndroidKeyboardHeight();
+  const hasCopiPro = !visibility.copiProUpsell;
   useHeaderScreenOptions({
     forceCollapsed: true,
     onBack: props.onBack,
@@ -345,28 +365,47 @@ export function CopiChatScreen(props: {
         </FeatureGate>
       </View>
 
-      <FeatureGate feature="copiComposer" visibility={visibility}>
-        <ReplyComposer
-          attachmentMenuOpen={props.composer.attachmentMenuOpen}
-          canUseVision={props.composer.canUseVision}
-          canUseVoice={props.composer.canUseVoice}
-          isAnalyzingImage={props.composer.isAnalyzingImage}
-          isRecordingVoice={props.composer.isRecordingVoice}
-          isSending={props.copilot.isAsking}
-          isTranscribingVoice={props.composer.isTranscribingVoice}
-          onChangeText={props.copilot.setInputValue}
-          onClearPendingImage={props.composer.onClearPendingImage}
-          onPressAttachCamera={props.composer.onPressAttachCamera}
-          onPressAttachLibrary={props.composer.onPressAttachLibrary}
-          onPressPlus={props.composer.onPressPlus}
-          onPressVoice={props.composer.onPressVoice}
-          onSend={() => void props.onSend()}
-          pendingImageUri={props.composer.pendingImageUri}
-          placeholder="Escribí un mensaje..."
-          value={props.copilot.inputValue}
-          voiceMode="stt"
-        />
-      </FeatureGate>
+      {hasCopiPro ? (
+        <FeatureGate feature="copiComposer" visibility={visibility}>
+          <ReplyComposer
+            attachmentMenuOpen={props.composer.attachmentMenuOpen}
+            canUseVision={props.composer.canUseVision}
+            canUseVoice={props.composer.canUseVoice}
+            isAnalyzingImage={props.composer.isAnalyzingImage}
+            isRecordingVoice={props.composer.isRecordingVoice}
+            isSending={props.copilot.isAsking}
+            isTranscribingVoice={props.composer.isTranscribingVoice}
+            onChangeText={props.copilot.setInputValue}
+            onClearPendingImage={props.composer.onClearPendingImage}
+            onPressAttachCamera={props.composer.onPressAttachCamera}
+            onPressAttachLibrary={props.composer.onPressAttachLibrary}
+            onPressPlus={props.composer.onPressPlus}
+            onPressVoice={props.composer.onPressVoice}
+            onSend={() => void props.onSend()}
+            pendingImageUri={props.composer.pendingImageUri}
+            placeholder="Escribí un mensaje..."
+            value={props.copilot.inputValue}
+            voiceMode="stt"
+          />
+        </FeatureGate>
+      ) : (
+        <View style={styles.basicComposerBanner}>
+          <Text style={styles.basicComposerText}>
+            Con Copi básico no podés escribir mensajes libres. Activá Copi Pro para chatear, usar el
+            micrófono y el resto de capacidades.
+          </Text>
+          {props.onOpenSupport ? (
+            <Pressable
+              accessibilityRole="link"
+              hitSlop={8}
+              onPress={props.onOpenSupport}
+              style={styles.supportLink}
+            >
+              <Text style={styles.supportLinkText}>Contactanos para habilitar Copi Pro</Text>
+            </Pressable>
+          ) : null}
+        </View>
+      )}
     </KeyboardAvoidingView>
   );
 }
@@ -382,8 +421,32 @@ const styles = StyleSheet.create({
     color: colors.slate,
     fontSize: 15,
     fontWeight: '300',
-    lineHeight: 16,
+    lineHeight: 20,
     marginTop: 3,
+  },
+  basicComposerBanner: {
+    backgroundColor: colors.surface,
+    borderTopColor: colors.borderSoft,
+    borderTopWidth: 1,
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  basicComposerText: {
+    color: colors.slate,
+    fontSize: 14,
+    fontWeight: '300',
+    lineHeight: 20,
+  },
+  supportLink: {
+    alignSelf: 'flex-start',
+    marginTop: 4,
+  },
+  supportLinkText: {
+    color: colors.primary,
+    fontSize: 14,
+    fontWeight: '600',
+    textDecorationLine: 'underline',
   },
   chatArea: {
     backgroundColor: '#efeae2',
