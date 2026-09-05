@@ -74,7 +74,88 @@ export class AdminLeadsService {
       throw new Error(`Failed to create lead: ${error?.message ?? 'unknown'}`);
     }
 
+    try {
+      await this.sendLeadConfirmationEmail({
+        email,
+        leadId: data.id,
+        orgName,
+        planSlug: input.planSlug ?? null,
+      });
+    } catch (err) {
+      console.error(
+        `[public-leads] confirmation email failed for ${redactEmail(email)}: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    }
+
     return { id: data.id };
+  }
+
+  private async sendLeadConfirmationEmail(params: {
+    email: string;
+    leadId: string;
+    orgName: string;
+    planSlug: string | null;
+  }): Promise<void> {
+    const apiKey = process.env.RESEND_API_KEY?.trim();
+    const from =
+      process.env.NEXOLIA_AUTH_EMAIL_FROM?.trim() ||
+      'Nexolia <noreply@nexolia.com.ar>';
+
+    const planLabel = planDisplayName(params.planSlug);
+    const subject = `Recibimos tu solicitud — ${params.orgName}`;
+
+    if (!apiKey) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.info(
+          `[public-leads] Dev mode — confirmation email to ${redactEmail(params.email)} skipped (no RESEND_API_KEY).`,
+        );
+        return;
+      }
+      throw new Error('RESEND_API_KEY is not configured');
+    }
+
+    const response = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from,
+        to: [params.email],
+        subject,
+        html: [
+          '<div style="font-family:Arial,Helvetica,sans-serif;line-height:1.5;color:#101935;max-width:560px">',
+          '<h2 style="margin:0 0 12px;color:#101935">¡Gracias por elegir Nexolia!</h2>',
+          `<p>Recibimos el alta de <strong>${escapeHtml(params.orgName)}</strong>${
+            planLabel ? ` con el plan <strong>${escapeHtml(planLabel)}</strong>` : ''
+          }.</p>`,
+          '<p>Nuestro equipo revisará tu solicitud y activará tu cuenta a la brevedad. Por ahora las suscripciones son <strong>gratuitas</strong>.</p>',
+          `<p style="font-size:14px;color:#56627b">Referencia: <code>${escapeHtml(params.leadId)}</code></p>`,
+          '<p style="font-size:14px;color:#56627b">Si no pediste este alta, podés ignorar este correo.</p>',
+          '</div>',
+        ].join(''),
+        text: [
+          '¡Gracias por elegir Nexolia!',
+          '',
+          `Recibimos el alta de ${params.orgName}${planLabel ? ` con el plan ${planLabel}` : ''}.`,
+          'Nuestro equipo revisará tu solicitud y activará tu cuenta a la brevedad. Por ahora las suscripciones son gratuitas.',
+          '',
+          `Referencia: ${params.leadId}`,
+        ].join('\n'),
+      }),
+    });
+
+    const body = (await response.json().catch(() => ({}))) as {
+      message?: string;
+      name?: string;
+    };
+    if (!response.ok) {
+      const detail = body.message || body.name || `HTTP ${response.status}`;
+      throw new Error(detail);
+    }
   }
 
   /**
@@ -356,4 +437,35 @@ function buildFeatureFlagsFromSelection(
     flags[key] = selectedSet.has(key);
   }
   return flags;
+}
+
+function planDisplayName(slug: string | null): string {
+  switch ((slug ?? '').trim().toLowerCase()) {
+    case 'basico':
+      return 'Básico';
+    case 'pro':
+      return 'Pro';
+    case 'max':
+    case 'advanced':
+      return 'Max';
+    case 'starter':
+      return 'Starter';
+    default:
+      return slug?.trim() ?? '';
+  }
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function redactEmail(email: string): string {
+  const [local, domain] = email.split('@');
+  if (!domain) return '***';
+  return `${local.slice(0, 2)}***@${domain}`;
 }
