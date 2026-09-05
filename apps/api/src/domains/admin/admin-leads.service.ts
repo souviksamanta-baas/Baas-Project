@@ -17,6 +17,7 @@ export interface CreateLeadInput {
   featureFlags?: Record<string, boolean>;
   marketingOptIn?: boolean;
   notes?: string;
+  orgName?: string;
   planSlug?: string;
   selectedServices?: string[];
   verticalSlug?: string;
@@ -40,6 +41,11 @@ export class AdminLeadsService {
       throw new BadRequestException('Email inválido');
     }
 
+    const orgName = input.orgName?.trim() ?? '';
+    if (!orgName) {
+      throw new BadRequestException('Ingresá el nombre del negocio');
+    }
+
     const selectedServices = input.selectedServices ?? [];
     const featureFlags =
       input.featureFlags && Object.keys(input.featureFlags).length > 0
@@ -55,6 +61,7 @@ export class AdminLeadsService {
         feature_flags: featureFlags,
         marketing_opt_in: input.marketingOptIn ?? false,
         notes: input.notes ?? null,
+        org_name: orgName,
         plan_slug: input.planSlug ?? null,
         selected_services: selectedServices,
         status: 'new',
@@ -68,6 +75,87 @@ export class AdminLeadsService {
     }
 
     return { id: data.id };
+  }
+
+  /**
+   * Public org-name availability check for /comenzar.
+   * ownedByRequester = same email already linked as registered_owner or org member.
+   */
+  async checkOrgName(input: {
+    email?: string;
+    name: string;
+  }): Promise<{
+    available: boolean;
+    ownedByRequester: boolean;
+    orgName: string;
+  }> {
+    const orgName = input.name.trim();
+    if (!orgName) {
+      throw new BadRequestException('Ingresá el nombre del negocio');
+    }
+
+    const email = (input.email ?? '').trim().toLowerCase();
+    const client = this.supabaseService.getServiceRoleClient();
+
+    const { data: orgs, error } = await client
+      .from('organizations')
+      .select('id, name')
+      .ilike('name', orgName)
+      .limit(20);
+
+    if (error) {
+      throw new Error(`Failed to check org name: ${error.message}`);
+    }
+
+    const matches = (orgs ?? []).filter(
+      (row) => row.name.trim().toLowerCase() === orgName.toLowerCase(),
+    );
+
+    if (matches.length === 0) {
+      return { available: true, ownedByRequester: false, orgName };
+    }
+
+    if (!email || !email.includes('@')) {
+      return { available: false, ownedByRequester: false, orgName: matches[0].name };
+    }
+
+    const orgIds = matches.map((m) => m.id);
+
+    const { data: owners } = await client
+      .from('registered_owners')
+      .select('organization_id, email')
+      .in('organization_id', orgIds)
+      .ilike('email', email);
+
+    const ownerHit = (owners ?? []).some(
+      (row) => row.email.trim().toLowerCase() === email,
+    );
+    if (ownerHit) {
+      return { available: false, ownedByRequester: true, orgName: matches[0].name };
+    }
+
+    const { data: members } = await client
+      .from('organization_members')
+      .select('organization_id, user_id')
+      .in('organization_id', orgIds);
+
+    const userIds = [
+      ...new Set((members ?? []).map((m) => m.user_id).filter(Boolean)),
+    ] as string[];
+
+    for (const userId of userIds) {
+      const { data: userData } = await client.auth.admin.getUserById(userId);
+      const memberEmail = (userData.user?.email ?? '').trim().toLowerCase();
+      if (memberEmail && memberEmail === email) {
+        return {
+          available: false,
+          ownedByRequester: true,
+          orgName: matches[0].name,
+        };
+      }
+    }
+
+    return { available: false, ownedByRequester: false, orgName: matches[0].name };
   }
 
   async listLeads(authorizationHeader: string | undefined) {
@@ -102,6 +190,7 @@ export class AdminLeadsService {
         email: string;
         feature_flags: Record<string, boolean> | null;
         id: string;
+        org_name: string | null;
         organization_id: string | null;
         plan_slug: string | null;
         status: string;
@@ -154,7 +243,7 @@ export class AdminLeadsService {
         billing_cycle: lead.billing_cycle ?? 'monthly',
         feature_flags: mergedFlags,
         license_status: 'pending_payment',
-        name: input.orgName.trim(),
+        name: (input.orgName.trim() || lead.org_name || '').trim() || 'Sin nombre',
         plan_id: planId,
         timezone: input.orgTimezone ?? 'America/Argentina/Cordoba',
         vertical_id: verticalId,

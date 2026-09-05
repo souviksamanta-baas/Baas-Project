@@ -81,6 +81,10 @@ export function PrivacyDataScreen(props: {
           subtitle="Instrucciones públicas (Play / App Store)"
           title="Cómo eliminar tu cuenta"
         />
+        <Text style={styles.hint}>
+          Si tu organización permanece inactiva durante 30 días, puede eliminarse
+          automáticamente junto con los datos del negocio.
+        </Text>
       </Card>
 
       {props.organizationId ? (

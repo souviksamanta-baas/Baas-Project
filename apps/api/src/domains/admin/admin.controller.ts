@@ -402,6 +402,7 @@ export class PublicLeadsController {
       featureFlags?: Record<string, boolean>;
       marketingOptIn?: boolean;
       notes?: string;
+      orgName?: string;
       plan?: string;
       planSlug?: string;
       selectedServices?: string[];
@@ -419,6 +420,7 @@ export class PublicLeadsController {
       featureFlags: body.featureFlags,
       marketingOptIn: body.marketingOptIn ?? false,
       notes: body.notes ?? (body.source ? `source=${body.source}` : undefined),
+      orgName: body.orgName,
       planSlug: body.planSlug ?? body.plan,
       selectedServices: body.selectedServices ?? body.servicios ?? [],
       verticalSlug,
@@ -429,6 +431,16 @@ export class PublicLeadsController {
       id: created.id,
       status: 'new',
     };
+  }
+
+  @Post('org-name-check')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Check if organization name is already registered' })
+  async checkOrgName(@Body() body: { email?: string; name?: string }) {
+    return this.leadsService.checkOrgName({
+      email: body.email,
+      name: body.name ?? '',
+    });
   }
 
   @Post('admin/password-reset')
