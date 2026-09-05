@@ -6,6 +6,10 @@ import {
 
 import { SupabaseService } from '../../supabase/supabase.service';
 import {
+  applyPlanEntitlements,
+  mergeLeadAndPlanFeatureFlags,
+} from '../organizations/organization-feature-flags.util';
+import {
   assertNexoliaStaff,
   writeAdminAudit,
 } from './admin-auth.helper';
@@ -95,10 +99,13 @@ export class AdminOrgsService {
     if (params.planId) {
       const { data: plan } = await client
         .from('plans')
-        .select('feature_flags')
+        .select('slug, feature_flags')
         .eq('id', params.planId)
-        .maybeSingle<{ feature_flags: Record<string, boolean> }>();
-      featureFlags = plan?.feature_flags ?? {};
+        .maybeSingle<{ feature_flags: Record<string, boolean>; slug: string }>();
+      featureFlags = applyPlanEntitlements({
+        flags: plan?.feature_flags ?? {},
+        planSlug: plan?.slug,
+      });
     }
 
     const timezone = params.timezone ?? 'America/Argentina/Cordoba';
@@ -173,9 +180,12 @@ export class AdminOrgsService {
 
     const { data: before } = await client
       .from('organizations')
-      .select('license_status')
+      .select('license_status, feature_flags')
       .eq('id', params.organizationId)
-      .maybeSingle<{ license_status: string | null }>();
+      .maybeSingle<{
+        feature_flags: Record<string, boolean> | null;
+        license_status: string | null;
+      }>();
 
     const patch: Record<string, unknown> = {
       updated_at: new Date().toISOString(),
@@ -194,11 +204,15 @@ export class AdminOrgsService {
       if (params.planId) {
         const { data: plan } = await client
           .from('plans')
-          .select('feature_flags')
+          .select('slug, feature_flags')
           .eq('id', params.planId)
-          .maybeSingle<{ feature_flags: Record<string, boolean> }>();
-        if (plan?.feature_flags) {
-          patch.feature_flags = plan.feature_flags;
+          .maybeSingle<{ feature_flags: Record<string, boolean>; slug: string }>();
+        if (plan) {
+          patch.feature_flags = mergeLeadAndPlanFeatureFlags({
+            leadFlags: before?.feature_flags,
+            planFlags: plan.feature_flags ?? {},
+            planSlug: plan.slug,
+          });
         }
       }
     }

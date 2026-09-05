@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 
 import { SupabaseService } from '../../supabase/supabase.service';
+import { mergeLeadAndPlanFeatureFlags } from '../organizations/organization-feature-flags.util';
 import {
   assertNexoliaStaff,
   writeAdminAudit,
@@ -401,23 +402,30 @@ export class AdminLeadsService {
     }
 
     let planId: string | null = null;
+    let planSlug: string | null = lead.plan_slug;
     let planFlags: Record<string, boolean> = {};
     if (lead.plan_slug) {
       const { data: plan } = await client
         .from('plans')
-        .select('id, feature_flags')
+        .select('id, slug, feature_flags')
         .eq('slug', lead.plan_slug)
-        .maybeSingle<{ feature_flags: Record<string, boolean>; id: string }>();
+        .maybeSingle<{
+          feature_flags: Record<string, boolean>;
+          id: string;
+          slug: string;
+        }>();
       if (plan) {
         planId = plan.id;
+        planSlug = plan.slug;
         planFlags = plan.feature_flags ?? {};
       }
     }
 
-    const mergedFlags = {
-      ...planFlags,
-      ...(lead.feature_flags ?? {}),
-    };
+    const mergedFlags = mergeLeadAndPlanFeatureFlags({
+      leadFlags: lead.feature_flags,
+      planFlags,
+      planSlug,
+    });
 
     const orgName =
       (input.orgName?.trim() || lead.org_name || '').trim() || 'Sin nombre';
