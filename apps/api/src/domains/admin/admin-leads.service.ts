@@ -10,6 +10,7 @@ import {
   writeAdminAudit,
   type NexoliaStaffContext,
 } from './admin-auth.helper';
+import { notifyOwnerOrgConfirmed } from './admin-mail.util';
 
 export interface CreateLeadInput {
   billingCycle?: 'monthly' | 'annual';
@@ -313,6 +314,12 @@ export class AdminLeadsService {
           supabaseService: this.supabaseService,
           via: 'ui',
         });
+        if (result.created) {
+          await notifyOwnerOrgConfirmed({
+            client,
+            organizationId: result.organizationId,
+          });
+        }
         converted += 1;
       } catch (err) {
         failed += 1;
@@ -349,7 +356,14 @@ export class AdminLeadsService {
       via: input.via ?? 'ui',
     });
 
-    return result;
+    if (result.created) {
+      await notifyOwnerOrgConfirmed({
+        client: this.supabaseService.getServiceRoleClient(),
+        organizationId: result.organizationId,
+      });
+    }
+
+    return { organizationId: result.organizationId };
   }
 
   /**
@@ -360,7 +374,7 @@ export class AdminLeadsService {
     leadId: string;
     orgName?: string;
     orgTimezone?: string;
-  }): Promise<{ organizationId: string }> {
+  }): Promise<{ organizationId: string; created: boolean }> {
     const client = this.supabaseService.getServiceRoleClient();
 
     const { data: lead, error: leadError } = await client
@@ -386,7 +400,7 @@ export class AdminLeadsService {
       throw new NotFoundException('Lead no encontrado');
     }
     if (lead.status === 'converted' && lead.organization_id) {
-      return { organizationId: lead.organization_id };
+      return { organizationId: lead.organization_id, created: false };
     }
 
     let verticalId: string | null = null;
@@ -488,7 +502,7 @@ export class AdminLeadsService {
       throw new Error(`Failed to update lead: ${leadUpdateError.message}`);
     }
 
-    return { organizationId: org.id };
+    return { organizationId: org.id, created: true };
   }
 
   /** Link auth user (if any) as owner member of the given org. */

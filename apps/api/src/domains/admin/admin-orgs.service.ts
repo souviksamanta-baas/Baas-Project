@@ -9,6 +9,7 @@ import {
   assertNexoliaStaff,
   writeAdminAudit,
 } from './admin-auth.helper';
+import { notifyOwnerOrgConfirmed } from './admin-mail.util';
 
 @Injectable()
 export class AdminOrgsService {
@@ -151,6 +152,11 @@ export class AdminOrgsService {
       via: params.via ?? 'ui',
     });
 
+    await notifyOwnerOrgConfirmed({
+      client,
+      organizationId: org.id,
+    });
+
     return { organizationId: org.id };
   }
 
@@ -168,6 +174,12 @@ export class AdminOrgsService {
       params.authorizationHeader,
     );
     const client = this.supabaseService.getServiceRoleClient();
+
+    const { data: before } = await client
+      .from('organizations')
+      .select('license_status')
+      .eq('id', params.organizationId)
+      .maybeSingle<{ license_status: string | null }>();
 
     const patch: Record<string, unknown> = {
       updated_at: new Date().toISOString(),
@@ -215,6 +227,15 @@ export class AdminOrgsService {
       supabaseService: this.supabaseService,
       via: params.via ?? 'ui',
     });
+
+    const becameActive =
+      params.licenseStatus === 'active' && before?.license_status !== 'active';
+    if (becameActive) {
+      await notifyOwnerOrgConfirmed({
+        client,
+        organizationId: params.organizationId,
+      });
+    }
 
     return { organizationId: data.id };
   }
@@ -413,6 +434,11 @@ export class AdminPaymentsService {
       payload: { organizationId: payment.organization_id, licensedUntil },
       supabaseService: this.supabaseService,
       via: params.via ?? 'ui',
+    });
+
+    await notifyOwnerOrgConfirmed({
+      client,
+      organizationId: payment.organization_id,
     });
 
     return { paymentId: payment.id, licensedUntil };
