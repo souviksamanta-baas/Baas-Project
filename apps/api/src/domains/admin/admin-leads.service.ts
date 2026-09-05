@@ -463,6 +463,18 @@ export class AdminLeadsService {
       throw new Error(`Failed to register owner: ${ownerError.message}`);
     }
 
+    // If the owner already has an auth user, attach membership immediately
+    // so Negocios lists the org without waiting for the next email OTP login.
+    try {
+      await this.claimOwnerMembershipForEmail(lead.email.toLowerCase(), org.id);
+    } catch (err) {
+      console.error(
+        `[admin-leads] immediate owner claim failed for org ${org.id}: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    }
+
     const { error: leadUpdateError } = await client
       .from('leads')
       .update({
@@ -477,6 +489,82 @@ export class AdminLeadsService {
     }
 
     return { organizationId: org.id };
+  }
+
+  /** Link auth user (if any) as owner member of the given org. */
+  private async claimOwnerMembershipForEmail(
+    email: string,
+    organizationId: string,
+  ): Promise<void> {
+    const client = this.supabaseService.getServiceRoleClient();
+    const { data: linkData, error: linkError } = await client.auth.admin.generateLink({
+      email,
+      type: 'magiclink',
+    });
+    const user = linkData?.user;
+    if (linkError || !user) {
+      return;
+    }
+
+    const now = new Date().toISOString();
+    await client
+      .from('registered_owners')
+      .update({
+        claimed_at: now,
+        updated_at: now,
+        user_id: user.id,
+      })
+      .eq('organization_id', organizationId)
+      .ilike('email', email);
+
+    const { data: existing } = await client
+      .from('organization_members')
+      .select('id')
+      .eq('organization_id', organizationId)
+      .eq('user_id', user.id)
+      .maybeSingle<{ id: string }>();
+
+    let memberId = existing?.id;
+    if (!memberId) {
+      const { data: member, error: memberError } = await client
+        .from('organization_members')
+        .insert({
+          organization_id: organizationId,
+          role: 'owner',
+          user_id: user.id,
+        })
+        .select('id')
+        .single<{ id: string }>();
+      if (memberError || !member) {
+        return;
+      }
+      memberId = member.id;
+    }
+
+    const { data: centers } = await client
+      .from('business_centers')
+      .select('id')
+      .eq('organization_id', organizationId)
+      .eq('is_default', true)
+      .limit(1);
+
+    const defaultCenterId = centers?.[0]?.id;
+    if (!defaultCenterId) {
+      return;
+    }
+
+    await client.from('business_center_members').upsert(
+      {
+        business_center_id: defaultCenterId,
+        organization_id: organizationId,
+        organization_member_id: memberId,
+        role: 'manager',
+      },
+      {
+        onConflict: 'organization_id,business_center_id,organization_member_id',
+        ignoreDuplicates: true,
+      },
+    );
   }
 
   async requireStaff(
