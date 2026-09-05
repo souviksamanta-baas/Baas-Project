@@ -36,13 +36,14 @@ export function NegociosScreen(props: {
   businessName: string | null;
   onBack: () => void;
   onOpenCreateOrganization: () => void;
-  onOrganizationSwitched?: () => Promise<void> | void;
+  onOrganizationSwitched?: (organizationId: string) => Promise<void> | void;
   organizationId: string | null;
   role: string | null;
 }): ReactElement {
   const [organizations, setOrganizations] = useState<MyOrganization[]>([]);
   const [joinScannerOpen, setJoinScannerOpen] = useState(false);
   const [isJoining, setIsJoining] = useState(false);
+  const [switchingOrgId, setSwitchingOrgId] = useState<string | null>(null);
 
   const loadOrganizations = useCallback(async (): Promise<void> => {
     try {
@@ -64,19 +65,23 @@ export function NegociosScreen(props: {
   );
 
   async function handleSwitchOrganization(organizationId: string): Promise<void> {
-    if (organizationId === props.organizationId) {
+    if (organizationId === props.organizationId || switchingOrgId) {
       return;
     }
 
+    setSwitchingOrgId(organizationId);
     try {
       await setPreferredOrganizationId(organizationId);
-      await props.onOrganizationSwitched?.();
+      await props.onOrganizationSwitched?.(organizationId);
       await loadOrganizations();
+      props.onBack();
     } catch (error) {
       Alert.alert(
         'No se pudo cambiar de negocio',
         error instanceof Error ? error.message : 'Error desconocido',
       );
+    } finally {
+      setSwitchingOrgId(null);
     }
   }
 
@@ -104,9 +109,10 @@ export function NegociosScreen(props: {
       });
       await setPreferredOrganizationId(result.organizationId);
       setJoinScannerOpen(false);
-      await props.onOrganizationSwitched?.();
+      await props.onOrganizationSwitched?.(result.organizationId);
       await loadOrganizations();
       Alert.alert('Listo', 'Te uniste al negocio. Ya estás trabajando en él.');
+      props.onBack();
     } catch (error) {
       Alert.alert(
         'No se pudo unir',
@@ -142,15 +148,23 @@ export function NegociosScreen(props: {
       <Card flush>
         {orgRows.map((org) => {
           const selected = org.organizationId === props.organizationId;
+          const switching = switchingOrgId === org.organizationId;
           return (
             <ActionRow
+              disabled={switchingOrgId != null && !switching}
               icon="store"
               key={org.organizationId}
               onPress={() => {
                 void handleSwitchOrganization(org.organizationId);
               }}
               showDivider
-              subtitle={selected ? 'Activo ahora' : memberRoleLabel(org.role)}
+              subtitle={
+                switching
+                  ? 'Activando…'
+                  : selected
+                    ? 'Activo ahora'
+                    : memberRoleLabel(org.role)
+              }
               title={org.name}
             />
           );

@@ -25,6 +25,10 @@ export async function getOwnerDashboard(
 ): Promise<OwnerDashboard> {
   const preferred =
     organizationId === undefined ? await getPreferredOrganizationId() : organizationId;
+
+  // Claim pending registered-owner memberships before resolving the dashboard.
+  await supabase.rpc('claim_my_registered_owner_orgs');
+
   const { data, error } = await supabase.rpc('get_owner_dashboard', {
     p_organization_id: preferred ?? null,
   });
@@ -42,6 +46,9 @@ export async function getOwnerDashboard(
 }
 
 export async function listMyOrganizations(): Promise<MyOrganization[]> {
+  // Attach any pending registered-owner orgs before listing (side-effect RPC).
+  await supabase.rpc('claim_my_registered_owner_orgs');
+
   const { data, error } = await supabase.rpc('get_my_organizations');
   if (error) {
     throw new Error(error.message);

@@ -5,6 +5,7 @@ import type { Session } from '@supabase/supabase-js';
 import { clearAuthEntryIntent } from '../services/authIntent';
 import { createOrganizationWithOwner, getOwnerDashboard } from '../api/dashboard';
 import { requestLoginOtp, signOutOwner, verifyLoginOtp } from '../api/auth';
+import { setPreferredOrganizationId } from '../lib/activeOrganization';
 import { normalizeNavShortcutId, type NavShortcutId } from '../lib/navShortcut';
 import { supabase } from '../lib/supabase';
 import { formatAuthError } from '../services/authErrors';
@@ -62,7 +63,7 @@ export interface OwnerSessionState {
   setOtpCode: (otpCode: string) => void;
   setVerticalId: (verticalId: string | null) => void;
   createOrganization: () => Promise<void>;
-  refreshDashboard: () => Promise<void>;
+  refreshDashboard: (organizationId?: string | null) => Promise<void>;
   signOut: () => Promise<void>;
   verifyOtp: () => Promise<void>;
 }
@@ -105,7 +106,7 @@ export function useOwnerSession(): OwnerSessionState {
 
   const bootstrapRoute = useCallback(async (
     nextSession: Session | null,
-    options?: { silent?: boolean },
+    options?: { organizationId?: string | null; silent?: boolean },
   ): Promise<void> => {
     if (!nextSession) {
       setDashboard(null);
@@ -133,15 +134,22 @@ export function useOwnerSession(): OwnerSessionState {
         return;
       }
 
-      const nextDashboard = await getOwnerDashboard();
+      const nextDashboard = await getOwnerDashboard(
+        options && 'organizationId' in options ? options.organizationId : undefined,
+      );
       setDashboard(nextDashboard);
       setOtpSent(false);
     } catch (error) {
       if (isDefinitiveAuthFailure(error)) {
         setDashboard(null);
         await clearLocalSession();
+        return;
       }
-      // Keep existing dashboard/session on transient failures (offline, timeout).
+      // Re-throw so callers (e.g. org switch) can surface a real error.
+      if (!silent) {
+        throw error;
+      }
+      // Keep existing dashboard/session on silent/transient failures.
     } finally {
       if (!silent) {
         setIsResolvingDashboard(false);
@@ -318,10 +326,33 @@ export function useOwnerSession(): OwnerSessionState {
     }
   }, [bootstrapRoute, businessName, featureFlags, navShortcut, session, verticalId]);
 
-  const refreshDashboard = useCallback(async (): Promise<void> => {
+  const refreshDashboard = useCallback(async (organizationId?: string | null): Promise<void> => {
     const { data } = await supabase.auth.getSession();
-    await bootstrapRoute(data.session, { silent: true });
-  }, [bootstrapRoute]);
+    if (!data.session) {
+      throw new Error('Sesión expirada. Volvé a iniciar sesión.');
+    }
+
+    if (organizationId) {
+      await setPreferredOrganizationId(organizationId);
+    }
+
+    setIsResolvingDashboard(true);
+    try {
+      const nextDashboard = await getOwnerDashboard(
+        organizationId === undefined ? undefined : organizationId,
+      );
+      if (
+        organizationId &&
+        nextDashboard.organization?.id &&
+        nextDashboard.organization.id !== organizationId
+      ) {
+        throw new Error('No se pudo activar ese negocio. Probá de nuevo.');
+      }
+      setDashboard(nextDashboard);
+    } finally {
+      setIsResolvingDashboard(false);
+    }
+  }, []);
 
   const signOut = useCallback(async (): Promise<void> => {
     setAuthError(null);

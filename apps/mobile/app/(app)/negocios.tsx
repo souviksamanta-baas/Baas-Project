@@ -14,7 +14,9 @@ export default function NegociosRoute(): ReactElement {
       businessName={dashboard?.organization?.name ?? null}
       onBack={() => router.back()}
       onOpenCreateOrganization={() => router.push(routes.createOrganization)}
-      onOrganizationSwitched={refreshDashboard}
+      onOrganizationSwitched={async (organizationId) => {
+        await refreshDashboard(organizationId);
+      }}
       organizationId={dashboard?.organization?.id ?? null}
       role={dashboard?.organization?.role ?? null}
     />
