@@ -12,10 +12,19 @@ export default function NegociosRoute(): ReactElement {
   return (
     <NegociosScreen
       businessName={dashboard?.organization?.name ?? null}
-      onBack={() => router.back()}
+      onBack={() => {
+        if (router.canGoBack()) {
+          router.back();
+          return;
+        }
+        router.replace(routes.account);
+      }}
       onOpenCreateOrganization={() => router.push(routes.createOrganization)}
       onOrganizationSwitched={async (organizationId) => {
         await refreshDashboard(organizationId);
+      }}
+      onSwitchComplete={() => {
+        router.replace(routes.appHome);
       }}
       organizationId={dashboard?.organization?.id ?? null}
       role={dashboard?.organization?.role ?? null}

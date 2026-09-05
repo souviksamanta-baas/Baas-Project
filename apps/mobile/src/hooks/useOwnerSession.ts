@@ -336,22 +336,19 @@ export function useOwnerSession(): OwnerSessionState {
       await setPreferredOrganizationId(organizationId);
     }
 
-    setIsResolvingDashboard(true);
-    try {
-      const nextDashboard = await getOwnerDashboard(
-        organizationId === undefined ? undefined : organizationId,
-      );
-      if (
-        organizationId &&
-        nextDashboard.organization?.id &&
-        nextDashboard.organization.id !== organizationId
-      ) {
-        throw new Error('No se pudo activar ese negocio. Probá de nuevo.');
-      }
-      setDashboard(nextDashboard);
-    } finally {
-      setIsResolvingDashboard(false);
+    // Keep authPhase authenticated — flipping to loading unmounts the app shell
+    // and wipes the navigation stack (GO_BACK errors after org switch).
+    const nextDashboard = await getOwnerDashboard(
+      organizationId === undefined ? undefined : organizationId,
+    );
+    if (
+      organizationId &&
+      nextDashboard.organization?.id &&
+      nextDashboard.organization.id !== organizationId
+    ) {
+      throw new Error('No se pudo activar ese negocio. Probá de nuevo.');
     }
+    setDashboard(nextDashboard);
   }, []);
 
   const signOut = useCallback(async (): Promise<void> => {

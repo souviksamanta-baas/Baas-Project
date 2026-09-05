@@ -36,6 +36,8 @@ export function NegociosScreen(props: {
   businessName: string | null;
   onBack: () => void;
   onOpenCreateOrganization: () => void;
+  /** Called after a successful org switch / join (e.g. navigate home). */
+  onSwitchComplete?: () => void;
   onOrganizationSwitched?: (organizationId: string) => Promise<void> | void;
   organizationId: string | null;
   role: string | null;
@@ -74,7 +76,7 @@ export function NegociosScreen(props: {
       await setPreferredOrganizationId(organizationId);
       await props.onOrganizationSwitched?.(organizationId);
       await loadOrganizations();
-      props.onBack();
+      props.onSwitchComplete?.();
     } catch (error) {
       Alert.alert(
         'No se pudo cambiar de negocio',
@@ -112,7 +114,7 @@ export function NegociosScreen(props: {
       await props.onOrganizationSwitched?.(result.organizationId);
       await loadOrganizations();
       Alert.alert('Listo', 'Te uniste al negocio. Ya estás trabajando en él.');
-      props.onBack();
+      props.onSwitchComplete?.();
     } catch (error) {
       Alert.alert(
         'No se pudo unir',
