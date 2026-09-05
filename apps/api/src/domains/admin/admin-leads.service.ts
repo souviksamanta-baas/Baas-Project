@@ -77,21 +77,8 @@ export class AdminLeadsService {
       throw new Error(`Failed to create lead: ${error?.message ?? 'unknown'}`);
     }
 
-    let organizationId: string | null = null;
-    try {
-      const provisioned = await this.provisionOrganizationFromLead({
-        leadId: data.id,
-        orgName,
-        orgTimezone: 'America/Argentina/Cordoba',
-      });
-      organizationId = provisioned.organizationId;
-    } catch (err) {
-      console.error(
-        `[public-leads] auto-provision org failed for lead ${data.id}: ${
-          err instanceof Error ? err.message : String(err)
-        }`,
-      );
-    }
+    // Do NOT auto-provision an organization here. Staff must convert/confirm
+    // the lead in the admin portal before the org exists and is "Convertido".
 
     try {
       await this.sendLeadConfirmationEmail({
@@ -108,7 +95,7 @@ export class AdminLeadsService {
       );
     }
 
-    return { id: data.id, organizationId };
+    return { id: data.id, organizationId: null };
   }
 
   private async sendLeadConfirmationEmail(params: {

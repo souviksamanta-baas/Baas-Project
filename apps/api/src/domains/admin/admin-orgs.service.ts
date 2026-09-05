@@ -152,11 +152,7 @@ export class AdminOrgsService {
       via: params.via ?? 'ui',
     });
 
-    await notifyOwnerOrgConfirmed({
-      client,
-      organizationId: org.id,
-    });
-
+    // Pending payment / not confirmed yet — owner email goes out on license activation.
     return { organizationId: org.id };
   }
 

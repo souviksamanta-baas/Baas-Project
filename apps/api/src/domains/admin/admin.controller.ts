@@ -448,8 +448,8 @@ export class PublicLeadsController {
       createdAt: new Date().toISOString(),
       email: body.email.trim().toLowerCase(),
       id: created.id,
-      organizationId: created.organizationId ?? null,
-      status: created.organizationId ? 'converted' : 'new',
+      organizationId: null,
+      status: 'new',
     };
   }
 
