@@ -108,16 +108,32 @@ export class AdminController {
   ) {
     const rows = await this.leadsService.listLeads(authorizationHeader);
     return rows.map((row: Record<string, unknown>) => ({
-      business: String(row.email ?? '').split('@')[0],
+      business:
+        String(row.org_name ?? '').trim() ||
+        String(row.email ?? '').split('@')[0],
       categoria: row.vertical_slug ?? '',
       ciclo: row.billing_cycle ?? 'monthly',
       createdAt: row.created_at,
       email: row.email,
       id: row.id,
+      organizationId: row.organization_id ?? null,
+      orgName: row.org_name ?? null,
       plan: row.plan_slug ?? '',
       servicios: Array.isArray(row.selected_services) ? row.selected_services : [],
       status: row.status,
     }));
+  }
+
+  @Post('leads/provision-pending')
+  @HttpCode(200)
+  @ApiBearerAuth('SupabaseAuth')
+  @ApiOperation({
+    summary: 'Create organizations for all leads without organization_id',
+  })
+  async provisionPendingLeads(
+    @Headers('authorization') authorizationHeader: string | undefined,
+  ) {
+    return this.leadsService.provisionPendingLeads(authorizationHeader);
   }
 
   @Post('leads/:id/convert')
@@ -159,12 +175,15 @@ export class AdminController {
     return rows.map((row: Record<string, unknown>) => {
       const plans = row.plans as { display_name?: string; slug?: string } | null;
       const owners = row.registered_owners as Array<{ email?: string }> | null;
+      const members = row.organization_members as Array<{ user_id?: string }> | null;
+      const ownerEmail = owners?.[0]?.email?.trim() || undefined;
       return {
         id: row.id,
         licenseExpiresAt: row.licensed_until,
-        members: 0,
+        members: Array.isArray(members) ? members.length : owners?.length ?? 0,
         name: row.name,
-        ownerEmail: owners?.[0]?.email,
+        ownerEmail,
+        ownerName: ownerEmail,
         plan: plans?.display_name ?? plans?.slug ?? '',
         status: row.license_status,
       };
@@ -429,7 +448,8 @@ export class PublicLeadsController {
       createdAt: new Date().toISOString(),
       email: body.email.trim().toLowerCase(),
       id: created.id,
-      status: 'new',
+      organizationId: created.organizationId ?? null,
+      status: created.organizationId ? 'converted' : 'new',
     };
   }
 

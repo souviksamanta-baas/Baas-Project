@@ -35,7 +35,9 @@ export interface ConvertLeadInput {
 export class AdminLeadsService {
   constructor(private readonly supabaseService: SupabaseService) {}
 
-  async createPublicLead(input: CreateLeadInput): Promise<{ id: string }> {
+  async createPublicLead(
+    input: CreateLeadInput,
+  ): Promise<{ id: string; organizationId: string | null }> {
     const email = input.email.trim().toLowerCase();
     if (!email || !email.includes('@')) {
       throw new BadRequestException('Email inválido');
@@ -74,6 +76,22 @@ export class AdminLeadsService {
       throw new Error(`Failed to create lead: ${error?.message ?? 'unknown'}`);
     }
 
+    let organizationId: string | null = null;
+    try {
+      const provisioned = await this.provisionOrganizationFromLead({
+        leadId: data.id,
+        orgName,
+        orgTimezone: 'America/Argentina/Cordoba',
+      });
+      organizationId = provisioned.organizationId;
+    } catch (err) {
+      console.error(
+        `[public-leads] auto-provision org failed for lead ${data.id}: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    }
+
     try {
       await this.sendLeadConfirmationEmail({
         email,
@@ -89,7 +107,7 @@ export class AdminLeadsService {
       );
     }
 
-    return { id: data.id };
+    return { id: data.id, organizationId };
   }
 
   private async sendLeadConfirmationEmail(params: {
@@ -255,11 +273,94 @@ export class AdminLeadsService {
     return data ?? [];
   }
 
+  /** Provision orgs for all leads that are still `new` / without organization. */
+  async provisionPendingLeads(
+    authorizationHeader: string | undefined,
+  ): Promise<{ converted: number; failed: number }> {
+    const staff = await assertNexoliaStaff(
+      this.supabaseService,
+      authorizationHeader,
+    );
+    const client = this.supabaseService.getServiceRoleClient();
+    const { data, error } = await client
+      .from('leads')
+      .select('id, org_name')
+      .is('organization_id', null)
+      .order('created_at', { ascending: true })
+      .limit(200);
+
+    if (error) {
+      throw new Error(`Failed to list pending leads: ${error.message}`);
+    }
+
+    let converted = 0;
+    let failed = 0;
+    for (const lead of data ?? []) {
+      try {
+        const result = await this.provisionOrganizationFromLead({
+          leadId: lead.id,
+          orgName: lead.org_name ?? undefined,
+        });
+        await writeAdminAudit({
+          action: 'lead.convert',
+          actorStaffId: staff.userId,
+          entityId: lead.id,
+          entityType: 'lead',
+          payload: {
+            organizationId: result.organizationId,
+            bulk: true,
+          },
+          supabaseService: this.supabaseService,
+          via: 'ui',
+        });
+        converted += 1;
+      } catch (err) {
+        failed += 1;
+        console.error(
+          `[admin-leads] bulk provision failed for ${lead.id}: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        );
+      }
+    }
+
+    return { converted, failed };
+  }
+
   async convertLead(input: ConvertLeadInput): Promise<{ organizationId: string }> {
     const staff = await assertNexoliaStaff(
       this.supabaseService,
       input.authorizationHeader,
     );
+
+    const result = await this.provisionOrganizationFromLead({
+      leadId: input.leadId,
+      orgName: input.orgName,
+      orgTimezone: input.orgTimezone,
+    });
+
+    await writeAdminAudit({
+      action: 'lead.convert',
+      actorStaffId: staff.userId,
+      entityId: input.leadId,
+      entityType: 'lead',
+      payload: { organizationId: result.organizationId },
+      supabaseService: this.supabaseService,
+      via: input.via ?? 'ui',
+    });
+
+    return result;
+  }
+
+  /**
+   * Create org + default business center + registered owner from a lead.
+   * Idempotent when the lead is already converted.
+   */
+  private async provisionOrganizationFromLead(input: {
+    leadId: string;
+    orgName?: string;
+    orgTimezone?: string;
+  }): Promise<{ organizationId: string }> {
     const client = this.supabaseService.getServiceRoleClient();
 
     const { data: lead, error: leadError } = await client
@@ -317,16 +418,20 @@ export class AdminLeadsService {
       ...(lead.feature_flags ?? {}),
     };
 
-    // Create org via service role (bypass RPC auth.uid requirement)
+    const orgName =
+      (input.orgName?.trim() || lead.org_name || '').trim() || 'Sin nombre';
+    const timezone = input.orgTimezone ?? 'America/Argentina/Cordoba';
+
+    // Free/trial onboarding: provision immediately without waiting for payment.
     const { data: org, error: orgError } = await client
       .from('organizations')
       .insert({
         billing_cycle: lead.billing_cycle ?? 'monthly',
         feature_flags: mergedFlags,
-        license_status: 'pending_payment',
-        name: (input.orgName.trim() || lead.org_name || '').trim() || 'Sin nombre',
+        license_status: 'trial',
+        name: orgName,
         plan_id: planId,
-        timezone: input.orgTimezone ?? 'America/Argentina/Cordoba',
+        timezone,
         vertical_id: verticalId,
       })
       .select('id')
@@ -342,7 +447,7 @@ export class AdminLeadsService {
       is_default: true,
       name: 'Principal',
       organization_id: org.id,
-      timezone: input.orgTimezone ?? 'America/Argentina/Cordoba',
+      timezone,
     });
 
     if (centerError) {
@@ -370,16 +475,6 @@ export class AdminLeadsService {
     if (leadUpdateError) {
       throw new Error(`Failed to update lead: ${leadUpdateError.message}`);
     }
-
-    await writeAdminAudit({
-      action: 'lead.convert',
-      actorStaffId: staff.userId,
-      entityId: lead.id,
-      entityType: 'lead',
-      payload: { organizationId: org.id, email: lead.email },
-      supabaseService: this.supabaseService,
-      via: input.via ?? 'ui',
-    });
 
     return { organizationId: org.id };
   }

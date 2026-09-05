@@ -20,7 +20,7 @@ export class AdminOrgsService {
     const { data, error } = await client
       .from('organizations')
       .select(
-        'id, name, license_status, licensed_until, billing_cycle, plan_id, created_at, plans(slug, display_name), registered_owners(email, claimed_at, user_id)',
+        'id, name, license_status, licensed_until, billing_cycle, plan_id, created_at, plans(slug, display_name), registered_owners(email, claimed_at, user_id), organization_members(user_id)',
       )
       .order('created_at', { ascending: false })
       .limit(200);
