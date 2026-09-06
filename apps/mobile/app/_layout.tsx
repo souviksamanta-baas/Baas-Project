@@ -1,6 +1,7 @@
 import { Stack } from 'expo-router';
 import { useEffect, type ReactElement } from 'react';
 import { Platform, StatusBar } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { OwnerSessionProvider } from '../src/context/OwnerSessionProvider';
@@ -25,21 +26,23 @@ export default function RootLayout(): ReactElement {
   }, []);
 
   return (
-    <SafeAreaProvider>
-      {Platform.OS === 'android' ? (
-        <StatusBar
-          backgroundColor={colors.background}
-          barStyle="dark-content"
-          translucent
-        />
-      ) : (
-        <StatusBar barStyle="dark-content" />
-      )}
-      <OwnerSessionProvider>
-        <ProfileChromeProvider>
-          <Stack screenOptions={{ headerShown: false }} />
-        </ProfileChromeProvider>
-      </OwnerSessionProvider>
-    </SafeAreaProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        {Platform.OS === 'android' ? (
+          <StatusBar
+            backgroundColor={colors.background}
+            barStyle="dark-content"
+            translucent
+          />
+        ) : (
+          <StatusBar barStyle="dark-content" />
+        )}
+        <OwnerSessionProvider>
+          <ProfileChromeProvider>
+            <Stack screenOptions={{ headerShown: false }} />
+          </ProfileChromeProvider>
+        </OwnerSessionProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }

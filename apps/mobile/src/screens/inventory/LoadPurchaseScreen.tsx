@@ -145,10 +145,10 @@ export function LoadPurchaseScreen(props: {
   }, [props.supplier, supplierNames]);
 
   const loadSuppliers = useCallback(async () => {
-    const contacts = await listSuppliers();
+    const contacts = await listSuppliers(props.organizationId);
     const uniqueNames = [...new Set(contacts.map((contact) => supplierLabel(contact)))];
     setSupplierNames(uniqueNames);
-  }, []);
+  }, [props.organizationId]);
 
   useEffect(() => {
     void loadSuppliers();

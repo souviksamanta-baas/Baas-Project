@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Card, ScreenContent, ScreenTitle } from '../components/ui';
+import { useOwnerSessionContext } from '../context/OwnerSessionProvider';
 import {
   listSuppliers,
   removeSupplier,
@@ -23,17 +24,19 @@ export function SuppliersScreen(props: {
   onAddSupplier: () => void;
   onBack: () => void;
 }): ReactElement {
+  const { dashboard } = useOwnerSessionContext();
+  const organizationId = dashboard?.organization?.id ?? null;
   const [suppliers, setSuppliers] = useState<SupplierContact[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   const load = useCallback(async () => {
     setIsLoading(true);
     try {
-      setSuppliers(await listSuppliers());
+      setSuppliers(await listSuppliers(organizationId));
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [organizationId]);
 
   useFocusEffect(
     useCallback(() => {
@@ -55,6 +58,10 @@ export function SuppliersScreen(props: {
   }, [suppliers]);
 
   function confirmRemove(supplier: SupplierContact): void {
+    if (!organizationId) {
+      return;
+    }
+
     const label = supplierLabel(supplier);
     Alert.alert('Eliminar proveedor', `¿Querés quitar a ${label} de la lista?`, [
       { style: 'cancel', text: 'Cancelar' },
@@ -62,8 +69,8 @@ export function SuppliersScreen(props: {
         style: 'destructive',
         text: 'Eliminar',
         onPress: () => {
-          void removeSupplier(supplier.id).then(async () => {
-            setSuppliers(await listSuppliers());
+          void removeSupplier({ organizationId, supplierId: supplier.id }).then(async () => {
+            setSuppliers(await listSuppliers(organizationId));
           });
         },
       },

@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { ContactPickerModal } from '../components/ContactPickerModal';
 import { Card, ScreenContent, ScreenTitle } from '../components/ui';
+import { useOwnerSessionContext } from '../context/OwnerSessionProvider';
 import { PrimaryButton, TextField } from '../design-system';
 import { addSupplier } from '../lib/suppliers';
 import { colors } from '../theme';
@@ -12,6 +13,8 @@ export function AddSupplierScreen(props: {
   onBack: () => void;
   onSaved: () => void;
 }): ReactElement {
+  const { dashboard } = useOwnerSessionContext();
+  const organizationId = dashboard?.organization?.id ?? null;
   const [comercio, setComercio] = useState('');
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
@@ -26,10 +29,14 @@ export function AddSupplierScreen(props: {
     setErrorMessage(null);
 
     try {
+      if (!organizationId) {
+        throw new Error('Seleccioná un negocio para guardar el proveedor.');
+      }
       await addSupplier({
         comercio,
         name,
         notes,
+        organizationId,
         phone,
         phoneE164,
       });

@@ -1,6 +1,7 @@
 import { getAppStorageItem, setAppStorageItem } from './appStorage';
 
-const SUPPLIERS_STORAGE_KEY = 'baas_suppliers_v1';
+const LEGACY_SUPPLIERS_STORAGE_KEY = 'baas_suppliers_v1';
+let legacyGlobalSuppliersCleared = false;
 
 export type SupplierContact = {
   comercio: string;
@@ -17,6 +18,10 @@ type StoredSupplier = Partial<SupplierContact> & {
   id?: string;
   name?: string;
 };
+
+function storageKey(organizationId: string): string {
+  return `baas_suppliers_v2.${organizationId}`;
+}
 
 function normalizeSupplier(raw: StoredSupplier): SupplierContact | null {
   const hasExplicitComercio =
@@ -48,9 +53,13 @@ function normalizeSupplier(raw: StoredSupplier): SupplierContact | null {
   };
 }
 
-async function readSuppliers(): Promise<SupplierContact[]> {
+async function readSuppliers(organizationId: string): Promise<SupplierContact[]> {
+  if (!organizationId.trim()) {
+    return [];
+  }
+
   try {
-    const raw = await getAppStorageItem(SUPPLIERS_STORAGE_KEY);
+    const raw = await getAppStorageItem(storageKey(organizationId));
 
     if (!raw) {
       return [];
@@ -69,13 +78,30 @@ async function readSuppliers(): Promise<SupplierContact[]> {
   }
 }
 
+async function writeSuppliers(
+  organizationId: string,
+  suppliers: SupplierContact[],
+): Promise<void> {
+  await setAppStorageItem(storageKey(organizationId), JSON.stringify(suppliers));
+}
+
 /** Label used in compras / product forms (comercio). */
 export function supplierLabel(supplier: SupplierContact): string {
   return supplier.comercio.trim() || supplier.name.trim();
 }
 
-export async function listSuppliers(): Promise<SupplierContact[]> {
-  const suppliers = await readSuppliers();
+export async function listSuppliers(organizationId: string | null): Promise<SupplierContact[]> {
+  // Drop the old device-wide list so proveedores never leak across negocios.
+  if (!legacyGlobalSuppliersCleared) {
+    await clearLegacyGlobalSuppliers();
+    legacyGlobalSuppliersCleared = true;
+  }
+
+  if (!organizationId) {
+    return [];
+  }
+
+  const suppliers = await readSuppliers(organizationId);
   return suppliers.sort((left, right) =>
     supplierLabel(left).localeCompare(supplierLabel(right), 'es'),
   );
@@ -86,9 +112,15 @@ export async function addSupplier(input: {
   email?: string | null;
   name?: string | null;
   notes?: string | null;
+  organizationId: string;
   phone?: string | null;
   phoneE164?: string | null;
 }): Promise<SupplierContact> {
+  const organizationId = input.organizationId.trim();
+  if (!organizationId) {
+    throw new Error('Seleccioná un negocio para guardar el proveedor.');
+  }
+
   const comercio = input.comercio.trim();
   const name = input.name?.trim() ?? '';
 
@@ -107,16 +139,24 @@ export async function addSupplier(input: {
     phoneE164: input.phoneE164 ?? null,
   };
 
-  const existing = await readSuppliers();
-  await setAppStorageItem(SUPPLIERS_STORAGE_KEY, JSON.stringify([supplier, ...existing]));
+  const existing = await readSuppliers(organizationId);
+  await writeSuppliers(organizationId, [supplier, ...existing]);
 
   return supplier;
 }
 
-export async function removeSupplier(supplierId: string): Promise<void> {
-  const existing = await readSuppliers();
-  const next = existing.filter((supplier) => supplier.id !== supplierId);
-  await setAppStorageItem(SUPPLIERS_STORAGE_KEY, JSON.stringify(next));
+export async function removeSupplier(params: {
+  organizationId: string;
+  supplierId: string;
+}): Promise<void> {
+  const organizationId = params.organizationId.trim();
+  if (!organizationId) {
+    return;
+  }
+
+  const existing = await readSuppliers(organizationId);
+  const next = existing.filter((supplier) => supplier.id !== params.supplierId);
+  await writeSuppliers(organizationId, next);
 }
 
 export function supplierInitials(label: string): string {
@@ -131,4 +171,9 @@ export function supplierInitials(label: string): string {
   }
 
   return `${parts[0]![0] ?? ''}${parts[1]![0] ?? ''}`.toUpperCase();
+}
+
+/** Legacy global list — kept only so we can ignore/clear it; never share across orgs. */
+export async function clearLegacyGlobalSuppliers(): Promise<void> {
+  await setAppStorageItem(LEGACY_SUPPLIERS_STORAGE_KEY, JSON.stringify([]));
 }
