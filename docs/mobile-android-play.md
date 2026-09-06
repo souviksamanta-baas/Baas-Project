@@ -32,8 +32,8 @@ Without mapping, Play shows: *“There is no deobfuscation file associated with 
 3. Privacy policy URL
 4. Account deletion URL → https://nexolia.com.ar/eliminacion-de-cuenta (also `/account-deletion`)
 5. Store listing drafts: short/full description (ES), screenshots, feature graphic
-6. Upload AAB to **internal testing** → invite testers (+ upload `mapping.txt`)
-7. Promote to **closed testing** after smoke on physical devices
+6. Upload AAB to **closed testing** (Play `alpha` track; `eas.json` submit profile) → invite testers (+ upload `mapping.txt`)
+7. Smoke on physical devices → promote to open testing / production when ready
 8. Production release only after Definition of Done in [mobile-android-qa.md](./mobile-android-qa.md)
 
 ## Data safety notes (MVP)

@@ -51,7 +51,7 @@ Artifacts appear in the [Expo / EAS dashboard](https://expo.dev). After Android 
 ## Submit
 
 ```bash
-npm run submit:android   # internal track, draft (eas.json)
+npm run submit:android   # closed testing (alpha track), draft (eas.json)
 npm run submit:ios       # App Store Connect / TestFlight via ascAppId
 # or both:
 npm run submit:store
@@ -66,8 +66,8 @@ npm run submit:store
 - [ ] Privacy policy URL
 - [ ] Account deletion URL → https://nexolia.com.ar/eliminacion-de-cuenta
 - [ ] Store listing (ES): short + full description, icon, feature graphic, phone screenshots
-- [ ] Upload AAB to **internal testing** + `mapping.txt`
-- [ ] Smoke on physical devices → promote to closed / production
+- [ ] Upload AAB to **closed testing** (alpha) + `mapping.txt`
+- [ ] Invite closed testers / email list → smoke on devices → promote when ready
 
 ### App Store Connect (`com.nexolia.owner`)
 
