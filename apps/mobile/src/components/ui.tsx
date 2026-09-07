@@ -146,11 +146,6 @@ export function AppHeader(props: {
                 style={styles.headerCenterButton}
               >
                 <Icon kind="store" size={26} strokeWidth={1.7} />
-                <Icon
-                  kind={centerMenuOpen ? 'chevron-up' : 'chevron-down'}
-                  size={14}
-                  strokeWidth={2.2}
-                />
               </Pressable>
             </View>
           ) : null}
@@ -369,20 +364,23 @@ export function ScreenContent(props: {
 
 export function ScreenTitle(props: {
   onBack?: () => void;
+  /** Title shown in the collapsed sticky app header; defaults to `title`. */
+  stickyTitle?: string;
   subtitle?: string;
   title: string;
-  /** Optional rich title (e.g. inline links). Chrome collapse still uses `title`. */
+  /** Optional rich title (e.g. inline links). Chrome collapse still uses `stickyTitle` or `title`. */
   titleNode?: ReactNode;
 }): ReactElement {
   const chrome = useHeaderChromeOptional();
+  const chromeTitle = props.stickyTitle ?? props.title;
 
   useEffect(() => {
     chrome.setChrome({
       collapseEnabled: true,
       onBack: props.onBack ?? null,
-      title: props.title,
+      title: chromeTitle,
     });
-  }, [chrome.setChrome, props.onBack, props.title]);
+  }, [chrome.setChrome, chromeTitle, props.onBack]);
 
   return (
     <View>
@@ -1497,11 +1495,10 @@ const styles = StyleSheet.create({
   },
   headerCenterButton: {
     alignItems: 'center',
-    flexDirection: 'row',
-    gap: 2,
     height: 28,
     justifyContent: 'center',
     position: 'relative',
+    width: 28,
   },
   centerMenuRoot: {
     flex: 1,

@@ -67,7 +67,7 @@ export const moreMenuSections: MoreMenuSection[] = [
   {
     feature: 'moreReports',
     id: 'reports',
-    rows: [{ icon: 'document', id: 'cash-balances', title: 'Reportes · Balances' }],
+    rows: [{ icon: 'document', id: 'cash-balances', title: 'Informe · Movimientos' }],
   },
   {
     feature: 'moreSettings',

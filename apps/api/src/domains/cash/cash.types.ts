@@ -44,6 +44,7 @@ export type CashDayBalancesDto = {
 
 export type CashRangeDayDto = {
   egresosCents: number;
+  entries: CashLedgerEntryDto[];
   entryDate: string;
   ingresosCents: number;
   saldoFinalCents: number;
@@ -69,7 +70,7 @@ export function mapCashLedgerEntry(row: CashLedgerEntryRow): CashLedgerEntryDto 
     concept: row.concept,
     createdAt: row.created_at,
     createdBy: row.created_by,
-    entryDate: row.entry_date,
+    entryDate: String(row.entry_date).slice(0, 10),
     entryType: row.entry_type,
     id: row.id,
     organizationId: row.organization_id,

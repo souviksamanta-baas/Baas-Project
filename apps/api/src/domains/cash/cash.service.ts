@@ -145,6 +145,7 @@ export class CashService {
       const saldoFinalCents = saldoInicialCents + ingresosCents - egresosCents;
       days.push({
         egresosCents,
+        entries: dayEntries,
         entryDate: cursor,
         ingresosCents,
         saldoFinalCents,
@@ -454,19 +455,38 @@ export class CashService {
     organizationId: string;
   }): Promise<number> {
     const client = this.supabaseService.getServiceRoleClient();
+
     const { data, error } = await client
+      .from('cash_ledger_entries')
+      .select('entry_type, amount_cents.sum()')
+      .eq('organization_id', params.organizationId)
+      .eq('business_center_id', params.businessCenterId)
+      .lt('entry_date', params.entryDate);
+
+    if (!error && data) {
+      let balance = 0;
+      for (const row of data as Array<Record<string, unknown>>) {
+        const amount = Number(row.amount_cents ?? row.sum ?? 0) || 0;
+        const type = row.entry_type as CashEntryType;
+        balance += type === 'ingreso' ? amount : -amount;
+      }
+      return balance;
+    }
+
+    // Fallback if aggregates are unavailable on the project.
+    const fallback = await client
       .from('cash_ledger_entries')
       .select('entry_type, amount_cents')
       .eq('organization_id', params.organizationId)
       .eq('business_center_id', params.businessCenterId)
       .lt('entry_date', params.entryDate);
 
-    if (error) {
-      throw new BadRequestException(error.message);
+    if (fallback.error) {
+      throw new BadRequestException(fallback.error.message);
     }
 
     let balance = 0;
-    for (const row of data ?? []) {
+    for (const row of fallback.data ?? []) {
       const amount = Number((row as { amount_cents: number }).amount_cents) || 0;
       const type = (row as { entry_type: CashEntryType }).entry_type;
       balance += type === 'ingreso' ? amount : -amount;

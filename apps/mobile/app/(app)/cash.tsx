@@ -4,6 +4,7 @@ import { Text } from 'react-native';
 
 import { useOwnerSessionContext } from '../../src/context/OwnerSessionProvider';
 import { ScreenContent } from '../../src/components/ui';
+import { routes } from '../../src/navigation/routes';
 import { CashScreen } from '../../src/screens/CashScreen';
 import { colors } from '../../src/theme';
 
@@ -32,7 +33,10 @@ export default function CashRoute(): ReactElement {
           router.back();
           return;
         }
-        router.replace('/(app)/more');
+        router.replace(routes.appMore);
+      }}
+      onOpenReports={() => {
+        router.push(routes.cashBalances);
       }}
       organizationId={organizationId}
       timezone={dashboard?.businessCenter?.timezone ?? dashboard?.organization?.timezone}

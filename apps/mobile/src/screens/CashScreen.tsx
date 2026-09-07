@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -16,47 +16,36 @@ import {
   createCashManualEntry,
   deleteCashManualEntry,
   getCashDay,
+  getCashRangeReport,
+  rangeDayToBalances,
   updateCashManualEntry,
   type CashDayBalances,
   type CashEntryType,
   type CashLedgerEntry,
+  type CashRangeDay,
 } from '../api/cash';
 import { Card, ScreenContent, ScreenTitle, useHeaderCollapseOnScroll } from '../components/ui';
+import { Icon } from '../components/icons';
+import {
+  CashMovementDateHeader,
+  CashMovementRow,
+  CashMovementsEmpty,
+  CashMovementsSectionTitle,
+} from '../components/CashMovementsList';
 import { formatCurrency } from '../lib/sellCart';
 import { todayIsoDate } from '../lib/cashPostings';
+import {
+  buildMonthCells,
+  cashDayTone,
+  CASH_WEEKDAY_LABELS,
+  formatCashDateShort,
+  formatMonthLabel,
+  monthBounds,
+  shiftIsoDate,
+  shiftMonth,
+  type CashDayTone,
+} from '../lib/cashUi';
 import { colors } from '../theme';
-
-function shiftIsoDate(isoDate: string, deltaDays: number): string {
-  const [y, m, d] = isoDate.split('-').map(Number);
-  const date = new Date(Date.UTC(y!, m! - 1, d!));
-  date.setUTCDate(date.getUTCDate() + deltaDays);
-  return date.toISOString().slice(0, 10);
-}
-
-function formatDisplayDate(isoDate: string): string {
-  const [y, m, d] = isoDate.split('-').map(Number);
-  const date = new Date(Date.UTC(y!, m! - 1, d!));
-  return date.toLocaleDateString('es-AR', {
-    day: '2-digit',
-    month: 'short',
-    timeZone: 'UTC',
-    weekday: 'short',
-    year: 'numeric',
-  });
-}
-
-function sourceLabel(entry: CashLedgerEntry): string {
-  switch (entry.source) {
-    case 'venta':
-      return 'Venta';
-    case 'compra':
-      return 'Compra';
-    case 'stock':
-      return 'Stock';
-    default:
-      return 'Manual';
-  }
-}
 
 function parseAmountToCents(raw: string): number | null {
   const normalized = raw.trim().replace(/\./g, '').replace(',', '.');
@@ -67,18 +56,52 @@ function parseAmountToCents(raw: string): number | null {
   return Math.round(value * 100);
 }
 
+function tonesFromRangeDays(
+  days: CashRangeDay[],
+  yyyyMm: string,
+  today: string,
+): Record<string, CashDayTone> {
+  const { fromDate, toDate } = monthBounds(yyyyMm);
+  const end = toDate < today ? toDate : today;
+  const byDate = new Map(days.map((day) => [day.entryDate, day]));
+  const next: Record<string, CashDayTone> = {};
+  let cursor = fromDate;
+  while (cursor <= end) {
+    const row = byDate.get(cursor);
+    next[cursor] = cashDayTone(row?.ingresosCents ?? 0, row?.egresosCents ?? 0);
+    cursor = shiftIsoDate(cursor, 1);
+  }
+  return next;
+}
+
+const MAX_MOVEMENT_DAYS = 30;
+const MOVEMENT_PAGE_DAYS = 7;
+
+type MovementListItem =
+  | { kind: 'date'; date: string }
+  | { kind: 'entry'; entry: CashLedgerEntry };
+
 export function CashScreen(props: {
   businessCenterId: string;
   businessCenterName?: string | null;
   onBack: () => void;
+  onOpenReports: () => void;
   organizationId: string;
   timezone?: string | null;
 }): ReactElement {
   const onScrollOffset = useHeaderCollapseOnScroll();
-  const [entryDate, setEntryDate] = useState(() => todayIsoDate(props.timezone));
+  const today = todayIsoDate(props.timezone);
+  const [entryDate, setEntryDate] = useState(today);
   const [day, setDay] = useState<CashDayBalances | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [calendarOpen, setCalendarOpen] = useState(false);
+  const [calendarMonth, setCalendarMonth] = useState(() => today.slice(0, 7));
+  const [dayTones, setDayTones] = useState<Record<string, CashDayTone>>({});
+  const [monthLoading, setMonthLoading] = useState(false);
+  const [movementDays, setMovementDays] = useState(MOVEMENT_PAGE_DAYS);
+  const [recentDays, setRecentDays] = useState<CashRangeDay[]>([]);
+  const [recentLoading, setRecentLoading] = useState(false);
   const [editorOpen, setEditorOpen] = useState(false);
   const [editing, setEditing] = useState<CashLedgerEntry | null>(null);
   const [draftType, setDraftType] = useState<CashEntryType>('ingreso');
@@ -86,30 +109,314 @@ export function CashScreen(props: {
   const [draftAmount, setDraftAmount] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
-  const load = useCallback(async () => {
-    setIsLoading(true);
-    setErrorMessage(null);
-    try {
+  const daysByDateRef = useRef<Map<string, CashRangeDay>>(new Map());
+  const tonesCacheRef = useRef<Record<string, Record<string, CashDayTone>>>({});
+  const loadGenRef = useRef(0);
+  const bootstrappedRef = useRef(false);
+
+  const applyRangeDays = useCallback((days: CashRangeDay[]) => {
+    const map = daysByDateRef.current;
+    for (const row of days) {
+      map.set(row.entryDate, row);
+    }
+  }, []);
+
+  const sliceRecent = useCallback(
+    (dayCount: number): CashRangeDay[] => {
+      const fromDate = shiftIsoDate(today, -(dayCount - 1));
+      const rows: CashRangeDay[] = [];
+      let cursor = today;
+      while (cursor >= fromDate) {
+        const cached = daysByDateRef.current.get(cursor);
+        if (cached && (cached.entries?.length ?? 0) > 0) {
+          rows.push(cached);
+        }
+        cursor = shiftIsoDate(cursor, -1);
+      }
+      return rows;
+    },
+    [today],
+  );
+
+  const setDayFromCacheOrNull = useCallback(
+    (date: string): boolean => {
+      const cached = daysByDateRef.current.get(date);
+      if (!cached) {
+        return false;
+      }
       setDay(
-        await getCashDay({
+        rangeDayToBalances(cached, {
           businessCenterId: props.businessCenterId,
-          entryDate,
           organizationId: props.organizationId,
         }),
       );
+      return true;
+    },
+    [props.businessCenterId, props.organizationId],
+  );
+
+  /** One /cash/report for the rolling window used by Caja. */
+  const loadWindow = useCallback(
+    async (dayCount: number): Promise<void> => {
+      const fromDate = shiftIsoDate(today, -(dayCount - 1));
+      const report = await getCashRangeReport({
+        businessCenterId: props.businessCenterId,
+        fromDate,
+        organizationId: props.organizationId,
+        toDate: today,
+      });
+      applyRangeDays(report.days);
+    },
+    [applyRangeDays, props.businessCenterId, props.organizationId, today],
+  );
+
+  const loadSelectedDay = useCallback(
+    async (date: string): Promise<void> => {
+      if (setDayFromCacheOrNull(date)) {
+        setErrorMessage(null);
+        setIsLoading(false);
+        return;
+      }
+
+      const gen = ++loadGenRef.current;
+      setIsLoading(true);
+      setErrorMessage(null);
+      try {
+        const detail = await getCashDay({
+          businessCenterId: props.businessCenterId,
+          entryDate: date,
+          organizationId: props.organizationId,
+        });
+        if (gen !== loadGenRef.current) {
+          return;
+        }
+        setDay(detail);
+        applyRangeDays([
+          {
+            egresosCents: detail.egresosCents,
+            entries: detail.entries ?? [],
+            entryDate: detail.entryDate,
+            ingresosCents: detail.ingresosCents,
+            saldoFinalCents: detail.saldoFinalCents,
+            saldoInicialCents: detail.saldoInicialCents,
+          },
+        ]);
+      } catch (error) {
+        if (gen !== loadGenRef.current) {
+          return;
+        }
+        setDay(null);
+        setErrorMessage(
+          error instanceof Error ? error.message : 'No se pudo cargar la caja del día.',
+        );
+      } finally {
+        if (gen === loadGenRef.current) {
+          setIsLoading(false);
+        }
+      }
+    },
+    [applyRangeDays, props.businessCenterId, props.organizationId, setDayFromCacheOrNull],
+  );
+
+  // Initial load: a single range report covers balances + últimos movimientos.
+  useEffect(() => {
+    const gen = ++loadGenRef.current;
+    let cancelled = false;
+    bootstrappedRef.current = false;
+
+    async function bootstrap(): Promise<void> {
+      setIsLoading(true);
+      setRecentLoading(true);
+      setErrorMessage(null);
+      daysByDateRef.current = new Map();
+      tonesCacheRef.current = {};
+
+      try {
+        await loadWindow(MAX_MOVEMENT_DAYS);
+        if (cancelled || gen !== loadGenRef.current) {
+          return;
+        }
+
+        setRecentDays(sliceRecent(movementDays));
+        if (!setDayFromCacheOrNull(entryDate)) {
+          const detail = await getCashDay({
+            businessCenterId: props.businessCenterId,
+            entryDate,
+            organizationId: props.organizationId,
+          });
+          if (cancelled || gen !== loadGenRef.current) {
+            return;
+          }
+          setDay(detail);
+          applyRangeDays([
+            {
+              egresosCents: detail.egresosCents,
+              entries: detail.entries ?? [],
+              entryDate: detail.entryDate,
+              ingresosCents: detail.ingresosCents,
+              saldoFinalCents: detail.saldoFinalCents,
+              saldoInicialCents: detail.saldoInicialCents,
+            },
+          ]);
+        }
+        bootstrappedRef.current = true;
+      } catch (error) {
+        if (cancelled || gen !== loadGenRef.current) {
+          return;
+        }
+        setDay(null);
+        setRecentDays([]);
+        setErrorMessage(
+          error instanceof Error ? error.message : 'No se pudo cargar la caja.',
+        );
+        bootstrappedRef.current = true;
+      } finally {
+        if (!cancelled && gen === loadGenRef.current) {
+          setIsLoading(false);
+          setRecentLoading(false);
+        }
+      }
+    }
+
+    void bootstrap();
+    return () => {
+      cancelled = true;
+    };
+    // Intentionally only when org/center/today change — date changes use selectDate path.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [props.businessCenterId, props.organizationId, today]);
+
+  // Selected date changes after bootstrap (arrows / calendar).
+  useEffect(() => {
+    if (!bootstrappedRef.current) {
+      return;
+    }
+    void loadSelectedDay(entryDate);
+  }, [entryDate, loadSelectedDay]);
+
+  // "Ver más" only re-slices the already-loaded 30-day window.
+  useEffect(() => {
+    if (!bootstrappedRef.current) {
+      return;
+    }
+    setRecentDays(sliceRecent(movementDays));
+  }, [movementDays, sliceRecent]);
+
+  const loadMonthTones = useCallback(
+    async (yyyyMm: string): Promise<void> => {
+      const cached = tonesCacheRef.current[yyyyMm];
+      if (cached) {
+        setDayTones(cached);
+        return;
+      }
+
+      const { fromDate, toDate } = monthBounds(yyyyMm);
+      const end = toDate < today ? toDate : today;
+      if (fromDate > end) {
+        tonesCacheRef.current[yyyyMm] = {};
+        setDayTones({});
+        return;
+      }
+
+      let missing = false;
+      let cursor = fromDate;
+      while (cursor <= end) {
+        if (!daysByDateRef.current.has(cursor)) {
+          missing = true;
+          break;
+        }
+        cursor = shiftIsoDate(cursor, 1);
+      }
+
+      if (!missing) {
+        const localDays: CashRangeDay[] = [];
+        cursor = fromDate;
+        while (cursor <= end) {
+          localDays.push(daysByDateRef.current.get(cursor)!);
+          cursor = shiftIsoDate(cursor, 1);
+        }
+        const tones = tonesFromRangeDays(localDays, yyyyMm, today);
+        tonesCacheRef.current[yyyyMm] = tones;
+        setDayTones(tones);
+        return;
+      }
+
+      setMonthLoading(true);
+      try {
+        const report = await getCashRangeReport({
+          businessCenterId: props.businessCenterId,
+          fromDate,
+          organizationId: props.organizationId,
+          toDate: end,
+        });
+        applyRangeDays(report.days);
+        const tones = tonesFromRangeDays(report.days, yyyyMm, today);
+        tonesCacheRef.current[yyyyMm] = tones;
+        setDayTones(tones);
+        setRecentDays(sliceRecent(movementDays));
+      } catch {
+        setDayTones({});
+      } finally {
+        setMonthLoading(false);
+      }
+    },
+    [
+      applyRangeDays,
+      movementDays,
+      props.businessCenterId,
+      props.organizationId,
+      sliceRecent,
+      today,
+    ],
+  );
+
+  useEffect(() => {
+    if (!calendarOpen) {
+      return;
+    }
+    void loadMonthTones(calendarMonth);
+  }, [calendarOpen, calendarMonth, loadMonthTones]);
+
+  const refreshAll = useCallback(async () => {
+    setIsLoading(true);
+    setRecentLoading(true);
+    setErrorMessage(null);
+    tonesCacheRef.current = {};
+    try {
+      await loadWindow(MAX_MOVEMENT_DAYS);
+      setRecentDays(sliceRecent(movementDays));
+      if (!setDayFromCacheOrNull(entryDate)) {
+        const detail = await getCashDay({
+          businessCenterId: props.businessCenterId,
+          entryDate,
+          organizationId: props.organizationId,
+        });
+        setDay(detail);
+      }
+      if (calendarOpen) {
+        delete tonesCacheRef.current[calendarMonth];
+        await loadMonthTones(calendarMonth);
+      }
     } catch (error) {
-      setDay(null);
       setErrorMessage(
-        error instanceof Error ? error.message : 'No se pudo cargar la caja del día.',
+        error instanceof Error ? error.message : 'No se pudo actualizar la caja.',
       );
     } finally {
       setIsLoading(false);
+      setRecentLoading(false);
     }
-  }, [entryDate, props.businessCenterId, props.organizationId]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+  }, [
+    calendarMonth,
+    calendarOpen,
+    entryDate,
+    loadMonthTones,
+    loadWindow,
+    movementDays,
+    props.businessCenterId,
+    props.organizationId,
+    setDayFromCacheOrNull,
+    sliceRecent,
+  ]);
 
   const openCreate = (type: CashEntryType) => {
     setEditing(null);
@@ -167,7 +474,7 @@ export function CashScreen(props: {
         });
       }
       setEditorOpen(false);
-      await load();
+      await refreshAll();
     } catch (error) {
       Alert.alert(
         'No se pudo guardar',
@@ -194,7 +501,7 @@ export function CashScreen(props: {
                 entryId: entry.id,
                 organizationId: props.organizationId,
               });
-              await load();
+              await refreshAll();
             } catch (error) {
               Alert.alert(
                 'No se pudo eliminar',
@@ -207,15 +514,43 @@ export function CashScreen(props: {
     ]);
   };
 
-  const subtitle = useMemo(() => {
-    if (props.businessCenterName) {
-      return props.businessCenterName;
-    }
-    return null;
-  }, [props.businessCenterName]);
+  const subtitle = useMemo(() => props.businessCenterName ?? null, [props.businessCenterName]);
+  const monthCells = useMemo(() => buildMonthCells(calendarMonth), [calendarMonth]);
+  const canGoNextMonth = calendarMonth < today.slice(0, 7);
+  const canShowMore = movementDays < MAX_MOVEMENT_DAYS;
 
-  return (
-    <ScreenContent disableScroll title="Caja">
+  const movementItems = useMemo((): MovementListItem[] => {
+    const items: MovementListItem[] = [];
+    for (const dayRow of recentDays) {
+      const entries = dayRow.entries ?? [];
+      if (entries.length === 0) {
+        continue;
+      }
+      items.push({ date: dayRow.entryDate, kind: 'date' });
+      for (const entry of [...entries].reverse()) {
+        items.push({ entry, kind: 'entry' });
+      }
+    }
+    return items;
+  }, [recentDays]);
+
+  function toggleCalendar(): void {
+    setCalendarOpen((open) => {
+      const next = !open;
+      if (next) {
+        setCalendarMonth(entryDate.slice(0, 7));
+      }
+      return next;
+    });
+  }
+
+  function selectCalendarDate(date: string): void {
+    setEntryDate(date);
+    setCalendarOpen(false);
+  }
+
+  const listHeader = (
+    <>
       <View style={styles.headerRow}>
         <Pressable hitSlop={8} onPress={props.onBack} style={styles.backPressable}>
           <Text style={styles.backText}>‹</Text>
@@ -229,32 +564,153 @@ export function CashScreen(props: {
       <View style={styles.dayNav}>
         <Pressable
           accessibilityLabel="Día anterior"
-          onPress={() => setEntryDate((current) => shiftIsoDate(current, -1))}
+          onPress={() => {
+            setCalendarOpen(false);
+            setEntryDate((current) => shiftIsoDate(current, -1));
+          }}
           style={styles.dayNavButton}
         >
           <Text style={styles.dayNavButtonText}>‹</Text>
         </Pressable>
-        <View style={styles.dayNavCenter}>
-          <Text style={styles.dayNavLabel}>{formatDisplayDate(entryDate)}</Text>
-          <Pressable onPress={() => setEntryDate(todayIsoDate(props.timezone))}>
-            <Text style={styles.todayLink}>Hoy</Text>
-          </Pressable>
-        </View>
+        <Pressable
+          accessibilityLabel="Elegir fecha"
+          accessibilityRole="button"
+          onPress={toggleCalendar}
+          style={styles.dayNavCenter}
+        >
+          <Text style={styles.dayNavLabel}>{formatCashDateShort(entryDate)}</Text>
+        </Pressable>
         <Pressable
           accessibilityLabel="Día siguiente"
-          onPress={() => setEntryDate((current) => shiftIsoDate(current, 1))}
-          style={styles.dayNavButton}
+          disabled={entryDate >= today}
+          onPress={() => {
+            if (entryDate >= today) {
+              return;
+            }
+            setCalendarOpen(false);
+            setEntryDate((current) => {
+              const next = shiftIsoDate(current, 1);
+              return next > today ? today : next;
+            });
+          }}
+          style={[styles.dayNavButton, entryDate >= today ? styles.dayNavButtonDisabled : null]}
         >
           <Text style={styles.dayNavButtonText}>›</Text>
         </Pressable>
       </View>
+
+      {calendarOpen ? (
+        <Card style={styles.calendarCard}>
+          <View style={styles.calendarMonthRow}>
+            <Pressable
+              accessibilityLabel="Mes anterior"
+              onPress={() => setCalendarMonth((current) => shiftMonth(current, -1))}
+              style={styles.calendarMonthButton}
+            >
+              <Text style={styles.dayNavButtonText}>‹</Text>
+            </Pressable>
+            <Text style={styles.calendarMonthLabel}>{formatMonthLabel(calendarMonth)}</Text>
+            <Pressable
+              accessibilityLabel="Mes siguiente"
+              disabled={!canGoNextMonth}
+              onPress={() => {
+                if (!canGoNextMonth) {
+                  return;
+                }
+                setCalendarMonth((current) => shiftMonth(current, 1));
+              }}
+              style={[
+                styles.calendarMonthButton,
+                !canGoNextMonth ? styles.dayNavButtonDisabled : null,
+              ]}
+            >
+              <Text style={styles.dayNavButtonText}>›</Text>
+            </Pressable>
+          </View>
+
+          <View style={styles.weekdayRow}>
+            {CASH_WEEKDAY_LABELS.map((label) => (
+              <Text key={label} style={styles.weekdayLabel}>
+                {label}
+              </Text>
+            ))}
+          </View>
+
+          {monthLoading ? (
+            <ActivityIndicator color={colors.primary} style={styles.calendarLoader} />
+          ) : (
+            <View style={styles.calendarGrid}>
+              {monthCells.map((cell, index) => {
+                if (!cell.date || cell.day == null) {
+                  return <View key={`empty-${index}`} style={styles.calendarCell} />;
+                }
+
+                const selected = cell.date === entryDate;
+                const isFuture = cell.date > today;
+                const isToday = cell.date === today;
+                const tone = dayTones[cell.date];
+                const toneStyle =
+                  tone === 'green'
+                    ? styles.calendarCellGreen
+                    : tone === 'red'
+                      ? styles.calendarCellRed
+                      : tone === 'grey'
+                        ? styles.calendarCellGrey
+                        : null;
+                const textStyle =
+                  tone === 'green'
+                    ? styles.calendarDayGreen
+                    : tone === 'red'
+                      ? styles.calendarDayRed
+                      : tone === 'grey'
+                        ? styles.calendarDayGrey
+                        : isFuture
+                          ? styles.calendarDayMuted
+                          : styles.calendarDayDefault;
+
+                return (
+                  <Pressable
+                    disabled={isFuture}
+                    key={cell.date}
+                    onPress={() => selectCalendarDate(cell.date!)}
+                    style={[
+                      styles.calendarCell,
+                      toneStyle,
+                      selected ? styles.calendarCellSelected : null,
+                      isToday && !selected ? styles.calendarCellToday : null,
+                      isFuture ? styles.calendarCellDisabled : null,
+                    ]}
+                  >
+                    <Text style={[styles.calendarDayText, textStyle]}>{cell.day}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          )}
+
+          <View style={styles.calendarLegend}>
+            <View style={styles.legendItem}>
+              <View style={[styles.legendDot, styles.calendarCellGreen]} />
+              <Text style={styles.legendText}>Saldo positivo</Text>
+            </View>
+            <View style={styles.legendItem}>
+              <View style={[styles.legendDot, styles.calendarCellRed]} />
+              <Text style={styles.legendText}>Saldo negativo</Text>
+            </View>
+            <View style={styles.legendItem}>
+              <View style={[styles.legendDot, styles.calendarCellGrey]} />
+              <Text style={styles.legendText}>Saldo cero</Text>
+            </View>
+          </View>
+        </Card>
+      ) : null}
 
       {isLoading ? (
         <ActivityIndicator color={colors.primary} style={styles.loader} />
       ) : errorMessage ? (
         <Card style={styles.emptyCard}>
           <Text style={styles.errorText}>{errorMessage}</Text>
-          <Pressable onPress={() => void load()}>
+          <Pressable onPress={() => void refreshAll()}>
             <Text style={styles.retryText}>Reintentar</Text>
           </Pressable>
         </Card>
@@ -272,58 +728,98 @@ export function CashScreen(props: {
           </View>
 
           <View style={styles.actionsRow}>
-            <Pressable onPress={() => openCreate('ingreso')} style={styles.ingresoButton}>
-              <Text style={styles.actionButtonText}>+ Ingreso</Text>
+            <Pressable
+              accessibilityLabel="Nuevo ingreso"
+              onPress={() => openCreate('ingreso')}
+              style={styles.ingresoButton}
+            >
+              <Text style={styles.actionButtonText}>+</Text>
             </Pressable>
-            <Pressable onPress={() => openCreate('egreso')} style={styles.egresoButton}>
-              <Text style={styles.actionButtonText}>+ Egreso</Text>
+            <Pressable
+              accessibilityLabel="Nuevo egreso"
+              onPress={() => openCreate('egreso')}
+              style={styles.egresoButton}
+            >
+              <Text style={styles.actionButtonText}>−</Text>
+            </Pressable>
+            <Pressable
+              accessibilityLabel="Informe de movimientos"
+              onPress={props.onOpenReports}
+              style={styles.reportButton}
+            >
+              <Icon color="#fff" kind="document" size={22} strokeWidth={2} />
             </Pressable>
           </View>
-
-          <FlatList
-            contentContainerStyle={styles.listContent}
-            data={day.entries}
-            keyExtractor={(item) => item.id}
-            ListEmptyComponent={
-              <Card style={styles.emptyCard}>
-                <Text style={styles.emptyText}>No hay movimientos en este día.</Text>
-              </Card>
-            }
-            onScroll={(event) => onScrollOffset(event.nativeEvent.contentOffset.y)}
-            renderItem={({ item }) => {
-              const isIngreso = item.entryType === 'ingreso';
-              const canEdit = item.source === 'manual';
-              return (
-                <Pressable
-                  disabled={!canEdit}
-                  onLongPress={() => confirmDelete(item)}
-                  onPress={() => openEdit(item)}
-                  style={styles.entryRow}
-                >
-                  <View style={styles.flex}>
-                    <Text style={styles.entryConcept}>{item.concept || sourceLabel(item)}</Text>
-                    <Text style={styles.entryMeta}>
-                      {sourceLabel(item)}
-                      {item.sourceId ? ` · ${item.sourceId}` : ''}
-                    </Text>
-                  </View>
-                  <Text style={[styles.entryAmount, isIngreso ? styles.ingreso : styles.egreso]}>
-                    {isIngreso ? '+' : '−'}
-                    {formatCurrency(item.amountCents)}
-                  </Text>
-                </Pressable>
-              );
-            }}
-            scrollEventThrottle={16}
-          />
         </>
       ) : null}
+
+      <CashMovementsSectionTitle>Últimos movimientos</CashMovementsSectionTitle>
+      {recentLoading && movementItems.length === 0 ? (
+        <ActivityIndicator color={colors.primary} style={styles.recentLoader} />
+      ) : null}
+    </>
+  );
+
+  const listFooter = (
+    <View style={styles.footerWrap}>
+      {!recentLoading && movementItems.length === 0 ? (
+        <CashMovementsEmpty />
+      ) : null}
+      {canShowMore ? (
+        <Pressable
+          onPress={() =>
+            setMovementDays((current) => Math.min(MAX_MOVEMENT_DAYS, current + MOVEMENT_PAGE_DAYS))
+          }
+          style={styles.showMoreButton}
+        >
+          <Text style={styles.showMoreText}>
+            {recentLoading ? 'Cargando…' : 'Ver más'}
+          </Text>
+        </Pressable>
+      ) : (
+        <Text style={styles.showMoreCap}>Mostrando hasta 30 días</Text>
+      )}
+    </View>
+  );
+
+  return (
+    <ScreenContent disableScroll title="Caja">
+      <FlatList
+        contentContainerStyle={styles.listContent}
+        data={movementItems}
+        keyExtractor={(item, index) =>
+          item.kind === 'date' ? `date-${item.date}` : `entry-${item.entry.id}-${index}`
+        }
+        ListFooterComponent={listFooter}
+        ListHeaderComponent={listHeader}
+        onScroll={(event) => onScrollOffset(event.nativeEvent.contentOffset.y)}
+        renderItem={({ item }) => {
+          if (item.kind === 'date') {
+            return <CashMovementDateHeader date={item.date} />;
+          }
+
+          const canEdit = item.entry.source === 'manual';
+          return (
+            <CashMovementRow
+              disabled={!canEdit}
+              entry={item.entry}
+              onLongPress={() => confirmDelete(item.entry)}
+              onPress={() => openEdit(item.entry)}
+            />
+          );
+        }}
+        scrollEventThrottle={16}
+      />
 
       <Modal animationType="slide" transparent visible={editorOpen}>
         <View style={styles.modalBackdrop}>
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>
-              {editing ? 'Editar movimiento' : draftType === 'ingreso' ? 'Nuevo ingreso' : 'Nuevo egreso'}
+              {editing
+                ? 'Editar movimiento'
+                : draftType === 'ingreso'
+                  ? 'Nuevo ingreso'
+                  : 'Nuevo egreso'}
             </Text>
             <View style={styles.typeRow}>
               <Pressable
@@ -378,16 +874,17 @@ export function CashScreen(props: {
 }
 
 const styles = StyleSheet.create({
+  actionButtonText: {
+    color: '#fff',
+    fontSize: 28,
+    fontWeight: '600',
+    lineHeight: 32,
+  },
   actionsRow: {
     flexDirection: 'row',
     gap: 10,
-    marginBottom: 12,
+    marginBottom: 16,
     paddingHorizontal: 16,
-  },
-  actionButtonText: {
-    color: '#fff',
-    fontSize: 15,
-    fontWeight: '700',
   },
   backPressable: {
     marginRight: 4,
@@ -395,7 +892,7 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
   },
   backText: {
-    color: colors.text,
+    color: colors.textPrimary,
     fontSize: 28,
     lineHeight: 32,
   },
@@ -409,7 +906,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   balanceValue: {
-    color: colors.text,
+    color: colors.textPrimary,
     fontSize: 16,
     fontWeight: '700',
   },
@@ -418,6 +915,93 @@ const styles = StyleSheet.create({
     gap: 10,
     marginBottom: 12,
     paddingHorizontal: 16,
+  },
+  calendarCard: {
+    marginBottom: 12,
+    marginHorizontal: 16,
+    padding: 14,
+  },
+  calendarCell: {
+    alignItems: 'center',
+    aspectRatio: 1,
+    borderRadius: 10,
+    justifyContent: 'center',
+    padding: 2,
+    width: `${100 / 7}%`,
+  },
+  calendarCellDisabled: {
+    opacity: 0.45,
+  },
+  calendarCellGreen: {
+    backgroundColor: colors.badgeGreenBg,
+  },
+  calendarCellGrey: {
+    backgroundColor: colors.badgeNeutralBg,
+  },
+  calendarCellRed: {
+    backgroundColor: colors.badgeRedBg,
+  },
+  calendarCellSelected: {
+    borderColor: colors.primary,
+    borderWidth: 2,
+  },
+  calendarCellToday: {
+    borderColor: colors.navy,
+    borderWidth: 1,
+  },
+  calendarDayDefault: {
+    color: colors.textPrimary,
+  },
+  calendarDayGreen: {
+    color: '#027a48',
+    fontWeight: '700',
+  },
+  calendarDayGrey: {
+    color: colors.textSecondary,
+    fontWeight: '700',
+  },
+  calendarDayMuted: {
+    color: colors.textMuted,
+  },
+  calendarDayRed: {
+    color: '#b42318',
+    fontWeight: '700',
+  },
+  calendarDayText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  calendarGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  calendarLegend: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    marginTop: 10,
+  },
+  calendarLoader: {
+    marginVertical: 24,
+  },
+  calendarMonthButton: {
+    alignItems: 'center',
+    height: 36,
+    justifyContent: 'center',
+    width: 36,
+  },
+  calendarMonthLabel: {
+    color: colors.textPrimary,
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '700',
+    textAlign: 'center',
+    textTransform: 'capitalize',
+  },
+  calendarMonthRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    marginBottom: 8,
   },
   dayNav: {
     alignItems: 'center',
@@ -434,62 +1018,37 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     width: 40,
   },
+  dayNavButtonDisabled: {
+    opacity: 0.35,
+  },
   dayNavButtonText: {
-    color: colors.text,
+    color: colors.textPrimary,
     fontSize: 22,
     fontWeight: '600',
   },
   dayNavCenter: {
     alignItems: 'center',
-    gap: 2,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
   },
   dayNavLabel: {
-    color: colors.text,
+    color: colors.textPrimary,
     fontSize: 15,
     fontWeight: '600',
     textTransform: 'capitalize',
-  },
-  egreso: {
-    color: '#b42318',
   },
   egresoButton: {
     alignItems: 'center',
     backgroundColor: '#b42318',
     borderRadius: 12,
     flex: 1,
-    paddingVertical: 12,
+    justifyContent: 'center',
+    minHeight: 48,
+    paddingVertical: 8,
   },
   emptyCard: {
     marginHorizontal: 16,
     padding: 16,
-  },
-  emptyText: {
-    color: colors.textMuted,
-    fontSize: 14,
-  },
-  entryAmount: {
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  entryConcept: {
-    color: colors.text,
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  entryMeta: {
-    color: colors.textMuted,
-    fontSize: 12,
-    marginTop: 2,
-  },
-  entryRow: {
-    backgroundColor: colors.surface,
-    borderRadius: 12,
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 8,
-    marginHorizontal: 16,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
   },
   errorText: {
     color: '#b42318',
@@ -505,38 +1064,55 @@ const styles = StyleSheet.create({
   flex: {
     flex: 1,
   },
+  footerWrap: {
+    paddingBottom: 24,
+    paddingTop: 4,
+  },
   headerRow: {
     alignItems: 'center',
     flexDirection: 'row',
     marginBottom: 8,
     paddingHorizontal: 12,
   },
-  ingreso: {
-    color: '#027a48',
-  },
   ingresoButton: {
     alignItems: 'center',
     backgroundColor: '#027a48',
     borderRadius: 12,
     flex: 1,
-    paddingVertical: 12,
+    justifyContent: 'center',
+    minHeight: 48,
+    paddingVertical: 8,
   },
   input: {
     backgroundColor: '#f8fafc',
     borderColor: '#e2e8f0',
     borderRadius: 10,
     borderWidth: 1,
-    color: colors.text,
+    color: colors.textPrimary,
     fontSize: 16,
     paddingHorizontal: 12,
     paddingVertical: 10,
+  },
+  legendDot: {
+    borderRadius: 4,
+    height: 12,
+    width: 12,
+  },
+  legendItem: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 6,
+  },
+  legendText: {
+    color: colors.textMuted,
+    fontSize: 12,
   },
   listContent: {
     paddingBottom: 120,
     paddingTop: 4,
   },
   loader: {
-    marginTop: 40,
+    marginTop: 24,
   },
   modalActions: {
     flexDirection: 'row',
@@ -576,30 +1152,60 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   modalSecondaryText: {
-    color: colors.text,
+    color: colors.textPrimary,
     fontSize: 15,
     fontWeight: '600',
   },
   modalTitle: {
-    color: colors.text,
+    color: colors.textPrimary,
     fontSize: 18,
     fontWeight: '700',
     marginBottom: 12,
+  },
+  recentLoader: {
+    marginBottom: 12,
+    marginTop: 8,
+  },
+  reportButton: {
+    alignItems: 'center',
+    backgroundColor: colors.navy,
+    borderRadius: 12,
+    flex: 1,
+    justifyContent: 'center',
+    minHeight: 48,
+    paddingVertical: 8,
   },
   retryText: {
     color: colors.primary,
     fontSize: 14,
     fontWeight: '600',
   },
+  showMoreButton: {
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginHorizontal: 16,
+    marginTop: 8,
+    paddingVertical: 12,
+  },
+  showMoreCap: {
+    color: colors.textMuted,
+    fontSize: 12,
+    marginHorizontal: 16,
+    marginTop: 10,
+    textAlign: 'center',
+  },
+  showMoreText: {
+    color: colors.primaryDark,
+    fontSize: 14,
+    fontWeight: '700',
+  },
   subtitle: {
     color: colors.textMuted,
     fontSize: 13,
     marginTop: -4,
-  },
-  todayLink: {
-    color: colors.primary,
-    fontSize: 12,
-    fontWeight: '600',
   },
   typeChip: {
     backgroundColor: '#f1f5f9',
@@ -614,12 +1220,23 @@ const styles = StyleSheet.create({
     backgroundColor: '#d1fadf',
   },
   typeChipText: {
-    color: colors.text,
+    color: colors.textPrimary,
     fontSize: 13,
     fontWeight: '600',
   },
   typeRow: {
     flexDirection: 'row',
     gap: 8,
+  },
+  weekdayLabel: {
+    color: colors.textMuted,
+    flex: 1,
+    fontSize: 11,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  weekdayRow: {
+    flexDirection: 'row',
+    marginBottom: 6,
   },
 });

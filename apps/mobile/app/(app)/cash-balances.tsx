@@ -15,9 +15,9 @@ export default function CashBalancesReportRoute(): ReactElement {
 
   if (!organizationId || !businessCenterId) {
     return (
-      <ScreenContent title="Balances">
+      <ScreenContent title="Movimiento">
         <Text style={{ color: colors.textMuted, padding: 16 }}>
-          No hay una sucursal activa para ver el reporte.
+          No hay una sucursal activa para ver el informe.
         </Text>
       </ScreenContent>
     );
