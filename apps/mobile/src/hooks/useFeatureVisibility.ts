@@ -113,7 +113,9 @@ export function FeatureGate(props: {
   feature: string;
   visibility?: Record<string, boolean>;
 }): ReactElement | null {
-  return isFeatureVisible(props.feature, props.visibility)
+  const liveVisibility = useFeatureVisibility();
+  const visibility = props.visibility ?? liveVisibility;
+  return isFeatureVisible(props.feature, visibility)
     ? createElement(Fragment, null, props.children)
     : null;
 }

@@ -281,32 +281,19 @@ export class BusinessCentersService {
     const client = this.supabaseService.getServiceRoleClient();
     const { data, error } = await client
       .from('organizations')
-      .select('feature_flags, plan_id, plans(slug)')
+      .select('feature_flags')
       .eq('id', organizationId)
       .maybeSingle<{
         feature_flags: Record<string, boolean> | null;
-        plan_id: string | null;
-        plans: { slug: string } | { slug: string }[] | null;
       }>();
 
     if (error) {
       throw new BadRequestException(error.message);
     }
 
-    const planRelation = data?.plans;
-    const planSlug = Array.isArray(planRelation)
-      ? planRelation[0]?.slug
-      : planRelation?.slug;
-    const flags = data?.feature_flags ?? {};
-    const entitled =
-      flags.multi_sucursales === true ||
-      planSlug === 'enterprise' ||
-      planSlug === 'max' ||
-      planSlug === 'advanced';
-
-    if (!entitled) {
+    if (data?.feature_flags?.multi_sucursales !== true) {
       throw new ForbiddenException(
-        'Multisucursal no está habilitado para este negocio (plan Enterprise).',
+        'Multisucursal no está habilitado para este negocio.',
       );
     }
   }

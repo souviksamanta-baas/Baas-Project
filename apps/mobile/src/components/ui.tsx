@@ -103,19 +103,16 @@ export function AppHeader(props: {
             <Pressable
               accessibilityLabel={
                 props.activeBusinessCenterName
-                  ? `Sucursal activa: ${props.activeBusinessCenterName}`
+                  ? `Sucursal activa: ${props.activeBusinessCenterName}. Cambiar sucursal`
                   : 'Elegir sucursal'
               }
+              accessibilityRole="button"
               hitSlop={6}
               onPress={props.onOpenBusinessCenterPicker ?? undefined}
               style={styles.headerCenterButton}
             >
-              <Icon kind="store" size={20} strokeWidth={1.7} />
-              {props.activeBusinessCenterName ? (
-                <Text numberOfLines={1} style={styles.headerCenterLabel}>
-                  {props.activeBusinessCenterName}
-                </Text>
-              ) : null}
+              <Icon kind="store" size={26} strokeWidth={1.7} />
+              <Icon kind="chevron-down" size={14} strokeWidth={2.2} />
             </Pressable>
           ) : null}
           <Pressable
@@ -1397,21 +1394,11 @@ const styles = StyleSheet.create({
   },
   headerCenterButton: {
     alignItems: 'center',
-    backgroundColor: colors.surfaceMint,
-    borderRadius: 16,
     flexDirection: 'row',
-    gap: 4,
-    maxWidth: 118,
-    minHeight: 28,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-  },
-  headerCenterLabel: {
-    color: colors.navy,
-    flexShrink: 1,
-    fontSize: 12,
-    fontWeight: '600',
-    maxWidth: 78,
+    gap: 2,
+    height: 28,
+    justifyContent: 'center',
+    position: 'relative',
   },
   headerLeading: {
     alignItems: 'center',

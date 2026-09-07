@@ -45,9 +45,8 @@ export function applyPlanEntitlements(params: {
     }
   }
 
-  if (planIncludesMultiSucursales(params.planSlug)) {
-    next.multi_sucursales = true;
-  }
+  // Multisucursal stays opt-in (`multi_sucursales` on the org). Enterprise can
+  // unlock it in onboarding, but must not force it onto every Enterprise org.
 
   return next;
 }

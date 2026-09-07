@@ -453,27 +453,21 @@ export function BusinessSettingsScreen(props: {
         />
       </Card>
 
-      <Card style={styles.summaryCard}>
-        <SummaryRow
-          editDisabled={!multiEnabled}
-          hint={
-            multiEnabled
-              ? undefined
-              : 'Disponible con plan Enterprise y Multisucursal'
-          }
-          label="Sucursales"
-          onEdit={multiEnabled ? () => openEdit('sucursales') : undefined}
-          value={
-            multiEnabled
-              ? centers.length > 0
+      {multiEnabled ? (
+        <Card style={styles.summaryCard}>
+          <SummaryRow
+            label="Sucursales"
+            onEdit={() => openEdit('sucursales')}
+            value={
+              centers.length > 0
                 ? `${centers.filter((c) => c.isActive).length} activas`
                 : isLoadingCenters
                   ? 'Cargando…'
                   : 'Sin sucursales'
-              : 'No habilitado'
-          }
-        />
-      </Card>
+            }
+          />
+        </Card>
+      ) : null}
 
       <Card style={styles.summaryCard}>
         <Text style={styles.sectionCardTitle}>Menú personalizado</Text>
