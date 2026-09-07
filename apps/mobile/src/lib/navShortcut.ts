@@ -89,7 +89,9 @@ export function resolveNavShortcutRoute(id: NavShortcutId): string | null {
     case 'browser-session':
       return routes.browserSessionScan;
     case 'cash':
-      return null;
+      return routes.cash;
+    case 'cash-balances':
+      return routes.cashBalances;
     default:
       return null;
   }
@@ -127,6 +129,14 @@ export function isNavShortcutActive(pathname: string, id: NavShortcutId): boolea
       normalized.startsWith('/inventory/manage-stock/') ||
       normalized.startsWith('/inventory/product/')
     );
+  }
+
+  if (id === 'cash') {
+    return normalized === '/cash' || normalized.startsWith('/cash/');
+  }
+
+  if (id === 'cash-balances') {
+    return normalized === '/cash-balances' || normalized.startsWith('/cash-balances/');
   }
 
   return normalized === target || normalized.startsWith(`${target}/`);

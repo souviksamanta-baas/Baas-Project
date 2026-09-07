@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
+  Dimensions,
   findNodeHandle,
   Image,
   Keyboard,
@@ -55,10 +56,12 @@ export function useHeaderCollapseOnScroll(): (offsetY: number) => void {
 }
 
 export function AppHeader(props: {
+  activeBusinessCenterId?: string | null;
   activeBusinessCenterName?: string | null;
+  businessCenters?: Array<{ id: string; name: string }>;
   onOpenAccount: () => void;
-  onOpenBusinessCenterPicker?: (() => void) | null;
   onOpenNotifications: () => void;
+  onSelectBusinessCenter?: ((centerId: string) => void) | null;
   showBusinessCenterPicker?: boolean;
   unreadNotificationCount?: number;
 }): ReactElement {
@@ -67,7 +70,37 @@ export function AppHeader(props: {
   const profile = useProfileChromeOptional();
   const showCollapsed = chrome.collapseEnabled && chrome.collapsed;
   const hasUnread = (props.unreadNotificationCount ?? 0) > 0;
-  const showCenterPicker = Boolean(props.showBusinessCenterPicker && props.onOpenBusinessCenterPicker);
+  const centers = props.businessCenters ?? [];
+  const showCenterPicker = Boolean(
+    props.showBusinessCenterPicker && props.onSelectBusinessCenter && centers.length > 0,
+  );
+  const [centerMenuOpen, setCenterMenuOpen] = useState(false);
+  const [centerMenuAnchor, setCenterMenuAnchor] = useState<{ right: number; top: number } | null>(
+    null,
+  );
+  const centerButtonRef = useRef<View>(null);
+
+  function closeCenterMenu(): void {
+    setCenterMenuOpen(false);
+  }
+
+  function openCenterMenu(): void {
+    const node = centerButtonRef.current;
+    if (!node) {
+      setCenterMenuAnchor({ right: spacing.xl, top: insets.top + 52 });
+      setCenterMenuOpen(true);
+      return;
+    }
+
+    node.measureInWindow((x, y, width, height) => {
+      const windowWidth = Dimensions.get('window').width;
+      setCenterMenuAnchor({
+        right: Math.max(spacing.md, windowWidth - (x + width)),
+        top: y + height + 8,
+      });
+      setCenterMenuOpen(true);
+    });
+  }
 
   return (
     <View style={[styles.header, { paddingTop: Math.max(insets.top, spacing.sm) }]}>
@@ -100,20 +133,26 @@ export function AppHeader(props: {
         )}
         <View style={styles.headerActions}>
           {showCenterPicker ? (
-            <Pressable
-              accessibilityLabel={
-                props.activeBusinessCenterName
-                  ? `Sucursal activa: ${props.activeBusinessCenterName}. Cambiar sucursal`
-                  : 'Elegir sucursal'
-              }
-              accessibilityRole="button"
-              hitSlop={6}
-              onPress={props.onOpenBusinessCenterPicker ?? undefined}
-              style={styles.headerCenterButton}
-            >
-              <Icon kind="store" size={26} strokeWidth={1.7} />
-              <Icon kind="chevron-down" size={14} strokeWidth={2.2} />
-            </Pressable>
+            <View collapsable={false} ref={centerButtonRef}>
+              <Pressable
+                accessibilityLabel={
+                  props.activeBusinessCenterName
+                    ? `Sucursal activa: ${props.activeBusinessCenterName}. Cambiar sucursal`
+                    : 'Elegir sucursal'
+                }
+                accessibilityRole="button"
+                hitSlop={6}
+                onPress={centerMenuOpen ? closeCenterMenu : openCenterMenu}
+                style={styles.headerCenterButton}
+              >
+                <Icon kind="store" size={26} strokeWidth={1.7} />
+                <Icon
+                  kind={centerMenuOpen ? 'chevron-up' : 'chevron-down'}
+                  size={14}
+                  strokeWidth={2.2}
+                />
+              </Pressable>
+            </View>
           ) : null}
           <Pressable
             accessibilityLabel={
@@ -136,6 +175,70 @@ export function AppHeader(props: {
           </Pressable>
         </View>
       </View>
+
+      {showCenterPicker ? (
+        <Modal
+          animationType="fade"
+          onRequestClose={closeCenterMenu}
+          transparent
+          visible={centerMenuOpen}
+        >
+          <View style={styles.centerMenuRoot}>
+            <Pressable
+              accessibilityLabel="Cerrar menú de sucursales"
+              onPress={closeCenterMenu}
+              style={StyleSheet.absoluteFill}
+            />
+            <View
+              pointerEvents="box-none"
+              style={[
+                styles.centerMenuAnchor,
+                centerMenuAnchor
+                  ? { right: centerMenuAnchor.right, top: centerMenuAnchor.top }
+                  : { right: spacing.xl, top: insets.top + 52 },
+              ]}
+            >
+              <View style={styles.centerMenuCard}>
+                <ScrollView
+                  bounces={false}
+                  keyboardShouldPersistTaps="handled"
+                  style={styles.centerMenuScroll}
+                >
+                  {centers.map((center) => {
+                    const selected = center.id === props.activeBusinessCenterId;
+                    return (
+                      <Pressable
+                        accessibilityRole="button"
+                        key={center.id}
+                        onPress={() => {
+                          closeCenterMenu();
+                          if (!selected) {
+                            props.onSelectBusinessCenter?.(center.id);
+                          }
+                        }}
+                        style={({ pressed }) => [
+                          styles.centerMenuItem,
+                          pressed ? styles.centerMenuItemPressed : null,
+                        ]}
+                      >
+                        <Icon kind="store" size={22} strokeWidth={1.7} />
+                        <Text numberOfLines={1} style={styles.centerMenuItemLabel}>
+                          {center.name}
+                        </Text>
+                        {selected ? (
+                          <Icon color={colors.primary} kind="check" size={18} strokeWidth={2.2} />
+                        ) : (
+                          <View style={styles.centerMenuItemCheckSpacer} />
+                        )}
+                      </Pressable>
+                    );
+                  })}
+                </ScrollView>
+              </View>
+            </View>
+          </View>
+        </Modal>
+      ) : null}
     </View>
   );
 }
@@ -1399,6 +1502,44 @@ const styles = StyleSheet.create({
     height: 28,
     justifyContent: 'center',
     position: 'relative',
+  },
+  centerMenuRoot: {
+    flex: 1,
+  },
+  centerMenuAnchor: {
+    position: 'absolute',
+    zIndex: 2,
+  },
+  centerMenuCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.xl,
+    minWidth: 220,
+    overflow: 'hidden',
+    paddingVertical: spacing.xs,
+    ...shadows.md,
+  },
+  centerMenuScroll: {
+    maxHeight: 320,
+  },
+  centerMenuItem: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: spacing.md,
+    minHeight: 48,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+  },
+  centerMenuItemPressed: {
+    backgroundColor: colors.background,
+  },
+  centerMenuItemLabel: {
+    ...textStyles.listTitle,
+    color: colors.navy,
+    flex: 1,
+  },
+  centerMenuItemCheckSpacer: {
+    height: 18,
+    width: 18,
   },
   headerLeading: {
     alignItems: 'center',
