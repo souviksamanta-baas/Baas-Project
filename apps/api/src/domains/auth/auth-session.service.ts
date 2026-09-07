@@ -4,6 +4,13 @@ import { RegisteredOwnerClaimService } from '../admin/registered-owner-claim.ser
 import { SupabaseService } from '../../supabase/supabase.service';
 import { phoneToSyntheticEmail } from './auth-phone.util';
 
+export type MintedAuthSession = {
+  accessToken: string;
+  refreshToken: string;
+  /** @deprecated Prefer accessToken/refreshToken; kept for older clients. */
+  tokenHash: string;
+};
+
 @Injectable()
 export class AuthSessionService {
   constructor(
@@ -11,7 +18,7 @@ export class AuthSessionService {
     @Optional() private readonly registeredOwnerClaimService?: RegisteredOwnerClaimService,
   ) {}
 
-  async createSessionTokenHashForPhone(phoneE164: string): Promise<string> {
+  async createSessionForPhone(phoneE164: string): Promise<MintedAuthSession> {
     const email = phoneToSyntheticEmail(phoneE164);
     const client = this.supabaseService.getServiceRoleClient();
 
@@ -29,10 +36,10 @@ export class AuthSessionService {
       throw new Error(`Failed to create auth user: ${createError.message}`);
     }
 
-    return this.mintMagicLinkTokenHash(email);
+    return this.mintSessionForEmail(email);
   }
 
-  async createSessionTokenHashForEmail(email: string): Promise<string> {
+  async createSessionForEmail(email: string): Promise<MintedAuthSession> {
     const normalizedEmail = email.trim().toLowerCase();
     const client = this.supabaseService.getServiceRoleClient();
 
@@ -48,7 +55,7 @@ export class AuthSessionService {
       throw new Error(`Failed to create auth user: ${createError.message}`);
     }
 
-    const tokenHash = await this.mintMagicLinkTokenHash(normalizedEmail);
+    const session = await this.mintSessionForEmail(normalizedEmail);
 
     if (this.registeredOwnerClaimService) {
       try {
@@ -58,10 +65,22 @@ export class AuthSessionService {
       }
     }
 
-    return tokenHash;
+    return session;
   }
 
-  private async mintMagicLinkTokenHash(email: string): Promise<string> {
+  /** @deprecated Use createSessionForPhone — kept for any residual callers. */
+  async createSessionTokenHashForPhone(phoneE164: string): Promise<string> {
+    const session = await this.createSessionForPhone(phoneE164);
+    return session.tokenHash;
+  }
+
+  /** @deprecated Use createSessionForEmail — kept for any residual callers. */
+  async createSessionTokenHashForEmail(email: string): Promise<string> {
+    const session = await this.createSessionForEmail(email);
+    return session.tokenHash;
+  }
+
+  private async mintSessionForEmail(email: string): Promise<MintedAuthSession> {
     const client = this.supabaseService.getServiceRoleClient();
     const { data, error } = await client.auth.admin.generateLink({
       email,
@@ -76,7 +95,25 @@ export class AuthSessionService {
       throw new Error(error?.message ?? 'Failed to create login session');
     }
 
-    return hashedToken;
+    // Exchange once on the server with the matching type. Mobile used to try
+    // type "email" first, which can burn the one-time hash and surface
+    // "Email link is invalid or has expired".
+    const exchanged = await client.auth.verifyOtp({
+      token_hash: hashedToken,
+      type: 'magiclink',
+    });
+
+    if (exchanged.error || !exchanged.data.session) {
+      throw new Error(
+        exchanged.error?.message ?? 'Failed to exchange login session token',
+      );
+    }
+
+    return {
+      accessToken: exchanged.data.session.access_token,
+      refreshToken: exchanged.data.session.refresh_token,
+      tokenHash: hashedToken,
+    };
   }
 
   async getUserIdFromBearerToken(authorizationHeader: string | undefined): Promise<string> {
@@ -95,5 +132,4 @@ export class AuthSessionService {
 
     return data.user.id;
   }
-
 }

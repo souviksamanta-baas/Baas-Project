@@ -39,7 +39,7 @@ export function formatAuthError(error: unknown): string {
   }
 
   if (
-    /otp.*expired|token.*expired|invalid.*(otp|token|login)|Código inválido|código no es válido/i.test(
+    /otp.*expired|token.*expired|invalid.*(otp|token|login)|Email link is invalid|código no es válido|Código inválido/i.test(
       message,
     )
   ) {

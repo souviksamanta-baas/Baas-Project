@@ -6,6 +6,12 @@ import { normalizeEmail } from '../services/email';
 import { normalizePhoneNumber } from '../services/phone';
 import { apiFetchJson } from './client';
 
+type NestSessionTokens = {
+  accessToken?: string;
+  refreshToken?: string;
+  tokenHash?: string;
+};
+
 export async function requestWhatsAppOtp(phoneE164: string): Promise<void> {
   await apiFetchJson('/auth/otp/whatsapp/request', {
     body: JSON.stringify({ phone: phoneE164 }),
@@ -19,8 +25,8 @@ export async function requestWhatsAppOtp(phoneE164: string): Promise<void> {
 export async function verifyWhatsAppOtp(params: {
   otpCode: string;
   phoneE164: string;
-}): Promise<string> {
-  const body = await apiFetchJson<{ tokenHash: string }>('/auth/otp/whatsapp/verify', {
+}): Promise<NestSessionTokens> {
+  const body = await apiFetchJson<NestSessionTokens>('/auth/otp/whatsapp/verify', {
     body: JSON.stringify({
       code: params.otpCode.trim(),
       phone: params.phoneE164,
@@ -31,11 +37,11 @@ export async function verifyWhatsAppOtp(params: {
     method: 'POST',
   });
 
-  if (!body.tokenHash) {
+  if (!body.accessToken && !body.tokenHash) {
     throw new Error('La API no devolvió un token de sesión.');
   }
 
-  return body.tokenHash;
+  return body;
 }
 
 export async function requestEmailOtp(email: string): Promise<void> {
@@ -57,7 +63,7 @@ export async function requestEmailOtp(email: string): Promise<void> {
 export async function verifyEmailOtp(params: {
   email: string;
   otpCode: string;
-}): Promise<string> {
+}): Promise<NestSessionTokens> {
   const normalizedEmail = normalizeEmail(params.email);
 
   if (!normalizedEmail) {
@@ -69,7 +75,7 @@ export async function verifyEmailOtp(params: {
     throw new Error('Ingresá el código de 6 dígitos del correo.');
   }
 
-  const body = await apiFetchJson<{ tokenHash: string }>('/auth/otp/email/verify', {
+  const body = await apiFetchJson<NestSessionTokens>('/auth/otp/email/verify', {
     body: JSON.stringify({
       code,
       email: normalizedEmail,
@@ -80,11 +86,11 @@ export async function verifyEmailOtp(params: {
     method: 'POST',
   });
 
-  if (!body.tokenHash) {
+  if (!body.accessToken && !body.tokenHash) {
     throw new Error('La API no devolvió un token de sesión.');
   }
 
-  return body.tokenHash;
+  return body;
 }
 
 export async function requestPhoneOtp(phone: string): Promise<void> {
@@ -128,32 +134,39 @@ export async function verifyPhoneOtp(params: {
   return data.session;
 }
 
-/** Exchange Nest-minted magiclink hash for a Supabase session. */
-async function exchangeTokenHashForSession(tokenHash: string): Promise<Session> {
-  const primary = await supabase.auth.verifyOtp({
-    token_hash: tokenHash,
-    type: 'email',
-  });
+async function applyNestSessionTokens(tokens: NestSessionTokens): Promise<Session> {
+  if (tokens.accessToken && tokens.refreshToken) {
+    const { data, error } = await supabase.auth.setSession({
+      access_token: tokens.accessToken,
+      refresh_token: tokens.refreshToken,
+    });
 
-  if (!primary.error && primary.data.session) {
-    return primary.data.session;
+    if (error) {
+      throw new Error(error.message);
+    }
+    if (!data.session) {
+      throw new Error('No se pudo crear la sesión. Pedí un código nuevo.');
+    }
+    return data.session;
   }
 
-  // Some Auth versions accept magiclink for admin.generateLink hashes.
-  const fallback = await supabase.auth.verifyOtp({
-    token_hash: tokenHash,
+  // Legacy fallback for older API builds that only returned tokenHash.
+  if (!tokens.tokenHash) {
+    throw new Error('La API no devolvió un token de sesión.');
+  }
+
+  const exchanged = await supabase.auth.verifyOtp({
+    token_hash: tokens.tokenHash,
     type: 'magiclink',
   });
 
-  if (!fallback.error && fallback.data.session) {
-    return fallback.data.session;
+  if (exchanged.error || !exchanged.data.session) {
+    throw new Error(
+      exchanged.error?.message || 'No se pudo crear la sesión. Pedí un código nuevo.',
+    );
   }
 
-  throw new Error(
-    primary.error?.message ||
-      fallback.error?.message ||
-      'No se pudo crear la sesión. Pedí un código nuevo.',
-  );
+  return exchanged.data.session;
 }
 
 export async function requestLoginOtp(params: {
@@ -191,22 +204,22 @@ export async function verifyLoginOtp(params: {
       throw new Error('Ingresá un número válido (011…, +5411… o +54911…).');
     }
 
-    const tokenHash = await verifyWhatsAppOtp({
+    const tokens = await verifyWhatsAppOtp({
       otpCode: params.otpCode,
       phoneE164: normalizedPhone,
     });
-    return exchangeTokenHashForSession(tokenHash);
+    return applyNestSessionTokens(tokens);
   }
 
   if (params.channel === 'sms') {
     return verifyPhoneOtp({ phone: params.identifier, otpCode: params.otpCode });
   }
 
-  const tokenHash = await verifyEmailOtp({
+  const tokens = await verifyEmailOtp({
     email: params.identifier,
     otpCode: params.otpCode,
   });
-  return exchangeTokenHashForSession(tokenHash);
+  return applyNestSessionTokens(tokens);
 }
 
 export async function signOutOwner(): Promise<void> {

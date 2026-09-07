@@ -26,6 +26,9 @@ import { PlatformEmailAuthService } from './platform-email-auth.service';
 import { PlatformWhatsAppAuthService } from './platform-whatsapp-auth.service';
 
 interface OtpVerifyResponse {
+  accessToken: string;
+  refreshToken: string;
+  /** @deprecated Prefer accessToken/refreshToken. */
   tokenHash: string;
 }
 
@@ -62,12 +65,12 @@ export class AuthController {
   @Post('otp/whatsapp/verify')
   @HttpCode(200)
   @ApiOperation({
-    summary: 'Verify WhatsApp OTP and mint Supabase session token',
+    summary: 'Verify WhatsApp OTP and mint Supabase session',
     description:
-      'Validates the OTP challenge and returns a Supabase token hash the mobile client can exchange for a session.',
+      'Validates the OTP challenge and returns Supabase access/refresh tokens for the mobile client.',
   })
   @ApiBody({ type: WhatsAppOtpVerifyDto })
-  @ApiOkResponse({ description: 'OTP verified; session token hash returned.' })
+  @ApiOkResponse({ description: 'OTP verified; session tokens returned.' })
   @ApiUnauthorizedResponse({
     description: 'Invalid or expired OTP.',
     type: ErrorResponseDto,
@@ -94,8 +97,13 @@ export class AuthController {
       throw new UnauthorizedException('Código inválido.');
     }
 
-    const tokenHash = await this.authSessionService.createSessionTokenHashForPhone(phoneE164);
-    return { tokenHash };
+    try {
+      return await this.authSessionService.createSessionForPhone(phoneE164);
+    } catch (error) {
+      throw new BadRequestException(
+        error instanceof Error ? error.message : 'No se pudo crear la sesión.',
+      );
+    }
   }
 
   @Post('otp/email/request')
@@ -121,12 +129,12 @@ export class AuthController {
   @Post('otp/email/verify')
   @HttpCode(200)
   @ApiOperation({
-    summary: 'Verify email OTP and mint Supabase session token',
+    summary: 'Verify email OTP and mint Supabase session',
     description:
-      'Validates the Nest-owned email OTP challenge and returns a Supabase token hash the mobile client can exchange for a session.',
+      'Validates the Nest-owned email OTP challenge and returns Supabase access/refresh tokens for the mobile client.',
   })
   @ApiBody({ type: EmailOtpVerifyDto })
-  @ApiOkResponse({ description: 'OTP verified; session token hash returned.' })
+  @ApiOkResponse({ description: 'OTP verified; session tokens returned.' })
   @ApiUnauthorizedResponse({
     description: 'Invalid or expired OTP.',
     type: ErrorResponseDto,
@@ -148,8 +156,13 @@ export class AuthController {
       throw new UnauthorizedException('Código inválido.');
     }
 
-    const tokenHash = await this.authSessionService.createSessionTokenHashForEmail(body.email);
-    return { tokenHash };
+    try {
+      return await this.authSessionService.createSessionForEmail(body.email);
+    } catch (error) {
+      throw new BadRequestException(
+        error instanceof Error ? error.message : 'No se pudo crear la sesión.',
+      );
+    }
   }
 }
 
