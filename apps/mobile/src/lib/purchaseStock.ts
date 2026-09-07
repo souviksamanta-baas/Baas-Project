@@ -1,6 +1,7 @@
 import { addStock, reversePurchaseLotStock } from '../api/inventory';
 import type { Product } from '../types/products';
 import type { AddStockFormValues } from '../types/inventoryLots';
+import { postCashAutoQuietly, removeCashAutoQuietly } from './cashPostings';
 import {
   getPurchaseById,
   updatePurchase,
@@ -80,6 +81,7 @@ export async function confirmPurchaseStock(options: {
       options.organizationId,
       product,
       lineToAddStockValues(line, purchase),
+      { skipCashLedger: true },
     );
 
     nextLines.push({
@@ -111,6 +113,20 @@ export async function confirmPurchaseStock(options: {
       lines: nextLines,
       status: 'confirmed',
     },
+  }).then(async (confirmed) => {
+    if (confirmed.totalCostCents > 0) {
+      await postCashAutoQuietly({
+        amountCents: confirmed.totalCostCents,
+        businessCenterId: options.businessCenterId,
+        concept: `Compra ${confirmed.number}`,
+        entryDate: confirmed.date || new Date().toISOString().slice(0, 10),
+        entryType: 'egreso',
+        organizationId: options.organizationId,
+        source: 'compra',
+        sourceId: confirmed.id,
+      });
+    }
+    return confirmed;
   });
 }
 
@@ -182,5 +198,13 @@ export async function unconfirmPurchaseStock(options: {
       })),
       status: 'pending_confirmation',
     },
+  }).then(async (updated) => {
+    await removeCashAutoQuietly({
+      businessCenterId: options.businessCenterId,
+      organizationId: options.organizationId,
+      source: 'compra',
+      sourceId: purchase.id,
+    });
+    return updated;
   });
 }

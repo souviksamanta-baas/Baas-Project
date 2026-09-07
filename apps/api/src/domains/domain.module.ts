@@ -6,6 +6,7 @@ import { AiModule } from './ai/ai.module';
 import { AppointmentsModule } from './appointments/appointments.module';
 import { ArcaModule } from './arca/arca.module';
 import { BillingModule } from './billing/billing.module';
+import { CashModule } from './cash/cash.module';
 import { ConversationsModule } from './conversations/conversations.module';
 import { CustomersModule } from './customers/customers.module';
 import { FacebookModule } from './facebook/facebook.module';
@@ -32,6 +33,7 @@ import { WhatsAppModule } from './whatsapp/whatsapp.module';
     FacebookModule,
     ArcaModule,
     BillingModule,
+    CashModule,
     AppointmentsModule,
   ],
   exports: [
@@ -49,6 +51,7 @@ import { WhatsAppModule } from './whatsapp/whatsapp.module';
     FacebookModule,
     ArcaModule,
     BillingModule,
+    CashModule,
     AppointmentsModule,
   ],
 })

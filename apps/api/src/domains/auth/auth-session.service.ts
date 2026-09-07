@@ -68,11 +68,15 @@ export class AuthSessionService {
       type: 'magiclink',
     });
 
-    if (error || !data.properties.hashed_token) {
+    const hashedToken =
+      data?.properties?.hashed_token ||
+      (data?.properties as { hashedToken?: string } | undefined)?.hashedToken;
+
+    if (error || !hashedToken) {
       throw new Error(error?.message ?? 'Failed to create login session');
     }
 
-    return data.properties.hashed_token;
+    return hashedToken;
   }
 
   async getUserIdFromBearerToken(authorizationHeader: string | undefined): Promise<string> {

@@ -26,7 +26,6 @@ export const routes = {
   whatsappConnect: '/(app)/whatsapp-connect',
   staffInvite: '/(app)/staff-invite',
   staffInviteAccept: '/(auth)/invite-accept',
-  createOrganization: '/(app)/create-organization',
   editProfile: '/(app)/edit-profile',
   businessSettings: '/(app)/business-settings',
   arcaSettings: '/(app)/arca-settings',
@@ -36,6 +35,8 @@ export const routes = {
   billing: '/(app)/billing',
   presupuestos: '/(app)/billing',
   invoices: '/(app)/invoices',
+  cash: '/(app)/cash',
+  cashBalances: '/(app)/cash-balances',
   integrations: '/(app)/integrations',
   suppliers: '/(app)/suppliers',
   suppliersAdd: '/(app)/suppliers/add',
@@ -504,7 +505,6 @@ export function shouldHideBottomNav(pathname: string): boolean {
     pathname.endsWith('/whatsapp-connect') ||
     pathname.endsWith('/staff-invite') ||
     pathname.endsWith('/negocios') ||
-    pathname.endsWith('/create-organization') ||
     pathname.endsWith('/suppliers/add') ||
     pathname.endsWith('/edit-profile') ||
     pathname.endsWith('/business-settings') ||

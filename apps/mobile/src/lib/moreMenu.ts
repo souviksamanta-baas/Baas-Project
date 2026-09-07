@@ -17,6 +17,7 @@ export type MoreMenuRowId =
   | 'billing'
   | 'invoices'
   | 'cash'
+  | 'cash-balances'
   | 'account'
   | 'integrations'
   | 'suppliers'
@@ -24,7 +25,7 @@ export type MoreMenuRowId =
   | 'help'
   | 'privacy';
 
-export type MoreMenuSectionId = 'inventory' | 'operations' | 'settings';
+export type MoreMenuSectionId = 'inventory' | 'operations' | 'reports' | 'settings';
 
 export type MoreMenuRow = {
   disabled?: boolean;
@@ -34,7 +35,7 @@ export type MoreMenuRow = {
 };
 
 export type MoreMenuSection = {
-  feature: 'moreInventory' | 'moreOperations' | 'moreSettings';
+  feature: 'moreInventory' | 'moreOperations' | 'moreReports' | 'moreSettings';
   id: MoreMenuSectionId;
   rows: MoreMenuRow[];
 };
@@ -60,8 +61,13 @@ export const moreMenuSections: MoreMenuSection[] = [
       { icon: 'calendar', id: 'appointments', title: 'Agenda' },
       { icon: 'bill', id: 'billing', title: 'Ventas y presupuestos' },
       { icon: 'bill', id: 'invoices', title: 'Facturas' },
-      { disabled: true, icon: 'cash', id: 'cash', title: 'Caja' },
+      { icon: 'cash', id: 'cash', title: 'Caja' },
     ],
+  },
+  {
+    feature: 'moreReports',
+    id: 'reports',
+    rows: [{ icon: 'document', id: 'cash-balances', title: 'Reportes · Balances' }],
   },
   {
     feature: 'moreSettings',
@@ -90,6 +96,7 @@ const ROW_FEATURE_FLAG: Partial<Record<MoreMenuRowId, keyof OrganizationFeatureF
   billing: 'billing_quotes',
   invoices: 'billing_invoices',
   cash: 'billing_cash',
+  'cash-balances': 'billing_cash',
   suppliers: 'commerce_suppliers',
   integrations: 'integrations',
   'browser-session': 'browser_session',

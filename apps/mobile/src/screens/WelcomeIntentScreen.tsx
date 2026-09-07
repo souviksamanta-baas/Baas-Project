@@ -33,7 +33,10 @@ export function WelcomeIntentScreen(props: {
           label="Quiero registrar mi negocio"
           onPress={() => {
             void Linking.openURL(COMENZAR_URL).catch(() => {
-              props.onCreateBusiness();
+              Alert.alert(
+                'No se pudo abrir el navegador',
+                'Abrí nexolia.com.ar/comenzar desde el navegador para registrar tu negocio.',
+              );
             });
           }}
         />

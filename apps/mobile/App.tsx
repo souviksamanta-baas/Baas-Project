@@ -73,10 +73,8 @@ function OwnerRouteView(props: { ownerSession: OwnerSessionState }): ReactElemen
   if (route === 'onboarding') {
     return (
       <OnboardingScreen
-        businessName={ownerSession.businessName}
-        isSubmitting={ownerSession.isSubmitting}
-        onChangeBusinessName={ownerSession.setBusinessName}
-        onCreateOrganization={ownerSession.createOrganization}
+        onJoinWithInviteToken={() => undefined}
+        onSignOut={ownerSession.signOut}
       />
     );
   }

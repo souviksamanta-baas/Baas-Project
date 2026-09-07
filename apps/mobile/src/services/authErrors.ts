@@ -38,8 +38,16 @@ export function formatAuthError(error: unknown): string {
     return 'WhatsApp de Nexolia aún no está configurado en el servidor. Usá SMS (Twilio) o pedile al dueño que reintente más tarde.';
   }
 
-  if (/token.*expired|otp.*expired|invalid.*otp|invalid.*token/i.test(message)) {
+  if (
+    /otp.*expired|token.*expired|invalid.*(otp|token|login)|Código inválido|código no es válido/i.test(
+      message,
+    )
+  ) {
     return 'El código no es válido o ya venció. Pedí uno nuevo cuando puedas.';
+  }
+
+  if (/Failed to create login session|No se pudo crear la sesión/i.test(message)) {
+    return 'El código es correcto, pero no pudimos abrir la sesión. Pedí un código nuevo e intentá otra vez.';
   }
 
   return message;

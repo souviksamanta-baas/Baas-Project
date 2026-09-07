@@ -91,6 +91,11 @@ export default function MoreRoute(): ReactElement {
         router.push(routes.browserSessionScan);
         return;
       case 'cash':
+        router.push(routes.cash);
+        return;
+      case 'cash-balances':
+        router.push(routes.cashBalances);
+        return;
       default:
         return;
     }

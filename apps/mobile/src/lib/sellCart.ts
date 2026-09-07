@@ -1,5 +1,6 @@
 import type { Product } from '../types/products';
 import { getAppStorageItem, removeAppStorageItem, setAppStorageItem } from './appStorage';
+import { postCashAutoQuietly } from './cashPostings';
 import { supabase } from './supabase';
 
 const QUOTES_STORAGE_KEY = 'baas_sell_quotes_v1';
@@ -458,12 +459,30 @@ export async function updateSellQuote(
   }
 
   const quote = mapSellQuoteRow(data as SellQuoteRow);
+  if (!quote) {
+    return null;
+  }
+
   if (updates.status === 'aceptado') {
     void emitQuoteAcceptedNotification({
       businessCenterId,
       organizationId,
       quoteId,
       totalCents: getSellQuoteTotalCents(quote),
+    });
+  }
+
+  if (updates.status === 'cobrado') {
+    const totalCents = getSellQuoteTotalCents(quote);
+    void postCashAutoQuietly({
+      amountCents: totalCents,
+      businessCenterId,
+      concept: `Venta ${quoteId}`,
+      entryDate: (quote.updatedAt || quote.createdAt || new Date().toISOString()).slice(0, 10),
+      entryType: 'ingreso',
+      organizationId,
+      source: 'venta',
+      sourceId: quoteId,
     });
   }
 

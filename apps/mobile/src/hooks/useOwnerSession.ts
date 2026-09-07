@@ -285,13 +285,15 @@ export function useOwnerSession(): OwnerSessionState {
     setIsSubmitting(true);
 
     try {
-      await verifyLoginOtp({
+      const nextSession = await verifyLoginOtp({
         channel: otpChannel,
         identifier: loginIdentifier,
         otpCode,
       });
-      const { data } = await supabase.auth.getSession();
-      await bootstrapRoute(data.session);
+      setSession(nextSession);
+      setOtpSent(false);
+      setOtpCode('');
+      await bootstrapRoute(nextSession);
     } catch (error) {
       const message = formatAuthError(error);
       Alert.alert('No se pudo verificar el código', message);

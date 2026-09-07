@@ -175,8 +175,8 @@ export function NegociosScreen(props: {
           icon="plus"
           onPress={props.onOpenCreateOrganization}
           showDivider
-          subtitle="Vas a pasar a ser dueño del nuevo negocio"
-          title="Crear otro negocio"
+          subtitle="Completá el alta en nexolia.com.ar/comenzar"
+          title="Registrar otro negocio"
         />
         <ActionRow
           icon="qr"

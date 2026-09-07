@@ -410,6 +410,7 @@ export async function addStock(
   organizationId: string,
   targetProduct: Product,
   values: AddStockFormValues,
+  options?: { skipCashLedger?: boolean },
 ): Promise<{
   lotId: string;
   previousBaseUnitCode: string;
@@ -559,6 +560,20 @@ export async function addStock(
     quantityDelta: quantity,
     unitCode,
   });
+
+  if (!options?.skipCashLedger && Number.isFinite(costCents) && costCents > 0) {
+    const { postCashAutoQuietly } = await import('../lib/cashPostings');
+    void postCashAutoQuietly({
+      amountCents: costCents * quantity,
+      businessCenterId,
+      concept: `Stock ${targetProduct.name}${lotCode ? ` · ${lotCode}` : ''}`,
+      entryDate: receivedAtIso.slice(0, 10),
+      entryType: 'egreso',
+      organizationId,
+      source: 'stock',
+      sourceId: lot.id,
+    });
+  }
 
   if (targetProduct.parentProductId && parentStockDeduction) {
     await applyParentStockDeduction({
