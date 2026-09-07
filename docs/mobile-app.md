@@ -413,10 +413,14 @@ sends can happen.
 - The More screen (`Más`) uses flat card groups **without** Inventarios /
   Operaciones / Reportes titles. Primary group: Gestionar stock, Agregar
   producto, Lotes y Movimientos, expandable **Compras** (Gestionar compras /
-  Cargar compra), Notificaciones y Tareas, Facturación, Caja (disabled).
+  Cargar compra), Notificaciones y Tareas, Facturación, **Caja** (when
+  `billing_cash`). Reportes group: **Reportes · Balances** (date-range PDF/Excel).
   Connections: Integraciones, Proveedores. Support (bottom): Privacidad y datos,
   Ayuda y soporte. Profile expands account actions under the avatar row. Icons
   use brand green; list rows use WhatsApp-style inset dividers.
+- **Multisucursal** (`multi_sucursales` + Enterprise): header centro selector
+  left of notifications; preferred center overlay on `dashboard.businessCenter`;
+  Sucursal field on stock forms; Settings → Sucursales CRUD.
 - Bottom nav is a **floating pill** with equal **16px** side/bottom insets,
   charcoal tab icons (32px), brand-green `$` FAB, icon-only selection highlight,
   and a frosted veil in the gutters. See `docs/mobile-design-system.md`.

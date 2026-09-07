@@ -78,6 +78,11 @@ Outbound customer webhooks are not yet active. When introduced, they should foll
 - Retry with exponential backoff.
 - Delivery logs visible to support and eventually to tenant admins.
 
+**Caja** and **Multisucursal** do not add Meta webhook receivers; they use Nest
+REST only (`/cash/*`, `/organizations/:id/business-centers*`). Auto cash
+postings are invoked from the mobile client after ventas / compras / stock
+mutations.
+
 ## Operational checklist
 
 Before enabling a WhatsApp number:

@@ -22,6 +22,7 @@ features expand the API surface.
 | `whatsapp/` | WhatsApp Business connection status, channel configuration reads, message persistence, outbound sends, and server-only channel metadata. |
 | `arca/` | ARCA (ex-AFIP) WSAA/WSFEv1 adapter, connection/representation state, QR + AFIP-style invoice PDF. SOAP stays server-only. |
 | `billing/` | Fiscal invoice issuance orchestration (`issueInvoice`), list/detail, lock + FECompConsultar recovery. |
+| `cash/` | Daily cash ledger (Caja): day balances, manual movements, auto postings, range report for Reportes · Balances. |
 
 `apps/api/src/domains/domain.module.ts` imports and exports these domain modules
 so new Phase 2 work has an explicit home.
@@ -120,6 +121,16 @@ See `docs/copi-architecture.md` for the full Copi flow and licensing flags.
 - `POST /billing/invoices`, `GET /billing/invoices`, `GET /billing/invoices/:invoiceId`
 
 See `docs/arca-invoicing.md` and `docs/environment.md` (ARCA section). Expo never talks SOAP.
+
+`CashModule` exposes owner-authenticated ledger APIs under `/cash/*` (day view,
+manual CRUD, auto upsert/delete, range report). Entries live in
+`cash_ledger_entries` scoped to organization + business center. Continuous
+opening balance = prior days’ net. Mobile Más → Caja / Reportes · Balances.
+
+`OrganizationsModule` also exposes Multisucursal business-center CRUD under
+`/organizations/:organizationId/business-centers*` (list/create/update/set-default),
+gated by `multi_sucursales` / Enterprise. Mobile persists a preferred center and
+overlays it onto `dashboard.businessCenter` for ops.
 
 **Android / EAS clients (KAN-349):** same REST surface as iOS. Bake `EXPO_PUBLIC_*` into native builds before `eas build` (`docs/mobile-android-install.md`). Sessions use SecureStore on native; WhatsApp image send is `POST /whatsapp/messages/send-image` (see `docs/whatsapp-webhook.md`).
 

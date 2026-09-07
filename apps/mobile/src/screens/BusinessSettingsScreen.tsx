@@ -8,6 +8,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -18,6 +19,13 @@ import {
   type OrganizationMember,
 } from '../api/accountLifecycle';
 import {
+  createBusinessCenterApi,
+  listBusinessCentersApi,
+  setDefaultBusinessCenterApi,
+  updateBusinessCenterApi,
+  type BusinessCenterRecord,
+} from '../api/businessCenters';
+import {
   getOrganizationProfile,
   updateOrganizationNavShortcut,
   updateOrganizationProfile,
@@ -25,6 +33,7 @@ import {
 } from '../api/organizationProfile';
 import { Icon } from '../components/icons';
 import { Card, ScreenContent, ScreenTitle } from '../components/ui';
+import { useOwnerSessionContext } from '../context/OwnerSessionProvider';
 import { PrimaryButton, TextField, colors as dsColors, spacing } from '../design-system';
 import { useAndroidBackHandler } from '../hooks/useAndroidBackHandler';
 import {
@@ -34,9 +43,10 @@ import {
 } from '../lib/navShortcut';
 import { buildTimezoneOptions, formatTimezoneOptionLabel } from '../lib/timezones';
 import { memberRoleLabel } from '../lib/orgRoles';
+import { hasMultipleSucursales } from '../types/features';
 import { colors } from '../theme';
 
-type EditSection = 'name' | 'email' | 'address' | 'timezone' | 'navShortcut' | null;
+type EditSection = 'name' | 'email' | 'address' | 'timezone' | 'navShortcut' | 'sucursales' | null;
 
 function emptyProfile(
   organizationId: string,
@@ -86,6 +96,8 @@ export function BusinessSettingsScreen(props: {
   whatsappPhone: string | null;
 }): ReactElement {
   const insets = useSafeAreaInsets();
+  const { dashboard, refreshBusinessCenters, refreshDashboard } = useOwnerSessionContext();
+  const multiEnabled = hasMultipleSucursales(dashboard?.features);
   const timezoneOptions = useMemo(() => buildTimezoneOptions(), []);
   const navShortcutOptions = useMemo(() => listNavShortcutOptions(), []);
   const [profile, setProfile] = useState<OrganizationProfile>(() =>
@@ -97,12 +109,17 @@ export function BusinessSettingsScreen(props: {
     ),
   );
   const [members, setMembers] = useState<OrganizationMember[]>([]);
+  const [centers, setCenters] = useState<BusinessCenterRecord[]>([]);
   const [isLoadingMembers, setIsLoadingMembers] = useState(true);
+  const [isLoadingCenters, setIsLoadingCenters] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [removingUserId, setRemovingUserId] = useState<string | null>(null);
   const [editSection, setEditSection] = useState<EditSection>(null);
   const [draft, setDraft] = useState<OrganizationProfile | null>(null);
   const [timezonePickerOpen, setTimezonePickerOpen] = useState(false);
+  const [newCenterName, setNewCenterName] = useState('');
+  const [editingCenterId, setEditingCenterId] = useState<string | null>(null);
+  const [editingCenterName, setEditingCenterName] = useState('');
 
   const loadMembers = useCallback(async (): Promise<void> => {
     setIsLoadingMembers(true);
@@ -114,6 +131,25 @@ export function BusinessSettingsScreen(props: {
     }
   }, [props.organizationId]);
 
+  const loadCenters = useCallback(async (): Promise<void> => {
+    if (!multiEnabled) {
+      setCenters([]);
+      return;
+    }
+    setIsLoadingCenters(true);
+    try {
+      const next = await listBusinessCentersApi(props.organizationId);
+      setCenters(next);
+    } catch (error) {
+      Alert.alert(
+        'No se pudieron cargar las sucursales',
+        error instanceof Error ? error.message : 'Error desconocido',
+      );
+    } finally {
+      setIsLoadingCenters(false);
+    }
+  }, [multiEnabled, props.organizationId]);
+
   useAndroidBackHandler(Boolean(editSection) || timezonePickerOpen, () => {
     if (timezonePickerOpen) {
       setTimezonePickerOpen(false);
@@ -122,6 +158,8 @@ export function BusinessSettingsScreen(props: {
     if (editSection) {
       setEditSection(null);
       setDraft(null);
+      setNewCenterName('');
+      setEditingCenterId(null);
       return true;
     }
     return false;
@@ -154,20 +192,28 @@ export function BusinessSettingsScreen(props: {
       }
     });
 
+    void loadCenters();
+
     return () => {
       cancelled = true;
     };
-  }, [loadMembers, props.organizationId]);
+  }, [loadCenters, loadMembers, props.organizationId]);
 
   function openEdit(section: Exclude<EditSection, null>): void {
     setDraft({ ...profile });
     setEditSection(section);
+    if (section === 'sucursales') {
+      void loadCenters();
+    }
   }
 
   function closeEdit(): void {
     setEditSection(null);
     setDraft(null);
     setTimezonePickerOpen(false);
+    setNewCenterName('');
+    setEditingCenterId(null);
+    setEditingCenterName('');
   }
 
   function patchDraft<K extends keyof OrganizationProfile>(
@@ -178,7 +224,7 @@ export function BusinessSettingsScreen(props: {
   }
 
   async function saveDraft(): Promise<void> {
-    if (!draft) {
+    if (!draft || editSection === 'sucursales') {
       return;
     }
 
@@ -213,6 +259,102 @@ export function BusinessSettingsScreen(props: {
       Alert.alert('Negocio actualizado', 'Los datos se guardaron correctamente.');
     } catch (error) {
       Alert.alert('No se pudo guardar', error instanceof Error ? error.message : 'Error desconocido');
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function handleCreateCenter(): Promise<void> {
+    const name = newCenterName.trim();
+    if (!name) {
+      Alert.alert('Nombre requerido', 'Ingresá un nombre para la sucursal.');
+      return;
+    }
+    setIsSaving(true);
+    try {
+      await createBusinessCenterApi({
+        name,
+        organizationId: props.organizationId,
+        timezone: profile.timezone,
+      });
+      setNewCenterName('');
+      await loadCenters();
+      await refreshBusinessCenters();
+      await refreshDashboard();
+    } catch (error) {
+      Alert.alert(
+        'No se pudo crear',
+        error instanceof Error ? error.message : 'Error desconocido',
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function handleRenameCenter(center: BusinessCenterRecord): Promise<void> {
+    const name = editingCenterName.trim();
+    if (!name) {
+      Alert.alert('Nombre requerido', 'Ingresá un nombre para la sucursal.');
+      return;
+    }
+    setIsSaving(true);
+    try {
+      await updateBusinessCenterApi({
+        businessCenterId: center.id,
+        name,
+        organizationId: props.organizationId,
+      });
+      setEditingCenterId(null);
+      setEditingCenterName('');
+      await loadCenters();
+      await refreshBusinessCenters();
+      await refreshDashboard();
+    } catch (error) {
+      Alert.alert(
+        'No se pudo actualizar',
+        error instanceof Error ? error.message : 'Error desconocido',
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function handleSetDefaultCenter(center: BusinessCenterRecord): Promise<void> {
+    setIsSaving(true);
+    try {
+      await setDefaultBusinessCenterApi({
+        businessCenterId: center.id,
+        organizationId: props.organizationId,
+      });
+      await loadCenters();
+      await refreshBusinessCenters();
+      await refreshDashboard();
+    } catch (error) {
+      Alert.alert(
+        'No se pudo marcar como principal',
+        error instanceof Error ? error.message : 'Error desconocido',
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function handleToggleCenterActive(center: BusinessCenterRecord): Promise<void> {
+    setIsSaving(true);
+    try {
+      await updateBusinessCenterApi({
+        businessCenterId: center.id,
+        isActive: !center.isActive,
+        organizationId: props.organizationId,
+      });
+      await loadCenters();
+      await refreshBusinessCenters();
+      await refreshDashboard();
+    } catch (error) {
+      Alert.alert(
+        'No se pudo actualizar',
+        error instanceof Error ? error.message : 'Error desconocido',
+      );
     } finally {
       setIsSaving(false);
     }
@@ -266,7 +408,9 @@ export function BusinessSettingsScreen(props: {
             ? 'Editar zona horaria'
             : editSection === 'navShortcut'
               ? 'Atajo del menú'
-              : '';
+              : editSection === 'sucursales'
+                ? 'Sucursales'
+                : '';
 
   const shortcutOption = getNavShortcutOption(profile.navShortcut);
   return (
@@ -311,9 +455,23 @@ export function BusinessSettingsScreen(props: {
 
       <Card style={styles.summaryCard}>
         <SummaryRow
-          editDisabled
+          editDisabled={!multiEnabled}
+          hint={
+            multiEnabled
+              ? undefined
+              : 'Disponible con plan Enterprise y Multisucursal'
+          }
           label="Sucursales"
-          value="No hay sucursales registradas"
+          onEdit={multiEnabled ? () => openEdit('sucursales') : undefined}
+          value={
+            multiEnabled
+              ? centers.length > 0
+                ? `${centers.filter((c) => c.isActive).length} activas`
+                : isLoadingCenters
+                  ? 'Cargando…'
+                  : 'Sin sucursales'
+              : 'No habilitado'
+          }
         />
       </Card>
 
@@ -550,21 +708,113 @@ export function BusinessSettingsScreen(props: {
                 })}
               </View>
             ) : null}
+
+            {editSection === 'sucursales' ? (
+              <View style={styles.centersEditor}>
+                <Text style={styles.sectionCardHint}>
+                  Administrá los centros de negocio. La sucursal activa se elige desde la barra
+                  superior.
+                </Text>
+                {isLoadingCenters ? (
+                  <Text style={styles.loadingText}>Cargando…</Text>
+                ) : (
+                  centers.map((center) => (
+                    <View key={center.id} style={styles.centerRow}>
+                      {editingCenterId === center.id ? (
+                        <View style={styles.centerEditRow}>
+                          <TextInput
+                            onChangeText={setEditingCenterName}
+                            style={styles.centerInput}
+                            value={editingCenterName}
+                          />
+                          <Pressable
+                            disabled={isSaving}
+                            onPress={() => void handleRenameCenter(center)}
+                          >
+                            <Text style={styles.centerActionPrimary}>Guardar</Text>
+                          </Pressable>
+                          <Pressable
+                            onPress={() => {
+                              setEditingCenterId(null);
+                              setEditingCenterName('');
+                            }}
+                          >
+                            <Text style={styles.centerAction}>Cancelar</Text>
+                          </Pressable>
+                        </View>
+                      ) : (
+                        <>
+                          <View style={styles.flex}>
+                            <Text style={styles.centerName}>
+                              {center.name}
+                              {center.isDefault ? ' · Principal' : ''}
+                              {!center.isActive ? ' · Inactiva' : ''}
+                            </Text>
+                          </View>
+                          <Pressable
+                            onPress={() => {
+                              setEditingCenterId(center.id);
+                              setEditingCenterName(center.name);
+                            }}
+                          >
+                            <Text style={styles.centerAction}>Renombrar</Text>
+                          </Pressable>
+                          {!center.isDefault && center.isActive ? (
+                            <Pressable
+                              disabled={isSaving}
+                              onPress={() => void handleSetDefaultCenter(center)}
+                            >
+                              <Text style={styles.centerAction}>Principal</Text>
+                            </Pressable>
+                          ) : null}
+                          {!center.isDefault ? (
+                            <Pressable
+                              disabled={isSaving}
+                              onPress={() => void handleToggleCenterActive(center)}
+                            >
+                              <Text style={styles.centerAction}>
+                                {center.isActive ? 'Desactivar' : 'Activar'}
+                              </Text>
+                            </Pressable>
+                          ) : null}
+                        </>
+                      )}
+                    </View>
+                  ))
+                )}
+                <Text style={styles.fieldLabel}>Nueva sucursal</Text>
+                <TextInput
+                  onChangeText={setNewCenterName}
+                  placeholder="Nombre de la sucursal"
+                  placeholderTextColor={colors.slate}
+                  style={styles.centerInput}
+                  value={newCenterName}
+                />
+                <PrimaryButton
+                  disabled={isSaving}
+                  fullWidth
+                  label={isSaving ? 'Guardando…' : 'Agregar sucursal'}
+                  onPress={() => void handleCreateCenter()}
+                />
+              </View>
+            ) : null}
           </ScrollView>
 
-          <View
-            style={[
-              styles.editFooter,
-              { paddingBottom: Math.max(insets.bottom, spacing.md) },
-            ]}
-          >
-            <PrimaryButton
-              disabled={isSaving}
-              fullWidth
-              label={isSaving ? 'Guardando…' : 'Guardar cambios'}
-              onPress={() => void saveDraft()}
-            />
-          </View>
+          {editSection === 'sucursales' ? null : (
+            <View
+              style={[
+                styles.editFooter,
+                { paddingBottom: Math.max(insets.bottom, spacing.md) },
+              ]}
+            >
+              <PrimaryButton
+                disabled={isSaving}
+                fullWidth
+                label={isSaving ? 'Guardando…' : 'Guardar cambios'}
+                onPress={() => void saveDraft()}
+              />
+            </View>
+          )}
         </View>
       </Modal>
 
@@ -714,6 +964,58 @@ const styles = StyleSheet.create({
   },
   flex: {
     flex: 1,
+  },
+  fieldLabel: {
+    color: colors.navy,
+    fontSize: 13,
+    fontWeight: '600',
+    marginTop: 8,
+  },
+  centersEditor: {
+    gap: 12,
+  },
+  centerRow: {
+    alignItems: 'center',
+    borderBottomColor: dsColors.borderSoft,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    paddingVertical: 10,
+  },
+  centerEditRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    width: '100%',
+  },
+  centerInput: {
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+    color: colors.navy,
+    flexGrow: 1,
+    fontSize: 15,
+    minWidth: 140,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  centerName: {
+    color: colors.navy,
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  centerAction: {
+    color: colors.slate,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  centerActionPrimary: {
+    color: colors.primary,
+    fontSize: 13,
+    fontWeight: '700',
   },
   headerRow: {
     flexDirection: 'row',

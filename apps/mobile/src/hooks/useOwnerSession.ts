@@ -3,9 +3,11 @@ import { Alert, AppState, type AppStateStatus } from 'react-native';
 import type { Session } from '@supabase/supabase-js';
 
 import { clearAuthEntryIntent } from '../services/authIntent';
-import { createOrganizationWithOwner, getOwnerDashboard } from '../api/dashboard';
+import { createOrganizationWithOwner, getOwnerDashboard, listBusinessCenters } from '../api/dashboard';
 import { requestLoginOtp, signOutOwner, verifyLoginOtp } from '../api/auth';
 import { setPreferredOrganizationId } from '../lib/activeOrganization';
+import { setPreferredBusinessCenterId } from '../lib/activeBusinessCenter';
+import { applyPreferredBusinessCenter } from '../lib/resolvePreferredBusinessCenter';
 import { normalizeNavShortcutId, type NavShortcutId } from '../lib/navShortcut';
 import { supabase } from '../lib/supabase';
 import { formatAuthError } from '../services/authErrors';
@@ -19,6 +21,7 @@ import { normalizePhoneNumber } from '../services/phone';
 import type { OwnerDashboard } from '../types/dashboard';
 import {
   DEFAULT_ORGANIZATION_FEATURE_FLAGS,
+  hasMultipleSucursales,
   resolveOrganizationFeatureFlags,
   type OrganizationFeatureFlags,
 } from '../types/features';
@@ -44,6 +47,7 @@ export type AuthPhase = 'loading' | 'unauthenticated' | 'pending_verify' | 'onbo
 export interface OwnerSessionState {
   authError: string | null;
   authPhase: AuthPhase;
+  businessCenters: Array<{ id: string; isDefault?: boolean; name: string; timezone?: string }>;
   businessName: string;
   canSubmitLogin: boolean;
   dashboard: OwnerDashboard | null;
@@ -55,6 +59,7 @@ export interface OwnerSessionState {
   otpCode: string;
   verticalId: string | null;
   requestOtp: () => Promise<boolean>;
+  setActiveBusinessCenterId: (businessCenterId: string) => Promise<void>;
   setBusinessName: (businessName: string) => void;
   setFeatureFlags: (featureFlags: OrganizationFeatureFlags) => void;
   setLoginIdentifier: (loginIdentifier: string) => void;
@@ -64,6 +69,7 @@ export interface OwnerSessionState {
   setVerticalId: (verticalId: string | null) => void;
   createOrganization: () => Promise<void>;
   refreshDashboard: (organizationId?: string | null) => Promise<void>;
+  refreshBusinessCenters: () => Promise<void>;
   signOut: () => Promise<void>;
   verifyOtp: () => Promise<void>;
 }
@@ -83,6 +89,9 @@ export function useOwnerSession(): OwnerSessionState {
   const [verticalId, setVerticalId] = useState<string | null>(null);
   const [featureFlags, setFeatureFlags] = useState<OrganizationFeatureFlags>(initialFeatureFlags);
   const [dashboard, setDashboard] = useState<OwnerDashboard | null>(null);
+  const [businessCenters, setBusinessCenters] = useState<
+    Array<{ id: string; isDefault?: boolean; name: string; timezone?: string }>
+  >([]);
   const [isResolvingDashboard, setIsResolvingDashboard] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [otpSent, setOtpSent] = useState(false);
@@ -99,10 +108,30 @@ export function useOwnerSession(): OwnerSessionState {
   const clearLocalSession = useCallback(async (): Promise<void> => {
     setSession(null);
     setDashboard(null);
+    setBusinessCenters([]);
     setOtpSent(false);
     clearAuthEntryIntent();
     await signOutOwner();
   }, []);
+
+  const loadBusinessCentersForOrg = useCallback(async (organizationId: string | null): Promise<void> => {
+    if (!organizationId) {
+      setBusinessCenters([]);
+      return;
+    }
+    try {
+      const centers = await listBusinessCenters(organizationId);
+      setBusinessCenters(centers);
+    } catch {
+      setBusinessCenters([]);
+    }
+  }, []);
+
+  const applyDashboard = useCallback(async (nextDashboard: OwnerDashboard): Promise<void> => {
+    const resolved = await applyPreferredBusinessCenter(nextDashboard);
+    setDashboard(resolved);
+    await loadBusinessCentersForOrg(resolved.organization?.id ?? null);
+  }, [loadBusinessCentersForOrg]);
 
   const bootstrapRoute = useCallback(async (
     nextSession: Session | null,
@@ -137,7 +166,7 @@ export function useOwnerSession(): OwnerSessionState {
       const nextDashboard = await getOwnerDashboard(
         options && 'organizationId' in options ? options.organizationId : undefined,
       );
-      setDashboard(nextDashboard);
+      await applyDashboard(nextDashboard);
       setOtpSent(false);
     } catch (error) {
       if (isDefinitiveAuthFailure(error)) {
@@ -155,7 +184,7 @@ export function useOwnerSession(): OwnerSessionState {
         setIsResolvingDashboard(false);
       }
     }
-  }, [clearLocalSession]);
+  }, [applyDashboard, clearLocalSession]);
 
   useEffect(() => {
     let mounted = true;
@@ -350,8 +379,41 @@ export function useOwnerSession(): OwnerSessionState {
     ) {
       throw new Error('No se pudo activar ese negocio. Probá de nuevo.');
     }
-    setDashboard(nextDashboard);
-  }, []);
+    await applyDashboard(nextDashboard);
+  }, [applyDashboard]);
+
+  const refreshBusinessCenters = useCallback(async (): Promise<void> => {
+    await loadBusinessCentersForOrg(dashboard?.organization?.id ?? null);
+  }, [dashboard?.organization?.id, loadBusinessCentersForOrg]);
+
+  const setActiveBusinessCenterId = useCallback(async (businessCenterId: string): Promise<void> => {
+    const organizationId = dashboard?.organization?.id;
+    if (!organizationId || !dashboard?.businessCenter) {
+      return;
+    }
+    if (!hasMultipleSucursales(dashboard.features)) {
+      return;
+    }
+
+    const match =
+      businessCenters.find((center) => center.id === businessCenterId) ??
+      (await listBusinessCenters(organizationId)).find((center) => center.id === businessCenterId);
+
+    if (!match) {
+      throw new Error('Sucursal no encontrada.');
+    }
+
+    await setPreferredBusinessCenterId(organizationId, businessCenterId);
+    setDashboard({
+      ...dashboard,
+      businessCenter: {
+        ...dashboard.businessCenter,
+        id: match.id,
+        name: match.name,
+        timezone: match.timezone ?? dashboard.businessCenter.timezone,
+      },
+    });
+  }, [businessCenters, dashboard]);
 
   const signOut = useCallback(async (): Promise<void> => {
     setAuthError(null);
@@ -391,6 +453,7 @@ export function useOwnerSession(): OwnerSessionState {
     (): OwnerSessionState => ({
       authError,
       authPhase,
+      businessCenters,
       businessName,
       canSubmitLogin,
       createOrganization,
@@ -401,8 +464,10 @@ export function useOwnerSession(): OwnerSessionState {
       navShortcut,
       otpChannel,
       otpCode,
+      refreshBusinessCenters,
       refreshDashboard,
       requestOtp,
+      setActiveBusinessCenterId,
       setBusinessName,
       setFeatureFlags: handleSetFeatureFlags,
       setLoginIdentifier: handleSetLoginIdentifier,
@@ -417,6 +482,7 @@ export function useOwnerSession(): OwnerSessionState {
     [
       authError,
       authPhase,
+      businessCenters,
       businessName,
       canSubmitLogin,
       createOrganization,
@@ -432,8 +498,10 @@ export function useOwnerSession(): OwnerSessionState {
       navShortcut,
       otpChannel,
       otpCode,
+      refreshBusinessCenters,
       refreshDashboard,
       requestOtp,
+      setActiveBusinessCenterId,
       signOut,
       verifyOtp,
       verticalId,

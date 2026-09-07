@@ -1,6 +1,6 @@
 import { Slot, usePathname, useRouter } from 'expo-router';
-import { useEffect, type ReactElement } from 'react';
-import { Platform, StyleSheet, View } from 'react-native';
+import { useCallback, useEffect, type ReactElement } from 'react';
+import { Alert, Platform, StyleSheet, View } from 'react-native';
 
 import { MobileOverlayProvider } from '../../src/components/MobileContainedModal';
 import { AppHeader, BottomNavigation } from '../../src/components/ui';
@@ -28,6 +28,7 @@ import {
   tabRoute,
 } from '../../src/navigation/routes';
 import { LoadingScreen } from '../../src/screens/LoadingScreen';
+import { hasMultipleSucursales } from '../../src/types/features';
 import { colors } from '../../src/theme';
 
 export default function AppLayout(): ReactElement {
@@ -43,7 +44,12 @@ export default function AppLayout(): ReactElement {
 function AuthenticatedAppShell(): ReactElement {
   const router = useRouter();
   const pathname = usePathname();
-  const { authPhase, dashboard } = useOwnerSessionContext();
+  const {
+    authPhase,
+    businessCenters,
+    dashboard,
+    setActiveBusinessCenterId,
+  } = useOwnerSessionContext();
   const androidKeyboardVisible = useAndroidKeyboardVisible();
   const tasksState = useOwnerTasks();
   usePushNotificationRouting(Boolean(hasSupabaseConfig) && authPhase === 'authenticated');
@@ -53,6 +59,34 @@ function AuthenticatedAppShell(): ReactElement {
   // keyboard and steal space from the scrollable form.
   const hideBottomNav = routeHidesBottomNav || androidKeyboardVisible;
   const isAuthenticatedShell = !hasSupabaseConfig || authPhase === 'authenticated';
+  const multiEnabled = hasMultipleSucursales(dashboard?.features);
+  const showBusinessCenterPicker = multiEnabled && businessCenters.length > 0;
+
+  const openBusinessCenterPicker = useCallback(() => {
+    if (businessCenters.length === 0) {
+      return;
+    }
+    const activeId = dashboard?.businessCenter?.id ?? null;
+    Alert.alert(
+      'Sucursal activa',
+      'Elegí el centro de negocio para operaciones y reportes.',
+      [
+        ...businessCenters.map((center) => ({
+          onPress: () => {
+            void setActiveBusinessCenterId(center.id).catch((error: unknown) => {
+              Alert.alert(
+                'No se pudo cambiar la sucursal',
+                error instanceof Error ? error.message : 'Error desconocido',
+              );
+            });
+          },
+          style: activeId === center.id ? ('cancel' as const) : ('default' as const),
+          text: activeId === center.id ? `✓ ${center.name}` : center.name,
+        })),
+        { style: 'cancel' as const, text: 'Cancelar' },
+      ],
+    );
+  }, [businessCenters, dashboard?.businessCenter?.id, setActiveBusinessCenterId]);
 
   // Must stay above any early return — authPhase flips after eliminar/archivar negocio.
   useAndroidRootExitBack(isAuthenticatedShell && !routeHidesBottomNav);
@@ -99,12 +133,15 @@ function AuthenticatedAppShell(): ReactElement {
   return (
     <View style={[styles.root, Platform.OS === 'web' && styles.webRoot]}>
       <AppHeader
+        activeBusinessCenterName={dashboard?.businessCenter?.name ?? null}
         onOpenAccount={() => {
           router.push(routes.account);
         }}
+        onOpenBusinessCenterPicker={showBusinessCenterPicker ? openBusinessCenterPicker : null}
         onOpenNotifications={() => {
           router.push(routes.notifications);
         }}
+        showBusinessCenterPicker={showBusinessCenterPicker}
         unreadNotificationCount={tasksState.unreadNotificationCount}
       />
       <InboxProvider>

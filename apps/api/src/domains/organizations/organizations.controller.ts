@@ -6,6 +6,7 @@ import {
   Headers,
   HttpCode,
   Param,
+  Patch,
   Post,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -17,14 +18,45 @@ import {
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
+import { IsBoolean, IsOptional, IsString, MinLength } from 'class-validator';
 
 import { AcceptOrganizationInviteDto, ErrorResponseDto } from '../../docs/openapi.dtos';
+import {
+  BusinessCentersService,
+  type BusinessCenterDto,
+} from './business-centers.service';
 import {
   OrganizationInvitesService,
   type OrganizationInviteRole,
   type OrganizationInviteSummary,
 } from './organization-invites.service';
 import { OrganizationLifecycleService } from './organization-lifecycle.service';
+
+class CreateBusinessCenterDto {
+  @IsString()
+  @MinLength(1)
+  name!: string;
+
+  @IsOptional()
+  @IsString()
+  timezone?: string;
+}
+
+class UpdateBusinessCenterDto {
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  name?: string;
+
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  timezone?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
+}
 
 interface CreateInviteBody {
   businessCenterId?: string;
@@ -42,6 +74,7 @@ export class OrganizationsController {
   constructor(
     private readonly invitesService: OrganizationInvitesService,
     private readonly lifecycleService: OrganizationLifecycleService,
+    private readonly businessCentersService: BusinessCentersService,
   ) {}
 
   @Post('invites')
@@ -107,6 +140,67 @@ export class OrganizationsController {
     return this.lifecycleService.deleteAccount({
       authorizationHeader,
       confirmation: body.confirmation ?? '',
+    });
+  }
+
+  @Get(':organizationId/business-centers')
+  @ApiOperation({ summary: 'List business centers (sucursales) for an organization' })
+  async listBusinessCenters(
+    @Headers('authorization') authorizationHeader: string | undefined,
+    @Param('organizationId') organizationId: string,
+  ): Promise<BusinessCenterDto[]> {
+    return this.businessCentersService.listCenters({
+      authorizationHeader,
+      organizationId,
+    });
+  }
+
+  @Post(':organizationId/business-centers')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Create a business center (requires multi_sucursales)' })
+  async createBusinessCenter(
+    @Headers('authorization') authorizationHeader: string | undefined,
+    @Param('organizationId') organizationId: string,
+    @Body() body: CreateBusinessCenterDto,
+  ): Promise<BusinessCenterDto> {
+    return this.businessCentersService.createCenter({
+      authorizationHeader,
+      name: body.name,
+      organizationId,
+      timezone: body.timezone,
+    });
+  }
+
+  @Patch(':organizationId/business-centers/:businessCenterId')
+  @ApiOperation({ summary: 'Update a business center' })
+  async updateBusinessCenter(
+    @Headers('authorization') authorizationHeader: string | undefined,
+    @Param('organizationId') organizationId: string,
+    @Param('businessCenterId') businessCenterId: string,
+    @Body() body: UpdateBusinessCenterDto,
+  ): Promise<BusinessCenterDto> {
+    return this.businessCentersService.updateCenter({
+      authorizationHeader,
+      businessCenterId,
+      isActive: body.isActive,
+      name: body.name,
+      organizationId,
+      timezone: body.timezone,
+    });
+  }
+
+  @Post(':organizationId/business-centers/:businessCenterId/set-default')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Mark a business center as the organization default' })
+  async setDefaultBusinessCenter(
+    @Headers('authorization') authorizationHeader: string | undefined,
+    @Param('organizationId') organizationId: string,
+    @Param('businessCenterId') businessCenterId: string,
+  ): Promise<BusinessCenterDto> {
+    return this.businessCentersService.setDefaultCenter({
+      authorizationHeader,
+      businessCenterId,
+      organizationId,
     });
   }
 

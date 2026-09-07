@@ -55,8 +55,11 @@ export function useHeaderCollapseOnScroll(): (offsetY: number) => void {
 }
 
 export function AppHeader(props: {
+  activeBusinessCenterName?: string | null;
   onOpenAccount: () => void;
+  onOpenBusinessCenterPicker?: (() => void) | null;
   onOpenNotifications: () => void;
+  showBusinessCenterPicker?: boolean;
   unreadNotificationCount?: number;
 }): ReactElement {
   const insets = useSafeAreaInsets();
@@ -64,6 +67,7 @@ export function AppHeader(props: {
   const profile = useProfileChromeOptional();
   const showCollapsed = chrome.collapseEnabled && chrome.collapsed;
   const hasUnread = (props.unreadNotificationCount ?? 0) > 0;
+  const showCenterPicker = Boolean(props.showBusinessCenterPicker && props.onOpenBusinessCenterPicker);
 
   return (
     <View style={[styles.header, { paddingTop: Math.max(insets.top, spacing.sm) }]}>
@@ -95,6 +99,25 @@ export function AppHeader(props: {
           </View>
         )}
         <View style={styles.headerActions}>
+          {showCenterPicker ? (
+            <Pressable
+              accessibilityLabel={
+                props.activeBusinessCenterName
+                  ? `Sucursal activa: ${props.activeBusinessCenterName}`
+                  : 'Elegir sucursal'
+              }
+              hitSlop={6}
+              onPress={props.onOpenBusinessCenterPicker ?? undefined}
+              style={styles.headerCenterButton}
+            >
+              <Icon kind="store" size={20} strokeWidth={1.7} />
+              {props.activeBusinessCenterName ? (
+                <Text numberOfLines={1} style={styles.headerCenterLabel}>
+                  {props.activeBusinessCenterName}
+                </Text>
+              ) : null}
+            </Pressable>
+          ) : null}
           <Pressable
             accessibilityLabel={
               hasUnread
@@ -1371,6 +1394,24 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     position: 'relative',
     width: 28,
+  },
+  headerCenterButton: {
+    alignItems: 'center',
+    backgroundColor: colors.surfaceMint,
+    borderRadius: 16,
+    flexDirection: 'row',
+    gap: 4,
+    maxWidth: 118,
+    minHeight: 28,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  headerCenterLabel: {
+    color: colors.navy,
+    flexShrink: 1,
+    fontSize: 12,
+    fontWeight: '600',
+    maxWidth: 78,
   },
   headerLeading: {
     alignItems: 'center',

@@ -77,19 +77,30 @@ export async function listOrganizationVerticals(): Promise<OrganizationVertical[
 
 export async function listBusinessCenters(
   organizationId: string,
-): Promise<Array<{ id: string; name: string }>> {
+): Promise<Array<{ id: string; isDefault?: boolean; name: string; timezone?: string }>> {
   const { data, error } = await supabase
     .from('business_centers')
-    .select('id, name')
+    .select('id, name, timezone, is_default')
     .eq('organization_id', organizationId)
     .eq('is_active', true)
+    .order('is_default', { ascending: false })
     .order('name', { ascending: true });
 
   if (error) {
     throw new Error(error.message);
   }
 
-  return (data ?? []) as Array<{ id: string; name: string }>;
+  return ((data ?? []) as Array<{
+    id: string;
+    is_default: boolean;
+    name: string;
+    timezone: string;
+  }>).map((row) => ({
+    id: row.id,
+    isDefault: row.is_default,
+    name: row.name,
+    timezone: row.timezone,
+  }));
 }
 
 export async function createOrganizationWithOwner(
