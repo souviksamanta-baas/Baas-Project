@@ -3,6 +3,16 @@
 Package: `ar.com.nexolia.app`  
 Epic: [KAN-346](https://souviksamanta.atlassian.net/browse/KAN-346)
 
+## Play Console pre-launch / policy notes
+
+### Edge-to-edge (Android 15+)
+
+Do **not** set status/navigation bar background colors or `translucent` in JS (`StatusBar.setBackgroundColor` / `setTranslucent`) or in `app.json` (`androidStatusBar.backgroundColor`, `android.navigationBar.backgroundColor`). Those call deprecated `Window.setStatusBarColor` / `setNavigationBarColor`. Keep icon style only (`barStyle`) and rely on safe-area insets.
+
+### Large screens / orientation (Android 16+)
+
+App orientation is `default` (no portrait lock on `MainActivity`). `plugins/withAndroidLargeScreenCompat.js` overrides ML Kit Code Scanner’s portrait-locked activity via manifest merger. Smoke tablets/foldables in landscape after each store build.
+
 ## Artifact
 
 ```bash

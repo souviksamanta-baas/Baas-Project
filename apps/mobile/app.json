@@ -5,7 +5,7 @@
     "owner": "baas1",
     "scheme": "baas-owner",
     "version": "0.1.0",
-    "orientation": "portrait",
+    "orientation": "default",
     "userInterfaceStyle": "automatic",
     "icon": "./assets/images/nexolia-icon.png",
     "splash": {
@@ -55,6 +55,7 @@
         }
       ],
       "expo-secure-store",
+      "./plugins/withAndroidLargeScreenCompat.js",
       [
         "expo-build-properties",
         {
@@ -105,7 +106,6 @@
         }
       ],
       "navigationBar": {
-        "backgroundColor": "#ffffff",
         "barStyle": "dark-content"
       }
     },
@@ -116,9 +116,7 @@
       }
     },
     "androidStatusBar": {
-      "backgroundColor": "#fbfcfb",
-      "barStyle": "dark-content",
-      "translucent": true
+      "barStyle": "dark-content"
     }
   }
 }
