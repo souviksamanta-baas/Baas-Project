@@ -258,6 +258,7 @@ export class AiController {
       audioBase64: body.audioBase64,
       featureFlags: flags,
       mimeType: body.mimeType,
+      organizationId: body.organizationId,
     });
   }
 
@@ -287,6 +288,7 @@ export class AiController {
       audioBuffer: file.buffer,
       featureFlags: flags,
       mimeType: file.mimetype || 'audio/m4a',
+      organizationId,
     });
   }
 
@@ -306,6 +308,7 @@ export class AiController {
       featureFlags: flags,
       imageBase64: body.imageBase64,
       mimeType: body.mimeType,
+      organizationId: body.organizationId,
       prompt: body.prompt,
     });
   }

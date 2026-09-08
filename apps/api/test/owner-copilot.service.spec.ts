@@ -100,8 +100,11 @@ function createOrchestrator(): {
     tasksService,
     appointmentsService,
   );
-  const toolSelectorService = new CopiLlmToolSelectorService();
-  const phraserService = new CopiLlmPhraserService(policyService);
+  const llmCredentials = {
+    getApiKeyForOrganization: vi.fn(async () => null),
+  } as unknown as import('../src/domains/ai/organization-llm-credentials.service').OrganizationLlmCredentialsService;
+  const toolSelectorService = new CopiLlmToolSelectorService(llmCredentials);
+  const phraserService = new CopiLlmPhraserService(policyService, llmCredentials);
 
   return {
     orchestrator: new CopiOrchestratorService(

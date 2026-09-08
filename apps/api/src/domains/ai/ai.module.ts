@@ -17,6 +17,8 @@ import { CopiSessionService } from './copi-session.service';
 import { CopiToolRegistry } from './copi-tool-registry';
 import { CopiVisionService } from './copi-vision.service';
 import { CopiVoiceService } from './copi-voice.service';
+import { OpenAiAdminClient } from './openai-admin.client';
+import { OrganizationLlmCredentialsService } from './organization-llm-credentials.service';
 import { OwnerCopilotService } from './owner-copilot.service';
 import { SalesAiService } from './sales-ai.service';
 
@@ -25,6 +27,8 @@ import { SalesAiService } from './sales-ai.service';
   controllers: [AiController],
   providers: [
     SupabaseService,
+    OpenAiAdminClient,
+    OrganizationLlmCredentialsService,
     CopiPolicyService,
     CopiToolRegistry,
     CopiLlmToolSelectorService,
@@ -38,6 +42,6 @@ import { SalesAiService } from './sales-ai.service';
     OwnerCopilotService,
     SalesAiService,
   ],
-  exports: [OwnerCopilotService, SalesAiService],
+  exports: [OwnerCopilotService, SalesAiService, OrganizationLlmCredentialsService],
 })
 export class AiModule {}

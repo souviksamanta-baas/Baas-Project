@@ -7,18 +7,23 @@ import {
 } from './copi-product-link.util';
 import type { CopiTokenUsage, CopiToolResult } from './copi.types';
 import { CopiPolicyService } from './copi-policy.service';
+import { OrganizationLlmCredentialsService } from './organization-llm-credentials.service';
 import { buildCopiSystemPrompt } from './prompts/copi-prompt-composer';
 
 @Injectable()
 export class CopiLlmPhraserService {
   private readonly logger = new Logger(CopiLlmPhraserService.name);
 
-  constructor(private readonly policyService: CopiPolicyService) {}
+  constructor(
+    private readonly policyService: CopiPolicyService,
+    private readonly llmCredentials: OrganizationLlmCredentialsService,
+  ) {}
 
   async phraseAnswer(params: {
     enabled: boolean;
     history?: Array<{ body: string; role: 'owner' | 'assistant' | 'system' }>;
     locale: string;
+    organizationId: string;
     ownerDisplayName?: string | null;
     question: string;
     tier?: 'basic' | 'pro';
@@ -42,10 +47,10 @@ export class CopiLlmPhraserService {
       };
     }
 
-    const apiKey = process.env.OPENAI_API_KEY?.trim();
+    const apiKey = await this.llmCredentials.getApiKeyForOrganization(params.organizationId);
     if (!apiKey) {
       this.logger.warn(
-        'Copi phraser is using canned templates because OPENAI_API_KEY is not set. Natural replies require this env var.',
+        'Copi phraser is using canned templates because no OpenAI API key is available. Natural replies require OPENAI_API_KEY or a provisioned org key.',
       );
       return {
         answer: withLinks(

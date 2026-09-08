@@ -2,22 +2,27 @@ import { Injectable } from '@nestjs/common';
 
 import { CopiPolicyService } from './copi-policy.service';
 import type { CopiFeatureFlags } from './copi.types';
+import { OrganizationLlmCredentialsService } from './organization-llm-credentials.service';
 
 @Injectable()
 export class CopiVisionService {
-  constructor(private readonly policyService: CopiPolicyService) {}
+  constructor(
+    private readonly policyService: CopiPolicyService,
+    private readonly llmCredentials: OrganizationLlmCredentialsService,
+  ) {}
 
   async extract(params: {
     featureFlags: CopiFeatureFlags;
     imageBase64: string;
     mimeType: string;
+    organizationId: string;
     prompt?: string;
   }): Promise<{ extraction: Record<string, unknown>; summary: string }> {
     if (!this.policyService.canUseFeature(params.featureFlags, 'copi_vision')) {
       throw new Error('Copi vision requires the copi_vision feature flag');
     }
 
-    const apiKey = process.env.OPENAI_API_KEY?.trim();
+    const apiKey = await this.llmCredentials.getApiKeyForOrganization(params.organizationId);
     if (!apiKey) {
       return {
         extraction: {},

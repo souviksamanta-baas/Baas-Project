@@ -25,6 +25,7 @@ import {
   AdminPaymentsService,
   AdminPlansService,
 } from './admin-orgs.service';
+import { OrganizationLlmCredentialsService } from '../ai/organization-llm-credentials.service';
 
 const CATEGORIA_TO_SLUG: Record<string, string> = {
   Ferretería: 'ferreteria',
@@ -46,6 +47,7 @@ export class AdminController {
     private readonly paymentsService: AdminPaymentsService,
     private readonly dashboardService: AdminDashboardService,
     private readonly grokService: AdminGrokService,
+    private readonly llmCredentialsService: OrganizationLlmCredentialsService,
   ) {}
 
   @Get('me')
@@ -173,7 +175,11 @@ export class AdminController {
   ) {
     const rows = await this.orgsService.listOrganizations(authorizationHeader);
     return rows.map((row: Record<string, unknown>) => {
-      const plans = row.plans as { display_name?: string; slug?: string } | null;
+      const plansRaw = row.plans as
+        | { display_name?: string; slug?: string }
+        | Array<{ display_name?: string; slug?: string }>
+        | null;
+      const plans = Array.isArray(plansRaw) ? plansRaw[0] : plansRaw;
       const owners = row.registered_owners as Array<{ email?: string }> | null;
       const members = row.organization_members as Array<{ user_id?: string }> | null;
       const ownerEmail = owners?.[0]?.email?.trim() || undefined;
@@ -185,6 +191,7 @@ export class AdminController {
         ownerEmail,
         ownerName: ownerEmail,
         plan: plans?.display_name ?? plans?.slug ?? '',
+        planSlug: plans?.slug ?? '',
         status: row.license_status,
       };
     });
@@ -228,6 +235,51 @@ export class AdminController {
     @Param('id') organizationId: string,
   ) {
     return this.orgsService.getOrganization(authorizationHeader, organizationId);
+  }
+
+  @Get('organizations/:id/llm-credentials')
+  @ApiBearerAuth('SupabaseAuth')
+  @ApiOperation({
+    summary: 'OpenAI credential status for an organization (no raw key)',
+  })
+  async getLlmCredentials(
+    @Headers('authorization') authorizationHeader: string | undefined,
+    @Param('id') organizationId: string,
+  ) {
+    await this.leadsService.requireStaff(authorizationHeader);
+    return this.llmCredentialsService.getStatus(organizationId);
+  }
+
+  @Post('organizations/:id/llm-credentials/provision')
+  @HttpCode(200)
+  @ApiBearerAuth('SupabaseAuth')
+  @ApiOperation({
+    summary: 'Provision a dedicated OpenAI project + API key for Pro/Enterprise',
+  })
+  async provisionLlmCredentials(
+    @Headers('authorization') authorizationHeader: string | undefined,
+    @Param('id') organizationId: string,
+  ) {
+    const staff = await this.leadsService.requireStaff(authorizationHeader);
+    return this.llmCredentialsService.provision({
+      actorUserId: staff.userId,
+      organizationId,
+    });
+  }
+
+  @Post('organizations/:id/llm-credentials/revoke')
+  @HttpCode(200)
+  @ApiBearerAuth('SupabaseAuth')
+  @ApiOperation({ summary: 'Revoke the dedicated OpenAI key for an organization' })
+  async revokeLlmCredentials(
+    @Headers('authorization') authorizationHeader: string | undefined,
+    @Param('id') organizationId: string,
+  ) {
+    const staff = await this.leadsService.requireStaff(authorizationHeader);
+    return this.llmCredentialsService.revoke({
+      actorUserId: staff.userId,
+      organizationId,
+    });
   }
 
   @Patch('organizations/:id/license')

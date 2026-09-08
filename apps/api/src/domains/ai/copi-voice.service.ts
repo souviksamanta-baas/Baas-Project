@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 
 import { CopiPolicyService } from './copi-policy.service';
 import type { CopiFeatureFlags } from './copi.types';
+import { OrganizationLlmCredentialsService } from './organization-llm-credentials.service';
 
 function voiceFilenameForMime(mimeType: string): string {
   const normalized = mimeType.toLowerCase();
@@ -22,18 +23,23 @@ function voiceFilenameForMime(mimeType: string): string {
 
 @Injectable()
 export class CopiVoiceService {
-  constructor(private readonly policyService: CopiPolicyService) {}
+  constructor(
+    private readonly policyService: CopiPolicyService,
+    private readonly llmCredentials: OrganizationLlmCredentialsService,
+  ) {}
 
   async transcribe(params: {
     audioBase64: string;
     featureFlags: CopiFeatureFlags;
     mimeType: string;
+    organizationId: string;
   }): Promise<{ text: string }> {
     const audioBuffer = Buffer.from(params.audioBase64, 'base64');
     return this.transcribeBuffer({
       audioBuffer,
       featureFlags: params.featureFlags,
       mimeType: params.mimeType,
+      organizationId: params.organizationId,
     });
   }
 
@@ -41,12 +47,13 @@ export class CopiVoiceService {
     audioBuffer: Buffer;
     featureFlags: CopiFeatureFlags;
     mimeType: string;
+    organizationId: string;
   }): Promise<{ text: string }> {
     if (!this.policyService.canUseFeature(params.featureFlags, 'copi_voice')) {
       throw new Error('La voz de Copi requiere Copi Pro.');
     }
 
-    const apiKey = process.env.OPENAI_API_KEY?.trim();
+    const apiKey = await this.llmCredentials.getApiKeyForOrganization(params.organizationId);
     if (!apiKey) {
       return { text: 'Transcripción de voz no disponible: falta configuración del proveedor.' };
     }

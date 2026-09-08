@@ -55,6 +55,45 @@ Typical surface:
 
 License activates only after payment status `confirmed` (or staff grants `trial`).
 
+## Per-org OpenAI credentials (Copi)
+
+Staff can provision a dedicated OpenAI **Project** + API key for Pro/Enterprise orgs so spend is isolated. Nexolia remains the sole OpenAI payer; the raw key is never returned to the browser.
+
+Requires Railway `OPENAI_ADMIN_KEY` + `BAAS_TOKEN_ENCRYPTION_KEY`. Shared inference fallback remains `OPENAI_API_KEY`.
+
+```http
+GET /admin/organizations/:id/llm-credentials
+Authorization: Bearer <staff-supabase-jwt>
+```
+
+Response (example):
+
+```json
+{
+  "status": "missing",
+  "openaiProjectId": null,
+  "monthlySpendLimitUsd": null,
+  "provisionedAt": null,
+  "lastError": null
+}
+```
+
+`status` is one of: `missing` | `pending` | `active` | `failed` | `revoked`.
+
+```http
+POST /admin/organizations/:id/llm-credentials/provision
+Authorization: Bearer <staff-supabase-jwt>
+```
+
+Creates an OpenAI project + service-account key, sets the plan default hard spend limit (Pro $25 / Enterprise $150), encrypts the key into `organization_llm_credentials`. Idempotent if already `active`. Rejects non–Pro/Enterprise plans.
+
+```http
+POST /admin/organizations/:id/llm-credentials/revoke
+Authorization: Bearer <staff-supabase-jwt>
+```
+
+Best-effort archives the OpenAI project and marks the row `revoked`. Copi then falls back to the shared `OPENAI_API_KEY`.
+
 ## Grok assistant
 
 - Browser calls Nest; Nest holds `XAI_API_KEY`.
@@ -64,6 +103,8 @@ License activates only after payment status `confirmed` (or staff grants `trial`
 ## Webhooks
 
 This surface adds **no** Meta webhook receivers. WhatsApp / Instagram / Messenger inbound stay on existing channel webhooks — see [Webhook operations](/guides/webhooks).
+
+Per-org OpenAI provisioning also adds **no** public webhooks (staff Admin API + outbound OpenAI Admin API only).
 
 ## Related
 

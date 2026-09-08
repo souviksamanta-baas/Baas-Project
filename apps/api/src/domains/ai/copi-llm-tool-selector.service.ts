@@ -8,14 +8,18 @@ import {
 } from './copi-intent-router';
 import type { CopiToolName } from './copi.types';
 import { buildCopiSystemPrompt } from './prompts/copi-prompt-composer';
+import { OrganizationLlmCredentialsService } from './organization-llm-credentials.service';
 
 @Injectable()
 export class CopiLlmToolSelectorService {
   private readonly logger = new Logger(CopiLlmToolSelectorService.name);
 
+  constructor(private readonly llmCredentials: OrganizationLlmCredentialsService) {}
+
   async selectTools(params: {
     enabled: boolean;
     history?: CopiConversationTurn[];
+    organizationId: string;
     question: string;
   }): Promise<{ source: 'llm' | 'rules'; tools: CopiToolName[] }> {
     const history = params.history ?? [];
@@ -25,10 +29,10 @@ export class CopiLlmToolSelectorService {
       return { source: 'rules', tools: rulesTools };
     }
 
-    const apiKey = process.env.OPENAI_API_KEY?.trim();
+    const apiKey = await this.llmCredentials.getApiKeyForOrganization(params.organizationId);
     if (!apiKey) {
       this.logger.warn(
-        'Copi tool selector is using rule-based routing because OPENAI_API_KEY is not set. Natural intent detection requires this env var.',
+        'Copi tool selector is using rule-based routing because no OpenAI API key is available. Natural intent detection requires OPENAI_API_KEY or a provisioned org key.',
       );
       return { source: 'rules', tools: rulesTools };
     }

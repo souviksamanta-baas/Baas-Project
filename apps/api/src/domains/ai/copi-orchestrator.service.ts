@@ -159,6 +159,7 @@ export class CopiOrchestratorService {
     const selected = await this.toolSelectorService.selectTools({
       enabled: useLlm,
       history: conversationHistory,
+      organizationId: params.organizationId,
       question: reasoningQuestion,
     });
     const tools = selected.tools;
@@ -167,6 +168,7 @@ export class CopiOrchestratorService {
       enabled: useLlm,
       history: conversationHistory,
       locale: 'es-AR',
+      organizationId: params.organizationId,
       ownerDisplayName: member.displayName,
       question: reasoningQuestion,
       tier: isPro ? 'pro' : 'basic',

@@ -192,14 +192,17 @@ Deployment platforms should define:
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY` for the NestJS API only
 - `BAAS_TASKS_JOB_SECRET` for the task maintenance endpoint
-- `OPENAI_API_KEY` (optional) for Copi LLM phrasing, voice STT, and vision. Without it, Copi falls back to deterministic templates.
+- `OPENAI_API_KEY` (optional) for Copi LLM phrasing, voice STT, and vision. Shared fallback for orgs without a dedicated key. Without it, Copi falls back to deterministic templates.
+- `OPENAI_ADMIN_KEY` (optional) Admin API key for staff-provisioned per-org OpenAI projects/keys from the admin portal. Cannot call inference endpoints.
 - `OPENAI_MODEL` (optional, default `gpt-4o-mini`)
 - `OPENAI_VISION_MODEL` (optional, default `gpt-4o-mini`)
 - `EXPO_PUBLIC_API_BASE_URL` for mobile builds that need server-side owner
   actions such as AI draft approve/send and Owner Copilot questions
 - Mobile public variables through Expo or app build environment configuration
 
-Set `OPENAI_API_KEY` on Railway for the NestJS API service (Variables tab). Redeploy after adding the secret.
+Set `OPENAI_API_KEY` (and `OPENAI_ADMIN_KEY` when enabling per-org keys) on Railway for the NestJS API service (Variables tab). Redeploy after adding the secret.
+
+Per-org Copi API keys are **not** Railway env vars. Staff click **Provisionar clave OpenAI** in admin; Nest creates an OpenAI Project via Admin API and stores the encrypted key in Supabase `organization_llm_credentials`.
 
 ## Verification
 

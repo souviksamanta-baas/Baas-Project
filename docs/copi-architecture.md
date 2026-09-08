@@ -42,7 +42,27 @@ All require `Authorization: Bearer <supabase-jwt>`.
 | POST | `/ai/copilot/vision` | Pro |
 | POST | `/ai/copilot/reports/run` | Pro |
 
-Server env: `OPENAI_API_KEY`, optional `OPENAI_MODEL` / `OPENAI_VISION_MODEL`.
+Server env: `OPENAI_API_KEY` (shared fallback), optional `OPENAI_ADMIN_KEY` (staff provision), optional `OPENAI_MODEL` / `OPENAI_VISION_MODEL`.
+
+## Per-org OpenAI keys (Pro / Enterprise)
+
+Nexolia pays OpenAI. Customers are never billed by OpenAI and never paste keys.
+
+| Secret | Where | Notes |
+| --- | --- | --- |
+| `OPENAI_API_KEY` | Railway | Shared fallback for orgs without a dedicated key |
+| `OPENAI_ADMIN_KEY` | Railway | Admin API only — create projects/keys from staff portal |
+| Per-org `sk-…` | Supabase `organization_llm_credentials.api_key_encrypted` | Created when staff clicks **Provisionar clave OpenAI** |
+
+Default hard spend limits (synced to the OpenAI project): Pro **$25**/mo, Enterprise **$150**/mo. When the project hard cap is hit, that org’s Copi calls get `429` / `project_spend_limit_exceeded`; other orgs keep working.
+
+Staff API (no raw key returned):
+
+- `GET /admin/organizations/:id/llm-credentials`
+- `POST /admin/organizations/:id/llm-credentials/provision`
+- `POST /admin/organizations/:id/llm-credentials/revoke`
+
+No new public webhooks for this feature.
 
 ## Read tools (Basic)
 
