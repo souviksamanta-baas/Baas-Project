@@ -1,10 +1,12 @@
 import type { ReactElement } from 'react';
-import { useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { PrimaryButton } from '../components/Buttons';
 import { ScreenContent, ScreenTitle } from '../components/ui';
 import { requestLoginOtp, verifyLoginOtp } from '../api/auth';
+import { acceptStaffInvite } from '../api/staffInvites';
+import { supabase } from '../lib/supabase';
 import {
   authChannelLabel,
   getStaffPhoneAuthChannels,
@@ -12,26 +14,90 @@ import {
 } from '../services/authChannel';
 import { formatAuthError } from '../services/authErrors';
 import { normalizePhoneNumber } from '../services/phone';
-import { acceptStaffInvite } from '../api/staffInvites';
 import { colors } from '../theme';
 import { VerifyOtpScreen } from './VerifyOtpScreen';
 import { styles } from '../styles';
 
+async function phoneFromCurrentUser(): Promise<string | null> {
+  const { data, error } = await supabase.auth.getUser();
+  if (error || !data.user) {
+    return null;
+  }
+
+  const rawPhone =
+    typeof data.user.phone === 'string' && data.user.phone.trim()
+      ? data.user.phone.trim()
+      : null;
+  if (!rawPhone) {
+    return null;
+  }
+
+  return normalizePhoneNumber(rawPhone.startsWith('+') ? rawPhone : `+${rawPhone}`);
+}
+
 export function StaffInviteAcceptScreen(props: {
   inviteToken: string;
   onAccepted: () => void | Promise<void>;
-  onRefreshSession?: () => Promise<void>;
+  onRefreshSession?: (organizationId?: string) => Promise<void>;
 }): ReactElement {
   const phoneChannels = getStaffPhoneAuthChannels();
-  const [phase, setPhase] = useState<'login' | 'verify' | 'done'>('login');
+  const [phase, setPhase] = useState<'login' | 'verify' | 'accepting' | 'done'>('login');
   const [channel, setChannel] = useState<AuthOtpChannel>(phoneChannels[0] ?? 'sms');
   const [identifier, setIdentifier] = useState('');
   const [otpCode, setOtpCode] = useState('');
   const [authError, setAuthError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const autoAcceptStarted = useRef(false);
 
   const canSubmitLogin = normalizePhoneNumber(identifier) !== null;
+
+  const finishAccept = useCallback(
+    async (verifiedPhoneE164: string): Promise<void> => {
+      const result = await acceptStaffInvite({
+        inviteToken: props.inviteToken,
+        verifiedPhoneE164,
+      });
+
+      // Dashboard still has shouldOnboard until refresh; without this, app layout
+      // bounces back to onboarding instead of home. Pass org id so preferred org
+      // is set and a concurrent SIGNED_IN bootstrap cannot win the race.
+      await props.onRefreshSession?.(result.organizationId);
+
+      setPhase('done');
+      setStatusMessage('Invitación aceptada. Ya tenés acceso al negocio.');
+      await props.onAccepted();
+    },
+    [props.inviteToken, props.onAccepted, props.onRefreshSession],
+  );
+
+  useEffect(() => {
+    if (!props.inviteToken || autoAcceptStarted.current) {
+      return;
+    }
+
+    autoAcceptStarted.current = true;
+
+    void (async () => {
+      const phone = await phoneFromCurrentUser();
+      if (!phone) {
+        return;
+      }
+
+      setPhase('accepting');
+      setIsSubmitting(true);
+      setAuthError(null);
+
+      try {
+        await finishAccept(phone);
+      } catch (error) {
+        setAuthError(formatAuthError(error));
+        setPhase('login');
+      } finally {
+        setIsSubmitting(false);
+      }
+    })();
+  }, [finishAccept, props.inviteToken]);
 
   if (!props.inviteToken) {
     return (
@@ -71,20 +137,11 @@ export function StaffInviteAcceptScreen(props: {
         throw new Error('La invitación requiere verificar un número de teléfono.');
       }
 
-      await acceptStaffInvite({
-        inviteToken: props.inviteToken,
-        verifiedPhoneE164,
-      });
-
-      // Dashboard still has shouldOnboard until refresh; without this, app layout
-      // bounces back to onboarding instead of home.
-      await props.onRefreshSession?.();
-
-      setPhase('done');
-      setStatusMessage('Invitación aceptada. Ya tenés acceso al negocio.');
-      await props.onAccepted();
+      setPhase('accepting');
+      await finishAccept(verifiedPhoneE164);
     } catch (error) {
       setAuthError(formatAuthError(error));
+      setPhase('verify');
     } finally {
       setIsSubmitting(false);
     }
@@ -96,6 +153,18 @@ export function StaffInviteAcceptScreen(props: {
         <ScreenTitle title="Listo" />
         <View style={styles.card}>
           <Text style={styles.bodyText}>{statusMessage}</Text>
+        </View>
+      </ScreenContent>
+    );
+  }
+
+  if (phase === 'accepting') {
+    return (
+      <ScreenContent>
+        <ScreenTitle title="Uniéndote al negocio" />
+        <View style={styles.card}>
+          <Text style={styles.bodyText}>Estamos activando tu acceso. Un momento…</Text>
+          {authError ? <Text style={styles.errorText}>{authError}</Text> : null}
         </View>
       </ScreenContent>
     );
@@ -127,24 +196,24 @@ export function StaffInviteAcceptScreen(props: {
           WhatsApp del negocio.
         </Text>
         {phoneChannels.length > 1 ? (
-        <View style={localStyles.channelRow}>
-          {phoneChannels.map((option) => (
-            <Pressable
-              key={option}
-              onPress={() => setChannel(option)}
-              style={[localStyles.channelChip, channel === option && localStyles.channelChipActive]}
-            >
-              <Text
-                style={[
-                  localStyles.channelChipText,
-                  channel === option && localStyles.channelChipTextActive,
-                ]}
+          <View style={localStyles.channelRow}>
+            {phoneChannels.map((option) => (
+              <Pressable
+                key={option}
+                onPress={() => setChannel(option)}
+                style={[localStyles.channelChip, channel === option && localStyles.channelChipActive]}
               >
-                {authChannelLabel(option)}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
+                <Text
+                  style={[
+                    localStyles.channelChipText,
+                    channel === option && localStyles.channelChipTextActive,
+                  ]}
+                >
+                  {authChannelLabel(option)}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
         ) : null}
         <TextInput
           keyboardType="phone-pad"

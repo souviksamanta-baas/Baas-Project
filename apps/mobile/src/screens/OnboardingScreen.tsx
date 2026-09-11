@@ -49,6 +49,7 @@ export function OnboardingScreen(props: {
                 unlock();
                 return;
               }
+              setStep('choice');
               props.onJoinWithInviteToken(token);
             }}
             title="Escanear invitación"

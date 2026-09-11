@@ -1,5 +1,5 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import type { ReactElement } from 'react';
+import { useCallback, type ReactElement } from 'react';
 
 import { useOwnerSessionContext } from '../../src/context/OwnerSessionProvider';
 import { parseStaffInviteToken } from '../../src/lib/staffInviteToken';
@@ -12,6 +12,18 @@ export default function InviteAcceptRoute(): ReactElement {
   const session = useOwnerSessionContext();
   const params = useLocalSearchParams<{ token?: string }>();
   const inviteToken = parseStaffInviteToken(params.token ?? null);
+
+  const refreshSession = useCallback(
+    async (organizationId?: string) => {
+      await session.refreshDashboard(organizationId);
+    },
+    [session.refreshDashboard],
+  );
+
+  const handleAccepted = useCallback(() => {
+    clearAuthEntryIntent();
+    router.replace(routes.appHome);
+  }, [router]);
 
   if (!inviteToken) {
     return (
@@ -28,11 +40,8 @@ export default function InviteAcceptRoute(): ReactElement {
   return (
     <StaffInviteAcceptScreen
       inviteToken={inviteToken}
-      onRefreshSession={session.refreshDashboard}
-      onAccepted={() => {
-        clearAuthEntryIntent();
-        router.replace(routes.appHome);
-      }}
+      onRefreshSession={refreshSession}
+      onAccepted={handleAccepted}
     />
   );
 }

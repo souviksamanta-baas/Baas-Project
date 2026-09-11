@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, AppState, type AppStateStatus } from 'react-native';
 import type { Session } from '@supabase/supabase-js';
 
@@ -96,6 +96,8 @@ export function useOwnerSession(): OwnerSessionState {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [otpSent, setOtpSent] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
+  /** Drops stale dashboard fetches (e.g. SIGNED_IN bootstrap after invite accept). */
+  const dashboardLoadGeneration = useRef(0);
 
   const canSubmitLogin = useMemo(() => {
     if (isPhoneAuthChannel(otpChannel)) {
@@ -138,11 +140,13 @@ export function useOwnerSession(): OwnerSessionState {
     options?: { organizationId?: string | null; silent?: boolean },
   ): Promise<void> => {
     if (!nextSession) {
+      dashboardLoadGeneration.current += 1;
       setDashboard(null);
       setIsResolvingDashboard(false);
       return;
     }
 
+    const generation = ++dashboardLoadGeneration.current;
     const silent = options?.silent === true;
     if (!silent) {
       setIsResolvingDashboard(true);
@@ -152,6 +156,9 @@ export function useOwnerSession(): OwnerSessionState {
       // getSession can keep a zombie JWT after the Auth user was deleted (member remove).
       // getUser() hits the Auth server and fails for purged accounts.
       const { data: userData, error: userError } = await supabase.auth.getUser();
+      if (generation !== dashboardLoadGeneration.current) {
+        return;
+      }
       if (userError) {
         if (isDefinitiveAuthFailure(userError)) {
           await clearLocalSession();
@@ -166,9 +173,15 @@ export function useOwnerSession(): OwnerSessionState {
       const nextDashboard = await getOwnerDashboard(
         options && 'organizationId' in options ? options.organizationId : undefined,
       );
+      if (generation !== dashboardLoadGeneration.current) {
+        return;
+      }
       await applyDashboard(nextDashboard);
       setOtpSent(false);
     } catch (error) {
+      if (generation !== dashboardLoadGeneration.current) {
+        return;
+      }
       if (isDefinitiveAuthFailure(error)) {
         setDashboard(null);
         await clearLocalSession();
@@ -180,7 +193,7 @@ export function useOwnerSession(): OwnerSessionState {
       }
       // Keep existing dashboard/session on silent/transient failures.
     } finally {
-      if (!silent) {
+      if (!silent && generation === dashboardLoadGeneration.current) {
         setIsResolvingDashboard(false);
       }
     }
@@ -363,15 +376,22 @@ export function useOwnerSession(): OwnerSessionState {
       throw new Error('Sesión expirada. Volvé a iniciar sesión.');
     }
 
+    const generation = ++dashboardLoadGeneration.current;
+
     if (organizationId) {
       await setPreferredOrganizationId(organizationId);
     }
 
     // Keep authPhase authenticated — flipping to loading unmounts the app shell
     // and wipes the navigation stack (GO_BACK errors after org switch).
+    // Bump generation so an in-flight SIGNED_IN bootstrap (pre-membership) cannot
+    // overwrite this result with shouldOnboard=true after invite accept.
     const nextDashboard = await getOwnerDashboard(
       organizationId === undefined ? undefined : organizationId,
     );
+    if (generation !== dashboardLoadGeneration.current) {
+      return;
+    }
     if (
       organizationId &&
       nextDashboard.organization?.id &&
