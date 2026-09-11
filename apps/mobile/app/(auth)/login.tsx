@@ -5,6 +5,7 @@ import { useOwnerSessionContext } from '../../src/context/OwnerSessionProvider';
 import { routes } from '../../src/navigation/routes';
 import { getAuthEntryIntent } from '../../src/services/authIntent';
 import { getAuthChannelsForIntent, getDefaultChannelForIntent } from '../../src/services/authChannel';
+import { LoadingScreen } from '../../src/screens/LoadingScreen';
 import { LoginScreen } from '../../src/screens/LoginScreen';
 
 export default function LoginRoute(): ReactElement {
@@ -20,6 +21,10 @@ export default function LoginRoute(): ReactElement {
       setOtpChannel(getDefaultChannelForIntent(intent));
     }
   }, [intent, otpChannel, setOtpChannel]);
+
+  if (session.authPhase === 'loading') {
+    return <LoadingScreen />;
+  }
 
   if (session.authPhase === 'pending_verify') {
     return <Redirect href={routes.authVerify} />;

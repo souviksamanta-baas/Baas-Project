@@ -7,7 +7,7 @@ export function LoadingScreen(): ReactElement {
   return (
     <View style={styles.card}>
       <ActivityIndicator />
-      <Text style={styles.bodyText}>Checking session...</Text>
+      <Text style={styles.bodyText}>Comprobando sesión…</Text>
     </View>
   );
 }

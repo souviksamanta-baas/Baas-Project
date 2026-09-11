@@ -5,7 +5,7 @@ import type { Session } from '@supabase/supabase-js';
 import { clearAuthEntryIntent } from '../services/authIntent';
 import { createOrganizationWithOwner, getOwnerDashboard, listBusinessCenters } from '../api/dashboard';
 import { requestLoginOtp, signOutOwner, verifyLoginOtp } from '../api/auth';
-import { setPreferredOrganizationId } from '../lib/activeOrganization';
+import { clearPreferredOrganizationId, setPreferredOrganizationId } from '../lib/activeOrganization';
 import { setPreferredBusinessCenterId } from '../lib/activeBusinessCenter';
 import { applyPreferredBusinessCenter } from '../lib/resolvePreferredBusinessCenter';
 import { normalizeNavShortcutId, type NavShortcutId } from '../lib/navShortcut';
@@ -40,6 +40,12 @@ function isDefinitiveAuthFailure(error: unknown): boolean {
     normalized.includes('not authenticated') ||
     normalized.includes('invalid claim')
   );
+}
+
+function isSilentAuthEvent(event: string): boolean {
+  // INITIAL_SESSION overlaps cold-start getSession bootstrap; treat as silent so we
+  // do not raise a second loading gate / widen invite races.
+  return event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION';
 }
 
 export type AuthPhase = 'loading' | 'unauthenticated' | 'pending_verify' | 'onboarding' | 'authenticated';
@@ -98,6 +104,8 @@ export function useOwnerSession(): OwnerSessionState {
   const [authError, setAuthError] = useState<string | null>(null);
   /** Drops stale dashboard fetches (e.g. SIGNED_IN bootstrap after invite accept). */
   const dashboardLoadGeneration = useRef(0);
+  /** Non-silent bootstraps that raised the loading gate; must hit zero to clear it. */
+  const nonSilentResolvesInflight = useRef(0);
 
   const canSubmitLogin = useMemo(() => {
     if (isPhoneAuthChannel(otpChannel)) {
@@ -108,11 +116,15 @@ export function useOwnerSession(): OwnerSessionState {
   }, [loginIdentifier, otpChannel]);
 
   const clearLocalSession = useCallback(async (): Promise<void> => {
+    dashboardLoadGeneration.current += 1;
+    nonSilentResolvesInflight.current = 0;
     setSession(null);
     setDashboard(null);
     setBusinessCenters([]);
+    setIsResolvingDashboard(false);
     setOtpSent(false);
     clearAuthEntryIntent();
+    await clearPreferredOrganizationId();
     await signOutOwner();
   }, []);
 
@@ -129,10 +141,22 @@ export function useOwnerSession(): OwnerSessionState {
     }
   }, []);
 
-  const applyDashboard = useCallback(async (nextDashboard: OwnerDashboard): Promise<void> => {
+  const applyDashboard = useCallback(async (
+    nextDashboard: OwnerDashboard,
+    generation?: number,
+  ): Promise<boolean> => {
     const resolved = await applyPreferredBusinessCenter(nextDashboard);
+    // Re-check after awaits so a newer refreshDashboard(orgId) cannot be overwritten
+    // by a stale pre-membership bootstrap (invite-loop TOCTOU).
+    if (generation !== undefined && generation !== dashboardLoadGeneration.current) {
+      return false;
+    }
     setDashboard(resolved);
     await loadBusinessCentersForOrg(resolved.organization?.id ?? null);
+    if (generation !== undefined && generation !== dashboardLoadGeneration.current) {
+      return false;
+    }
+    return true;
   }, [loadBusinessCentersForOrg]);
 
   const bootstrapRoute = useCallback(async (
@@ -141,14 +165,22 @@ export function useOwnerSession(): OwnerSessionState {
   ): Promise<void> => {
     if (!nextSession) {
       dashboardLoadGeneration.current += 1;
+      nonSilentResolvesInflight.current = 0;
       setDashboard(null);
       setIsResolvingDashboard(false);
       return;
     }
 
-    const generation = ++dashboardLoadGeneration.current;
     const silent = options?.silent === true;
+    // Silent TOKEN_REFRESHED / INITIAL_SESSION / app-resume must NOT bump generation:
+    // doing so made the in-flight cold-start bootstrap skip clearing isResolvingDashboard
+    // and left iOS stuck on "Checking session...".
+    const generation = silent
+      ? dashboardLoadGeneration.current
+      : ++dashboardLoadGeneration.current;
+
     if (!silent) {
+      nonSilentResolvesInflight.current += 1;
       setIsResolvingDashboard(true);
     }
 
@@ -176,8 +208,10 @@ export function useOwnerSession(): OwnerSessionState {
       if (generation !== dashboardLoadGeneration.current) {
         return;
       }
-      await applyDashboard(nextDashboard);
-      setOtpSent(false);
+      const applied = await applyDashboard(nextDashboard, generation);
+      if (applied) {
+        setOtpSent(false);
+      }
     } catch (error) {
       if (generation !== dashboardLoadGeneration.current) {
         return;
@@ -193,8 +227,11 @@ export function useOwnerSession(): OwnerSessionState {
       }
       // Keep existing dashboard/session on silent/transient failures.
     } finally {
-      if (!silent && generation === dashboardLoadGeneration.current) {
-        setIsResolvingDashboard(false);
+      if (!silent) {
+        nonSilentResolvesInflight.current = Math.max(0, nonSilentResolvesInflight.current - 1);
+        if (nonSilentResolvesInflight.current === 0) {
+          setIsResolvingDashboard(false);
+        }
       }
     }
   }, [applyDashboard, clearLocalSession]);
@@ -237,8 +274,7 @@ export function useOwnerSession(): OwnerSessionState {
         return;
       }
 
-      // TOKEN_REFRESHED / SIGNED_IN / etc.: re-check membership + Auth user existence.
-      void bootstrapRoute(nextSession, { silent: event === 'TOKEN_REFRESHED' });
+      void bootstrapRoute(nextSession, { silent: isSilentAuthEvent(event) });
     });
 
     const onAppStateChange = (status: AppStateStatus): void => {
@@ -399,7 +435,7 @@ export function useOwnerSession(): OwnerSessionState {
     ) {
       throw new Error('No se pudo activar ese negocio. Probá de nuevo.');
     }
-    await applyDashboard(nextDashboard);
+    await applyDashboard(nextDashboard, generation);
   }, [applyDashboard]);
 
   const refreshBusinessCenters = useCallback(async (): Promise<void> => {
@@ -444,8 +480,8 @@ export function useOwnerSession(): OwnerSessionState {
     setVerticalId(null);
     setFeatureFlags(initialFeatureFlags());
     clearAuthEntryIntent();
-    await signOutOwner();
-  }, []);
+    await clearLocalSession();
+  }, [clearLocalSession]);
 
   const handleSetLoginIdentifier = useCallback((value: string): void => {
     setAuthError(null);

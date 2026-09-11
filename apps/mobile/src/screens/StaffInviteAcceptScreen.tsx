@@ -4,7 +4,7 @@ import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { PrimaryButton } from '../components/Buttons';
 import { ScreenContent, ScreenTitle } from '../components/ui';
-import { requestLoginOtp, verifyLoginOtp } from '../api/auth';
+import { requestLoginOtp, signOutOwner, verifyLoginOtp } from '../api/auth';
 import { acceptStaffInvite } from '../api/staffInvites';
 import { supabase } from '../lib/supabase';
 import {
@@ -48,6 +48,7 @@ export function StaffInviteAcceptScreen(props: {
   const [authError, setAuthError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [sessionHint, setSessionHint] = useState<string | null>(null);
   const autoAcceptStarted = useRef(false);
 
   const canSubmitLogin = normalizePhoneNumber(identifier) !== null;
@@ -80,21 +81,27 @@ export function StaffInviteAcceptScreen(props: {
 
     void (async () => {
       const phone = await phoneFromCurrentUser();
-      if (!phone) {
+      if (phone) {
+        setPhase('accepting');
+        setIsSubmitting(true);
+        setAuthError(null);
+
+        try {
+          await finishAccept(phone);
+        } catch (error) {
+          setAuthError(formatAuthError(error));
+          setPhase('login');
+        } finally {
+          setIsSubmitting(false);
+        }
         return;
       }
 
-      setPhase('accepting');
-      setIsSubmitting(true);
-      setAuthError(null);
-
-      try {
-        await finishAccept(phone);
-      } catch (error) {
-        setAuthError(formatAuthError(error));
-        setPhase('login');
-      } finally {
-        setIsSubmitting(false);
+      const { data } = await supabase.auth.getUser();
+      if (data.user?.email) {
+        setSessionHint(
+          'Esta invitación se acepta con el teléfono que registró el dueño. Vas a verificar ese número (puede ser distinto de tu correo).',
+        );
       }
     })();
   }, [finishAccept, props.inviteToken]);
@@ -115,6 +122,13 @@ export function StaffInviteAcceptScreen(props: {
     setAuthError(null);
 
     try {
+      // Mirror owner login: clear a stale SecureStore session (e.g. email-only) so
+      // phone OTP verify does not fight the previous identity.
+      const { data: existing } = await supabase.auth.getSession();
+      if (existing.session) {
+        await signOutOwner();
+      }
+
       await requestLoginOtp({ channel, identifier });
       setPhase('verify');
     } catch (error) {
@@ -195,6 +209,7 @@ export function StaffInviteAcceptScreen(props: {
           Verificá el mismo teléfono que registró el dueño. Los códigos de Nexolia no vienen del
           WhatsApp del negocio.
         </Text>
+        {sessionHint ? <Text style={styles.bodyText}>{sessionHint}</Text> : null}
         {phoneChannels.length > 1 ? (
           <View style={localStyles.channelRow}>
             {phoneChannels.map((option) => (

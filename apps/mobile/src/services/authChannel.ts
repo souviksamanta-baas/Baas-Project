@@ -65,7 +65,9 @@ export function getAuthChannelsForIntent(
     const login = getLoginAuthChannels();
     const merged: AuthOtpChannel[] = [];
 
-    for (const channel of [...phone, ...login]) {
+    // Login channels first so owners land on email when production is email-only;
+    // staff can still switch to SMS on the login screen.
+    for (const channel of [...login, ...phone]) {
       if (!merged.includes(channel)) {
         merged.push(channel);
       }
@@ -83,6 +85,11 @@ export function getDefaultChannelForIntent(
   const channels = getAuthChannelsForIntent(intent);
 
   if (intent === 'signin') {
+    // Prefer configured owner login channel (email in production) over staff SMS.
+    const loginDefault = getLoginAuthChannels()[0];
+    if (loginDefault && channels.includes(loginDefault)) {
+      return loginDefault;
+    }
     return channels.find((channel) => isPhoneAuthChannel(channel)) ?? channels[0] ?? 'sms';
   }
 
