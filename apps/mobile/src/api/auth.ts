@@ -1,6 +1,7 @@
 import type { Session } from '@supabase/supabase-js';
 
 import { supabase } from '../lib/supabase';
+import { formatAuthError } from '../services/authErrors';
 import type { AuthOtpChannel } from '../services/authChannel';
 import { normalizeEmail } from '../services/email';
 import { normalizePhoneNumber } from '../services/phone';
@@ -103,7 +104,7 @@ export async function requestPhoneOtp(phone: string): Promise<void> {
   const { error } = await supabase.auth.signInWithOtp({ phone: normalizedPhone });
 
   if (error) {
-    throw new Error(error.message);
+    throw new Error(formatAuthError(error));
   }
 }
 
@@ -124,7 +125,7 @@ export async function verifyPhoneOtp(params: {
   });
 
   if (error) {
-    throw new Error(error.message);
+    throw new Error(formatAuthError(error));
   }
 
   if (!data.session) {
@@ -142,7 +143,7 @@ async function applyNestSessionTokens(tokens: NestSessionTokens): Promise<Sessio
     });
 
     if (error) {
-      throw new Error(error.message);
+      throw new Error(formatAuthError(error));
     }
     if (!data.session) {
       throw new Error('No se pudo crear la sesión. Pedí un código nuevo.');
@@ -162,7 +163,7 @@ async function applyNestSessionTokens(tokens: NestSessionTokens): Promise<Sessio
 
   if (exchanged.error || !exchanged.data.session) {
     throw new Error(
-      exchanged.error?.message || 'No se pudo crear la sesión. Pedí un código nuevo.',
+      formatAuthError(exchanged.error) || 'No se pudo crear la sesión. Pedí un código nuevo.',
     );
   }
 

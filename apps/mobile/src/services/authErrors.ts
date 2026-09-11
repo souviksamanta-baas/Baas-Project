@@ -1,3 +1,13 @@
+function isLikelySpanishMessage(message: string): boolean {
+  if (/[áéíóúñÁÉÍÓÚÑ¿¡]/.test(message)) {
+    return true;
+  }
+
+  return /^(no se |no pudimos |pedí|pediste|el código|ingresá|esperá|demasiados|whatsapp de |la sesión|la api |ocurrió )/i.test(
+    message,
+  );
+}
+
 export function formatAuthError(error: unknown): string {
   const message = error instanceof Error ? error.message : 'Ocurrió un error inesperado.';
 
@@ -17,6 +27,10 @@ export function formatAuthError(error: unknown): string {
 
   if (/Invalid Refresh Token|Refresh Token Not Found/i.test(message)) {
     return 'La sesión anterior ya no es válida. Cerrá sesión o borrá la app y volvé a pedir un código.';
+  }
+
+  if (/Auth session missing|session_not_found|Session not found/i.test(message)) {
+    return 'No se pudo abrir la sesión. Pedí un código nuevo e intentá otra vez.';
   }
 
   if (/rate limit|too many requests|429|Esperá \d+s antes de pedir/i.test(message)) {
@@ -55,10 +69,6 @@ export function formatAuthError(error: unknown): string {
     return 'El código es correcto, pero no pudimos abrir la sesión. Pedí un código nuevo e intentá otra vez.';
   }
 
-  if (/Auth session missing|session_not_found|Session not found/i.test(message)) {
-    return 'No se pudo abrir la sesión. Pedí un código nuevo e intentá otra vez.';
-  }
-
   // Never surface raw Nest/Postgres/English internals in the login UI.
   if (
     /Failed to check OTP cooldown|Failed to store OTP|Failed to load OTP|permission denied|auth_otp_challenges|Meta OTP send failed|HTTP \d{3}/i.test(
@@ -68,14 +78,8 @@ export function formatAuthError(error: unknown): string {
     return 'No se pudo enviar el código. Intentá de nuevo en unos segundos.';
   }
 
-  if (
-    /^[A-Za-z][A-Za-z0-9 _.:'"\-()/!]{0,200}$/.test(message) &&
-    !/[áéíóúñÁÉÍÓÚÑ¿¡]/.test(message)
-  ) {
-    // Likely an untranslated English/technical string — keep the UI Spanish.
-    if (/failed|error|invalid|missing|denied|unauthorized|forbidden|timeout|network/i.test(message)) {
-      return 'No se pudo completar el inicio de sesión. Intentá de nuevo.';
-    }
+  if (!isLikelySpanishMessage(message)) {
+    return 'No se pudo completar el inicio de sesión. Intentá de nuevo.';
   }
 
   return message;
