@@ -98,31 +98,30 @@ export class AuthSessionService {
       throw new Error('No se pudo crear la sesión. Intentá de nuevo.');
     }
 
-    // Exchange on an ephemeral client. verifyOtp attaches a user session to the
-    // client instance; doing that on the shared service-role singleton made later
-    // Nest DB calls run as `authenticated` (permission denied on auth_otp_challenges).
+    // Exchange on an ephemeral client so verifyOtp never attaches a user session
+    // to the shared service-role singleton (that caused REST calls to run as
+    // `authenticated` and fail on auth_otp_challenges).
+    // Do NOT signOut afterward: even scope "local" can revoke the refresh token
+    // server-side in some auth-js versions, which breaks mobile setSession
+    // ("Auth session missing!" / session_not_found).
     const exchangeClient = this.supabaseService.createEphemeralServiceRoleClient();
-    try {
-      const exchanged = await exchangeClient.auth.verifyOtp({
-        token_hash: hashedToken,
-        type: 'magiclink',
-      });
+    const exchanged = await exchangeClient.auth.verifyOtp({
+      token_hash: hashedToken,
+      type: 'magiclink',
+    });
 
-      if (exchanged.error || !exchanged.data.session) {
-        console.error(
-          `[auth] Failed to exchange login session token: ${exchanged.error?.message ?? 'missing session'}`,
-        );
-        throw new Error('No se pudo crear la sesión. Pedí un código nuevo e intentá otra vez.');
-      }
-
-      return {
-        accessToken: exchanged.data.session.access_token,
-        refreshToken: exchanged.data.session.refresh_token,
-        tokenHash: hashedToken,
-      };
-    } finally {
-      await exchangeClient.auth.signOut({ scope: 'local' }).catch(() => undefined);
+    if (exchanged.error || !exchanged.data.session) {
+      console.error(
+        `[auth] Failed to exchange login session token: ${exchanged.error?.message ?? 'missing session'}`,
+      );
+      throw new Error('No se pudo crear la sesión. Pedí un código nuevo e intentá otra vez.');
     }
+
+    return {
+      accessToken: exchanged.data.session.access_token,
+      refreshToken: exchanged.data.session.refresh_token,
+      tokenHash: hashedToken,
+    };
   }
 
   async getUserIdFromBearerToken(authorizationHeader: string | undefined): Promise<string> {
