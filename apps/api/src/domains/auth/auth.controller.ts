@@ -170,7 +170,7 @@ function normalizePhone(value: string): string {
   const trimmed = value.trim();
 
   if (!trimmed.startsWith('+')) {
-    throw new Error('Enter phone in E.164 format (e.g. +54911…).');
+    throw new Error('Ingresá el teléfono en formato internacional (ej. +54911…).');
   }
 
   return trimmed;

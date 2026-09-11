@@ -8,14 +8,11 @@ export function formatAuthError(error: unknown): string {
   if (
     /Error sending confirmation email|unexpected_failure/i.test(message) ||
     /only send testing emails to your own email address/i.test(message) ||
-    /verify a domain at resend\.com|SMTP aún en modo prueba|Platform email auth is not configured/i.test(
+    /verify a domain at resend\.com|SMTP aún en modo prueba|Platform email auth is not configured|envío de correo de ingreso no está configurado/i.test(
       message,
     )
   ) {
-    return [
-      'No se pudo enviar el correo (Resend).',
-      'Hace falta una API key en el servidor y el dominio nexolia.com.ar verificado en Resend.',
-    ].join(' ');
+    return 'No se pudo enviar el correo. Intentá de nuevo en unos minutos o usá SMS.';
   }
 
   if (/Invalid Refresh Token|Refresh Token Not Found/i.test(message)) {
@@ -34,20 +31,44 @@ export function formatAuthError(error: unknown): string {
     ].join(' ');
   }
 
-  if (/Platform WhatsApp auth is not configured/i.test(message)) {
-    return 'WhatsApp de Nexolia aún no está configurado en el servidor. Usá SMS (Twilio) o pedile al dueño que reintente más tarde.';
+  if (
+    /Platform WhatsApp auth is not configured|WhatsApp de ingreso no está configurado|WhatsApp de Nexolia aún no está configurado/i.test(
+      message,
+    )
+  ) {
+    return 'WhatsApp de Nexolia aún no está configurado en el servidor. Usá SMS o correo, o reintentá más tarde.';
   }
 
   if (
-    /otp.*expired|token.*expired|invalid.*(otp|token|login)|Email link is invalid|código no es válido|Código inválido/i.test(
+    /otp.*expired|token.*expired|invalid.*(otp|token|login)|Email link is invalid|código no es válido|Código inválido|código expiró/i.test(
       message,
     )
   ) {
     return 'El código no es válido o ya venció. Pedí uno nuevo cuando puedas.';
   }
 
-  if (/Failed to create login session|No se pudo crear la sesión/i.test(message)) {
+  if (
+    /Failed to create login session|Failed to exchange login session|Failed to create auth user|No se pudo crear la sesión/i.test(
+      message,
+    )
+  ) {
     return 'El código es correcto, pero no pudimos abrir la sesión. Pedí un código nuevo e intentá otra vez.';
+  }
+
+  // Never surface raw Nest/Postgres/English internals in the login UI.
+  if (
+    /Failed to check OTP cooldown|Failed to store OTP|Failed to load OTP|permission denied|auth_otp_challenges|Meta OTP send failed|HTTP \d{3}/i.test(
+      message,
+    )
+  ) {
+    return 'No se pudo enviar el código. Intentá de nuevo en unos segundos.';
+  }
+
+  if (/^[A-Za-z][A-Za-z0-9 _.:'"\-()/]{0,200}$/.test(message) && !/[áéíóúñÁÉÍÓÚÑ¿¡]/.test(message)) {
+    // Likely an untranslated English/technical string — keep the UI Spanish.
+    if (/failed|error|invalid|missing|denied|unauthorized|forbidden|timeout|network/i.test(message)) {
+      return 'No se pudo completar el inicio de sesión. Intentá de nuevo.';
+    }
   }
 
   return message;

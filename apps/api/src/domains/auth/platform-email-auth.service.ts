@@ -37,7 +37,8 @@ export class PlatformEmailAuthService {
     });
 
     if (error) {
-      throw new Error(`Failed to store OTP challenge: ${error.message}`);
+      console.error(`[auth-otp] Failed to store email OTP challenge: ${error.message}`);
+      throw new Error('No se pudo preparar el código. Intentá de nuevo en unos segundos.');
     }
 
     await this.sendOtpEmail({ code, email: normalizedEmail });
@@ -63,7 +64,8 @@ export class PlatformEmailAuthService {
       }>();
 
     if (error) {
-      throw new Error(`Failed to load OTP challenge: ${error.message}`);
+      console.error(`[auth-otp] Failed to load email OTP challenge: ${error.message}`);
+      throw new Error('No se pudo verificar el código. Intentá de nuevo.');
     }
 
     if (!data) {
@@ -104,7 +106,8 @@ export class PlatformEmailAuthService {
       .maybeSingle<{ created_at: string; last_sent_at: string | null }>();
 
     if (error) {
-      throw new Error(`Failed to check OTP cooldown: ${error.message}`);
+      console.error(`[auth-otp] Failed to check email OTP cooldown: ${error.message}`);
+      throw new Error('No se pudo enviar el código. Intentá de nuevo en unos segundos.');
     }
 
     const lastSent = data?.last_sent_at ?? data?.created_at;
@@ -154,7 +157,7 @@ export class PlatformEmailAuthService {
         return;
       }
 
-      throw new Error('Platform email auth is not configured (RESEND_API_KEY).');
+      throw new Error('El envío de correo de ingreso no está configurado. Probá más tarde o usá SMS.');
     }
 
     const response = await fetch('https://api.resend.com/emails', {
@@ -185,10 +188,10 @@ export class PlatformEmailAuthService {
       console.error(`[auth-otp] Resend email failed for ${redactEmail(params.email)}: ${detail}`);
       if (/only send testing emails|verify a domain/i.test(detail)) {
         throw new Error(
-          'Email SMTP aún en modo prueba. Verificá el dominio nexolia.com.ar en Resend y usá un remitente de ese dominio.',
+          'No se pudo enviar el correo todavía. Probá de nuevo más tarde o usá SMS.',
         );
       }
-      throw new Error(`No se pudo enviar el correo: ${detail}`);
+      throw new Error('No se pudo enviar el correo. Intentá de nuevo en unos segundos.');
     }
   }
 }

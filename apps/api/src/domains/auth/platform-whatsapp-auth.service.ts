@@ -37,7 +37,8 @@ export class PlatformWhatsAppAuthService {
     });
 
     if (error) {
-      throw new Error(`Failed to store OTP challenge: ${error.message}`);
+      console.error(`[auth-otp] Failed to store WhatsApp OTP challenge: ${error.message}`);
+      throw new Error('No se pudo preparar el código. Intentá de nuevo en unos segundos.');
     }
 
     await this.sendAuthenticationTemplate({
@@ -65,7 +66,8 @@ export class PlatformWhatsAppAuthService {
       }>();
 
     if (error) {
-      throw new Error(`Failed to load OTP challenge: ${error.message}`);
+      console.error(`[auth-otp] Failed to load WhatsApp OTP challenge: ${error.message}`);
+      throw new Error('No se pudo verificar el código. Intentá de nuevo.');
     }
 
     if (!data) {
@@ -106,7 +108,8 @@ export class PlatformWhatsAppAuthService {
       .maybeSingle<{ created_at: string; last_sent_at: string | null }>();
 
     if (error) {
-      throw new Error(`Failed to check OTP cooldown: ${error.message}`);
+      console.error(`[auth-otp] Failed to check WhatsApp OTP cooldown: ${error.message}`);
+      throw new Error('No se pudo enviar el código. Intentá de nuevo en unos segundos.');
     }
 
     const lastSent = data?.last_sent_at ?? data?.created_at;
@@ -205,10 +208,11 @@ export class PlatformWhatsAppAuthService {
     const body = (await response.json()) as MetaSendResponse;
 
     if (!response.ok) {
+      const detail = body.error?.message ?? `HTTP ${response.status}`;
       console.error(
-        `[auth-otp] Meta OTP send failed for ${redactPhone(params.phoneE164)}: HTTP ${response.status}`,
+        `[auth-otp] Meta OTP send failed for ${redactPhone(params.phoneE164)}: ${detail}`,
       );
-      throw new Error(body.error?.message ?? `Meta OTP send failed with HTTP ${response.status}`);
+      throw new Error('No se pudo enviar el código por WhatsApp. Intentá de nuevo o usá correo.');
     }
   }
 }

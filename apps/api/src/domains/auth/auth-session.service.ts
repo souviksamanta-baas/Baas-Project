@@ -33,7 +33,8 @@ export class AuthSessionService {
     });
 
     if (createError && !/already|registered|exists/i.test(createError.message)) {
-      throw new Error(`Failed to create auth user: ${createError.message}`);
+      console.error(`[auth] Failed to create phone auth user: ${createError.message}`);
+      throw new Error('No se pudo crear la sesión. Intentá de nuevo.');
     }
 
     return this.mintSessionForEmail(email);
@@ -52,7 +53,8 @@ export class AuthSessionService {
     });
 
     if (createError && !/already|registered|exists/i.test(createError.message)) {
-      throw new Error(`Failed to create auth user: ${createError.message}`);
+      console.error(`[auth] Failed to create email auth user: ${createError.message}`);
+      throw new Error('No se pudo crear la sesión. Intentá de nuevo.');
     }
 
     const session = await this.mintSessionForEmail(normalizedEmail);
@@ -81,8 +83,8 @@ export class AuthSessionService {
   }
 
   private async mintSessionForEmail(email: string): Promise<MintedAuthSession> {
-    const client = this.supabaseService.getServiceRoleClient();
-    const { data, error } = await client.auth.admin.generateLink({
+    const adminClient = this.supabaseService.getServiceRoleClient();
+    const { data, error } = await adminClient.auth.admin.generateLink({
       email,
       type: 'magiclink',
     });
@@ -92,42 +94,49 @@ export class AuthSessionService {
       (data?.properties as { hashedToken?: string } | undefined)?.hashedToken;
 
     if (error || !hashedToken) {
-      throw new Error(error?.message ?? 'Failed to create login session');
+      console.error(`[auth] Failed to create login session: ${error?.message ?? 'missing hashed token'}`);
+      throw new Error('No se pudo crear la sesión. Intentá de nuevo.');
     }
 
-    // Exchange once on the server with the matching type. Mobile used to try
-    // type "email" first, which can burn the one-time hash and surface
-    // "Email link is invalid or has expired".
-    const exchanged = await client.auth.verifyOtp({
-      token_hash: hashedToken,
-      type: 'magiclink',
-    });
+    // Exchange on an ephemeral client. verifyOtp attaches a user session to the
+    // client instance; doing that on the shared service-role singleton made later
+    // Nest DB calls run as `authenticated` (permission denied on auth_otp_challenges).
+    const exchangeClient = this.supabaseService.createEphemeralServiceRoleClient();
+    try {
+      const exchanged = await exchangeClient.auth.verifyOtp({
+        token_hash: hashedToken,
+        type: 'magiclink',
+      });
 
-    if (exchanged.error || !exchanged.data.session) {
-      throw new Error(
-        exchanged.error?.message ?? 'Failed to exchange login session token',
-      );
+      if (exchanged.error || !exchanged.data.session) {
+        console.error(
+          `[auth] Failed to exchange login session token: ${exchanged.error?.message ?? 'missing session'}`,
+        );
+        throw new Error('No se pudo crear la sesión. Pedí un código nuevo e intentá otra vez.');
+      }
+
+      return {
+        accessToken: exchanged.data.session.access_token,
+        refreshToken: exchanged.data.session.refresh_token,
+        tokenHash: hashedToken,
+      };
+    } finally {
+      await exchangeClient.auth.signOut({ scope: 'local' }).catch(() => undefined);
     }
-
-    return {
-      accessToken: exchanged.data.session.access_token,
-      refreshToken: exchanged.data.session.refresh_token,
-      tokenHash: hashedToken,
-    };
   }
 
   async getUserIdFromBearerToken(authorizationHeader: string | undefined): Promise<string> {
     const token = authorizationHeader?.replace(/^Bearer\s+/i, '').trim();
 
     if (!token) {
-      throw new Error('Missing bearer token');
+      throw new Error('Falta el token de sesión.');
     }
 
     const client = this.supabaseService.getServiceRoleClient();
     const { data, error } = await client.auth.getUser(token);
 
     if (error || !data.user) {
-      throw new Error('Invalid bearer token');
+      throw new Error('La sesión no es válida.');
     }
 
     return data.user.id;
