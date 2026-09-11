@@ -83,7 +83,7 @@ function AuthenticatedAppShell(): ReactElement {
     }
 
     if (authPhase === 'onboarding') {
-      router.replace(routes.authOnboarding);
+      router.replace(routes.authWelcome);
       return;
     }
 

@@ -22,7 +22,7 @@ export default function VerifyRoute(): ReactElement {
   }
 
   if (session.authPhase === 'onboarding') {
-    return <Redirect href={routes.authOnboarding} />;
+    return <Redirect href={routes.authWelcome} />;
   }
 
   return (

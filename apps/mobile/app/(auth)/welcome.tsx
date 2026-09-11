@@ -1,5 +1,6 @@
 import { Redirect, useRouter } from 'expo-router';
 import type { ReactElement } from 'react';
+import { Linking, Alert } from 'react-native';
 
 import { useOwnerSessionContext } from '../../src/context/OwnerSessionProvider';
 import { routes } from '../../src/navigation/routes';
@@ -7,6 +8,8 @@ import { setAuthEntryIntent } from '../../src/services/authIntent';
 import { getDefaultChannelForIntent } from '../../src/services/authChannel';
 import { LoadingScreen } from '../../src/screens/LoadingScreen';
 import { WelcomeIntentScreen } from '../../src/screens/WelcomeIntentScreen';
+
+const COMENZAR_URL = 'https://nexolia.com.ar/comenzar';
 
 export default function WelcomeRoute(): ReactElement {
   const router = useRouter();
@@ -20,21 +23,21 @@ export default function WelcomeRoute(): ReactElement {
     return <Redirect href={routes.authVerify} />;
   }
 
-  if (session.authPhase === 'onboarding') {
-    return <Redirect href={routes.authOnboarding} />;
-  }
-
   if (session.authPhase === 'authenticated') {
     return <Redirect href={routes.appHome} />;
   }
 
+  const needsBusiness = session.authPhase === 'onboarding';
+
   return (
     <WelcomeIntentScreen
       onCreateBusiness={() => {
-        setAuthEntryIntent('create');
-        session.setOtpChannel(getDefaultChannelForIntent('create'));
-        session.setLoginIdentifier('');
-        router.push(routes.authLogin);
+        void Linking.openURL(COMENZAR_URL).catch(() => {
+          Alert.alert(
+            'No se pudo abrir el navegador',
+            'Abrí nexolia.com.ar/comenzar desde el navegador para registrar tu negocio.',
+          );
+        });
       }}
       onJoinWithInviteToken={(inviteToken) => {
         router.replace({
@@ -42,12 +45,23 @@ export default function WelcomeRoute(): ReactElement {
           params: { token: inviteToken },
         });
       }}
-      onSignIn={() => {
-        setAuthEntryIntent('signin');
-        session.setOtpChannel(getDefaultChannelForIntent('signin'));
-        session.setLoginIdentifier('');
-        router.push(routes.authLogin);
-      }}
+      onSignIn={
+        needsBusiness
+          ? undefined
+          : () => {
+              setAuthEntryIntent('signin');
+              session.setOtpChannel(getDefaultChannelForIntent('signin'));
+              session.setLoginIdentifier('');
+              router.push(routes.authLogin);
+            }
+      }
+      onSignOut={
+        needsBusiness
+          ? () => {
+              void session.signOut();
+            }
+          : undefined
+      }
     />
   );
 }

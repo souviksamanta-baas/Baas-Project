@@ -26,7 +26,8 @@ export default function RootIndexRoute(): ReactElement {
   }
 
   if (authPhase === 'onboarding') {
-    return <Redirect href={routes.authOnboarding} />;
+    // Same primary welcome UI; welcome route adds sign-out when session has no business.
+    return <Redirect href={routes.authWelcome} />;
   }
 
   return <Redirect href={routes.appHome} />;
