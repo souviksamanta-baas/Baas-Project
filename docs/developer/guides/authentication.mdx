@@ -24,7 +24,7 @@ Current owner-authenticated endpoints include:
 - `POST /organizations/invites` — create a staff invite (owner bearer token)
 - `POST /organizations/invites/accept` — accept invite after phone verification
 - `GET /auth/identities/me` — verified login methods on the current session
-- `POST /auth/identities/email|whatsapp/request|verify` — bind missing email/phone (see below)
+- `POST /auth/identities/email|phone/request|verify` — bind missing email/phone (SMS for phone; see below)
 - `POST /auth/identities/confirm-merge` — confirm absorbing another auth user’s negocios
 - `POST /whatsapp/connection/register` — register merchant WhatsApp Cloud API number
 - `POST /ai/drafts/{draftId}/approve`
@@ -42,9 +42,11 @@ Email OTP and WhatsApp OTP historically minted **separate** `auth.users` rows (p
 | `GET /auth/identities/me` | Bearer JWT | `{ email, emailVerified, phone, phoneVerified }` |
 | `POST /auth/identities/email/request` | Bearer JWT | Send link OTP (`purpose=link`) |
 | `POST /auth/identities/email/verify` | Bearer JWT | Attach email **or** return merge preview |
-| `POST /auth/identities/whatsapp/request` | Bearer JWT | Send WhatsApp link OTP |
-| `POST /auth/identities/whatsapp/verify` | Bearer JWT | Attach phone **or** return merge preview |
+| `POST /auth/identities/phone/request` | Bearer JWT | Send SMS link OTP (Supabase → Twilio) |
+| `POST /auth/identities/phone/verify` | Bearer JWT | Attach phone **or** return merge preview |
 | `POST /auth/identities/confirm-merge` | Bearer JWT | After Spanish confirmation, merge donor → current user |
+
+Phone linking uses **SMS** (same Twilio path as login SMS), not platform WhatsApp. Deprecated `/auth/identities/whatsapp/*` aliases forward to the phone SMS routes.
 
 Rules:
 

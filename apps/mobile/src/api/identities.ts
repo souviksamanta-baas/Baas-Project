@@ -63,19 +63,19 @@ export async function verifyEmailIdentityLink(params: {
   });
 }
 
-export async function requestWhatsAppIdentityLink(phone: string): Promise<void> {
+export async function requestPhoneIdentityLink(phone: string): Promise<void> {
   const normalized = normalizePhoneNumber(phone);
   if (!normalized) {
     throw new Error('Ingresá un número válido (011…, +5411… o +54911…).');
   }
 
-  await apiFetchAuthJson('/auth/identities/whatsapp/request', {
+  await apiFetchAuthJson('/auth/identities/phone/request', {
     body: JSON.stringify({ phone: normalized }),
     method: 'POST',
   });
 }
 
-export async function verifyWhatsAppIdentityLink(params: {
+export async function verifyPhoneIdentityLink(params: {
   code: string;
   phone: string;
 }): Promise<IdentityVerifyResult> {
@@ -86,13 +86,26 @@ export async function verifyWhatsAppIdentityLink(params: {
 
   const code = params.code.trim();
   if (!/^\d{6}$/.test(code)) {
-    throw new Error('Ingresá el código de 6 dígitos de WhatsApp.');
+    throw new Error('Ingresá el código de 6 dígitos del SMS.');
   }
 
-  return apiFetchAuthJson<IdentityVerifyResult>('/auth/identities/whatsapp/verify', {
+  return apiFetchAuthJson<IdentityVerifyResult>('/auth/identities/phone/verify', {
     body: JSON.stringify({ code, phone: normalized }),
     method: 'POST',
   });
+}
+
+/** @deprecated Use requestPhoneIdentityLink */
+export async function requestWhatsAppIdentityLink(phone: string): Promise<void> {
+  return requestPhoneIdentityLink(phone);
+}
+
+/** @deprecated Use verifyPhoneIdentityLink */
+export async function verifyWhatsAppIdentityLink(params: {
+  code: string;
+  phone: string;
+}): Promise<IdentityVerifyResult> {
+  return verifyPhoneIdentityLink(params);
 }
 
 export async function confirmIdentityMerge(mergeToken: string): Promise<IdentityMe> {

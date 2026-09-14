@@ -13,9 +13,9 @@ import {
   confirmIdentityMerge,
   getMyIdentities,
   requestEmailIdentityLink,
-  requestWhatsAppIdentityLink,
+  requestPhoneIdentityLink,
   verifyEmailIdentityLink,
-  verifyWhatsAppIdentityLink,
+  verifyPhoneIdentityLink,
   type IdentityMe,
   type MergeOrgPreview,
 } from '../api/identities';
@@ -177,7 +177,7 @@ export function EditProfileScreen(props: { onBack: () => void }): ReactElement {
       if (linkFlow.kind === 'email') {
         await requestEmailIdentityLink(linkFlow.value);
       } else {
-        await requestWhatsAppIdentityLink(linkFlow.value);
+        await requestPhoneIdentityLink(linkFlow.value);
       }
       setLinkFlow({
         kind: linkFlow.kind,
@@ -205,7 +205,7 @@ export function EditProfileScreen(props: { onBack: () => void }): ReactElement {
       const result =
         linkFlow.kind === 'email'
           ? await verifyEmailIdentityLink({ code: linkFlow.code, email: linkFlow.value })
-          : await verifyWhatsAppIdentityLink({ code: linkFlow.code, phone: linkFlow.value });
+          : await verifyPhoneIdentityLink({ code: linkFlow.code, phone: linkFlow.value });
 
       if (result.status === 'merge_required') {
         setLinkFlow({
@@ -356,7 +356,7 @@ export function EditProfileScreen(props: { onBack: () => void }): ReactElement {
                 <TextField
                   autoCapitalize="none"
                   keyboardType={linkFlow.kind === 'email' ? 'email-address' : 'phone-pad'}
-                  label={linkFlow.kind === 'email' ? 'Correo' : 'Teléfono (WhatsApp)'}
+                  label={linkFlow.kind === 'email' ? 'Correo' : 'Teléfono (SMS)'}
                   onChangeText={(value) =>
                     setLinkFlow({ kind: linkFlow.kind, phase: 'enter', value })
                   }
@@ -381,19 +381,19 @@ export function EditProfileScreen(props: { onBack: () => void }): ReactElement {
                 <Text style={styles.sectionHint}>
                   {linkFlow.kind === 'email'
                     ? `Enviamos un código de 6 dígitos a ${linkFlow.value}.`
-                    : `Enviamos un código por WhatsApp a ${linkFlow.value}. Este mensaje viene de Nexolia, no del WhatsApp de tu negocio.`}
+                    : `Enviamos un código por SMS a ${linkFlow.value}.`}
                 </Text>
                 <TextField
                   autoComplete="one-time-code"
                   keyboardType="number-pad"
-                  label={`Código de ${getOtpCodeLength(linkFlow.kind === 'email' ? 'email' : 'whatsapp')} dígitos`}
+                  label={`Código de ${getOtpCodeLength(linkFlow.kind === 'email' ? 'email' : 'sms')} dígitos`}
                   maxLength={6}
                   onChangeText={(value) =>
                     setLinkFlow({
                       ...linkFlow,
                       code: normalizeOtpInput(
                         value,
-                        linkFlow.kind === 'email' ? 'email' : 'whatsapp',
+                        linkFlow.kind === 'email' ? 'email' : 'sms',
                       ),
                     })
                   }
@@ -406,7 +406,7 @@ export function EditProfileScreen(props: { onBack: () => void }): ReactElement {
                     isLinkBusy ||
                     !isOtpCodeComplete(
                       linkFlow.code,
-                      linkFlow.kind === 'email' ? 'email' : 'whatsapp',
+                      linkFlow.kind === 'email' ? 'email' : 'sms',
                     )
                   }
                   fullWidth

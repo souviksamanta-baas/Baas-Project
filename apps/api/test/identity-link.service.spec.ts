@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { IdentityLinkService } from '../src/domains/auth/identity-link.service';
 import type { PlatformEmailAuthService } from '../src/domains/auth/platform-email-auth.service';
-import type { PlatformWhatsAppAuthService } from '../src/domains/auth/platform-whatsapp-auth.service';
 import type { SupabaseService } from '../src/supabase/supabase.service';
 
 type AuthUser = {
@@ -180,17 +179,9 @@ describe('IdentityLinkService', () => {
     requestOtp: ReturnType<typeof vi.fn>;
     verifyOtp: ReturnType<typeof vi.fn>;
   };
-  let whatsappAuth: {
-    requestOtp: ReturnType<typeof vi.fn>;
-    verifyOtp: ReturnType<typeof vi.fn>;
-  };
 
   beforeEach(() => {
     emailAuth = {
-      requestOtp: vi.fn(async () => undefined),
-      verifyOtp: vi.fn(async () => true),
-    };
-    whatsappAuth = {
       requestOtp: vi.fn(async () => undefined),
       verifyOtp: vi.fn(async () => true),
     };
@@ -205,13 +196,22 @@ describe('IdentityLinkService', () => {
   } {
     const built = buildClient(options);
     const supabaseService = {
+      createEphemeralServiceRoleClient: () => ({
+        auth: {
+          signInWithOtp: vi.fn(async () => ({ error: null })),
+          signOut: vi.fn(async () => ({ error: null })),
+          verifyOtp: vi.fn(async () => ({
+            data: { user: { id: 'donor-sms', phone: '+5491100000000' } },
+            error: null,
+          })),
+        },
+      }),
       getServiceRoleClient: () => built.client,
     } as unknown as SupabaseService;
 
     const service = new IdentityLinkService(
       supabaseService,
       emailAuth as unknown as PlatformEmailAuthService,
-      whatsappAuth as unknown as PlatformWhatsAppAuthService,
     );
 
     return { ...built, service };

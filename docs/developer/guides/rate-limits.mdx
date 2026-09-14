@@ -27,8 +27,8 @@ These unauthenticated routes use tighter per-IP throttles (Nest `@Throttle`) on 
 | `POST /public/admin/password-reset` | 5 / minute |
 | `POST /auth/otp/*/request` | 8 / minute |
 | `POST /auth/otp/*/verify` | 20 / minute |
-| `POST /auth/identities/email|whatsapp/request` | 8 / minute (Bearer; link OTP) |
-| `POST /auth/identities/email|whatsapp/verify` | 20 / minute (Bearer; no session mint) |
+| `POST /auth/identities/email|phone/request` | 8 / minute (Bearer; link OTP) |
+| `POST /auth/identities/email|phone/verify` | 20 / minute (Bearer; no session mint) |
 | `POST /auth/identities/confirm-merge` | 10 / minute |
 | `POST /appointments/invite-email` | 10 / minute |
 

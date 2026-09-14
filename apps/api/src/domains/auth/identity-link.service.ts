@@ -18,10 +18,11 @@ import {
   normalizeLoginEmail,
   PlatformEmailAuthService,
 } from './platform-email-auth.service';
-import { PlatformWhatsAppAuthService } from './platform-whatsapp-auth.service';
 
 const SYNTHETIC_EMAIL_SUFFIX = '@auth.nexolia.app';
 const MERGE_TTL_MS = 10 * 60 * 1000;
+const SMS_LINK_TTL_MS = 10 * 60 * 1000;
+const SMS_LINK_RESEND_COOLDOWN_MS = 45_000;
 
 export type IdentityMeResponse = {
   email: string | null;
@@ -53,7 +54,6 @@ export class IdentityLinkService {
   constructor(
     private readonly supabaseService: SupabaseService,
     private readonly emailAuthService: PlatformEmailAuthService,
-    private readonly whatsappAuthService: PlatformWhatsAppAuthService,
   ) {}
 
   async getMe(authorizationHeader: string | undefined): Promise<IdentityMeResponse> {
@@ -79,16 +79,59 @@ export class IdentityLinkService {
     return { ok: true };
   }
 
-  async requestWhatsAppLink(
+  /** Phone link uses Supabase SMS (Twilio), same as login — not platform WhatsApp. */
+  async requestPhoneLink(
     authorizationHeader: string | undefined,
     phone: string,
   ): Promise<{ ok: true }> {
     const user = await this.requireOwnerUser(authorizationHeader);
     const phoneE164 = requirePhoneE164(phone);
     this.assertCanAddPhone(user, phoneE164);
+    await this.assertSmsLinkResendAllowed(phoneE164);
 
-    await this.whatsappAuthService.requestOtp(phoneE164, 'link');
+    const client = this.supabaseService.getServiceRoleClient();
+    const now = new Date();
+    const { error: challengeError } = await client.from('auth_otp_challenges').insert({
+      channel: 'sms',
+      phone_e164: phoneE164,
+      purpose: 'link',
+      // Real OTP is owned by Supabase Auth; this row only records link intent + cooldown.
+      code_hash: createHash('sha256')
+        .update(`sms-link:${user.id}:${phoneE164}:${now.toISOString()}`)
+        .digest('hex'),
+      expires_at: new Date(now.getTime() + SMS_LINK_TTL_MS).toISOString(),
+      last_sent_at: now.toISOString(),
+    });
+
+    if (challengeError) {
+      console.error(
+        `[identity-link] Failed to store SMS link challenge: ${challengeError.message}`,
+      );
+      throw new Error('No se pudo preparar el código. Intentá de nuevo en unos segundos.');
+    }
+
+    const ephemeral = this.supabaseService.createEphemeralServiceRoleClient();
+    const { error } = await ephemeral.auth.signInWithOtp({
+      phone: phoneE164,
+    });
+
+    if (error) {
+      console.error(`[identity-link] SMS OTP send failed: ${error.message}`);
+      throw new Error(
+        formatSmsSendError(error.message) ||
+          'No se pudo enviar el SMS. Verificá el número e intentá de nuevo.',
+      );
+    }
+
     return { ok: true };
+  }
+
+  /** @deprecated Use requestPhoneLink — WhatsApp is not used for identity linking. */
+  async requestWhatsAppLink(
+    authorizationHeader: string | undefined,
+    phone: string,
+  ): Promise<{ ok: true }> {
+    return this.requestPhoneLink(authorizationHeader, phone);
   }
 
   async verifyEmailLink(
@@ -115,7 +158,7 @@ export class IdentityLinkService {
     });
   }
 
-  async verifyWhatsAppLink(
+  async verifyPhoneLink(
     authorizationHeader: string | undefined,
     params: { code: string; phone: string },
   ): Promise<IdentityVerifyResponse> {
@@ -123,13 +166,34 @@ export class IdentityLinkService {
     const phoneE164 = requirePhoneE164(params.phone);
     this.assertCanAddPhone(keeper, phoneE164);
 
-    const isValid = await this.whatsappAuthService.verifyOtp({
-      code: params.code,
-      phoneE164,
-      purpose: 'link',
+    const challenge = await this.consumeSmsLinkChallenge(phoneE164);
+    if (!challenge) {
+      throw new UnauthorizedException(
+        'Pedí un código nuevo desde Actualizar perfil e intentá otra vez.',
+      );
+    }
+
+    const code = params.code.trim();
+    if (!/^\d{6}$/.test(code)) {
+      throw new BadRequestException('Ingresá el código de 6 dígitos del SMS.');
+    }
+
+    const ephemeral = this.supabaseService.createEphemeralServiceRoleClient();
+    const verified = await ephemeral.auth.verifyOtp({
+      phone: phoneE164,
+      token: code,
+      type: 'sms',
     });
-    if (!isValid) {
+
+    if (verified.error || !verified.data.user) {
       throw new UnauthorizedException('Código inválido.');
+    }
+
+    // Ephemeral session must never be returned to the client.
+    try {
+      await ephemeral.auth.signOut({ scope: 'local' });
+    } catch {
+      // best-effort
     }
 
     return this.completeIdentityProof({
@@ -137,6 +201,14 @@ export class IdentityLinkService {
       identityValue: phoneE164,
       keeper,
     });
+  }
+
+  /** @deprecated Use verifyPhoneLink — WhatsApp is not used for identity linking. */
+  async verifyWhatsAppLink(
+    authorizationHeader: string | undefined,
+    params: { code: string; phone: string },
+  ): Promise<IdentityVerifyResponse> {
+    return this.verifyPhoneLink(authorizationHeader, params);
   }
 
   async confirmMerge(
@@ -230,6 +302,24 @@ export class IdentityLinkService {
 
     await this.assertNotStaff(donorId);
     const organizations = await this.listDonorOrganizations(donorId);
+
+    // Empty donor (typical after SMS verify creates a fresh phone-only user): absorb without confirm.
+    if (organizations.length === 0) {
+      await this.runMergeAndAttach({
+        donorUserId: donorId,
+        identityKind: params.identityKind,
+        identityValue: params.identityValue,
+        keeperUserId: params.keeper.id,
+      });
+      const refreshed = await this.loadUser(params.keeper.id);
+      await this.notifyIdentityLinked({
+        identityKind: params.identityKind,
+        identityValue: params.identityValue,
+        user: refreshed,
+      });
+      return { identities: this.identitiesFromUser(refreshed), status: 'linked' };
+    }
+
     const mergeToken = await this.createMergeChallenge({
       donorUserId: donorId,
       identityKind: params.identityKind,
@@ -408,6 +498,69 @@ export class IdentityLinkService {
     return typeof data === 'string' && data ? data : null;
   }
 
+  private async assertSmsLinkResendAllowed(phoneE164: string): Promise<void> {
+    const client = this.supabaseService.getServiceRoleClient();
+    const { data, error } = await client
+      .from('auth_otp_challenges')
+      .select('last_sent_at, created_at')
+      .eq('phone_e164', phoneE164)
+      .eq('channel', 'sms')
+      .eq('purpose', 'link')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle<{ created_at: string; last_sent_at: string | null }>();
+
+    if (error) {
+      console.error(`[identity-link] Failed to check SMS link cooldown: ${error.message}`);
+      throw new Error('No se pudo enviar el código. Intentá de nuevo en unos segundos.');
+    }
+
+    const lastSent = data?.last_sent_at ?? data?.created_at;
+    if (!lastSent) {
+      return;
+    }
+
+    const elapsed = Date.now() - new Date(lastSent).getTime();
+    if (elapsed < SMS_LINK_RESEND_COOLDOWN_MS) {
+      const waitSec = Math.ceil((SMS_LINK_RESEND_COOLDOWN_MS - elapsed) / 1000);
+      throw new Error(`Esperá ${waitSec}s antes de pedir otro código.`);
+    }
+  }
+
+  private async consumeSmsLinkChallenge(phoneE164: string): Promise<boolean> {
+    const client = this.supabaseService.getServiceRoleClient();
+    const { data, error } = await client
+      .from('auth_otp_challenges')
+      .select('id, expires_at, consumed_at')
+      .eq('phone_e164', phoneE164)
+      .eq('channel', 'sms')
+      .eq('purpose', 'link')
+      .is('consumed_at', null)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle<{ consumed_at: string | null; expires_at: string; id: string }>();
+
+    if (error) {
+      console.error(`[identity-link] Failed to load SMS link challenge: ${error.message}`);
+      throw new Error('No se pudo verificar el código. Intentá de nuevo.');
+    }
+
+    if (!data) {
+      return false;
+    }
+
+    if (new Date(data.expires_at).getTime() < Date.now()) {
+      return false;
+    }
+
+    await client
+      .from('auth_otp_challenges')
+      .update({ consumed_at: new Date().toISOString() })
+      .eq('id', data.id);
+
+    return true;
+  }
+
   private async requireOwnerUser(authorizationHeader: string | undefined): Promise<User> {
     const user = await resolveAuthUser(this.supabaseService, authorizationHeader);
     // Dual-hat staff (e.g. founder also using Owner app) may link identities when they
@@ -583,6 +736,17 @@ export function requirePhoneE164(value: string): string {
     );
   }
   return normalized;
+}
+
+function formatSmsSendError(message: string): string | null {
+  const lower = message.toLowerCase();
+  if (/unsupported phone|phone provider|sms|twilio/i.test(lower)) {
+    return 'El envío de SMS no está configurado o el número no es válido. Revisá Twilio en Supabase Auth.';
+  }
+  if (/rate|too many|cooldown/i.test(lower)) {
+    return 'Esperá unos segundos antes de pedir otro SMS.';
+  }
+  return null;
 }
 
 function hashMergeToken(token: string): string {

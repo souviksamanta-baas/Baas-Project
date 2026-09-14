@@ -43,13 +43,13 @@ class IdentityEmailVerifyDto {
   code!: string;
 }
 
-class IdentityWhatsAppRequestDto {
+class IdentityPhoneRequestDto {
   @IsString()
   @MinLength(8)
   phone!: string;
 }
 
-class IdentityWhatsAppVerifyDto {
+class IdentityPhoneVerifyDto {
   @IsString()
   @MinLength(8)
   phone!: string;
@@ -138,19 +138,19 @@ export class IdentityController {
     }
   }
 
-  @Post('whatsapp/request')
+  @Post('phone/request')
   @HttpCode(200)
   @Throttle({ default: { limit: 8, ttl: 60_000 } })
   @ApiOperation({
-    summary: 'Request WhatsApp OTP to link a phone to the current owner account',
+    summary: 'Request SMS OTP to link a phone to the current owner account',
   })
-  @ApiBody({ type: IdentityWhatsAppRequestDto })
-  async requestWhatsApp(
+  @ApiBody({ type: IdentityPhoneRequestDto })
+  async requestPhone(
     @Headers('authorization') authorizationHeader: string | undefined,
-    @Body() body: IdentityWhatsAppRequestDto,
+    @Body() body: IdentityPhoneRequestDto,
   ): Promise<{ ok: true }> {
     try {
-      return await this.identityLinkService.requestWhatsAppLink(
+      return await this.identityLinkService.requestPhoneLink(
         authorizationHeader,
         body.phone,
       );
@@ -164,20 +164,20 @@ export class IdentityController {
     }
   }
 
-  @Post('whatsapp/verify')
+  @Post('phone/verify')
   @HttpCode(200)
   @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @ApiOperation({
-    summary: 'Verify WhatsApp OTP and attach or preview merge (no session mint)',
+    summary: 'Verify SMS OTP and attach or preview merge (no session mint)',
   })
-  @ApiBody({ type: IdentityWhatsAppVerifyDto })
+  @ApiBody({ type: IdentityPhoneVerifyDto })
   @ApiUnauthorizedResponse({ type: ErrorResponseDto })
-  async verifyWhatsApp(
+  async verifyPhone(
     @Headers('authorization') authorizationHeader: string | undefined,
-    @Body() body: IdentityWhatsAppVerifyDto,
+    @Body() body: IdentityPhoneVerifyDto,
   ): Promise<IdentityVerifyResponse> {
     try {
-      return await this.identityLinkService.verifyWhatsAppLink(authorizationHeader, {
+      return await this.identityLinkService.verifyPhoneLink(authorizationHeader, {
         code: body.code,
         phone: body.phone,
       });
@@ -189,6 +189,39 @@ export class IdentityController {
         error instanceof Error ? error.message : 'No se pudo verificar el código.',
       );
     }
+  }
+
+  /** @deprecated Prefer /auth/identities/phone/* — SMS, not WhatsApp. */
+  @Post('whatsapp/request')
+  @HttpCode(200)
+  @Throttle({ default: { limit: 8, ttl: 60_000 } })
+  @ApiOperation({
+    summary: 'Deprecated alias: request SMS OTP to link a phone',
+    deprecated: true,
+  })
+  @ApiBody({ type: IdentityPhoneRequestDto })
+  async requestWhatsApp(
+    @Headers('authorization') authorizationHeader: string | undefined,
+    @Body() body: IdentityPhoneRequestDto,
+  ): Promise<{ ok: true }> {
+    return this.requestPhone(authorizationHeader, body);
+  }
+
+  /** @deprecated Prefer /auth/identities/phone/* — SMS, not WhatsApp. */
+  @Post('whatsapp/verify')
+  @HttpCode(200)
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  @ApiOperation({
+    summary: 'Deprecated alias: verify SMS OTP for phone link',
+    deprecated: true,
+  })
+  @ApiBody({ type: IdentityPhoneVerifyDto })
+  @ApiUnauthorizedResponse({ type: ErrorResponseDto })
+  async verifyWhatsApp(
+    @Headers('authorization') authorizationHeader: string | undefined,
+    @Body() body: IdentityPhoneVerifyDto,
+  ): Promise<IdentityVerifyResponse> {
+    return this.verifyPhone(authorizationHeader, body);
   }
 
   @Post('confirm-merge')
