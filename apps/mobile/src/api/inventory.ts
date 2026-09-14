@@ -25,7 +25,6 @@ import {
   buildSaleMovementNote,
   computeCartSubtotalCents,
   getCartLineSoldQuantity,
-  type SellCartLine,
   type SellCheckoutDraft,
 } from '../lib/sellCart';
 import { removeExistingRealtimeChannel } from '../lib/realtime';
@@ -923,51 +922,23 @@ async function applyParentStockDeduction(
   });
 }
 
-interface SaleInventoryRow {
-  id: string;
-  product_id: string;
-  products: { id: string; name: string } | { id: string; name: string }[] | null;
-  quantity_on_hand: string | number;
-  unit_code: string;
-}
-
-interface ResolvedSaleLine {
-  inventoryItemId: string;
-  line: SellCartLine;
-  productName: string;
-  soldQuantity: number;
-  stockOnHand: number;
-  unitCode: string;
+interface SaleLineTotals {
+  name: string;
+  note: string;
+  quantity: number;
 }
 
 export async function confirmSale(
   businessCenterId: string,
   organizationId: string,
   checkout: SellCheckoutDraft,
+  options?: { idempotencyKey?: string; quoteId?: string | null },
 ): Promise<void> {
   if (checkout.cart.length === 0) {
     throw new Error('El carrito esta vacio.');
   }
 
-  const productIds = [...new Set(checkout.cart.map((line) => line.productId))];
-  const { data, error } = await supabase
-    .from('inventory_items')
-    .select('id, product_id, quantity_on_hand, unit_code, products!inner(id, name)')
-    .eq('organization_id', organizationId)
-    .eq('business_center_id', businessCenterId)
-    .in('product_id', productIds);
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  const inventoryByProductId = new Map<string, SaleInventoryRow>();
-
-  for (const row of (data ?? []) as SaleInventoryRow[]) {
-    inventoryByProductId.set(row.product_id, row);
-  }
-
-  const soldTotalsByProduct = new Map<string, number>();
+  const soldTotalsByProduct = new Map<string, { name: string; note: string; quantity: number }>();
 
   for (const line of checkout.cart) {
     const soldQuantity = getCartLineSoldQuantity(line);
@@ -976,98 +947,52 @@ export async function confirmSale(
       throw new Error(`Cantidad invalida para ${line.name}.`);
     }
 
-    soldTotalsByProduct.set(
-      line.productId,
-      (soldTotalsByProduct.get(line.productId) ?? 0) + soldQuantity,
-    );
-  }
-
-  for (const [productId, totalSold] of soldTotalsByProduct) {
-    const inventoryItem = inventoryByProductId.get(productId);
-
-    if (!inventoryItem) {
-      const lineName = checkout.cart.find((line) => line.productId === productId)?.name ?? 'producto';
-      throw new Error(`No se encontro stock para ${lineName}.`);
-    }
-
-    const product = Array.isArray(inventoryItem.products)
-      ? inventoryItem.products[0]
-      : inventoryItem.products;
-    const productName = product?.name ?? 'producto';
-    const stockOnHand = Number(inventoryItem.quantity_on_hand);
-    const unitCode = inventoryItem.unit_code;
-
-    if (stockOnHand < totalSold) {
-      const formattedSold = formatStockAmount(totalSold);
-      const formattedAvailable = formatStockAmount(stockOnHand);
-      throw new Error(
-        `Stock insuficiente para ${productName}. Se necesitan ${formattedSold} ${unitCode} y hay ${formattedAvailable} ${unitCode} disponibles.`,
-      );
+    const current = soldTotalsByProduct.get(line.productId);
+    const note = buildSaleMovementNote(line, line.soldByWeight ? 'kg' : 'unit', checkout.clientLabel);
+    if (current) {
+      current.quantity += soldQuantity;
+    } else {
+      soldTotalsByProduct.set(line.productId, {
+        name: line.name,
+        note,
+        quantity: soldQuantity,
+      });
     }
   }
 
-  const resolvedLines: ResolvedSaleLine[] = checkout.cart.map((line) => {
-    const inventoryItem = inventoryByProductId.get(line.productId)!;
-    const product = Array.isArray(inventoryItem.products)
-      ? inventoryItem.products[0]
-      : inventoryItem.products;
-    const soldQuantity = getCartLineSoldQuantity(line);
+  const idempotencyKey =
+    options?.idempotencyKey?.trim() ||
+    (options?.quoteId
+      ? `quote:${options.quoteId}`
+      : `pos:${Date.now()}:${Math.random().toString(36).slice(2)}`);
 
-    return {
-      inventoryItemId: inventoryItem.id,
-      line,
-      productName: product?.name ?? line.name,
-      soldQuantity,
-      stockOnHand: Number(inventoryItem.quantity_on_hand),
-      unitCode: inventoryItem.unit_code,
-    };
+  const { error } = await supabase.rpc('confirm_pos_sale', {
+    p_business_center_id: businessCenterId,
+    p_client_label: checkout.clientLabel,
+    p_draft: checkout,
+    p_idempotency_key: idempotencyKey,
+    p_lines: [...soldTotalsByProduct.entries()].map(([productId, line]) => ({
+      note: line.note,
+      productId,
+      quantity: line.quantity,
+    })),
+    p_organization_id: organizationId,
+    p_quote_id: options?.quoteId ?? null,
   });
 
-  const runningStockByProduct = new Map<string, number>();
+  if (error) {
+    throw new Error(mapConfirmSaleError(error.message, soldTotalsByProduct));
+  }
 
-  for (const saleLine of resolvedLines) {
-    const currentStock =
-      runningStockByProduct.get(saleLine.line.productId) ?? saleLine.stockOnHand;
-    const nextQuantity = currentStock - saleLine.soldQuantity;
-    runningStockByProduct.set(saleLine.line.productId, nextQuantity);
-
-    const { error: inventoryUpdateError } = await supabase
-      .from('inventory_items')
-      .update({
-        quantity_on_hand: nextQuantity,
-      })
-      .eq('id', saleLine.inventoryItemId)
-      .eq('organization_id', organizationId);
-
-    if (inventoryUpdateError) {
-      throw new Error(inventoryUpdateError.message);
-    }
-
-    const { error: movementError } = await supabase.from('inventory_movements').insert({
-      business_center_id: businessCenterId,
-      inventory_item_id: saleLine.inventoryItemId,
-      inventory_lot_id: null,
-      movement_type: 'sale',
-      note: buildSaleMovementNote(saleLine.line, saleLine.unitCode, checkout.clientLabel),
-      organization_id: organizationId,
-      product_id: saleLine.line.productId,
-      quantity_delta: -saleLine.soldQuantity,
-      reference_type: 'pos_sale',
-      unit_code: saleLine.unitCode,
-    });
-
-    if (movementError) {
-      throw new Error(movementError.message);
-    }
-
+  for (const [productId, line] of soldTotalsByProduct) {
     void emitStockMovementNotification({
       businessCenterId,
       movementType: 'sale',
-      note: buildSaleMovementNote(saleLine.line, saleLine.unitCode, checkout.clientLabel),
+      note: line.note,
       organizationId,
-      productId: saleLine.line.productId,
-      quantityDelta: -saleLine.soldQuantity,
-      unitCode: saleLine.unitCode,
+      productId,
+      quantityDelta: -line.quantity,
+      unitCode: 'unit',
     });
   }
 
@@ -1078,6 +1003,30 @@ export async function confirmSale(
     organizationId,
     totalCents,
   });
+}
+
+function mapConfirmSaleError(
+  message: string,
+  soldTotalsByProduct: Map<string, { name: string; note: string; quantity: number }>,
+): string {
+  const insufficient = message.match(/insufficient_stock:([^:]+):([^:]+):([^:]+)/);
+  if (insufficient) {
+    const productName = insufficient[1];
+    const needed = Number(insufficient[2]);
+    const available = Number(insufficient[3]);
+    return `Stock insuficiente para ${productName}. Se necesitan ${formatStockAmount(needed)} y hay ${formatStockAmount(available)} disponibles.`;
+  }
+  if (/quote already paid/i.test(message)) {
+    return 'Este presupuesto ya está cobrado.';
+  }
+  if (/stock not found/i.test(message)) {
+    const first = [...soldTotalsByProduct.values()][0];
+    return `No se encontro stock para ${first?.name ?? 'producto'}.`;
+  }
+  if (/not a member/i.test(message) || /not authenticated/i.test(message)) {
+    return 'No tenés permiso para confirmar esta venta.';
+  }
+  return message;
 }
 
 async function emitSaleNotifications(params: {

@@ -90,3 +90,36 @@ jobs:
           : "${SUPABASE_PROJECT_REF:?Missing SUPABASE_PROJECT_REF repository variable}"
           supabase link --project-ref "$SUPABASE_PROJECT_REF"
           supabase db push
+
+  rls-sql:
+    name: Live RLS cross-tenant
+    runs-on: ubuntu-latest
+    needs: quality
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: 2.102.0
+
+      - name: Install psql
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+
+      - name: Start local Supabase
+        run: supabase start --exclude studio,imgproxy,edge-runtime,logflare,vector,realtime
+
+      - name: Run cross-tenant RLS SQL
+        run: |
+          set -a
+          eval "$(supabase status -o env)"
+          set +a
+          : "${DB_URL:?Missing DB_URL from supabase status}"
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/rls_cross_tenant.sql
+
+      - name: Stop local Supabase
+        if: always()
+        run: supabase stop

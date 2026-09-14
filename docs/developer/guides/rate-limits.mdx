@@ -16,6 +16,26 @@ General API rate limits are configured with:
 
 The health check endpoint is excluded from throttling so uptime checks remain stable.
 
+## Stricter public-route limits
+
+These unauthenticated routes use tighter per-IP throttles (Nest `@Throttle`) on top of the global limit:
+
+| Route | Limit |
+| --- | --- |
+| `POST /public/leads` | 8 / minute |
+| `POST /public/org-name-check` | 10 / minute |
+| `POST /public/admin/password-reset` | 5 / minute |
+| `POST /auth/otp/*/request` | 8 / minute |
+| `POST /auth/otp/*/verify` | 20 / minute |
+| `POST /auth/identities/email|whatsapp/request` | 8 / minute (Bearer; link OTP) |
+| `POST /auth/identities/email|whatsapp/verify` | 20 / minute (Bearer; no session mint) |
+| `POST /auth/identities/confirm-merge` | 10 / minute |
+| `POST /appointments/invite-email` | 10 / minute |
+
+Identity link throttles match login OTP so stolen sessions cannot spam bind/merge. `GET /auth/identities/me` uses the global limit only.
+
+`POST /public/org-name-check` does not enumerate other tenants: without a matching owner/member email it returns `{ available: true }` even if the name exists.
+
 ## WhatsApp webhook limits
 
 WhatsApp webhooks are public internet-facing endpoints and have their own limits:

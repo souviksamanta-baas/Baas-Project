@@ -139,6 +139,21 @@ After any channel login:
 3. Owner creating a business calls `create_organization_with_owner`
 4. Owner may connect merchant WABA later (independent of login phone)
 
+## Vincular correo y teléfono (identidad del dueño)
+
+QR invites and WhatsApp login mint a **phone** `auth.users` row (`{digits}@auth.nexolia.app`). Email login mints a different user. `get_my_organizations` lists by `auth.uid()`, so the same person can see different **Negocios** depending on how they logged in.
+
+On **Actualizar perfil** (mobile), the owner binds the missing method with a **link** OTP (`purpose=link` on `auth_otp_challenges`):
+
+1. Stay on the **current** session (do not call login `verify`).
+2. If the identity is free → attach to the current user.
+3. If another auth user owns it → Spanish confirm listing negocios to absorb; then Nest runs `merge_auth_user(donor → keeper)`, revokes donor sessions, deletes the donor, and attaches the identity.
+4. After success, **Negocios** refreshes and shows orgs from both former accounts.
+
+Staff (`nexolia_staff`) cannot use these routes. Changing an already-verified email/phone is out of scope for v1.
+
+See [authentication.mdx](./developer/guides/authentication.mdx) and SQL test `supabase/tests/identity_link_merge.sql`.
+
 ## Architecture notes
 
 | WABA | Purpose |

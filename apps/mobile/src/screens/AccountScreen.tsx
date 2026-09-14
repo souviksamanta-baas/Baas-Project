@@ -110,7 +110,7 @@ export function AccountScreen(props: {
       <FeatureGate feature="accountSettings">
         <Card flush>
           <ActionRow icon="users" onPress={props.onOpenStaffInvite} showDivider title="Invitar miembro (QR)" />
-          <ActionRow icon="user" onPress={props.onOpenEditProfile} showDivider title="Editar perfil" />
+          <ActionRow icon="user" onPress={props.onOpenEditProfile} showDivider title="Actualizar perfil" />
           <ActionRow
             icon="shield"
             onPress={props.onOpenPrivacyData}

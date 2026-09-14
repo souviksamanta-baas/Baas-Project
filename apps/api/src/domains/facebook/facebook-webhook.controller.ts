@@ -9,12 +9,14 @@ import {
   type RawBodyRequest,
   UnauthorizedException,
 } from '@nestjs/common';
+import { Public } from '../../auth/auth.decorators';
 import { ApiExcludeController } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import type { Request } from 'express';
 
 import { FacebookWebhookService } from './facebook-webhook.service';
 
+@Public()
 @ApiExcludeController()
 @Controller('integrations/meta/facebook/webhook')
 export class MetaFacebookWebhookController {
@@ -46,6 +48,7 @@ export class MetaFacebookWebhookController {
   }
 }
 
+@Public()
 @ApiExcludeController()
 @Controller('webhooks/facebook')
 export class FacebookWebhookAliasController {

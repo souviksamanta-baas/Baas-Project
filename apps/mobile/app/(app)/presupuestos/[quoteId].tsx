@@ -176,15 +176,9 @@ export default function PresupuestoDetailRoute(): ReactElement {
 
     setIsConfirming(true);
     try {
-      await confirmSale(businessCenterId, organizationId, draft);
-      const updated = await updateSellQuote(organizationId, businessCenterId, quote.id, {
-        draft,
-        status: 'cobrado',
-      });
-      if (updated) {
-        setQuote(updated);
-        setCart(updated.draft.cart.map((line) => ({ ...line })));
-      }
+      await confirmSale(businessCenterId, organizationId, draft, { quoteId: quote.id });
+      setQuote({ ...quote, draft, status: 'cobrado' });
+      setCart(draft.cart.map((line) => ({ ...line })));
     } catch (error) {
       Alert.alert(
         'No se pudo confirmar',

@@ -26,6 +26,8 @@ import {
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
+
+import { Public } from '../../auth/auth.decorators';
 import type { Request } from 'express';
 
 import { getWebhookRateLimitMax, getWebhookRateLimitTtl } from '../../config/api-config';
@@ -45,6 +47,7 @@ import {
 
 type RawBodyRequest = Request & { rawBody?: Buffer };
 
+@Public()
 @Throttle({
   default: {
     limit: getWebhookRateLimitMax,

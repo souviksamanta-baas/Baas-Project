@@ -3,6 +3,8 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 
+import { JwtAuthGuard } from './auth/jwt-auth.guard';
+import { OrgMembershipGuard } from './auth/org-membership.guard';
 import { getRateLimitMax, getRateLimitTtl } from './config/api-config';
 import { envValidationSchema } from './config/env.validation';
 import { WhatsAppConversationMessageRepository } from './domains/whatsapp/whatsapp-conversation-message.repository';
@@ -39,6 +41,14 @@ import { WhatsAppWebhookService } from './webhooks/whatsapp/whatsapp-webhook.ser
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: JwtAuthGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: OrgMembershipGuard,
     },
     SupabaseService,
     WhatsAppMessageEventRepository,

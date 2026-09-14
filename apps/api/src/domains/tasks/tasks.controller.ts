@@ -11,8 +11,6 @@ import {
   Patch,
   Post,
   Query,
-  ServiceUnavailableException,
-  UnauthorizedException,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
@@ -25,6 +23,8 @@ import {
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 
+import { Public } from '../../auth/auth.decorators';
+import { assertJobSecret } from '../../auth/job-secret.util';
 import {
   assertOrgMembership,
   isOwnerOrCoOwner,
@@ -109,6 +109,7 @@ export class TasksController {
     private readonly supabaseService: SupabaseService,
   ) {}
 
+  @Public()
   @Post('run-maintenance')
   @ApiSecurity('BaasJobSecret')
   @ApiOperation({
@@ -134,15 +135,12 @@ export class TasksController {
   async runMaintenance(
     @Headers('x-baas-job-secret') jobSecret: string | undefined,
   ): Promise<TaskMaintenanceResult> {
-    const expectedSecret = process.env.BAAS_TASKS_JOB_SECRET;
-
-    if (!expectedSecret) {
-      throw new ServiceUnavailableException('Task maintenance job secret is not configured');
-    }
-
-    if (jobSecret !== expectedSecret) {
-      throw new UnauthorizedException('Invalid task maintenance job secret');
-    }
+    assertJobSecret({
+      expectedSecret: process.env.BAAS_TASKS_JOB_SECRET,
+      invalidMessage: 'Invalid task maintenance job secret',
+      missingMessage: 'Task maintenance job secret is not configured',
+      providedSecret: jobSecret,
+    });
 
     return this.tasksService.runMaintenance();
   }

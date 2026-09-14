@@ -46,7 +46,7 @@ These values must never be bundled into mobile/client code.
 | `BAAS_RATE_LIMIT_TTL_MS` | Global API rate-limit window in milliseconds | API server, deployment config |
 | `BAAS_WEBHOOK_RATE_LIMIT_MAX` | WhatsApp webhook request limit per TTL window | API server, deployment config |
 | `BAAS_WEBHOOK_RATE_LIMIT_TTL_MS` | WhatsApp webhook rate-limit window in milliseconds | API server, deployment config |
-| `BAAS_OTP_PEPPER` | HMAC pepper for WhatsApp/email login OTP hashes (falls back to service role key) | API server, deployment secret store |
+| `BAAS_OTP_PEPPER` | HMAC pepper for WhatsApp/email login OTP hashes. **Required in production.** Local/dev may fall back to the service role key. | API server, deployment secret store |
 | `RESEND_API_KEY` | Resend API key for platform email login OTP | API server, deployment secret store |
 | `NEXOLIA_AUTH_EMAIL_FROM` | From header for login OTP email (default `Nexolia <noreply@nexolia.com.ar>`) | API server, deployment config |
 | `BAAS_ENABLE_OPENAPI_DOCS` | Set `true` to expose `/docs` (default off in production) | API server, deployment config |
@@ -73,16 +73,21 @@ provides `PORT` automatically.
 ## API Hardening Configuration
 
 The NestJS API validates production environment variables during startup. In
-`NODE_ENV=production`, missing Supabase service-role, WhatsApp webhook, or task
-maintenance secrets fail boot instead of surfacing later during requests.
+`NODE_ENV=production`, missing Supabase service-role, WhatsApp webhook, task
+maintenance (`BAAS_TASKS_JOB_SECRET`), OTP pepper (`BAAS_OTP_PEPPER`), or token
+encryption (`BAAS_TOKEN_ENCRYPTION_KEY`) secrets fail boot instead of surfacing
+later during requests.
 
 CORS is explicit and environment-driven:
 
 - `BAAS_CORS_ALLOWED_ORIGINS` is a comma-separated list of browser origins, for
-  example `https://owner.example.com,https://admin.example.com`.
+  example `https://nexolia.com.ar,https://admin.nexolia.com.ar`.
 - Do not use `*`. Wildcard origins are rejected during startup validation.
 - Requests without an `Origin` header remain allowed for mobile apps,
   server-to-server jobs, health checks, and Meta webhook calls.
+- Identity linking (`/auth/identities/*`) needs **no new secrets**. Do **not**
+  add `https://web.nexolia.com.ar` to CORS for owner identity bind until desktop
+  pairing ships; marketing and staff origins must not call those routes.
 
 Rate limiting is enabled in the API:
 
@@ -224,7 +229,7 @@ Platform secrets (Nexolia Meta app)—set **once** by ops in Railway. Merchants 
 | `META_APP_ID` / `META_APP_SECRET` | Optional fallback if `INSTAGRAM_APP_*` unset |
 | `INSTAGRAM_VERIFY_TOKEN` | Meta hub verify token for Instagram webhooks (falls back to WhatsApp verify token) |
 | `INSTAGRAM_OAUTH_REDIRECT_URI` | HTTPS callback registered in Meta Business Login (default `https://baas-project-production.up.railway.app/integrations/meta/instagram/oauth/callback`). Meta rejects custom schemes. Must match Meta **exactly** (trailing slash included/excluded). |
-| `BAAS_TOKEN_ENCRYPTION_KEY` | AES-256-GCM key for tenant Instagram tokens (prefer 32-byte base64) |
+| `BAAS_TOKEN_ENCRYPTION_KEY` | **Required in production.** AES-256-GCM key for tenant Instagram tokens, org LLM keys, and ARCA ticket cache (prefer 32-byte base64) |
 
 If Meta shows **Invalid request: Request parameters are invalid** after the login/2FA code: (1) OAuth redirect URI not registered exactly under Instagram Business login settings, or (2) Railway has the Facebook App ID instead of the Instagram App ID.
 

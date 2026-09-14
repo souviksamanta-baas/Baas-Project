@@ -24,6 +24,14 @@ describe('WhatsAppConversationMessageRepository', () => {
                 })),
               };
             }),
+            select: vi.fn(() => ({
+              eq: vi.fn(() => ({
+                maybeSingle: vi.fn(async () => ({
+                  data: { id: 'contact-1', lead_status: 'active', cold_at: null },
+                  error: null,
+                })),
+              })),
+            })),
           };
         }
 

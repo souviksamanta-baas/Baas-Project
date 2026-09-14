@@ -19,9 +19,19 @@ export class AuthSessionService {
   ) {}
 
   async createSessionForPhone(phoneE164: string): Promise<MintedAuthSession> {
-    const email = phoneToSyntheticEmail(phoneE164);
     const client = this.supabaseService.getServiceRoleClient();
 
+    const existingId = await this.findUserIdByPhone(phoneE164);
+    if (existingId) {
+      const { data, error } = await client.auth.admin.getUserById(existingId);
+      if (error || !data.user) {
+        throw new Error('No se pudo crear la sesión. Intentá de nuevo.');
+      }
+      const email = data.user.email?.trim() || phoneToSyntheticEmail(phoneE164);
+      return this.mintSessionForEmail(email);
+    }
+
+    const email = phoneToSyntheticEmail(phoneE164);
     const { error: createError } = await client.auth.admin.createUser({
       email,
       email_confirm: true,
@@ -37,6 +47,16 @@ export class AuthSessionService {
       throw new Error('No se pudo crear la sesión. Intentá de nuevo.');
     }
 
+    // Race: another request may have created/linked the phone user.
+    if (createError) {
+      const racedId = await this.findUserIdByPhone(phoneE164);
+      if (racedId) {
+        const { data } = await client.auth.admin.getUserById(racedId);
+        const raceEmail = data.user?.email?.trim() || email;
+        return this.mintSessionForEmail(raceEmail);
+      }
+    }
+
     return this.mintSessionForEmail(email);
   }
 
@@ -44,17 +64,20 @@ export class AuthSessionService {
     const normalizedEmail = email.trim().toLowerCase();
     const client = this.supabaseService.getServiceRoleClient();
 
-    const { error: createError } = await client.auth.admin.createUser({
-      email: normalizedEmail,
-      email_confirm: true,
-      user_metadata: {
-        auth_email: normalizedEmail,
-      },
-    });
+    const existingId = await this.findUserIdByEmail(normalizedEmail);
+    if (!existingId) {
+      const { error: createError } = await client.auth.admin.createUser({
+        email: normalizedEmail,
+        email_confirm: true,
+        user_metadata: {
+          auth_email: normalizedEmail,
+        },
+      });
 
-    if (createError && !/already|registered|exists/i.test(createError.message)) {
-      console.error(`[auth] Failed to create email auth user: ${createError.message}`);
-      throw new Error('No se pudo crear la sesión. Intentá de nuevo.');
+      if (createError && !/already|registered|exists/i.test(createError.message)) {
+        console.error(`[auth] Failed to create email auth user: ${createError.message}`);
+        throw new Error('No se pudo crear la sesión. Intentá de nuevo.');
+      }
     }
 
     const session = await this.mintSessionForEmail(normalizedEmail);
@@ -80,6 +103,31 @@ export class AuthSessionService {
   async createSessionTokenHashForEmail(email: string): Promise<string> {
     const session = await this.createSessionForEmail(email);
     return session.tokenHash;
+  }
+
+  private async findUserIdByEmail(email: string): Promise<string | null> {
+    const client = this.supabaseService.getServiceRoleClient();
+    const { data, error } = await client.rpc('find_auth_user_id_by_email', {
+      p_email: email,
+    });
+    if (error) {
+      // Migration may not be applied yet in some local envs — fall through to create.
+      console.warn(`[auth] find_auth_user_id_by_email unavailable: ${error.message}`);
+      return null;
+    }
+    return typeof data === 'string' && data ? data : null;
+  }
+
+  private async findUserIdByPhone(phoneE164: string): Promise<string | null> {
+    const client = this.supabaseService.getServiceRoleClient();
+    const { data, error } = await client.rpc('find_auth_user_id_by_phone', {
+      p_phone_e164: phoneE164,
+    });
+    if (error) {
+      console.warn(`[auth] find_auth_user_id_by_phone unavailable: ${error.message}`);
+      return null;
+    }
+    return typeof data === 'string' && data ? data : null;
   }
 
   private async mintSessionForEmail(email: string): Promise<MintedAuthSession> {

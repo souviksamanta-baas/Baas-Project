@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -6,12 +7,18 @@ import {
   Post,
   Put,
   Query,
-  ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
-import { AuthSessionService } from '../auth/auth-session.service';
+import { Public } from '../../auth/auth.decorators';
+import { assertJobSecret } from '../../auth/job-secret.util';
+import { requireOrganizationId } from '../../auth/org-membership.guard';
+import {
+  assertOrgMembership,
+  resolveUserId,
+} from '../../auth/request-auth.helper';
+import { SupabaseService } from '../../supabase/supabase.service';
 import {
   NOTIFICATION_CATALOG,
   normalizeReminderLeadMinutes,
@@ -33,9 +40,10 @@ const CLIENT_EVENT_TYPES: NotificationTypeId[] = [
 export class NotificationsController {
   constructor(
     private readonly notificationsService: NotificationsService,
-    private readonly authSessionService: AuthSessionService,
+    private readonly supabaseService: SupabaseService,
   ) {}
 
+  @Public()
   @Get('catalog')
   @ApiOperation({ summary: 'List notification catalog entries and defaults' })
   @ApiOkResponse({ description: 'Catalog of notification types' })
@@ -49,8 +57,14 @@ export class NotificationsController {
     @Headers('authorization') authorizationHeader: string | undefined,
     @Query('organizationId') organizationId: string,
   ): Promise<{ enabled: Record<string, boolean>; reminderLeadMinutes: ReminderLeadMinutes }> {
-    const userId = await this.authSessionService.getUserIdFromBearerToken(authorizationHeader);
-    return this.notificationsService.getPrefs({ organizationId, userId });
+    const orgId = requireOrganizationId(organizationId);
+    const userId = await resolveUserId(this.supabaseService, authorizationHeader);
+    await assertOrgMembership({
+      organizationId: orgId,
+      supabaseService: this.supabaseService,
+      userId,
+    });
+    return this.notificationsService.getPrefs({ organizationId: orgId, userId });
   }
 
   @Put('prefs')
@@ -64,10 +78,16 @@ export class NotificationsController {
       reminderLeadMinutes?: number;
     },
   ): Promise<{ enabled: Record<string, boolean>; reminderLeadMinutes: ReminderLeadMinutes }> {
-    const userId = await this.authSessionService.getUserIdFromBearerToken(authorizationHeader);
+    const orgId = requireOrganizationId(body.organizationId);
+    const userId = await resolveUserId(this.supabaseService, authorizationHeader);
+    await assertOrgMembership({
+      organizationId: orgId,
+      supabaseService: this.supabaseService,
+      userId,
+    });
     return this.notificationsService.upsertPrefs({
       enabled: body.enabled,
-      organizationId: body.organizationId,
+      organizationId: orgId,
       reminderLeadMinutes: normalizeReminderLeadMinutes(body.reminderLeadMinutes),
       userId,
     });
@@ -88,16 +108,25 @@ export class NotificationsController {
       type: NotificationTypeId;
     },
   ): Promise<{ created: boolean; sent: number }> {
-    const userId = await this.authSessionService.getUserIdFromBearerToken(authorizationHeader);
+    const orgId = requireOrganizationId(body.organizationId);
+    const userId = await resolveUserId(this.supabaseService, authorizationHeader);
+    await assertOrgMembership({
+      organizationId: orgId,
+      supabaseService: this.supabaseService,
+      userId,
+    });
     if (!CLIENT_EVENT_TYPES.includes(body.type)) {
       throw new UnauthorizedException('Unsupported notification event type');
+    }
+    if (!body.body?.trim() || !body.businessCenterId?.trim() || !body.sourceKey?.trim()) {
+      throw new BadRequestException('body, businessCenterId, and sourceKey are required');
     }
 
     return this.notificationsService.notifyClientEvent({
       body: body.body,
       businessCenterId: body.businessCenterId,
       creatorUserId: userId,
-      organizationId: body.organizationId,
+      organizationId: orgId,
       payload: body.payload,
       sourceKey: body.sourceKey,
       title: body.title,
@@ -105,19 +134,19 @@ export class NotificationsController {
     });
   }
 
+  @Public()
   @Post('run-scheduled')
   @ApiSecurity('BaasJobSecret')
   @ApiOperation({ summary: 'Run scheduled digests and reminder notifications' })
   async runScheduled(
     @Headers('x-baas-job-secret') jobSecret: string | undefined,
   ): Promise<{ notificationsCreated: number; pushFailed: number; pushSent: number }> {
-    const expectedSecret = process.env.BAAS_TASKS_JOB_SECRET;
-    if (!expectedSecret) {
-      throw new ServiceUnavailableException('Notification job secret is not configured');
-    }
-    if (jobSecret !== expectedSecret) {
-      throw new UnauthorizedException('Invalid notification job secret');
-    }
+    assertJobSecret({
+      expectedSecret: process.env.BAAS_TASKS_JOB_SECRET,
+      invalidMessage: 'Invalid notification job secret',
+      missingMessage: 'Notification job secret is not configured',
+      providedSecret: jobSecret,
+    });
 
     return this.notificationsService.runScheduled();
   }

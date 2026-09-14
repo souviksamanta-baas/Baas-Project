@@ -37,7 +37,7 @@ function validateCorsOrigins(value: string | undefined, helpers: Joi.CustomHelpe
 export const envValidationSchema = Joi.object({
   API_PORT: Joi.number().port().optional(),
   BAAS_ENABLE_OPENAPI_DOCS: Joi.string().trim().valid('true', 'false', '1', '0', '').optional().allow(''),
-  BAAS_OTP_PEPPER: Joi.string().trim().optional().allow(''),
+  BAAS_OTP_PEPPER: productionSecret,
   BAAS_CORS_ALLOWED_ORIGINS: Joi.string()
     .trim()
     .optional()
@@ -67,7 +67,7 @@ export const envValidationSchema = Joi.object({
   META_APP_ID: Joi.string().trim().optional().allow(''),
   META_APP_SECRET: Joi.string().trim().optional().allow(''),
   META_VERIFY_TOKEN: Joi.string().trim().optional().allow(''),
-  BAAS_TOKEN_ENCRYPTION_KEY: Joi.string().trim().optional().allow(''),
+  BAAS_TOKEN_ENCRYPTION_KEY: productionSecret,
   NEXOLIA_AUTH_WABA_ACCESS_TOKEN: Joi.string().trim().optional().allow(''),
   NEXOLIA_AUTH_WABA_PHONE_NUMBER_ID: Joi.string().trim().optional().allow(''),
   NEXOLIA_AUTH_EMAIL_FROM: Joi.string().trim().optional().allow(''),

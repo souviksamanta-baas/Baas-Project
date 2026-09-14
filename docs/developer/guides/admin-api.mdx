@@ -13,9 +13,13 @@ The Admin API powers the Nexolia website staff portal (`admin.nexolia.com.ar`) a
 | Nexolia staff | Supabase email/password → JWT (Google OAuth later) | `admin.nexolia.com.ar` |
 | Client (owner/staff) | OTP (email / WhatsApp / SMS) → JWT | Mobile app only |
 
-Staff must be listed in `nexolia_staff`, **or** hold a pending row in `nexolia_staff_invites` (claimed on first successful login). Nest rejects everyone else on `/admin/*`. Do **not** put Nexolia staff into client `organization_members`.
+Staff must be listed in `nexolia_staff`, **or** hold a pending row in `nexolia_staff_invites` (claimed on first successful login). Nest rejects everyone else on `/admin/*`. Do **not** put Nexolia staff into client `organization_members`. Staff roles in the database are **`admin`** and **`super_admin`** only.
+
+The staff portal does **not** link owner email/phone identities. Routes under `/auth/identities/*` reject `nexolia_staff` JWTs and are intended only for the owner mobile app (Bearer). Do not surface “Actualizar perfil” identity binding on `admin.nexolia.com.ar`.
 
 Bootstrap founder: `souvik.samanta@gmail.com` is seeded as `super_admin`. Additional emails are invitation-only (insert into `nexolia_staff_invites`).
+
+`/admin/*` uses `@SkipOrgMembership()` because staff are not tenant members. The global JWT guard still applies.
 
 ## CORS
 
@@ -36,7 +40,18 @@ Content-Type: application/json
 
 Body (v1): email, vertical slug, selected services / feature flags, plan slug, billing cycle (`monthly` | `annual`), marketing opt-in.
 
-Creates a `leads` row (`status = new`). Does **not** create an org or a customer session.
+Creates a `leads` row (`status = new`). Does **not** create an org or a customer session. Throttled at 8 requests / minute.
+
+### Organization name check
+
+```http
+POST /public/org-name-check
+Content-Type: application/json
+```
+
+Body: `{ "email"?: string, "name": string }`.
+
+This is **not** a directory of tenant names. If the name is unused, or the caller is not the owner/member, the API returns `{ "available": true, "ownedByRequester": false }`. Only the matching owner or member email sees `{ "available": false, "ownedByRequester": true }`. The stored organization name is never echoed from another tenant. Throttled at 10 / minute.
 
 ## Staff admin (`/admin/*`)
 
@@ -85,14 +100,14 @@ POST /admin/organizations/:id/llm-credentials/provision
 Authorization: Bearer <staff-supabase-jwt>
 ```
 
-Creates an OpenAI project + service-account key, sets the plan default hard spend limit (Pro $25 / Enterprise $150), encrypts the key into `organization_llm_credentials`. Idempotent if already `active`. Rejects non–Pro/Enterprise plans.
+**`super_admin` only.** Creates an OpenAI project + service-account key, sets the plan default hard spend limit (Pro $25 / Enterprise $150), encrypts the key into `organization_llm_credentials`. Idempotent if already `active`. Rejects non–Pro/Enterprise plans.
 
 ```http
 POST /admin/organizations/:id/llm-credentials/revoke
 Authorization: Bearer <staff-supabase-jwt>
 ```
 
-Best-effort archives the OpenAI project and marks the row `revoked`. Copi then falls back to the shared `OPENAI_API_KEY`.
+**`super_admin` only.** Best-effort archives the OpenAI project and marks the row `revoked`. Copi then falls back to the shared `OPENAI_API_KEY`.
 
 ## Grok assistant
 

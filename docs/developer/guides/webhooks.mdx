@@ -3,7 +3,11 @@ title: "Webhook operations"
 description: "How WhatsApp webhook verification and inbound payload processing work."
 ---
 
-Nexolia currently supports inbound WhatsApp Business Cloud webhooks.
+Nexolia currently supports inbound WhatsApp Business Cloud webhooks, plus Instagram and Facebook Messenger webhook aliases under `/integrations/meta/*`.
+
+Webhook routes are `@Public()` (no user JWT). **HMAC verification is still required** in production: WhatsApp uses `WHATSAPP_APP_SECRET` + `x-hub-signature-256`; Instagram/Facebook use the matching Meta app secret. A missing or invalid signature is rejected.
+
+JSON/urlencoded bodies default to **256kb**. Paths under `/webhooks`, `/integrations/meta/`, and `/ai` allow **12mb** (media + Copi audio). Do not send large payloads to other routes.
 
 The **admin portal / public lead surface** (`admin.nexolia.com.ar`, `nexolia.com.ar/comenzar`) adds REST admin APIs only — it does **not** register additional Meta webhook receivers. See [Admin API](/guides/admin-api).
 
@@ -11,10 +15,10 @@ The **admin portal / public lead surface** (`admin.nexolia.com.ar`, `nexolia.com
 
 | WABA | Configuration | Purpose |
 | --- | --- | --- |
-| **Nexolia platform** | `NEXOLIA_AUTH_WABA_*` env vars | Login/staff OTP via `POST /auth/otp/whatsapp/*` |
+| **Nexolia platform** | `NEXOLIA_AUTH_WABA_*` env vars | Login/staff OTP via `POST /auth/otp/whatsapp/*` **and** identity-link OTP via `POST /auth/identities/whatsapp/*` (same AUTHENTICATION template; no new Meta webhook) |
 | **Merchant** | `whatsapp_config` row per organization | Customer **Chats** inbound/outbound on `/webhooks/whatsapp` (owner tab label; route still `inbox`) |
 
-Inbound customer messages on `POST /webhooks/whatsapp` are mapped by merchant `phone_number_id`. Platform auth OTP traffic does not appear in the merchant inbox.
+Inbound customer messages on `POST /webhooks/whatsapp` are mapped by merchant `phone_number_id`. Platform auth OTP traffic (login **or** link) does not appear in the merchant inbox. **No new Meta webhooks** are required for identity linking — delivery reuses the platform WABA templates already used for login.
 
 See also `docs/whatsapp-webhook.md` and `docs/meta-platform-waba-setup.md` in the repo.
 

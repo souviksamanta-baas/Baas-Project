@@ -8,6 +8,7 @@ import { SupabaseService } from '../../supabase/supabase.service';
 import { mergeLeadAndPlanFeatureFlags } from '../organizations/organization-feature-flags.util';
 import {
   assertNexoliaStaff,
+  requireSuperAdmin,
   writeAdminAudit,
   type NexoliaStaffContext,
 } from './admin-auth.helper';
@@ -204,7 +205,7 @@ export class AdminLeadsService {
     }
 
     if (!email || !email.includes('@')) {
-      return { available: false, ownedByRequester: false, orgName: matches[0].name };
+      return { available: true, ownedByRequester: false, orgName };
     }
 
     const orgIds = matches.map((m) => m.id);
@@ -219,7 +220,7 @@ export class AdminLeadsService {
       (row) => row.email.trim().toLowerCase() === email,
     );
     if (ownerHit) {
-      return { available: false, ownedByRequester: true, orgName: matches[0].name };
+      return { available: false, ownedByRequester: true, orgName };
     }
 
     const { data: members } = await client
@@ -238,12 +239,12 @@ export class AdminLeadsService {
         return {
           available: false,
           ownedByRequester: true,
-          orgName: matches[0].name,
+          orgName,
         };
       }
     }
 
-    return { available: false, ownedByRequester: false, orgName: matches[0].name };
+    return { available: true, ownedByRequester: false, orgName };
   }
 
   async listLeads(authorizationHeader: string | undefined) {
@@ -580,6 +581,10 @@ export class AdminLeadsService {
     authorizationHeader: string | undefined,
   ): Promise<NexoliaStaffContext> {
     return assertNexoliaStaff(this.supabaseService, authorizationHeader);
+  }
+
+  assertSuperAdmin(staff: NexoliaStaffContext): void {
+    requireSuperAdmin(staff);
   }
 }
 

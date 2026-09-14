@@ -89,6 +89,15 @@ The root `validate:rls` script checks that:
   `authenticated`.
 - The RLS test includes cross-tenant Tenant A and Tenant B assertions.
 
+The `rls-sql` GitHub Actions job starts local Supabase (Docker) and runs the SQL
+against Postgres so coverage is not static-only:
+
+```bash
+supabase start --exclude studio,imgproxy,edge-runtime,logflare,vector,realtime
+eval "$(supabase status -o env)"
+psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/rls_cross_tenant.sql
+```
+
 The SQL verification script itself remains runnable against a local or connected
 Supabase database:
 

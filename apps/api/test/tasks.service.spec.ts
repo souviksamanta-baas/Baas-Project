@@ -114,7 +114,7 @@ function createService(params: {
               {
                 id: 'owner_notifications-id',
                 product_id: 'product-1',
-                source_key: 'low_stock:product-1:stock:2:threshold:5',
+                source_key: 'stock.low:product-1:stock:2:threshold:5',
               },
             ],
             error: null,
@@ -179,6 +179,7 @@ describe('TasksService', () => {
     ).resolves.toEqual({
       followUpTasksCreated: 1,
       lowStockAlertsCreated: 0,
+      notificationsCreated: 0,
       pushNotificationsFailed: 0,
       pushNotificationsSent: 0,
     });
@@ -193,7 +194,9 @@ describe('TasksService', () => {
         title: 'Follow up with Ana Customer',
       }),
     ]);
-    expect(contactUpdates).toEqual([{ lead_status: 'cold' }]);
+    expect(contactUpdates).toEqual([
+      expect.objectContaining({ lead_status: 'cold' }),
+    ]);
   });
 
   it('does not recreate duplicate follow-up tasks for the same lead state', async () => {
@@ -236,11 +239,11 @@ describe('TasksService', () => {
 
     expect(inserts.owner_notifications).toEqual([
       expect.objectContaining({
-        notification_type: 'low_stock',
+        notification_type: 'stock.low',
         business_center_id: 'business-center-1',
         organization_id: 'organization-1',
         product_id: 'product-1',
-        source_key: 'low_stock:product-1:stock:2:threshold:5',
+        source_key: 'stock.low:product-1:stock:2:threshold:5',
       }),
     ]);
     expect(notificationUpdates).toEqual([

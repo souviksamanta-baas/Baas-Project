@@ -1,0 +1,570 @@
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
+import { createHash, randomBytes } from 'node:crypto';
+import type { User } from '@supabase/supabase-js';
+
+import {
+  normalizeAuthPhoneE164,
+  phoneFromAuthUser,
+  resolveAuthUser,
+} from '../../auth/request-auth.helper';
+import { SupabaseService } from '../../supabase/supabase.service';
+import { phoneToSyntheticEmail } from './auth-phone.util';
+import {
+  normalizeLoginEmail,
+  PlatformEmailAuthService,
+} from './platform-email-auth.service';
+import { PlatformWhatsAppAuthService } from './platform-whatsapp-auth.service';
+
+const SYNTHETIC_EMAIL_SUFFIX = '@auth.nexolia.app';
+const MERGE_TTL_MS = 10 * 60 * 1000;
+
+export type IdentityMeResponse = {
+  email: string | null;
+  emailVerified: boolean;
+  phone: string | null;
+  phoneVerified: boolean;
+};
+
+export type MergeOrgPreview = {
+  name: string;
+  organizationId: string;
+  role: string;
+};
+
+export type IdentityVerifyResponse =
+  | {
+      identities: IdentityMeResponse;
+      status: 'linked';
+    }
+  | {
+      mergeToken: string;
+      organizations: MergeOrgPreview[];
+      status: 'merge_required';
+      warning: string;
+    };
+
+@Injectable()
+export class IdentityLinkService {
+  constructor(
+    private readonly supabaseService: SupabaseService,
+    private readonly emailAuthService: PlatformEmailAuthService,
+    private readonly whatsappAuthService: PlatformWhatsAppAuthService,
+  ) {}
+
+  async getMe(authorizationHeader: string | undefined): Promise<IdentityMeResponse> {
+    const user = await this.requireOwnerUser(authorizationHeader);
+    return this.identitiesFromUser(user);
+  }
+
+  async requestEmailLink(
+    authorizationHeader: string | undefined,
+    email: string,
+  ): Promise<{ ok: true }> {
+    const user = await this.requireOwnerUser(authorizationHeader);
+    const normalized = normalizeLoginEmail(email);
+    this.assertCanAddEmail(user, normalized);
+
+    try {
+      await this.emailAuthService.requestOtp(normalized, 'link');
+    } catch (error) {
+      // Avoid enumeration: cooldown/errors that reveal nothing about existence stay as-is.
+      throw error;
+    }
+
+    return { ok: true };
+  }
+
+  async requestWhatsAppLink(
+    authorizationHeader: string | undefined,
+    phone: string,
+  ): Promise<{ ok: true }> {
+    const user = await this.requireOwnerUser(authorizationHeader);
+    const phoneE164 = requirePhoneE164(phone);
+    this.assertCanAddPhone(user, phoneE164);
+
+    await this.whatsappAuthService.requestOtp(phoneE164, 'link');
+    return { ok: true };
+  }
+
+  async verifyEmailLink(
+    authorizationHeader: string | undefined,
+    params: { code: string; email: string },
+  ): Promise<IdentityVerifyResponse> {
+    const keeper = await this.requireOwnerUser(authorizationHeader);
+    const normalized = normalizeLoginEmail(params.email);
+    this.assertCanAddEmail(keeper, normalized);
+
+    const isValid = await this.emailAuthService.verifyOtp({
+      code: params.code,
+      email: normalized,
+      purpose: 'link',
+    });
+    if (!isValid) {
+      throw new UnauthorizedException('Código inválido.');
+    }
+
+    return this.completeIdentityProof({
+      identityKind: 'email',
+      identityValue: normalized,
+      keeper,
+    });
+  }
+
+  async verifyWhatsAppLink(
+    authorizationHeader: string | undefined,
+    params: { code: string; phone: string },
+  ): Promise<IdentityVerifyResponse> {
+    const keeper = await this.requireOwnerUser(authorizationHeader);
+    const phoneE164 = requirePhoneE164(params.phone);
+    this.assertCanAddPhone(keeper, phoneE164);
+
+    const isValid = await this.whatsappAuthService.verifyOtp({
+      code: params.code,
+      phoneE164,
+      purpose: 'link',
+    });
+    if (!isValid) {
+      throw new UnauthorizedException('Código inválido.');
+    }
+
+    return this.completeIdentityProof({
+      identityKind: 'phone',
+      identityValue: phoneE164,
+      keeper,
+    });
+  }
+
+  async confirmMerge(
+    authorizationHeader: string | undefined,
+    mergeToken: string,
+  ): Promise<{ identities: IdentityMeResponse; status: 'linked' }> {
+    const keeper = await this.requireOwnerUser(authorizationHeader);
+    const token = mergeToken?.trim();
+    if (!token) {
+      throw new BadRequestException('Falta el token de confirmación.');
+    }
+
+    const client = this.supabaseService.getServiceRoleClient();
+    const tokenHash = hashMergeToken(token);
+    const { data, error } = await client
+      .from('auth_identity_merge_challenges')
+      .select('id, keeper_user_id, donor_user_id, identity_kind, identity_value, expires_at, consumed_at')
+      .eq('token_hash', tokenHash)
+      .maybeSingle<{
+        consumed_at: string | null;
+        donor_user_id: string;
+        expires_at: string;
+        id: string;
+        identity_kind: 'email' | 'phone';
+        identity_value: string;
+        keeper_user_id: string;
+      }>();
+
+    if (error) {
+      throw new Error(`Failed to load merge challenge: ${error.message}`);
+    }
+
+    if (!data || data.keeper_user_id !== keeper.id) {
+      throw new BadRequestException('La confirmación no es válida.');
+    }
+
+    if (data.consumed_at) {
+      throw new BadRequestException('Esta confirmación ya se usó.');
+    }
+
+    if (new Date(data.expires_at).getTime() < Date.now()) {
+      throw new BadRequestException('La confirmación expiró. Volvé a verificar el código.');
+    }
+
+    await this.runMergeAndAttach({
+      donorUserId: data.donor_user_id,
+      identityKind: data.identity_kind,
+      identityValue: data.identity_value,
+      keeperUserId: keeper.id,
+    });
+
+    await client
+      .from('auth_identity_merge_challenges')
+      .update({ consumed_at: new Date().toISOString() })
+      .eq('id', data.id);
+
+    const refreshed = await this.loadUser(keeper.id);
+    await this.notifyIdentityLinked({
+      identityKind: data.identity_kind,
+      identityValue: data.identity_value,
+      user: refreshed,
+    });
+
+    return { identities: this.identitiesFromUser(refreshed), status: 'linked' };
+  }
+
+  private async completeIdentityProof(params: {
+    identityKind: 'email' | 'phone';
+    identityValue: string;
+    keeper: User;
+  }): Promise<IdentityVerifyResponse> {
+    const donorId =
+      params.identityKind === 'email'
+        ? await this.findUserIdByEmail(params.identityValue)
+        : await this.findUserIdByPhone(params.identityValue);
+
+    if (!donorId || donorId === params.keeper.id) {
+      await this.attachIdentityToUser({
+        identityKind: params.identityKind,
+        identityValue: params.identityValue,
+        userId: params.keeper.id,
+      });
+      const refreshed = await this.loadUser(params.keeper.id);
+      await this.notifyIdentityLinked({
+        identityKind: params.identityKind,
+        identityValue: params.identityValue,
+        user: refreshed,
+      });
+      return { identities: this.identitiesFromUser(refreshed), status: 'linked' };
+    }
+
+    await this.assertNotStaff(donorId);
+    const organizations = await this.listDonorOrganizations(donorId);
+    const mergeToken = await this.createMergeChallenge({
+      donorUserId: donorId,
+      identityKind: params.identityKind,
+      identityValue: params.identityValue,
+      keeperUserId: params.keeper.id,
+    });
+
+    return {
+      mergeToken,
+      organizations,
+      status: 'merge_required',
+      warning:
+        'Si confirmás, los negocios de la otra cuenta pasarán a esta sesión y ese otro ingreso dejará de existir.',
+    };
+  }
+
+  private async runMergeAndAttach(params: {
+    donorUserId: string;
+    identityKind: 'email' | 'phone';
+    identityValue: string;
+    keeperUserId: string;
+  }): Promise<void> {
+    await this.assertNotStaff(params.keeperUserId);
+    await this.assertNotStaff(params.donorUserId);
+
+    const client = this.supabaseService.getServiceRoleClient();
+    const { error: mergeError } = await client.rpc('merge_auth_user', {
+      p_from: params.donorUserId,
+      p_to: params.keeperUserId,
+    });
+
+    if (mergeError) {
+      throw new BadRequestException(
+        mergeError.message || 'No se pudo unificar las cuentas.',
+      );
+    }
+
+    // Revoke donor sessions before delete
+    try {
+      await client.auth.admin.signOut(params.donorUserId, 'global');
+    } catch {
+      // best-effort
+    }
+
+    const { error: deleteError } = await client.auth.admin.deleteUser(params.donorUserId);
+    if (deleteError && !/not found|user not found/i.test(deleteError.message)) {
+      console.error(`[identity-link] Failed to delete donor user: ${deleteError.message}`);
+      throw new Error('Se unificaron los negocios pero no se pudo cerrar la otra cuenta.');
+    }
+
+    await this.attachIdentityToUser({
+      identityKind: params.identityKind,
+      identityValue: params.identityValue,
+      userId: params.keeperUserId,
+    });
+  }
+
+  private async attachIdentityToUser(params: {
+    identityKind: 'email' | 'phone';
+    identityValue: string;
+    userId: string;
+  }): Promise<void> {
+    const client = this.supabaseService.getServiceRoleClient();
+    const current = await this.loadUser(params.userId);
+
+    if (params.identityKind === 'email') {
+      const meta = {
+        ...(current.user_metadata ?? {}),
+        auth_email: params.identityValue,
+      };
+      const { error } = await client.auth.admin.updateUserById(params.userId, {
+        email: params.identityValue,
+        email_confirm: true,
+        user_metadata: meta,
+      });
+      if (error) {
+        throw new BadRequestException(
+          error.message || 'No se pudo vincular el correo.',
+        );
+      }
+      return;
+    }
+
+    const meta = {
+      ...(current.user_metadata ?? {}),
+      auth_phone: params.identityValue,
+    };
+    // Clear stale free-text phone metadata so profile only shows verified phone.
+    delete (meta as { phone?: unknown }).phone;
+
+    const { error } = await client.auth.admin.updateUserById(params.userId, {
+      phone: params.identityValue,
+      phone_confirm: true,
+      user_metadata: meta,
+    });
+    if (error) {
+      throw new BadRequestException(
+        error.message || 'No se pudo vincular el teléfono.',
+      );
+    }
+  }
+
+  private async createMergeChallenge(params: {
+    donorUserId: string;
+    identityKind: 'email' | 'phone';
+    identityValue: string;
+    keeperUserId: string;
+  }): Promise<string> {
+    const token = randomBytes(32).toString('base64url');
+    const client = this.supabaseService.getServiceRoleClient();
+    const { error } = await client.from('auth_identity_merge_challenges').insert({
+      token_hash: hashMergeToken(token),
+      keeper_user_id: params.keeperUserId,
+      donor_user_id: params.donorUserId,
+      identity_kind: params.identityKind,
+      identity_value: params.identityValue,
+      expires_at: new Date(Date.now() + MERGE_TTL_MS).toISOString(),
+    });
+
+    if (error) {
+      throw new Error(`Failed to create merge challenge: ${error.message}`);
+    }
+
+    return token;
+  }
+
+  private async listDonorOrganizations(donorUserId: string): Promise<MergeOrgPreview[]> {
+    const client = this.supabaseService.getServiceRoleClient();
+    const { data, error } = await client
+      .from('organization_members')
+      .select('role, organization_id, organizations!inner(name, archived_at)')
+      .eq('user_id', donorUserId);
+
+    if (error) {
+      throw new Error(`Failed to list donor organizations: ${error.message}`);
+    }
+
+    return (data ?? [])
+      .map((row) => {
+        const org = row.organizations as
+          | { archived_at: string | null; name: string }
+          | { archived_at: string | null; name: string }[]
+          | null;
+        const orgRow = Array.isArray(org) ? org[0] : org;
+        if (!orgRow || orgRow.archived_at) {
+          return null;
+        }
+        return {
+          name: orgRow.name,
+          organizationId: row.organization_id as string,
+          role: String(row.role),
+        };
+      })
+      .filter((row): row is MergeOrgPreview => row !== null);
+  }
+
+  private async findUserIdByEmail(email: string): Promise<string | null> {
+    const client = this.supabaseService.getServiceRoleClient();
+    const { data, error } = await client.rpc('find_auth_user_id_by_email', {
+      p_email: email,
+    });
+    if (error) {
+      throw new Error(`Failed to look up email user: ${error.message}`);
+    }
+    return typeof data === 'string' && data ? data : null;
+  }
+
+  private async findUserIdByPhone(phoneE164: string): Promise<string | null> {
+    const client = this.supabaseService.getServiceRoleClient();
+    const { data, error } = await client.rpc('find_auth_user_id_by_phone', {
+      p_phone_e164: phoneE164,
+    });
+    if (error) {
+      throw new Error(`Failed to look up phone user: ${error.message}`);
+    }
+    return typeof data === 'string' && data ? data : null;
+  }
+
+  private async requireOwnerUser(authorizationHeader: string | undefined): Promise<User> {
+    const user = await resolveAuthUser(this.supabaseService, authorizationHeader);
+    await this.assertNotStaff(user.id);
+    return user;
+  }
+
+  private async assertNotStaff(userId: string): Promise<void> {
+    const client = this.supabaseService.getServiceRoleClient();
+    const { data, error } = await client
+      .from('nexolia_staff')
+      .select('user_id')
+      .eq('user_id', userId)
+      .maybeSingle<{ user_id: string }>();
+
+    if (error) {
+      throw new Error(`Failed to verify staff exclusion: ${error.message}`);
+    }
+
+    if (data) {
+      throw new ForbiddenException(
+        'Las cuentas de staff de Nexolia no pueden vincular identidades de dueños.',
+      );
+    }
+  }
+
+  private assertCanAddEmail(user: User, email: string): void {
+    const current = resolveRealEmail(user);
+    if (current && current !== email) {
+      throw new BadRequestException(
+        'Esta cuenta ya tiene un correo verificado. El cambio de correo no está disponible todavía.',
+      );
+    }
+  }
+
+  private assertCanAddPhone(user: User, phoneE164: string): void {
+    const current = phoneFromAuthUser(user);
+    if (current && current !== phoneE164) {
+      throw new BadRequestException(
+        'Esta cuenta ya tiene un teléfono verificado. El cambio de teléfono no está disponible todavía.',
+      );
+    }
+  }
+
+  private identitiesFromUser(user: User): IdentityMeResponse {
+    const email = resolveRealEmail(user);
+    const phone = phoneFromAuthUser(user);
+    return {
+      email,
+      emailVerified: Boolean(email),
+      phone,
+      phoneVerified: Boolean(phone),
+    };
+  }
+
+  private async loadUser(userId: string): Promise<User> {
+    const client = this.supabaseService.getServiceRoleClient();
+    const { data, error } = await client.auth.admin.getUserById(userId);
+    if (error || !data.user) {
+      throw new Error(error?.message ?? 'Usuario no encontrado.');
+    }
+    return data.user;
+  }
+
+  private async notifyIdentityLinked(params: {
+    identityKind: 'email' | 'phone';
+    identityValue: string;
+    user: User;
+  }): Promise<void> {
+    const email = resolveRealEmail(params.user);
+    const phone = phoneFromAuthUser(params.user);
+    const subject =
+      params.identityKind === 'email'
+        ? 'Vinculaste un correo a tu cuenta Nexolia'
+        : 'Vinculaste un teléfono a tu cuenta Nexolia';
+    const body =
+      params.identityKind === 'email'
+        ? `Se vinculó el correo ${params.identityValue} a tu cuenta Nexolia. Si no fuiste vos, escribinos a privacidad@nexolia.com.ar.`
+        : `Se vinculó el teléfono ${params.identityValue} a tu cuenta Nexolia. Si no fuiste vos, escribinos a privacidad@nexolia.com.ar.`;
+
+    // Best-effort notices on both channels when available.
+    if (email) {
+      void this.sendSecurityEmail({ email, subject, text: body }).catch((err) => {
+        console.error(
+          `[identity-link] security email failed: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      });
+    }
+
+    if (phone) {
+      console.info(
+        `[identity-link] Security notice for phone ***${phone.slice(-4)}: ${subject}`,
+      );
+    }
+  }
+
+  private async sendSecurityEmail(params: {
+    email: string;
+    subject: string;
+    text: string;
+  }): Promise<void> {
+    const apiKey = process.env.RESEND_API_KEY?.trim();
+    const from =
+      process.env.NEXOLIA_AUTH_EMAIL_FROM?.trim() || 'Nexolia <noreply@nexolia.com.ar>';
+    if (!apiKey) {
+      return;
+    }
+
+    await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from,
+        to: [params.email],
+        subject: params.subject,
+        text: params.text,
+      }),
+    });
+  }
+}
+
+export function resolveRealEmail(user: User): string | null {
+  const email = user.email?.trim().toLowerCase() ?? '';
+  if (!email || email.endsWith(SYNTHETIC_EMAIL_SUFFIX)) {
+    return null;
+  }
+  return email;
+}
+
+export function requirePhoneE164(value: string): string {
+  const normalized = normalizeAuthPhoneE164(value);
+  if (!normalized) {
+    throw new BadRequestException(
+      'Ingresá el teléfono en formato internacional (ej. +54911…).',
+    );
+  }
+  return normalized;
+}
+
+function hashMergeToken(token: string): string {
+  return createHash('sha256').update(token).digest('hex');
+}
+
+/** Exported for AuthSessionService phone→email minting after link. */
+export function sessionEmailForPhoneUser(user: {
+  email?: string | null;
+  phone?: string | null;
+}): string {
+  const email = user.email?.trim() ?? '';
+  if (email) {
+    return email;
+  }
+  const phone = user.phone?.trim();
+  if (phone) {
+    return phoneToSyntheticEmail(phone);
+  }
+  throw new Error('Usuario sin email ni teléfono para mint de sesión.');
+}

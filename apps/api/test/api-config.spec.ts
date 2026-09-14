@@ -21,6 +21,8 @@ describe('API config validation', () => {
     expect(error?.message).toContain('WHATSAPP_APP_SECRET');
     expect(error?.message).toContain('WHATSAPP_VERIFY_TOKEN');
     expect(error?.message).toContain('BAAS_TASKS_JOB_SECRET');
+    expect(error?.message).toContain('BAAS_OTP_PEPPER');
+    expect(error?.message).toContain('BAAS_TOKEN_ENCRYPTION_KEY');
   });
 
   it('rejects wildcard CORS origins', () => {

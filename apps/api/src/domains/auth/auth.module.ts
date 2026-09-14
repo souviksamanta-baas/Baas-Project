@@ -4,18 +4,26 @@ import { RegisteredOwnerClaimService } from '../admin/registered-owner-claim.ser
 import { SupabaseService } from '../../supabase/supabase.service';
 import { AuthController } from './auth.controller';
 import { AuthSessionService } from './auth-session.service';
+import { IdentityController } from './identity.controller';
+import { IdentityLinkService } from './identity-link.service';
 import { PlatformEmailAuthService } from './platform-email-auth.service';
 import { PlatformWhatsAppAuthService } from './platform-whatsapp-auth.service';
 
 @Module({
-  controllers: [AuthController],
+  controllers: [AuthController, IdentityController],
   providers: [
     SupabaseService,
     RegisteredOwnerClaimService,
     AuthSessionService,
     PlatformEmailAuthService,
     PlatformWhatsAppAuthService,
+    IdentityLinkService,
   ],
-  exports: [AuthSessionService, PlatformEmailAuthService, PlatformWhatsAppAuthService],
+  exports: [
+    AuthSessionService,
+    PlatformEmailAuthService,
+    PlatformWhatsAppAuthService,
+    IdentityLinkService,
+  ],
 })
 export class AuthModule {}

@@ -9,12 +9,14 @@ import {
   type RawBodyRequest,
   UnauthorizedException,
 } from '@nestjs/common';
+import { Public } from '../../auth/auth.decorators';
 import { ApiExcludeController } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import type { Request } from 'express';
 
 import { InstagramWebhookService } from './instagram-webhook.service';
 
+@Public()
 @ApiExcludeController()
 @Controller('integrations/meta/instagram/webhook')
 export class MetaInstagramWebhookController {
@@ -46,6 +48,7 @@ export class MetaInstagramWebhookController {
   }
 }
 
+@Public()
 @ApiExcludeController()
 @Controller('webhooks/instagram')
 export class InstagramWebhookAliasController {

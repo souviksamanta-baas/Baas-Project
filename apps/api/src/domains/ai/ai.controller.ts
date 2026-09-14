@@ -265,7 +265,7 @@ export class AiController {
   @Post('copilot/voice/upload')
   @HttpCode(200)
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
-  @UseInterceptors(FileInterceptor('audio', { limits: { fileSize: 12 * 1024 * 1024 } }))
+  @UseInterceptors(FileInterceptor('audio', { limits: { fileSize: 12 * 1024 * 1024, files: 1 } }))
   @ApiOperation({ summary: 'Transcribe a Copi voice note from multipart upload' })
   @ApiUnauthorizedResponse({ type: ErrorResponseDto })
   async transcribeVoiceUpload(

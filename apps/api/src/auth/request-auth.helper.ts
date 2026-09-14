@@ -65,6 +65,34 @@ export async function assertOrgMembership(params: {
   return normalizeOrganizationMemberRole(data.role);
 }
 
+/** Confirms every listed userId is a member of the organization (service-role). */
+export async function assertUsersAreOrgMembers(params: {
+  organizationId: string;
+  supabaseService: SupabaseService;
+  userIds: string[];
+}): Promise<void> {
+  const userIds = [...new Set(params.userIds.filter(Boolean))];
+  if (userIds.length === 0) {
+    return;
+  }
+
+  const client = params.supabaseService.getServiceRoleClient();
+  const { data, error } = await client
+    .from('organization_members')
+    .select('user_id')
+    .eq('organization_id', params.organizationId)
+    .in('user_id', userIds);
+
+  if (error) {
+    throw new Error(`Failed to verify organization members: ${error.message}`);
+  }
+
+  const found = new Set((data ?? []).map((row: { user_id: string }) => row.user_id));
+  if (found.size !== userIds.length) {
+    throw new ForbiddenException('One or more users are not members of this organization');
+  }
+}
+
 export function normalizeOrganizationMemberRole(role: string | null | undefined): OrganizationMemberRole {
   if (role === 'owner' || role === 'co_owner' || role === 'manager') {
     return role;

@@ -13,6 +13,7 @@ import {
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 
 import {
   EmailOtpRequestDto,
@@ -21,6 +22,7 @@ import {
   WhatsAppOtpRequestDto,
   WhatsAppOtpVerifyDto,
 } from '../../docs/openapi.dtos';
+import { Public } from '../../auth/auth.decorators';
 import { AuthSessionService } from './auth-session.service';
 import { PlatformEmailAuthService } from './platform-email-auth.service';
 import { PlatformWhatsAppAuthService } from './platform-whatsapp-auth.service';
@@ -32,6 +34,7 @@ interface OtpVerifyResponse {
   tokenHash: string;
 }
 
+@Public()
 @ApiTags('Auth')
 @Controller('auth')
 export class AuthController {
@@ -43,6 +46,7 @@ export class AuthController {
 
   @Post('otp/whatsapp/request')
   @HttpCode(200)
+  @Throttle({ default: { limit: 8, ttl: 60_000 } })
   @ApiOperation({
     summary: 'Request WhatsApp OTP for login',
     description:
@@ -64,6 +68,7 @@ export class AuthController {
 
   @Post('otp/whatsapp/verify')
   @HttpCode(200)
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @ApiOperation({
     summary: 'Verify WhatsApp OTP and mint Supabase session',
     description:
@@ -108,6 +113,7 @@ export class AuthController {
 
   @Post('otp/email/request')
   @HttpCode(200)
+  @Throttle({ default: { limit: 8, ttl: 60_000 } })
   @ApiOperation({
     summary: 'Request email OTP for login',
     description:
@@ -128,6 +134,7 @@ export class AuthController {
 
   @Post('otp/email/verify')
   @HttpCode(200)
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @ApiOperation({
     summary: 'Verify email OTP and mint Supabase session',
     description:

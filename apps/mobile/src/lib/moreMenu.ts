@@ -155,7 +155,7 @@ export function buildAccountMenuRows(options: {
 }): AccountMenuRow[] {
   const rows: AccountMenuRow[] = [
     { icon: 'users', id: 'staff-invite', title: 'Invitar miembro (QR)' },
-    { icon: 'user', id: 'edit-profile', title: 'Editar perfil' },
+    { icon: 'user', id: 'edit-profile', title: 'Actualizar perfil' },
   ];
 
   if (options.canManageBusiness) {

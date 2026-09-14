@@ -23,6 +23,21 @@ begin
 end;
 $$;
 
+create function pg_temp.assert_service_table_select_denied(rel_name text, label text)
+returns text
+language plpgsql
+as $$
+declare
+  row_count bigint;
+begin
+  execute format('select count(*) from public.%I', rel_name) into row_count;
+  raise exception '% expected select to be denied, got % rows', label, row_count;
+exception
+  when insufficient_privilege then
+    return 'pass: ' || label;
+end;
+$$;
+
 create function pg_temp.assert_membership_insert_denied(target_org_id uuid, target_user_id uuid, label text)
 returns text
 language plpgsql
@@ -698,6 +713,211 @@ values
     '{"tenant":"b"}'
   );
 
+insert into public.appointments (
+  id,
+  organization_id,
+  business_center_id,
+  title,
+  starts_at,
+  ends_at
+)
+values
+  (
+    'aaaaaaaa-a100-4000-8000-000000000001',
+    '11111111-1111-4111-8111-111111111111',
+    'aaaaaaaa-0200-4000-8000-000000000001',
+    'Tenant A turn',
+    '2026-09-11T10:00:00Z',
+    '2026-09-11T10:30:00Z'
+  ),
+  (
+    'bbbbbbbb-a100-4000-8000-000000000001',
+    '22222222-2222-4222-8222-222222222222',
+    'bbbbbbbb-0200-4000-8000-000000000001',
+    'Tenant B turn',
+    '2026-09-11T11:00:00Z',
+    '2026-09-11T11:30:00Z'
+  );
+
+insert into public.sell_quotes (
+  id,
+  organization_id,
+  business_center_id,
+  status,
+  draft
+)
+values
+  (
+    'quote-a',
+    '11111111-1111-4111-8111-111111111111',
+    'aaaaaaaa-0200-4000-8000-000000000001',
+    'guardado',
+    '{"cart":[]}'
+  ),
+  (
+    'quote-b',
+    '22222222-2222-4222-8222-222222222222',
+    'bbbbbbbb-0200-4000-8000-000000000001',
+    'guardado',
+    '{"cart":[]}'
+  );
+
+insert into public.invoices (
+  id,
+  organization_id,
+  business_center_id,
+  voucher_type,
+  voucher_type_code,
+  point_of_sale,
+  voucher_number,
+  total_amount_cents
+)
+values
+  (
+    'aaaaaaaa-b100-4000-8000-000000000001',
+    '11111111-1111-4111-8111-111111111111',
+    'aaaaaaaa-0200-4000-8000-000000000001',
+    'FA',
+    1,
+    1,
+    1,
+    1000
+  ),
+  (
+    'bbbbbbbb-b100-4000-8000-000000000001',
+    '22222222-2222-4222-8222-222222222222',
+    'bbbbbbbb-0200-4000-8000-000000000001',
+    'FA',
+    1,
+    1,
+    1,
+    2000
+  );
+
+insert into public.cash_ledger_entries (
+  id,
+  organization_id,
+  business_center_id,
+  entry_date,
+  entry_type,
+  amount_cents,
+  source,
+  concept
+)
+values
+  (
+    'aaaaaaaa-c100-4000-8000-000000000001',
+    '11111111-1111-4111-8111-111111111111',
+    'aaaaaaaa-0200-4000-8000-000000000001',
+    '2026-09-11',
+    'ingreso',
+    1000,
+    'venta',
+    'Tenant A sale'
+  ),
+  (
+    'bbbbbbbb-c100-4000-8000-000000000001',
+    '22222222-2222-4222-8222-222222222222',
+    'bbbbbbbb-0200-4000-8000-000000000001',
+    '2026-09-11',
+    'ingreso',
+    2000,
+    'venta',
+    'Tenant B sale'
+  );
+
+insert into public.copi_sessions (
+  id,
+  organization_id,
+  business_center_id,
+  user_id
+)
+values
+  (
+    'aaaaaaaa-d100-4000-8000-000000000001',
+    '11111111-1111-4111-8111-111111111111',
+    'aaaaaaaa-0200-4000-8000-000000000001',
+    'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa'
+  ),
+  (
+    'bbbbbbbb-d100-4000-8000-000000000001',
+    '22222222-2222-4222-8222-222222222222',
+    'bbbbbbbb-0200-4000-8000-000000000001',
+    'bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb'
+  );
+
+insert into public.copi_messages (
+  id,
+  session_id,
+  organization_id,
+  role,
+  body
+)
+values
+  (
+    'aaaaaaaa-d200-4000-8000-000000000001',
+    'aaaaaaaa-d100-4000-8000-000000000001',
+    '11111111-1111-4111-8111-111111111111',
+    'owner',
+    'Tenant A copi'
+  ),
+  (
+    'bbbbbbbb-d200-4000-8000-000000000001',
+    'bbbbbbbb-d100-4000-8000-000000000001',
+    '22222222-2222-4222-8222-222222222222',
+    'owner',
+    'Tenant B copi'
+  );
+
+insert into public.copi_action_proposals (
+  id,
+  session_id,
+  organization_id,
+  business_center_id,
+  user_id,
+  action_type,
+  payload
+)
+values
+  (
+    'aaaaaaaa-d300-4000-8000-000000000001',
+    'aaaaaaaa-d100-4000-8000-000000000001',
+    '11111111-1111-4111-8111-111111111111',
+    'aaaaaaaa-0200-4000-8000-000000000001',
+    'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa',
+    'create_task',
+    '{}'
+  ),
+  (
+    'bbbbbbbb-d300-4000-8000-000000000001',
+    'bbbbbbbb-d100-4000-8000-000000000001',
+    '22222222-2222-4222-8222-222222222222',
+    'bbbbbbbb-0200-4000-8000-000000000001',
+    'bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb',
+    'create_task',
+    '{}'
+  );
+
+insert into public.pos_sale_receipts (
+  organization_id,
+  idempotency_key,
+  quote_id,
+  result
+)
+values
+  (
+    '11111111-1111-4111-8111-111111111111',
+    'sale-a',
+    'quote-a',
+    '{"ok":true}'
+  ),
+  (
+    '22222222-2222-4222-8222-222222222222',
+    'sale-b',
+    'quote-b',
+    '{"ok":true}'
+  );
+
 set local role authenticated;
 
 set local request.jwt.claim.sub = 'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa';
@@ -723,6 +943,19 @@ select pg_temp.assert_equal((select count(*) from public.ai_drafts), 1::bigint, 
 select pg_temp.assert_equal((select count(*) from public.ai_drafts where reply_body = 'Tenant B quote'), 0::bigint, 'Tenant A cannot see Tenant B AI draft quotes');
 select pg_temp.assert_equal((select count(*) from public.ai_draft_events), 1::bigint, 'Tenant A sees one AI draft event');
 select pg_temp.assert_equal((select count(*) from public.ai_draft_events where details ->> 'tenant' = 'b'), 0::bigint, 'Tenant A cannot see Tenant B AI events');
+select pg_temp.assert_equal((select count(*) from public.appointments), 1::bigint, 'Tenant A sees one appointment');
+select pg_temp.assert_equal((select count(*) from public.appointments where title = 'Tenant B turn'), 0::bigint, 'Tenant A cannot see Tenant B appointments');
+select pg_temp.assert_equal((select count(*) from public.sell_quotes), 1::bigint, 'Tenant A sees one sell quote');
+select pg_temp.assert_equal((select count(*) from public.sell_quotes where id = 'quote-b'), 0::bigint, 'Tenant A cannot see Tenant B sell quotes');
+select pg_temp.assert_equal((select count(*) from public.invoices), 1::bigint, 'Tenant A sees one invoice');
+select pg_temp.assert_equal((select count(*) from public.invoices where total_amount_cents = 2000), 0::bigint, 'Tenant A cannot see Tenant B invoices');
+select pg_temp.assert_equal((select count(*) from public.cash_ledger_entries), 1::bigint, 'Tenant A sees one cash entry');
+select pg_temp.assert_equal((select count(*) from public.cash_ledger_entries where concept = 'Tenant B sale'), 0::bigint, 'Tenant A cannot see Tenant B cash');
+select pg_temp.assert_equal((select count(*) from public.copi_sessions), 1::bigint, 'Tenant A sees one copi session');
+select pg_temp.assert_equal((select count(*) from public.copi_messages where body = 'Tenant B copi'), 0::bigint, 'Tenant A cannot see Tenant B copi messages');
+select pg_temp.assert_equal((select count(*) from public.copi_action_proposals), 1::bigint, 'Tenant A sees one copi proposal');
+select pg_temp.assert_equal((select count(*) from public.pos_sale_receipts), 1::bigint, 'Tenant A sees one POS receipt');
+select pg_temp.assert_equal((select count(*) from public.pos_sale_receipts where idempotency_key = 'sale-b'), 0::bigint, 'Tenant A cannot see Tenant B POS receipts');
 with updated_settings as (
   update public.organizations
   set ai_auto_send = true
@@ -734,6 +967,10 @@ select pg_temp.assert_whatsapp_config_select_denied('user A cannot read whatsapp
 select pg_temp.assert_whatsapp_message_events_select_denied('user A cannot read whatsapp_message_events');
 select pg_temp.assert_instagram_message_events_select_denied('user A cannot read instagram_message_events');
 select pg_temp.assert_facebook_message_events_select_denied('user A cannot read facebook_message_events');
+-- Service-only: public.instagram_config public.arca_accounts public.organization_llm_credentials
+select pg_temp.assert_service_table_select_denied('instagram_config', 'user A cannot read instagram_config');
+select pg_temp.assert_service_table_select_denied('arca_accounts', 'user A cannot read arca_accounts');
+select pg_temp.assert_service_table_select_denied('organization_llm_credentials', 'user A cannot read organization_llm_credentials');
 select pg_temp.assert_membership_insert_denied('22222222-2222-4222-8222-222222222222', 'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa', 'user A cannot write membership rows for Tenant B');
 
 set local request.jwt.claim.sub = 'bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb';
@@ -759,6 +996,19 @@ select pg_temp.assert_equal((select count(*) from public.ai_drafts), 1::bigint, 
 select pg_temp.assert_equal((select count(*) from public.ai_drafts where reply_body = 'Tenant A quote'), 0::bigint, 'Tenant B cannot see Tenant A AI draft quotes');
 select pg_temp.assert_equal((select count(*) from public.ai_draft_events), 1::bigint, 'Tenant B sees one AI draft event');
 select pg_temp.assert_equal((select count(*) from public.ai_draft_events where details ->> 'tenant' = 'a'), 0::bigint, 'Tenant B cannot see Tenant A AI events');
+select pg_temp.assert_equal((select count(*) from public.appointments), 1::bigint, 'Tenant B sees one appointment');
+select pg_temp.assert_equal((select count(*) from public.appointments where title = 'Tenant A turn'), 0::bigint, 'Tenant B cannot see Tenant A appointments');
+select pg_temp.assert_equal((select count(*) from public.sell_quotes), 1::bigint, 'Tenant B sees one sell quote');
+select pg_temp.assert_equal((select count(*) from public.sell_quotes where id = 'quote-a'), 0::bigint, 'Tenant B cannot see Tenant A sell quotes');
+select pg_temp.assert_equal((select count(*) from public.invoices), 1::bigint, 'Tenant B sees one invoice');
+select pg_temp.assert_equal((select count(*) from public.invoices where total_amount_cents = 1000), 0::bigint, 'Tenant B cannot see Tenant A invoices');
+select pg_temp.assert_equal((select count(*) from public.cash_ledger_entries), 1::bigint, 'Tenant B sees one cash entry');
+select pg_temp.assert_equal((select count(*) from public.cash_ledger_entries where concept = 'Tenant A sale'), 0::bigint, 'Tenant B cannot see Tenant A cash');
+select pg_temp.assert_equal((select count(*) from public.copi_sessions), 1::bigint, 'Tenant B sees one copi session');
+select pg_temp.assert_equal((select count(*) from public.copi_messages where body = 'Tenant A copi'), 0::bigint, 'Tenant B cannot see Tenant A copi messages');
+select pg_temp.assert_equal((select count(*) from public.copi_action_proposals), 1::bigint, 'Tenant B sees one copi proposal');
+select pg_temp.assert_equal((select count(*) from public.pos_sale_receipts), 1::bigint, 'Tenant B sees one POS receipt');
+select pg_temp.assert_equal((select count(*) from public.pos_sale_receipts where idempotency_key = 'sale-a'), 0::bigint, 'Tenant B cannot see Tenant A POS receipts');
 with updated_settings as (
   update public.organizations
   set ai_auto_send = true
@@ -770,5 +1020,8 @@ select pg_temp.assert_whatsapp_config_select_denied('user B cannot read whatsapp
 select pg_temp.assert_whatsapp_message_events_select_denied('user B cannot read whatsapp_message_events');
 select pg_temp.assert_instagram_message_events_select_denied('user B cannot read instagram_message_events');
 select pg_temp.assert_facebook_message_events_select_denied('user B cannot read facebook_message_events');
+select pg_temp.assert_service_table_select_denied('instagram_config', 'user B cannot read instagram_config');
+select pg_temp.assert_service_table_select_denied('arca_accounts', 'user B cannot read arca_accounts');
+select pg_temp.assert_service_table_select_denied('organization_llm_credentials', 'user B cannot read organization_llm_credentials');
 
 rollback;

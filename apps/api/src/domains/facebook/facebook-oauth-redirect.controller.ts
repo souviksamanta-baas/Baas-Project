@@ -1,4 +1,5 @@
 import { Controller, Get, Query, Res } from '@nestjs/common';
+import { Public } from '../../auth/auth.decorators';
 import { ApiExcludeController } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import type { Response } from 'express';
@@ -13,6 +14,7 @@ import { FacebookOAuthService } from './facebook-oauth.service';
  * App Dashboard → Facebook Login for Business → Settings → Valid OAuth Redirect URIs:
  *   https://<api-host>/integrations/meta/facebook/oauth/callback
  */
+@Public()
 @ApiExcludeController()
 @Controller('integrations/meta/facebook/oauth/callback')
 export class FacebookOAuthRedirectController {

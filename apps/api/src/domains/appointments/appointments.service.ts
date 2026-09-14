@@ -215,6 +215,27 @@ export class AppointmentsService {
    * Marks each user as available or busy for [startsAt, endsAt) based on
    * overlapping scheduled appointments (same assignee).
    */
+  async getAppointmentForOrg(params: {
+    appointmentId: string;
+    organizationId: string;
+  }): Promise<AppointmentRecord | null> {
+    const client = this.supabaseService.getServiceRoleClient();
+    const { data, error } = await client
+      .from('appointments')
+      .select(APPOINTMENT_SELECT)
+      .eq('id', params.appointmentId)
+      .eq('organization_id', params.organizationId)
+      .maybeSingle();
+
+    if (error) {
+      throw new Error(`Failed to load appointment: ${error.message}`);
+    }
+    if (!data) {
+      return null;
+    }
+    return toAppointmentRecord(data as AppointmentRow);
+  }
+
   async getAssigneesAvailability(params: {
     businessCenterId: string;
     endsAt: string;

@@ -4,9 +4,11 @@ import { apiFetchJson, getAccessToken } from './client';
 import { normalizePhoneNumber } from '../services/phone';
 
 export async function sendAppointmentInviteEmail(input: {
+  appointmentId: string;
   endsAt: string;
   fromLabel?: string | null;
   notes?: string | null;
+  organizationId: string;
   startsAt: string;
   title: string;
   toEmail: string;
@@ -18,7 +20,12 @@ export async function sendAppointmentInviteEmail(input: {
       Authorization: `Bearer ${accessToken}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify(input),
+    body: JSON.stringify({
+      appointmentId: input.appointmentId,
+      fromLabel: input.fromLabel ?? null,
+      organizationId: input.organizationId,
+      toEmail: input.toEmail,
+    }),
   });
 }
 

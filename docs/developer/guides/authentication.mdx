@@ -23,6 +23,9 @@ Current owner-authenticated endpoints include:
 
 - `POST /organizations/invites` — create a staff invite (owner bearer token)
 - `POST /organizations/invites/accept` — accept invite after phone verification
+- `GET /auth/identities/me` — verified login methods on the current session
+- `POST /auth/identities/email|whatsapp/request|verify` — bind missing email/phone (see below)
+- `POST /auth/identities/confirm-merge` — confirm absorbing another auth user’s negocios
 - `POST /whatsapp/connection/register` — register merchant WhatsApp Cloud API number
 - `POST /ai/drafts/{draftId}/approve`
 - `POST /ai/drafts/{draftId}/reject`
@@ -30,18 +33,45 @@ Current owner-authenticated endpoints include:
 
 These endpoints validate the token server-side before allowing access to organization-scoped data.
 
+## Linked identities (Actualizar perfil)
+
+Email OTP and WhatsApp OTP historically minted **separate** `auth.users` rows (phone users use `{digits}@auth.nexolia.app`). QR staff invites attach membership to the **phone** user. Owners bind both methods on **Actualizar perfil** without switching session:
+
+| Route | Auth | Purpose |
+| --- | --- | --- |
+| `GET /auth/identities/me` | Bearer JWT | `{ email, emailVerified, phone, phoneVerified }` |
+| `POST /auth/identities/email/request` | Bearer JWT | Send link OTP (`purpose=link`) |
+| `POST /auth/identities/email/verify` | Bearer JWT | Attach email **or** return merge preview |
+| `POST /auth/identities/whatsapp/request` | Bearer JWT | Send WhatsApp link OTP |
+| `POST /auth/identities/whatsapp/verify` | Bearer JWT | Attach phone **or** return merge preview |
+| `POST /auth/identities/confirm-merge` | Bearer JWT | After Spanish confirmation, merge donor → current user |
+
+Rules:
+
+- **Not** `@Public()`. **Bearer header only** (no cookie session). Owner app only.
+- Callers in `nexolia_staff` are rejected (staff portal must not invoke these routes).
+- Link OTP challenges use `auth_otp_challenges.purpose = 'link'`. A login OTP cannot bind an identity, and link verify **never** returns session tokens.
+- Request OTP always returns `{ ok: true }` style success paths that do not enumerate whether the identity already exists as another account.
+- If another `auth.users` owns the proven identity, verify returns `status: 'merge_required'` with org names/roles. The client must call `confirm-merge` after listing negocios that will be absorbed and warning that the other login **dejará de existir**.
+- Merge keeps the **logged-in** user (`p_to` from JWT). `merge_auth_user` is **service_role only**; Nest derives ids from JWT + OTP — the app never sends user ids.
+- After link/merge, a Spanish notice is sent on available channels (email and/or WhatsApp log path).
+- Do **not** add `https://web.nexolia.com.ar` to CORS for this feature; marketing/`admin.nexolia.com.ar` must not call identity APIs.
+
+Product copy and merge policy: [Vincular correo y teléfono (identidad del dueño)](https://souviksamanta.atlassian.net/wiki/spaces/BaaS/pages/45350913) (Confluence, under Nexolia).
+
 ## Public auth OTP endpoints
 
 WhatsApp login OTP uses the Nexolia **platform WABA** (not merchant inbox numbers). These routes are unauthenticated and rate-limited at the edge in production:
 
-- `POST /auth/otp/whatsapp/request` — send Meta authentication-template OTP
-- `POST /auth/otp/whatsapp/verify` — verify OTP and return a Supabase `tokenHash`
+- `POST /auth/otp/whatsapp/request` — send Meta authentication-template OTP (`purpose=login`)
+- `POST /auth/otp/whatsapp/verify` — verify OTP and return Supabase session tokens / `tokenHash`
+- `POST /auth/otp/email/request` | `verify` — same for email via Resend
 
-The mobile client exchanges `tokenHash` with Supabase Auth (`verifyOtp`) to establish the session.
+The mobile client establishes the session from the returned tokens. Link OTPs (`/auth/identities/*`) reuse the same delivery path but **do not** mint a session.
 
 **Production pilot:** owner login ships **email-only** (`EXPO_PUBLIC_AUTH_LOGIN_CHANNELS=email`). WhatsApp OTP remains implemented but disabled until Meta business verification and a Spanish AUTHENTICATION template are approved.
 
-Email and optional SMS OTP use Supabase Auth directly from the mobile client (no NestJS route).
+Optional SMS OTP still uses Supabase Auth → Twilio from the mobile client for staff invite-accept when enabled.
 
 ## Scheduler authentication
 
@@ -59,7 +89,28 @@ Current scheduler endpoint:
 POST /tasks/run-maintenance
 ```
 
-The API expects the value to match `BAAS_TASKS_JOB_SECRET`. If the secret is missing from the API environment, the endpoint returns `503 Service Unavailable`.
+The API expects the value to match `BAAS_TASKS_JOB_SECRET`. Comparison is SHA-256 hashed then `timingSafeEqual` (avoids leaking secret length). If the secret is missing from the API environment, the endpoint returns `503 Service Unavailable`. The route is marked `@Public()` so it does not require a user JWT; the job secret is the only credential.
+
+## Global JWT and organization membership
+
+Authenticated owner routes require a valid Supabase access token. Nest registers these global guards:
+
+1. `ThrottlerGuard`
+2. `JwtAuthGuard` — `auth.getUser(token)` on every non-`@Public()` route
+3. `OrgMembershipGuard` — when `organizationId` is present in params, query, or JSON body, the caller must be in `organization_members`
+
+Skip flags:
+
+| Decorator | Effect |
+| --- | --- |
+| `@Public()` | No JWT. Used for health, Meta webhooks, OAuth callbacks, public leads/OTP, and job-secret cron. |
+| `@SkipOrgMembership()` | JWT still required. Used for `/admin/*` (Nexolia staff are not org members). |
+
+Appointment invite email is **not** a generic mailer: `POST /appointments/invite-email` requires membership and loads title/times/notes from the stored appointment (`appointmentId` + `organizationId`). Clients must not send those fields.
+
+Availability (`POST /appointments/assignee-availability`) requires membership, and every `userIds` entry must also be an org member.
+
+Notification prefs/events are org-scoped the same way. Catalog and `run-scheduled` stay public; scheduled jobs still use the job secret.
 
 ## WhatsApp webhook signature
 
@@ -77,3 +128,5 @@ When `WHATSAPP_APP_SECRET` is configured, the API validates the raw request body
 - Do not send `x-baas-job-secret` from mobile or browser clients.
 - Rotate scheduler and webhook secrets if they are accidentally exposed.
 - Treat webhook signatures as required in production.
+- `BAAS_OTP_PEPPER` and `BAAS_TOKEN_ENCRYPTION_KEY` are required when `NODE_ENV=production`.
+- Do not expose `/mockups` in production (nexolia-web returns 404 unless `NEXOLIA_ENABLE_MOCKUPS=true`).

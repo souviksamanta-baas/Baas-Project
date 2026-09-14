@@ -114,6 +114,12 @@ export async function assertNexoliaStaff(
   };
 }
 
+export function requireSuperAdmin(staff: NexoliaStaffContext): void {
+  if (staff.role !== 'super_admin') {
+    throw new ForbiddenException('Solo un super admin puede realizar esta acción.');
+  }
+}
+
 export async function writeAdminAudit(params: {
   action: string;
   actorStaffId: string;

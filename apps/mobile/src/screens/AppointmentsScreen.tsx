@@ -159,22 +159,28 @@ export function AppointmentsScreen(props: {
     setDraft(null);
 
     if (attendeeEmail) {
-      try {
-        await sendAppointmentInviteEmail({
-          endsAt: created.endsAt,
-          fromLabel,
-          notes: created.notes,
-          startsAt: created.startsAt,
-          title: created.title,
-          toEmail: attendeeEmail,
-        });
-      } catch (error) {
-        Alert.alert(
-          'Turno creado',
-          error instanceof Error
-            ? `No se pudo enviar el correo: ${error.message}`
-            : 'No se pudo enviar el correo de invitación.',
-        );
+      if (!props.organizationId) {
+        Alert.alert('Turno creado', 'No se pudo enviar el correo: falta la organización.');
+      } else {
+        try {
+          await sendAppointmentInviteEmail({
+            appointmentId: created.id,
+            endsAt: created.endsAt,
+            fromLabel,
+            notes: created.notes,
+            organizationId: props.organizationId,
+            startsAt: created.startsAt,
+            title: created.title,
+            toEmail: attendeeEmail,
+          });
+        } catch (error) {
+          Alert.alert(
+            'Turno creado',
+            error instanceof Error
+              ? `No se pudo enviar el correo: ${error.message}`
+              : 'No se pudo enviar el correo de invitación.',
+          );
+        }
       }
     }
 

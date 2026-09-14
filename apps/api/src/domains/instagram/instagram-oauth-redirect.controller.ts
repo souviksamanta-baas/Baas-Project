@@ -1,4 +1,5 @@
 import { Controller, Get, Query, Res } from '@nestjs/common';
+import { Public } from '../../auth/auth.decorators';
 import { ApiExcludeController } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import type { Response } from 'express';
@@ -14,6 +15,7 @@ import { InstagramOAuthService } from './instagram-oauth.service';
  * → OAuth redirect URIs:
  *   https://<api-host>/integrations/meta/instagram/oauth/callback
  */
+@Public()
 @ApiExcludeController()
 @Controller('integrations/meta/instagram/oauth/callback')
 export class InstagramOAuthRedirectController {

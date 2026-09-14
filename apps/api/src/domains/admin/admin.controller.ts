@@ -9,12 +9,15 @@ import {
   Patch,
   Post,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import {
   ApiBearerAuth,
   ApiOkResponse,
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
+
+import { Public, SkipOrgMembership } from '../../auth/auth.decorators';
 
 import { AdminGrokService } from './admin-grok.service';
 import { AdminLeadsService } from './admin-leads.service';
@@ -37,6 +40,7 @@ const CATEGORIA_TO_SLUG: Record<string, string> = {
   'Servicios profesionales': 'servicios_profesionales',
 };
 
+@SkipOrgMembership()
 @ApiTags('Admin')
 @Controller('admin')
 export class AdminController {
@@ -261,6 +265,7 @@ export class AdminController {
     @Param('id') organizationId: string,
   ) {
     const staff = await this.leadsService.requireStaff(authorizationHeader);
+    this.leadsService.assertSuperAdmin(staff);
     return this.llmCredentialsService.provision({
       actorUserId: staff.userId,
       organizationId,
@@ -276,6 +281,7 @@ export class AdminController {
     @Param('id') organizationId: string,
   ) {
     const staff = await this.leadsService.requireStaff(authorizationHeader);
+    this.leadsService.assertSuperAdmin(staff);
     return this.llmCredentialsService.revoke({
       actorUserId: staff.userId,
       organizationId,
@@ -451,6 +457,7 @@ export class AdminController {
   }
 }
 
+@Public()
 @ApiTags('Public')
 @Controller('public')
 export class PublicLeadsController {
@@ -461,6 +468,7 @@ export class PublicLeadsController {
 
   @Post('leads')
   @HttpCode(200)
+  @Throttle({ default: { limit: 8, ttl: 60_000 } })
   @ApiOperation({ summary: 'Submit public onboarding lead (no auth)' })
   @ApiOkResponse({ description: 'Lead created.' })
   async createLead(
@@ -507,6 +515,7 @@ export class PublicLeadsController {
 
   @Post('org-name-check')
   @HttpCode(200)
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @ApiOperation({ summary: 'Check if organization name is already registered' })
   async checkOrgName(@Body() body: { email?: string; name?: string }) {
     return this.leadsService.checkOrgName({
@@ -517,6 +526,7 @@ export class PublicLeadsController {
 
   @Post('admin/password-reset')
   @HttpCode(200)
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @ApiOperation({
     summary: 'Request staff password reset email (Spanish, invite/staff only)',
   })

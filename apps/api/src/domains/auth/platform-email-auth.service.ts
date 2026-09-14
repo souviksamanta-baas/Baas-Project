@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { createHmac, randomInt, timingSafeEqual } from 'node:crypto';
 
+import { resolveOtpPepper } from '../../auth/otp-pepper.util';
 import { SupabaseService } from '../../supabase/supabase.service';
 
 interface ResendSendResponse {
@@ -14,13 +15,18 @@ const OTP_RESEND_COOLDOWN_MS = 45_000;
 const OTP_MAX_ATTEMPTS = 5;
 const OTP_TTL_MS = 10 * 60 * 1000;
 
+export type AuthOtpPurpose = 'login' | 'link';
+
 @Injectable()
 export class PlatformEmailAuthService {
   constructor(private readonly supabaseService: SupabaseService) {}
 
-  async requestOtp(email: string): Promise<void> {
+  async requestOtp(
+    email: string,
+    purpose: AuthOtpPurpose = 'login',
+  ): Promise<void> {
     const normalizedEmail = normalizeLoginEmail(email);
-    await this.assertResendAllowed(normalizedEmail);
+    await this.assertResendAllowed(normalizedEmail, purpose);
 
     const code = String(randomInt(100_000, 1_000_000));
     const codeHash = this.hashOtp(code);
@@ -31,6 +37,7 @@ export class PlatformEmailAuthService {
     const { error } = await client.from('auth_otp_challenges').insert({
       channel: 'email',
       email: normalizedEmail,
+      purpose,
       code_hash: codeHash,
       expires_at: expiresAt,
       last_sent_at: now.toISOString(),
@@ -41,10 +48,15 @@ export class PlatformEmailAuthService {
       throw new Error('No se pudo preparar el código. Intentá de nuevo en unos segundos.');
     }
 
-    await this.sendOtpEmail({ code, email: normalizedEmail });
+    await this.sendOtpEmail({ code, email: normalizedEmail, purpose });
   }
 
-  async verifyOtp(params: { code: string; email: string }): Promise<boolean> {
+  async verifyOtp(params: {
+    code: string;
+    email: string;
+    purpose?: AuthOtpPurpose;
+  }): Promise<boolean> {
+    const purpose = params.purpose ?? 'login';
     const normalizedEmail = normalizeLoginEmail(params.email);
     const client = this.supabaseService.getServiceRoleClient();
     const { data, error } = await client
@@ -52,6 +64,7 @@ export class PlatformEmailAuthService {
       .select('id, code_hash, expires_at, attempts, consumed_at')
       .eq('email', normalizedEmail)
       .eq('channel', 'email')
+      .eq('purpose', purpose)
       .is('consumed_at', null)
       .order('created_at', { ascending: false })
       .limit(1)
@@ -94,13 +107,17 @@ export class PlatformEmailAuthService {
     return isValid;
   }
 
-  private async assertResendAllowed(email: string): Promise<void> {
+  private async assertResendAllowed(
+    email: string,
+    purpose: AuthOtpPurpose,
+  ): Promise<void> {
     const client = this.supabaseService.getServiceRoleClient();
     const { data, error } = await client
       .from('auth_otp_challenges')
       .select('last_sent_at, created_at')
       .eq('email', email)
       .eq('channel', 'email')
+      .eq('purpose', purpose)
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle<{ created_at: string; last_sent_at: string | null }>();
@@ -123,12 +140,7 @@ export class PlatformEmailAuthService {
   }
 
   private hashOtp(code: string): string {
-    const pepper =
-      process.env.BAAS_OTP_PEPPER?.trim() ||
-      process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ||
-      'nexolia-otp-dev-pepper';
-
-    return createHmac('sha256', pepper).update(code).digest('hex');
+    return createHmac('sha256', resolveOtpPepper()).update(code).digest('hex');
   }
 
   private equalHexDigests(a: string, b: string): boolean {
@@ -144,10 +156,18 @@ export class PlatformEmailAuthService {
     }
   }
 
-  private async sendOtpEmail(params: { code: string; email: string }): Promise<void> {
+  private async sendOtpEmail(params: {
+    code: string;
+    email: string;
+    purpose: AuthOtpPurpose;
+  }): Promise<void> {
     const apiKey = process.env.RESEND_API_KEY?.trim();
     const from =
       process.env.NEXOLIA_AUTH_EMAIL_FROM?.trim() || 'Nexolia <noreply@nexolia.com.ar>';
+    const isLink = params.purpose === 'link';
+    const subject = isLink
+      ? 'Tu código para vincular el correo en Nexolia'
+      : 'Tu código para ingresar a Nexolia';
 
     if (!apiKey) {
       if (process.env.NODE_ENV !== 'production') {
@@ -169,15 +189,17 @@ export class PlatformEmailAuthService {
       body: JSON.stringify({
         from,
         to: [params.email],
-        subject: 'Tu código para ingresar a Nexolia',
+        subject,
         html: [
-          '<h2>Tu código para ingresar a Nexolia</h2>',
-          '<p>Tu código de acceso es:</p>',
+          `<h2>${subject}</h2>`,
+          '<p>Tu código es:</p>',
           `<p style="font-size:28px;font-weight:700;letter-spacing:4px;margin:16px 0;">${params.code}</p>`,
-          '<p>Ingresá este código en la app para continuar.</p>',
+          isLink
+            ? '<p>Ingresá este código en Actualizar perfil para vincular tu correo.</p>'
+            : '<p>Ingresá este código en la app para continuar.</p>',
           '<p style="color:#56627b;font-size:14px;">Si no pediste este código, podés ignorar este correo.</p>',
         ].join(''),
-        text: `Tu código para ingresar a Nexolia es ${params.code}`,
+        text: `${subject}: ${params.code}`,
       }),
     });
 

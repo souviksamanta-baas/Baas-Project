@@ -23,13 +23,24 @@ const tenantTables = [
   'owner_device_tokens',
   'ai_drafts',
   'ai_draft_events',
+  'appointments',
+  'sell_quotes',
+  'invoices',
+  'cash_ledger_entries',
+  'copi_sessions',
+  'copi_messages',
+  'copi_action_proposals',
+  'pos_sale_receipts',
 ];
 
 const serviceOnlyTables = [
   'whatsapp_config',
   'whatsapp_message_events',
+  'instagram_config',
   'instagram_message_events',
   'facebook_message_events',
+  'arca_accounts',
+  'organization_llm_credentials',
 ];
 const expectedTables = [...tenantTables, ...serviceOnlyTables];
 const failures = [];
@@ -103,7 +114,7 @@ function hasMigrationClause(sql, table, clause) {
 
 function hasServiceOnlyRevoke(sql, table) {
   return new RegExp(
-    `revoke\\s+all\\s+on\\s+public\\.${table}\\s+from\\s+anon\\s*,\\s*authenticated`,
+    `revoke\\s+all\\s+on\\s+(table\\s+)?public\\.${table}\\s+from\\s+(anon\\s*,\\s*authenticated|authenticated\\s*,\\s*anon)`,
     'i',
   ).test(sql);
 }
