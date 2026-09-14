@@ -17,6 +17,8 @@ function buildClient(options: {
   authUser: AuthUser;
   donorUserId?: string | null;
   isStaff?: boolean;
+  /** When false, caller has no organization_members row (pure staff stays blocked). */
+  hasOrgMembership?: boolean;
   mergeError?: { message: string } | null;
   orgs?: Array<{ name: string; organization_id: string; role: string }>;
   purposeFilterAssert?: (purpose: string) => void;
@@ -24,6 +26,7 @@ function buildClient(options: {
   const updates: unknown[] = [];
   const inserts: unknown[] = [];
   const rpcCalls: Array<{ fn: string; args: Record<string, unknown> }> = [];
+  const hasOrgMembership = options.hasOrgMembership ?? true;
 
   const client = {
     auth: {
@@ -70,16 +73,32 @@ function buildClient(options: {
       }
 
       if (table === 'organization_members') {
+        const listResult = {
+          data: (options.orgs ?? []).map((org) => ({
+            organization_id: org.organization_id,
+            organizations: { archived_at: null, name: org.name },
+            role: org.role,
+          })),
+          error: null,
+        };
+        const membershipRow = hasOrgMembership
+          ? { organization_id: options.orgs?.[0]?.organization_id ?? 'org-default' }
+          : null;
+
         return {
           select: () => ({
-            eq: async () => ({
-              data: (options.orgs ?? []).map((org) => ({
-                organization_id: org.organization_id,
-                organizations: { archived_at: null, name: org.name },
-                role: org.role,
-              })),
-              error: null,
-            }),
+            eq: () => {
+              const chain = {
+                limit: () => ({
+                  maybeSingle: async () => ({ data: membershipRow, error: null }),
+                }),
+                then: (
+                  resolve: (value: typeof listResult) => unknown,
+                  reject?: (reason: unknown) => unknown,
+                ) => Promise.resolve(listResult).then(resolve, reject),
+              };
+              return chain;
+            },
           }),
         };
       }
@@ -198,9 +217,25 @@ describe('IdentityLinkService', () => {
     return { ...built, service };
   }
 
-  it('rejects nexolia_staff keepers', async () => {
-    const { service } = serviceFor({ authUser: keeper, isStaff: true });
+  it('rejects pure nexolia_staff without a negocio', async () => {
+    const { service } = serviceFor({
+      authUser: keeper,
+      hasOrgMembership: false,
+      isStaff: true,
+    });
     await expect(service.getMe('Bearer tok')).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('allows dual-hat staff who already own a negocio', async () => {
+    const { service } = serviceFor({
+      authUser: keeper,
+      hasOrgMembership: true,
+      isStaff: true,
+    });
+    await expect(service.getMe('Bearer tok')).resolves.toMatchObject({
+      email: 'keeper@example.com',
+      emailVerified: true,
+    });
   });
 
   it('requests email link OTP with purpose=link and does not enumerate', async () => {

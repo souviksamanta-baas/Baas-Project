@@ -252,7 +252,7 @@ export class IdentityLinkService {
     identityValue: string;
     keeperUserId: string;
   }): Promise<void> {
-    await this.assertNotStaff(params.keeperUserId);
+    // Never absorb a staff auth user. Keeper may be dual-hat staff+owner.
     await this.assertNotStaff(params.donorUserId);
 
     const client = this.supabaseService.getServiceRoleClient();
@@ -410,8 +410,44 @@ export class IdentityLinkService {
 
   private async requireOwnerUser(authorizationHeader: string | undefined): Promise<User> {
     const user = await resolveAuthUser(this.supabaseService, authorizationHeader);
-    await this.assertNotStaff(user.id);
+    // Dual-hat staff (e.g. founder also using Owner app) may link identities when they
+    // already belong to a tenant. Pure nexolia_staff with no org membership stays blocked.
+    await this.assertOwnerAppCaller(user.id);
     return user;
+  }
+
+  private async assertOwnerAppCaller(userId: string): Promise<void> {
+    const client = this.supabaseService.getServiceRoleClient();
+    const { data: membership, error: membershipError } = await client
+      .from('organization_members')
+      .select('organization_id')
+      .eq('user_id', userId)
+      .limit(1)
+      .maybeSingle<{ organization_id: string }>();
+
+    if (membershipError) {
+      throw new Error(`Failed to verify organization membership: ${membershipError.message}`);
+    }
+
+    if (membership) {
+      return;
+    }
+
+    const { data: staff, error: staffError } = await client
+      .from('nexolia_staff')
+      .select('user_id')
+      .eq('user_id', userId)
+      .maybeSingle<{ user_id: string }>();
+
+    if (staffError) {
+      throw new Error(`Failed to verify staff exclusion: ${staffError.message}`);
+    }
+
+    if (staff) {
+      throw new ForbiddenException(
+        'Las cuentas de staff de Nexolia sin un negocio no pueden vincular identidades de dueños.',
+      );
+    }
   }
 
   private async assertNotStaff(userId: string): Promise<void> {
@@ -428,7 +464,7 @@ export class IdentityLinkService {
 
     if (data) {
       throw new ForbiddenException(
-        'Las cuentas de staff de Nexolia no pueden vincular identidades de dueños.',
+        'No se puede unificar una cuenta de staff de Nexolia.',
       );
     }
   }

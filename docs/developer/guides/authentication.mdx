@@ -49,7 +49,7 @@ Email OTP and WhatsApp OTP historically minted **separate** `auth.users` rows (p
 Rules:
 
 - **Not** `@Public()`. **Bearer header only** (no cookie session). Owner app only.
-- Callers in `nexolia_staff` are rejected (staff portal must not invoke these routes).
+- Pure `nexolia_staff` callers with **no** tenant membership are rejected. Dual-hat staff who already own a negocio (same Supabase user as the Owner app) may link identities; absorbing a staff donor account is still blocked.
 - Link OTP challenges use `auth_otp_challenges.purpose = 'link'`. A login OTP cannot bind an identity, and link verify **never** returns session tokens.
 - Request OTP always returns `{ ok: true }` style success paths that do not enumerate whether the identity already exists as another account.
 - If another `auth.users` owns the proven identity, verify returns `status: 'merge_required'` with org names/roles. The client must call `confirm-merge` after listing negocios that will be absorbed and warning that the other login **dejará de existir**.
