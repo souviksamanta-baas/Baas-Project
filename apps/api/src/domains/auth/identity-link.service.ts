@@ -416,8 +416,13 @@ export class IdentityLinkService {
       user_metadata: meta,
     });
     if (error) {
+      console.error(
+        `[identity-link] Failed to attach phone to ${params.userId}: ${error.message}`,
+      );
       throw new BadRequestException(
-        error.message || 'No se pudo vincular el teléfono.',
+        /updating user|duplicate|already|registered|exists/i.test(error.message)
+          ? 'Ese teléfono ya está en otra cuenta. Si te pedimos unificar negocios, confirmá; si no, pedí un código nuevo.'
+          : error.message || 'No se pudo vincular el teléfono.',
       );
     }
   }
