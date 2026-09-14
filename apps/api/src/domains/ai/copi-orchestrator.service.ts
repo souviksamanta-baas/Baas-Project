@@ -33,6 +33,7 @@ export class CopiOrchestratorService {
   async answerQuestion(params: {
     authorizationHeader: string | undefined;
     businessCenterId?: string;
+    documentContext?: string;
     imageContext?: string;
     now?: Date;
     organizationId: string;
@@ -68,9 +69,14 @@ export class CopiOrchestratorService {
       .map((message) => ({ body: message.body, role: message.role }));
 
     const imageContext = params.imageContext?.trim();
-    const reasoningQuestion = imageContext
-      ? `${params.question.trim()}\n\nContexto de la imagen adjunta:\n${imageContext}`
-      : params.question;
+    const documentContext = params.documentContext?.trim();
+    let reasoningQuestion = params.question.trim();
+    if (imageContext) {
+      reasoningQuestion = `${reasoningQuestion}\n\nContexto de la imagen adjunta:\n${imageContext}`;
+    }
+    if (documentContext) {
+      reasoningQuestion = `${reasoningQuestion}\n\nContexto del documento adjunto:\n${documentContext}`;
+    }
 
     const context = {
       authorizationHeader: params.authorizationHeader,

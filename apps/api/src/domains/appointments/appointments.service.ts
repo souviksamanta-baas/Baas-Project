@@ -16,6 +16,7 @@ export interface AppointmentRecord {
   metadata: Record<string, unknown>;
   notes: string | null;
   organizationId: string;
+  remindAt: string | null;
   startsAt: string;
   status: AppointmentStatus;
   taskId: string | null;
@@ -34,6 +35,7 @@ interface AppointmentRow {
   metadata: Record<string, unknown> | null;
   notes: string | null;
   organization_id: string;
+  remind_at: string | null;
   starts_at: string;
   status: AppointmentStatus;
   task_id: string | null;
@@ -42,7 +44,7 @@ interface AppointmentRow {
 }
 
 const APPOINTMENT_SELECT =
-  'id, organization_id, business_center_id, title, starts_at, ends_at, status, notes, contact_id, assigned_to_user_id, created_by_user_id, metadata, task_id, created_at, updated_at';
+  'id, organization_id, business_center_id, title, starts_at, ends_at, remind_at, status, notes, contact_id, assigned_to_user_id, created_by_user_id, metadata, task_id, created_at, updated_at';
 
 @Injectable()
 export class AppointmentsService {
@@ -104,6 +106,7 @@ export class AppointmentsService {
     metadata?: Record<string, unknown>;
     notes?: string | null;
     organizationId: string;
+    remindAt?: string | null;
     startsAt: string;
     taskId?: string | null;
     title: string;
@@ -120,6 +123,7 @@ export class AppointmentsService {
         metadata: params.metadata ?? {},
         notes: params.notes ?? null,
         organization_id: params.organizationId,
+        remind_at: params.remindAt ?? null,
         starts_at: params.startsAt,
         status: 'scheduled',
         task_id: params.taskId ?? null,
@@ -179,6 +183,7 @@ export class AppointmentsService {
     endsAt?: string;
     notes?: string | null;
     organizationId: string;
+    remindAt?: string | null;
     startsAt?: string;
     status?: AppointmentStatus;
     title?: string;
@@ -189,6 +194,7 @@ export class AppointmentsService {
     if (params.endsAt != null) updates.ends_at = params.endsAt;
     if (params.status != null) updates.status = params.status;
     if (params.notes !== undefined) updates.notes = params.notes;
+    if (params.remindAt !== undefined) updates.remind_at = params.remindAt;
 
     if (Object.keys(updates).length === 0) {
       throw new Error('No updates provided for appointment.');
@@ -420,6 +426,7 @@ function toAppointmentRecord(row: AppointmentRow): AppointmentRecord {
     metadata: (row.metadata ?? {}) as Record<string, unknown>,
     notes: row.notes,
     organizationId: row.organization_id,
+    remindAt: row.remind_at ?? null,
     startsAt: row.starts_at,
     status: row.status,
     taskId: row.task_id ?? null,

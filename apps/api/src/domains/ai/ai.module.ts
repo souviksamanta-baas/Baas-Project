@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 
 import { SupabaseService } from '../../supabase/supabase.service';
 import { AppointmentsModule } from '../appointments/appointments.module';
+import { CashModule } from '../cash/cash.module';
 import { InventoryModule } from '../inventory/inventory.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { TasksModule } from '../tasks/tasks.module';
@@ -23,7 +24,14 @@ import { OwnerCopilotService } from './owner-copilot.service';
 import { SalesAiService } from './sales-ai.service';
 
 @Module({
-  imports: [InventoryModule, TasksModule, WhatsAppModule, AppointmentsModule, NotificationsModule],
+  imports: [
+    InventoryModule,
+    TasksModule,
+    WhatsAppModule,
+    AppointmentsModule,
+    NotificationsModule,
+    CashModule,
+  ],
   controllers: [AiController],
   providers: [
     SupabaseService,

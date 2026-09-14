@@ -99,6 +99,25 @@ function createOrchestrator(): {
     inventoryService,
     tasksService,
     appointmentsService,
+    {
+      getDayBalancesInternal: vi.fn(async () => ({
+        egresosCents: 0,
+        entries: [],
+        entryDate: '2026-06-05',
+        ingresosCents: 0,
+        saldoFinalCents: 0,
+        saldoInicialCents: 0,
+      })),
+      getRangeReportInternal: vi.fn(async () => ({
+        closingCents: 0,
+        days: [],
+        egresosCents: 0,
+        fromDate: '2026-06-01',
+        ingresosCents: 0,
+        openingCents: 0,
+        toDate: '2026-06-05',
+      })),
+    } as unknown as import('../src/domains/cash/cash.service').CashService,
   );
   const llmCredentials = {
     getApiKeyForOrganization: vi.fn(async () => null),

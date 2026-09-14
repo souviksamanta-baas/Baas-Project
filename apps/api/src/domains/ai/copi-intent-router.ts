@@ -54,6 +54,12 @@ export const COPI_TOOL_CATALOG: Array<{ description: string; name: CopiToolName 
     description: 'Turnos de hoy (agenda del día).',
     name: 'appointments_today',
   },
+  { description: 'Buscar un producto por nombre o SKU', name: 'find_product' },
+  { description: 'Saldos e movimientos de caja del día', name: 'cash_day' },
+  { description: 'Reporte de caja por rango de fechas', name: 'cash_report' },
+  { description: 'Hilo reciente de una conversación de WhatsApp', name: 'conversation_thread' },
+  { description: 'Listar presupuestos recientes', name: 'list_presupuestos' },
+  { description: 'Analizar un presupuesto (totales / estado)', name: 'analyze_presupuesto' },
 ];
 
 export type CopiConversationTurn = {
@@ -141,6 +147,32 @@ export function selectCopiTools(
     tools.add('products_overview');
   }
 
+  if (/\b(busca|buscar|encontre|encontrar|producto)\b/.test(normalized) && !wantsMutation) {
+    tools.add('find_product');
+  }
+
+  if (/\b(caja|efectivo|saldo de caja|movimientos de caja)\b/.test(normalized)) {
+    if (/\b(semana|rango|desde|hasta|reporte)\b/.test(normalized)) {
+      tools.add('cash_report');
+    } else {
+      tools.add('cash_day');
+    }
+  }
+
+  if (
+    /\b(hilo|thread|esta conversacion|este chat|mensajes del chat)\b/.test(normalized)
+  ) {
+    tools.add('conversation_thread');
+  }
+
+  if (/\b(presupuesto|presupuestos)\b/.test(normalized) && !wantsMutation) {
+    if (/\b(analiz|detalle|totales?)\b/.test(normalized)) {
+      tools.add('analyze_presupuesto');
+    } else {
+      tools.add('list_presupuestos');
+    }
+  }
+
   if (/\b(conversation|conversacion|conversaciones|abiert)\b/.test(normalized)) {
     tools.add('open_conversations');
   }
@@ -196,6 +228,40 @@ export function selectCopiTools(
     } else {
       tools.add('appointments_upcoming');
     }
+  }
+
+  if (
+    /\b(buscar|busc[aá]|encontr[aá]|hay|ten[eé]s|tenemos)\b/.test(normalized) &&
+    /\b(producto|sku)\b/.test(normalized)
+  ) {
+    tools.add('find_product');
+  }
+
+  if (/\b(caja|efectivo|saldo)\b/.test(normalized) && !wantsMutation) {
+    if (/\b(semana|reporte|desde|hasta|rango)\b/.test(normalized)) {
+      tools.add('cash_report');
+    } else {
+      tools.add('cash_day');
+    }
+  }
+
+  if (
+    /\b(presupuesto|presupuestos)\b/.test(normalized) &&
+    !wantsMutation &&
+    !/\bventas?\b/.test(normalized)
+  ) {
+    if (/\b(analiz|detalle|desglose|PRES-)\b/i.test(question)) {
+      tools.add('analyze_presupuesto');
+    } else {
+      tools.add('list_presupuestos');
+    }
+  }
+
+  if (
+    /\b(hilo|thread|conversacion)\b/.test(normalized) &&
+    /\b(mensaje|chat|whatsapp)\b/.test(normalized)
+  ) {
+    tools.add('conversation_thread');
   }
 
   return Array.from(tools);
@@ -305,12 +371,14 @@ export function detectProActionIntent(question: string): boolean {
   // Use asign\w*|assign\w* so "asigna"/"asignar"/"asigname" match (plain "asign" does not:
   // there is no word boundary between "asign" and the trailing "a").
   return (
-    /\b(creas?|crear|creame|crees?|asign\w*|assign\w*|marca|marcar|complet|cancel|pospon|snooze|recorda|recordar|anota|anotar|reagenda|reagendar|reprograma|reprogramar|reservar|reservame)\b/.test(
+    /\b(creas?|crear|creame|crees?|asign\w*|assign\w*|marca|marcar|complet|cancel|pospon|snooze|recorda|recordar|recordame|avisame|anota|anotar|reagenda|reagendar|reprograma|reprogramar|reservar|reservame|agregar|sumar|reponer|registra|registrar|llevame|abr[ií]|abrir|guardar|guarda|respond[eé]|contestar)\b/.test(
       normalized,
     ) ||
     /\bnecesito\s+que\s+creas?\b/.test(normalized) ||
     /\b(haceme|haga|hagan)\s+(una\s+)?tarea\b/.test(normalized) ||
-    /\b(agenda(r|me)?|programa(r|me)?)\s+(un|una)?\s*(turno|cita)\b/.test(normalized)
+    /\b(agenda(r|me)?|programa(r|me)?)\s+(un|una)?\s*(turno|cita)\b/.test(normalized) ||
+    /\b(ingreso|egreso)\b/.test(normalized) ||
+    /\b(ticket|soporte)\b/.test(normalized)
   );
 }
 

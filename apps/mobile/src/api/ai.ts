@@ -50,6 +50,7 @@ interface AiDraftRow {
 
 export async function askOwnerCopilot(params: {
   businessCenterId?: string | null;
+  documentContext?: string;
   imageContext?: string;
   organizationId: string;
   question: string;
@@ -58,10 +59,38 @@ export async function askOwnerCopilot(params: {
   return apiFetchAuthJson<CopilotResponse>('/ai/copilot/query', {
     body: JSON.stringify({
       businessCenterId: params.businessCenterId ?? undefined,
+      documentContext: params.documentContext?.trim() || undefined,
       imageContext: params.imageContext?.trim() || undefined,
       organizationId: params.organizationId,
       question: params.question,
       sessionId: params.sessionId ?? undefined,
+    }),
+    method: 'POST',
+  });
+}
+
+export async function listCopiCustomQuestions(params: {
+  organizationId: string;
+}): Promise<Array<{ id: string; label: string; question: string }>> {
+  const query = new URLSearchParams({ organizationId: params.organizationId });
+  const result = await apiFetchAuthJson<{
+    questions: Array<{ id: string; label: string; question: string }>;
+  }>(`/ai/copilot/custom-questions?${query.toString()}`, { method: 'GET' });
+  return result.questions;
+}
+
+export async function saveCopiCustomQuestion(params: {
+  businessCenterId?: string | null;
+  label?: string;
+  organizationId: string;
+  question: string;
+}): Promise<{ id: string }> {
+  return apiFetchAuthJson('/ai/copilot/custom-questions', {
+    body: JSON.stringify({
+      businessCenterId: params.businessCenterId ?? undefined,
+      label: params.label,
+      organizationId: params.organizationId,
+      question: params.question,
     }),
     method: 'POST',
   });

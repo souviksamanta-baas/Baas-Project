@@ -844,7 +844,7 @@ export class NotificationsService {
     const { data, error } = await client
       .from('owner_tasks')
       .select(
-        'id, title, due_at, postponed_until, reminder_snoozed_until, status, assigned_to_user_id, created_by_user_id',
+        'id, title, due_at, remind_at, postponed_until, reminder_snoozed_until, status, assigned_to_user_id, created_by_user_id',
       )
       .eq('organization_id', params.organizationId)
       .eq('business_center_id', params.businessCenterId)
@@ -862,6 +862,7 @@ export class NotificationsService {
       due_at: string | null;
       id: string;
       postponed_until: string | null;
+      remind_at: string | null;
       reminder_snoozed_until: string | null;
       status: string;
       title: string;
@@ -884,6 +885,8 @@ export class NotificationsService {
       }
     }
     const prefs = await this.loadPrefsMap(params.organizationId, [...anchorUserIds]);
+    const windowMs = 15 * 60_000;
+    const nowMs = params.now.getTime();
 
     for (const task of rows) {
       const anchorForLead = task.created_by_user_id ?? task.assigned_to_user_id;
@@ -894,7 +897,7 @@ export class NotificationsService {
 
       if (task.status === 'postponed' && task.postponed_until) {
         const wakeAt = new Date(task.postponed_until).getTime();
-        if (wakeAt <= params.now.getTime() && wakeAt > params.now.getTime() - 15 * 60_000) {
+        if (wakeAt <= nowMs && wakeAt > nowMs - windowMs) {
           const result = await this.emit({
             body: `Se reactivó: ${task.title}`,
             businessCenterId: params.businessCenterId,
@@ -915,10 +918,7 @@ export class NotificationsService {
       // Reminder snooze wake (silenciar 10 min): fire reminder when period ends.
       if (task.reminder_snoozed_until) {
         const snoozeWakeAt = new Date(task.reminder_snoozed_until).getTime();
-        if (
-          snoozeWakeAt <= params.now.getTime() &&
-          snoozeWakeAt > params.now.getTime() - 15 * 60_000
-        ) {
+        if (snoozeWakeAt <= nowMs && snoozeWakeAt > nowMs - windowMs) {
           const result = await this.emit({
             body: `Recordatorio: ${task.title}`,
             businessCenterId: params.businessCenterId,
@@ -941,44 +941,53 @@ export class NotificationsService {
         }
       }
 
-      if (!task.due_at) {
-        continue;
-      }
-
       // Skip reminder while user snoozed reminder (silenciar 10 min).
       const reminderSnoozedUntil = task.reminder_snoozed_until
         ? new Date(task.reminder_snoozed_until).getTime()
         : 0;
-      const isReminderSnoozed = reminderSnoozedUntil > params.now.getTime();
+      const isReminderSnoozed = reminderSnoozedUntil > nowMs;
 
-      const dueAt = new Date(task.due_at).getTime();
-      const reminderAt = dueAt - lead * 60_000;
-      if (
-        !isReminderSnoozed &&
-        reminderAt <= params.now.getTime() &&
-        reminderAt > params.now.getTime() - 15 * 60_000 &&
-        dueAt > params.now.getTime()
-      ) {
-        const result = await this.emit({
-          body: `En ${lead} min: ${task.title}`,
-          businessCenterId: params.businessCenterId,
-          creatorUserId: task.created_by_user_id,
-          followerUserIds,
-          organizationId: params.organizationId,
-          payload: { taskId: task.id },
-          sourceKey: `task.reminder:${task.id}:${task.due_at}:${lead}`,
-          type: 'task.reminder',
-        });
-        if (result.created) {
-          created += 1;
-          sent += result.sent;
+      const hasExplicitRemindAt = Boolean(task.remind_at);
+      if (!isReminderSnoozed && (hasExplicitRemindAt || task.due_at)) {
+        const fireAtIso = hasExplicitRemindAt
+          ? task.remind_at!
+          : new Date(new Date(task.due_at!).getTime() - lead * 60_000).toISOString();
+        const fireAt = new Date(fireAtIso).getTime();
+        const dueAtMs = task.due_at ? new Date(task.due_at).getTime() : Number.POSITIVE_INFINITY;
+
+        if (
+          fireAt <= nowMs &&
+          fireAt > nowMs - windowMs &&
+          (hasExplicitRemindAt || dueAtMs > nowMs)
+        ) {
+          const result = await this.emit({
+            body: hasExplicitRemindAt
+              ? `Recordatorio: ${task.title}`
+              : `En ${lead} min: ${task.title}`,
+            businessCenterId: params.businessCenterId,
+            creatorUserId: task.created_by_user_id,
+            followerUserIds,
+            organizationId: params.organizationId,
+            payload: { taskId: task.id },
+            sourceKey: `task.reminder:${task.id}:${fireAtIso}`,
+            type: 'task.reminder',
+          });
+          if (result.created) {
+            created += 1;
+            sent += result.sent;
+          }
         }
       }
 
+      if (!task.due_at) {
+        continue;
+      }
+
+      const dueAt = new Date(task.due_at).getTime();
       if (
         !isReminderSnoozed &&
-        dueAt <= params.now.getTime() &&
-        dueAt > params.now.getTime() - 15 * 60_000
+        dueAt <= nowMs &&
+        dueAt > nowMs - windowMs
       ) {
         const result = await this.emit({
           body: `Vencida: ${task.title}`,
@@ -1035,31 +1044,76 @@ export class NotificationsService {
     organizationId: string;
   }): Promise<{ created: number; sent: number }> {
     const client = this.supabaseService.getServiceRoleClient();
-    const horizon = new Date(params.now.getTime() + 24 * 60 * 60_000).toISOString();
-    const { data, error } = await client
+    const windowMs = 15 * 60_000;
+    const nowMs = params.now.getTime();
+    const nowIso = params.now.toISOString();
+    const horizon = new Date(nowMs + 24 * 60 * 60_000).toISOString();
+    const remindWindowStart = new Date(nowMs - windowMs).toISOString();
+
+    const { data: byStarts, error: startsError } = await client
       .from('appointments')
-      .select('id, title, starts_at, assigned_to_user_id, created_by_user_id')
+      .select('id, title, starts_at, remind_at, assigned_to_user_id, created_by_user_id')
       .eq('organization_id', params.organizationId)
       .eq('business_center_id', params.businessCenterId)
       .eq('status', 'scheduled')
-      .gte('starts_at', params.now.toISOString())
+      .gte('starts_at', nowIso)
       .lte('starts_at', horizon);
 
-    if (error) {
+    if (startsError) {
       // Appointments table may be absent on older envs
-      this.logger.warn(`Appointment reminders skipped: ${error.message}`);
+      this.logger.warn(`Appointment reminders skipped: ${startsError.message}`);
       return { created: 0, sent: 0 };
     }
 
+    const { data: byRemind, error: remindError } = await client
+      .from('appointments')
+      .select('id, title, starts_at, remind_at, assigned_to_user_id, created_by_user_id')
+      .eq('organization_id', params.organizationId)
+      .eq('business_center_id', params.businessCenterId)
+      .eq('status', 'scheduled')
+      .not('remind_at', 'is', null)
+      .gte('remind_at', remindWindowStart)
+      .lte('remind_at', nowIso);
+
+    if (remindError) {
+      this.logger.warn(`Appointment remind_at query skipped: ${remindError.message}`);
+    }
+
+    const byId = new Map<
+      string,
+      {
+        assigned_to_user_id: string | null;
+        created_by_user_id: string | null;
+        id: string;
+        remind_at: string | null;
+        starts_at: string;
+        title: string;
+      }
+    >();
+    for (const row of [
+      ...((byStarts ?? []) as Array<{
+        assigned_to_user_id: string | null;
+        created_by_user_id: string | null;
+        id: string;
+        remind_at: string | null;
+        starts_at: string;
+        title: string;
+      }>),
+      ...((byRemind ?? []) as Array<{
+        assigned_to_user_id: string | null;
+        created_by_user_id: string | null;
+        id: string;
+        remind_at: string | null;
+        starts_at: string;
+        title: string;
+      }>),
+    ]) {
+      byId.set(row.id, row);
+    }
+    const rows = [...byId.values()];
+
     let created = 0;
     let sent = 0;
-    const rows = (data ?? []) as Array<{
-      assigned_to_user_id: string | null;
-      created_by_user_id: string | null;
-      id: string;
-      starts_at: string;
-      title: string;
-    }>;
 
     const userIds = [
       ...new Set(
@@ -1080,19 +1134,22 @@ export class NotificationsService {
       const lead =
         prefs.get(recipient)?.reminderLeadMinutes ?? DEFAULT_REMINDER_LEAD_MINUTES;
       const startsAt = new Date(appointment.starts_at).getTime();
-      const reminderAt = startsAt - lead * 60_000;
+      const hasExplicitRemindAt = Boolean(appointment.remind_at);
+      const fireAtIso = hasExplicitRemindAt
+        ? appointment.remind_at!
+        : new Date(startsAt - lead * 60_000).toISOString();
+      const fireAt = new Date(fireAtIso).getTime();
       const startingAt = startsAt - 5 * 60_000;
 
-      if (
-        reminderAt <= params.now.getTime() &&
-        reminderAt > params.now.getTime() - 15 * 60_000
-      ) {
+      if (fireAt <= nowMs && fireAt > nowMs - windowMs) {
         const result = await this.emit({
-          body: `En ${lead} min: ${appointment.title}`,
+          body: hasExplicitRemindAt
+            ? `Recordatorio: ${appointment.title}`
+            : `En ${lead} min: ${appointment.title}`,
           businessCenterId: params.businessCenterId,
           organizationId: params.organizationId,
           payload: { appointmentId: appointment.id },
-          sourceKey: `appointment.reminder:${appointment.id}:${appointment.starts_at}:${lead}`,
+          sourceKey: `appointment.reminder:${appointment.id}:${fireAtIso}`,
           targetUserId: recipient,
           type: 'appointment.reminder',
         });
@@ -1103,8 +1160,8 @@ export class NotificationsService {
       }
 
       if (
-        startingAt <= params.now.getTime() &&
-        startingAt > params.now.getTime() - 15 * 60_000
+        startingAt <= nowMs &&
+        startingAt > nowMs - windowMs
       ) {
         const result = await this.emit({
           body: `Empieza ahora: ${appointment.title}`,

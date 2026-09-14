@@ -1,4 +1,5 @@
 import { getAppStorageItem, setAppStorageItem } from './appStorage';
+import { listCopiCustomQuestions } from '../api/ai';
 import {
   DEFAULT_COPI_SUGGESTED_QUESTIONS,
   type CopiSuggestedQuestion,
@@ -12,6 +13,18 @@ function storageKey(organizationId: string): string {
 export async function loadCustomCopiQuestions(
   organizationId: string,
 ): Promise<CopiSuggestedQuestion[]> {
+  try {
+    const remote = await listCopiCustomQuestions({ organizationId });
+    if (remote.length > 0) {
+      return remote.map((item) => ({
+        text: item.question,
+        tier: 'copi_pro' as const,
+      }));
+    }
+  } catch {
+    // Fall back to device storage when offline / API older.
+  }
+
   const raw = await getAppStorageItem(storageKey(organizationId));
   if (!raw) {
     return [];

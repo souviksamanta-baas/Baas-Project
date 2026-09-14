@@ -76,6 +76,23 @@ export async function deleteConversation(conversationId: string): Promise<void> 
   }
 }
 
+export async function assignConversationToCopi(params: {
+  conversationId: string;
+  userId: string;
+}): Promise<void> {
+  const { error } = await supabase
+    .from('conversations')
+    .update({
+      assigned_to_copi_at: new Date().toISOString(),
+      assigned_to_copi_user_id: params.userId,
+    })
+    .eq('id', params.conversationId);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
 export async function updateContactLeadStatus(params: {
   contactId: string;
   leadStatus: ManualLeadStatus;

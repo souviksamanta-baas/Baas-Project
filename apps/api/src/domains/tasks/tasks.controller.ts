@@ -50,6 +50,10 @@ interface CreateTaskBody {
   metadata?: Record<string, unknown>;
   organizationId: string;
   priority?: 'low' | 'normal' | 'high';
+  recurrenceFreq?: 'daily' | 'weekly' | 'monthly' | null;
+  recurrenceWeekday?: number | null;
+  remindAt?: string | null;
+  templateKey?: string | null;
   title: string;
 }
 
@@ -60,6 +64,10 @@ interface UpdateTaskBody {
   dueAt?: string | null;
   organizationId: string;
   priority?: 'low' | 'normal' | 'high';
+  recurrenceFreq?: 'daily' | 'weekly' | 'monthly' | null;
+  recurrenceWeekday?: number | null;
+  remindAt?: string | null;
+  templateKey?: string | null;
   title?: string;
 }
 
@@ -225,8 +233,12 @@ export class TasksController {
       metadata: body.metadata ?? {},
       organizationId: body.organizationId,
       priority: body.priority ?? 'normal',
+      recurrenceFreq: body.recurrenceFreq ?? null,
+      recurrenceWeekday: body.recurrenceWeekday ?? null,
+      remindAt: body.remindAt ?? null,
       sourceKey: `rest:${user.userId}:${Date.now()}`,
       taskType: 'manual',
+      templateKey: body.templateKey ?? null,
       title: body.title,
     });
   }
@@ -255,7 +267,11 @@ export class TasksController {
       dueAt: body.dueAt,
       organizationId: body.organizationId,
       priority: body.priority,
+      recurrenceFreq: body.recurrenceFreq,
+      recurrenceWeekday: body.recurrenceWeekday,
+      remindAt: body.remindAt,
       taskId,
+      templateKey: body.templateKey,
       title: body.title,
     });
   }

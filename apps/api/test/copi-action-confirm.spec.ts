@@ -56,6 +56,28 @@ describe('inferCopiActionType', () => {
       inferCopiActionType('Creá una tarea para crear presupuesto para Pablo'),
     ).toBe('create_task');
   });
+
+  it('detects schedule_reminder for avisame without tarea', () => {
+    expect(inferCopiActionType('Avisame mañana a las 9 de revisar caja')).toBe(
+      'schedule_reminder',
+    );
+    expect(inferCopiActionType('Recordame el viernes comprar leche')).toBe(
+      'schedule_reminder',
+    );
+  });
+
+  it('detects cash and stock write intents', () => {
+    expect(inferCopiActionType('Anotá un ingreso en caja de $5000 por venta')).toBe(
+      'cash_ingreso',
+    );
+    expect(inferCopiActionType('Registrá un egreso de caja por $1200 de limpieza')).toBe(
+      'cash_egreso',
+    );
+    expect(inferCopiActionType('Agregar 10 unidades de stock de harina')).toBe('add_stock');
+    expect(inferCopiActionType('Creá un producto Yerba en categoría Almacén')).toBe(
+      'create_product',
+    );
+  });
 });
 
 describe('parseCreatePresupuestoRequest', () => {

@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Alert, Clipboard, Platform } from 'react-native';
 
 import {
+  assignConversationToCopi,
   hideConversationMessage,
   markConversationRead,
   updateContactLeadStatus,
@@ -26,6 +27,7 @@ import {
   conversationDisplayName,
   leadStatusLabel,
 } from '../../../src/lib/inboxPresentation';
+import { supabase } from '../../../src/lib/supabase';
 import { routes } from '../../../src/navigation/routes';
 import { ConversationDetailScreen } from '../../../src/screens/InboxScreen';
 import type { WhatsAppMessagePreview } from '../../../src/types/messages';
@@ -139,6 +141,32 @@ export default function ConversationDetailRoute(): ReactElement {
       );
     }
   }, [conversation]);
+
+  const handleAssignToCopi = useCallback(async (): Promise<void> => {
+    if (!conversationId) {
+      return;
+    }
+    try {
+      const { data: auth } = await supabase.auth.getUser();
+      const userId = auth.user?.id;
+      if (!userId) {
+        Alert.alert('Sesión', 'Tenés que iniciar sesión para asignar a Copi.');
+        return;
+      }
+      await assignConversationToCopi({ conversationId, userId });
+      router.push({
+        pathname: routes.appCopiChat,
+        params: {
+          seedQuestion: `Analizá el chat ${conversationId} y sugerime qué responder. No envíes nada sin confirmar.`,
+        },
+      } as never);
+    } catch (error) {
+      Alert.alert(
+        'No se pudo asignar',
+        error instanceof Error ? error.message : 'Error desconocido',
+      );
+    }
+  }, [conversationId, router]);
 
   const requireWhatsAppContext = useCallback((): {
     businessCenterId: string;
@@ -420,6 +448,9 @@ export default function ConversationDetailRoute(): ReactElement {
         customerName="Conversación"
         isLoading={isLoadingConversation || thread.isLoading}
         messages={thread.messages}
+        onAssignToCopi={() => {
+          void handleAssignToCopi();
+        }}
         onBack={() => router.replace(routes.appInbox)}
         onMessageLongPress={handleMessageLongPress}
         onSendAudio={canSendReply ? thread.sendAudioReply : undefined}
@@ -441,6 +472,9 @@ export default function ConversationDetailRoute(): ReactElement {
       messages={thread.messages}
       onAddDeviceContact={() => {
         void handleAddDeviceContact();
+      }}
+      onAssignToCopi={() => {
+        void handleAssignToCopi();
       }}
       onBack={() => router.replace(routes.appInbox)}
       onMessageLongPress={handleMessageLongPress}

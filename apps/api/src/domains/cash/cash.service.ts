@@ -32,16 +32,22 @@ export class CashService {
     businessCenterId: string;
     entryDate: string;
     organizationId: string;
+    userId?: string;
   }): Promise<CashDayBalancesDto> {
-    const user = await resolveAuthUser(
-      this.supabaseService,
-      params.authorizationHeader,
-    );
-    await assertOrgMembership({
+    await this.assertCashCaller(params);
+    return this.getDayBalancesInternal({
+      businessCenterId: params.businessCenterId,
+      entryDate: params.entryDate,
       organizationId: params.organizationId,
-      supabaseService: this.supabaseService,
-      userId: user.id,
     });
+  }
+
+  /** Service-role / Copi path — no auth header required. */
+  async getDayBalancesInternal(params: {
+    businessCenterId: string;
+    entryDate: string;
+    organizationId: string;
+  }): Promise<CashDayBalancesDto> {
     await this.assertBusinessCenter(params.organizationId, params.businessCenterId);
 
     const entryDate = this.requireDate(params.entryDate, 'entryDate');
@@ -87,16 +93,24 @@ export class CashService {
     fromDate: string;
     organizationId: string;
     toDate: string;
+    userId?: string;
   }): Promise<CashRangeReportDto> {
-    const user = await resolveAuthUser(
-      this.supabaseService,
-      params.authorizationHeader,
-    );
-    await assertOrgMembership({
+    await this.assertCashCaller(params);
+    return this.getRangeReportInternal({
+      businessCenterId: params.businessCenterId,
+      fromDate: params.fromDate,
       organizationId: params.organizationId,
-      supabaseService: this.supabaseService,
-      userId: user.id,
+      toDate: params.toDate,
     });
+  }
+
+  /** Service-role / Copi path — no auth header required. */
+  async getRangeReportInternal(params: {
+    businessCenterId: string;
+    fromDate: string;
+    organizationId: string;
+    toDate: string;
+  }): Promise<CashRangeReportDto> {
     await this.assertBusinessCenter(params.organizationId, params.businessCenterId);
 
     const fromDate = this.requireDate(params.fromDate, 'fromDate');
@@ -184,10 +198,31 @@ export class CashService {
       this.supabaseService,
       params.authorizationHeader,
     );
+    return this.createManualEntryForUser({
+      amountCents: params.amountCents,
+      businessCenterId: params.businessCenterId,
+      concept: params.concept,
+      entryDate: params.entryDate,
+      entryType: params.entryType,
+      organizationId: params.organizationId,
+      userId: user.id,
+    });
+  }
+
+  /** Copi / service-role path that already knows the acting user. */
+  async createManualEntryForUser(params: {
+    amountCents: number;
+    businessCenterId: string;
+    concept: string;
+    entryDate: string;
+    entryType: CashEntryType;
+    organizationId: string;
+    userId: string;
+  }): Promise<CashLedgerEntryDto> {
     await assertOrgMembership({
       organizationId: params.organizationId,
       supabaseService: this.supabaseService,
-      userId: user.id,
+      userId: params.userId,
     });
     await this.assertBusinessCenter(params.organizationId, params.businessCenterId);
 
@@ -208,7 +243,7 @@ export class CashService {
         amount_cents: amountCents,
         business_center_id: params.businessCenterId,
         concept,
-        created_by: user.id,
+        created_by: params.userId,
         entry_date: entryDate,
         entry_type: params.entryType,
         organization_id: params.organizationId,
@@ -447,6 +482,21 @@ export class CashService {
     }
 
     return { ok: true };
+  }
+
+  private async assertCashCaller(params: {
+    authorizationHeader?: string;
+    organizationId: string;
+    userId?: string;
+  }): Promise<void> {
+    const userId =
+      params.userId?.trim() ||
+      (await resolveAuthUser(this.supabaseService, params.authorizationHeader)).id;
+    await assertOrgMembership({
+      organizationId: params.organizationId,
+      supabaseService: this.supabaseService,
+      userId,
+    });
   }
 
   private async computeOpeningBalance(params: {

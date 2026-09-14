@@ -4,6 +4,8 @@ export type ParsedTaskItem = {
   clarificationQuestion: string | null;
   description: string;
   dueAt: string | null;
+  recurrenceFreq: 'daily' | 'weekly' | 'monthly' | null;
+  recurrenceWeekday: number | null;
   remindAt: string | null;
   title: string;
 };
@@ -25,6 +27,7 @@ export function parseCreateTaskItems(question: string, timezone: string): Parsed
     const { assigneeName, text } = extractAssignee(segment);
     const title = cleanTaskTitle(text);
     const due = inferTaskSchedule(segment, timezone);
+    const recurrence = inferRecurrence(segment);
     const clarificationQuestion =
       due.needsExactTime && title.length > 0
         ? `¿A qué hora exacta querés completar «${title}»?`
@@ -41,6 +44,8 @@ export function parseCreateTaskItems(question: string, timezone: string): Parsed
       clarificationQuestion,
       description,
       dueAt: due.dueAt,
+      recurrenceFreq: recurrence.freq,
+      recurrenceWeekday: recurrence.weekday,
       remindAt: due.remindAt,
       title: title.length > 0 ? title.slice(0, 48) : 'Tarea de Copi',
     };
@@ -72,6 +77,8 @@ export function buildCreateTaskPayload(
     clarificationQuestions: clarifications,
     description: question,
     dueAt: tasks[0]?.dueAt ?? null,
+    recurrenceFreq: tasks[0]?.recurrenceFreq ?? null,
+    recurrenceWeekday: tasks[0]?.recurrenceWeekday ?? null,
     remindAt: tasks[0]?.remindAt ?? null,
     tasks,
     title: tasks[0]?.title ?? 'Tarea de Copi',
@@ -283,6 +290,8 @@ export function readTaskItems(payload: Record<string, unknown>): ParsedTaskItem[
       clarificationQuestion: null,
       description: (payload.description as string | undefined) ?? title,
       dueAt: (payload.dueAt as string | null | undefined) ?? null,
+      recurrenceFreq: readRecurrenceFreq(payload.recurrenceFreq),
+      recurrenceWeekday: readRecurrenceWeekday(payload.recurrenceWeekday),
       remindAt: (payload.remindAt as string | null | undefined) ?? null,
       title,
     },
@@ -311,9 +320,22 @@ function normalizeTaskItem(raw: unknown, fallbackDescription: string): ParsedTas
         ? item.description.trim()
         : fallbackDescription,
     dueAt: typeof item.dueAt === 'string' ? item.dueAt : null,
+    recurrenceFreq: readRecurrenceFreq(item.recurrenceFreq),
+    recurrenceWeekday: readRecurrenceWeekday(item.recurrenceWeekday),
     remindAt: typeof item.remindAt === 'string' ? item.remindAt : null,
     title: title.slice(0, 48),
   };
+}
+
+function readRecurrenceFreq(value: unknown): 'daily' | 'weekly' | 'monthly' | null {
+  return value === 'daily' || value === 'weekly' || value === 'monthly' ? value : null;
+}
+
+function readRecurrenceWeekday(value: unknown): number | null {
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < 0 || value > 6) {
+    return null;
+  }
+  return value;
 }
 
 export function extractAssignee(segment: string): { assigneeName: string | null; text: string } {
@@ -623,6 +645,7 @@ function inferTaskSchedule(
   let hour: number | null = null;
   let minute = 0;
   let needsExactTime = false;
+  let absoluteRemindOnly = false;
   const morningOfDay = /\b(esta\s+mañana|por\s+la\s+mañana|a\s+la\s+mañana)\b/i.test(segment);
   const afternoonOfDay = /\b(tarde|esta\s+tarde|a\s+la\s+tarde|por\s+la\s+tarde)\b/i.test(segment);
   // Remove time-of-day phrases before detecting "mañana" = tomorrow.
@@ -636,6 +659,16 @@ function inferTaskSchedule(
     dayOffset = 1;
   } else if (/\bhoy\b/i.test(segment)) {
     dayOffset = 0;
+  }
+
+  const weekdayOffset = nextWeekdayOffset(segment, local);
+  if (weekdayOffset != null) {
+    dayOffset = weekdayOffset;
+  }
+
+  const absoluteDate = parseAbsoluteDateHint(segment, local);
+  if (absoluteDate) {
+    dayOffset = absoluteDate.dayOffset;
   }
 
   const beforeMatch = segment.match(
@@ -665,9 +698,22 @@ function inferTaskSchedule(
   } else if (morningOfDay) {
     hour = 10;
     needsExactTime = true;
-  } else if (dayOffset > 0) {
+  } else if (dayOffset > 0 || weekdayOffset != null || absoluteDate) {
     hour = 10;
     needsExactTime = true;
+  }
+
+  // Absolute remind phrases: "avisame a las 15", "recordame el viernes"
+  if (
+    hour == null &&
+    /\b(avisame|avisá|avisa|recordame|recordá|recuerdame)\b/i.test(segment)
+  ) {
+    hour = 9;
+    needsExactTime = dayOffset === 0 && weekdayOffset == null && !absoluteDate;
+    absoluteRemindOnly = true;
+    if (dayOffset === 0 && weekdayOffset == null && !absoluteDate) {
+      dayOffset = 1; // default mañana 09:00
+    }
   }
 
   if (hour == null) {
@@ -687,8 +733,105 @@ function inferTaskSchedule(
     return { dueAt: null, needsExactTime, remindAt: null };
   }
 
-  const remindAt = new Date(new Date(dueAt).getTime() - REMINDER_LEAD_MS).toISOString();
+  const remindAt = absoluteRemindOnly
+    ? dueAt
+    : new Date(new Date(dueAt).getTime() - REMINDER_LEAD_MS).toISOString();
   return { dueAt, needsExactTime, remindAt };
+}
+
+function inferRecurrence(segment: string): {
+  freq: 'daily' | 'weekly' | 'monthly' | null;
+  weekday: number | null;
+} {
+  const normalized = segment
+    .toLocaleLowerCase('es-AR')
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '');
+
+  if (/\bcada\s+(dia|d[ií]a)\b/.test(normalized) || /\bdiario\b/.test(normalized)) {
+    return { freq: 'daily', weekday: null };
+  }
+  if (/\bcada\s+semana\b/.test(normalized) || /\bsemanal\b/.test(normalized)) {
+    const weekday = weekdayFromText(normalized);
+    return { freq: 'weekly', weekday };
+  }
+  if (/\bcada\s+mes\b/.test(normalized) || /\bmensual\b/.test(normalized)) {
+    return { freq: 'monthly', weekday: null };
+  }
+
+  const weekday = weekdayFromText(normalized);
+  if (weekday != null && /\bcada\b/.test(normalized)) {
+    return { freq: 'weekly', weekday };
+  }
+
+  return { freq: null, weekday: null };
+}
+
+const WEEKDAY_NAMES: Array<{ day: number; pattern: RegExp }> = [
+  { day: 0, pattern: /\bdomingos?\b/ },
+  { day: 1, pattern: /\blunes\b/ },
+  { day: 2, pattern: /\bmartes\b/ },
+  { day: 3, pattern: /\bmiercoles\b/ },
+  { day: 4, pattern: /\bjueves\b/ },
+  { day: 5, pattern: /\bviernes\b/ },
+  { day: 6, pattern: /\bsabados?\b/ },
+];
+
+function weekdayFromText(normalized: string): number | null {
+  for (const entry of WEEKDAY_NAMES) {
+    if (entry.pattern.test(normalized)) {
+      return entry.day;
+    }
+  }
+  return null;
+}
+
+function nextWeekdayOffset(
+  segment: string,
+  local: { day: number; hour: number; minute: number; month: number; year: number },
+): number | null {
+  const normalized = segment
+    .toLocaleLowerCase('es-AR')
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '');
+  const weekday = weekdayFromText(normalized);
+  if (weekday == null) {
+    return null;
+  }
+  // Approximate "current weekday" from a noon UTC stamp of local Y-M-D.
+  const stamp = new Date(Date.UTC(local.year, local.month - 1, local.day, 12, 0, 0));
+  const current = stamp.getUTCDay();
+  let delta = (weekday - current + 7) % 7;
+  if (delta === 0 && !/\bhoy\b/.test(normalized)) {
+    delta = 7;
+  }
+  return delta;
+}
+
+function parseAbsoluteDateHint(
+  segment: string,
+  local: { day: number; month: number; year: number },
+): { dayOffset: number } | null {
+  const match = segment.match(/\b(\d{1,2})[\/\-](\d{1,2})(?:[\/\-](\d{2,4}))?\b/);
+  if (!match) {
+    return null;
+  }
+  const day = Number.parseInt(match[1]!, 10);
+  const month = Number.parseInt(match[2]!, 10);
+  let year = match[3] ? Number.parseInt(match[3]!, 10) : local.year;
+  if (year < 100) {
+    year += 2000;
+  }
+  if (day < 1 || day > 31 || month < 1 || month > 12) {
+    return null;
+  }
+  const target = Date.UTC(year, month - 1, day, 12, 0, 0);
+  const today = Date.UTC(local.year, local.month - 1, local.day, 12, 0, 0);
+  const dayOffset = Math.round((target - today) / (24 * 60 * 60 * 1000));
+  if (dayOffset < -1 || dayOffset > 366) {
+    return null;
+  }
+  return { dayOffset };
 }
 
 function wallTimeToUtcIso(

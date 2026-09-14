@@ -151,6 +151,7 @@ export class AiController {
       return await this.ownerCopilotService.answerQuestion({
         authorizationHeader,
         businessCenterId: body.businessCenterId,
+        documentContext: body.documentContext,
         imageContext: body.imageContext,
         organizationId: body.organizationId,
         question: body.question,
@@ -331,6 +332,75 @@ export class AiController {
       parameters: body.parameters,
       reportKey: body.reportKey,
     });
+  }
+
+  @Get('copilot/custom-questions')
+  @ApiOperation({ summary: 'List saved Copi custom questions for the owner' })
+  async listCustomQuestions(
+    @Headers('authorization') authorizationHeader: string | undefined,
+    @Query('organizationId') organizationId: string,
+  ): Promise<{ questions: Array<{ id: string; label: string; question: string }> }> {
+    const userId = await this.requireOrgMember(authorizationHeader, organizationId);
+    const client = this.supabaseService.getServiceRoleClient();
+    const { data, error } = await client
+      .from('copi_custom_questions')
+      .select('id, label, question')
+      .eq('organization_id', organizationId)
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(50);
+    if (error) {
+      throw new BadRequestException(error.message);
+    }
+    return {
+      questions: ((data ?? []) as Array<{ id: string; label: string; question: string }>).map(
+        (row) => ({
+          id: row.id,
+          label: row.label,
+          question: row.question,
+        }),
+      ),
+    };
+  }
+
+  @Post('copilot/custom-questions')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Save a Copi custom question chip' })
+  async saveCustomQuestion(
+    @Headers('authorization') authorizationHeader: string | undefined,
+    @Body()
+    body: {
+      businessCenterId?: string;
+      label?: string;
+      organizationId: string;
+      question: string;
+    },
+  ): Promise<{ id: string }> {
+    const userId = await this.requireOrgMember(authorizationHeader, body.organizationId);
+    const question = body.question?.trim();
+    if (!question) {
+      throw new BadRequestException('question is required');
+    }
+    const label = (body.label?.trim() || question).slice(0, 48);
+    const client = this.supabaseService.getServiceRoleClient();
+    const { data, error } = await client
+      .from('copi_custom_questions')
+      .upsert(
+        {
+          business_center_id: body.businessCenterId ?? null,
+          label,
+          organization_id: body.organizationId,
+          question,
+          user_id: userId,
+        },
+        { onConflict: 'organization_id,user_id,question' },
+      )
+      .select('id')
+      .single<{ id: string }>();
+    if (error || !data) {
+      throw new BadRequestException(error?.message ?? 'No se pudo guardar la pregunta');
+    }
+    return { id: data.id };
   }
 
   private async requireOrgMember(

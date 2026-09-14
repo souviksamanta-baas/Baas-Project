@@ -1,6 +1,6 @@
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import type { ReactElement } from 'react';
-import { useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { Alert } from 'react-native';
 
 import { useOwnerSessionContext } from '../../../src/context/OwnerSessionProvider';
@@ -12,11 +12,21 @@ import { CopiChatScreen, type CopiComposerActions } from '../../../src/screens/C
 
 export default function CopiChatRoute(): ReactElement {
   const router = useRouter();
+  const { seedQuestion } = useLocalSearchParams<{ seedQuestion?: string }>();
   const copilot = useOwnerCopilotContext();
   const { dashboard } = useOwnerSessionContext();
   const canUseVoice = useFeatureGate('copiVoiceInput');
   const canUseVision = useFeatureGate('copiVisionInput');
   const organizationId = dashboard?.organization?.id ?? null;
+  const seededRef = useRef(false);
+
+  useEffect(() => {
+    if (seededRef.current || !seedQuestion?.trim()) {
+      return;
+    }
+    seededRef.current = true;
+    void copilot.askQuestion(seedQuestion.trim());
+  }, [copilot, seedQuestion]);
 
   const onVoiceText = useCallback(async (text: string) => {
     await copilot.askQuestion(text);

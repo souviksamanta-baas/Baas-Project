@@ -7,6 +7,11 @@ import {
   forwardRef,
 } from '@nestjs/common';
 
+import {
+  advanceByRecurrence,
+  buildRecurrenceInstanceSourceKey,
+  type RecurrenceFreq,
+} from '../ai/copi-defaults';
 import { InventoryService, type InventoryProduct } from '../inventory/inventory.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { SupabaseService } from '../../supabase/supabase.service';
@@ -42,9 +47,13 @@ export interface OwnerTaskRecord {
   organizationId: string;
   postponedUntil: string | null;
   priority: 'low' | 'normal' | 'high';
+  recurrenceFreq: RecurrenceFreq | null;
+  recurrenceWeekday: number | null;
+  remindAt: string | null;
   reminderSnoozedUntil: string | null;
   status: OwnerTaskStatus;
   taskType: OwnerTaskType;
+  templateKey: string | null;
   title: string;
 }
 
@@ -133,7 +142,9 @@ const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
 const TASK_MAINTENANCE_CONCURRENCY = 5;
 const DEFAULT_REMINDER_SNOOZE_MINUTES = 10;
 const TASK_SELECT =
-  'id, organization_id, business_center_id, title, description, status, due_at, postponed_until, reminder_snoozed_until, task_type, priority, contact_id, conversation_id, assigned_to_user_id, created_by_user_id';
+  'id, organization_id, business_center_id, title, description, status, due_at, remind_at, postponed_until, reminder_snoozed_until, recurrence_freq, recurrence_weekday, template_key, task_type, priority, contact_id, conversation_id, assigned_to_user_id, created_by_user_id';
+
+const RECURRENCE_FREQS = new Set<RecurrenceFreq>(['daily', 'weekly', 'monthly']);
 
 @Injectable()
 export class TasksService {
@@ -269,8 +280,12 @@ export class TasksService {
     metadata?: Record<string, unknown>;
     organizationId: string;
     priority?: 'low' | 'normal' | 'high';
+    recurrenceFreq?: RecurrenceFreq | null;
+    recurrenceWeekday?: number | null;
+    remindAt?: string | null;
     sourceKey: string;
     taskType?: OwnerTaskType;
+    templateKey?: string | null;
     title: string;
   }): Promise<OwnerTaskRecord> {
     this.assertCreateMandatoryFields({
@@ -278,6 +293,10 @@ export class TasksService {
       description: params.description ?? null,
       dueAt: params.dueAt ?? null,
       title: params.title,
+    });
+    const recurrence = this.normalizeRecurrenceFields({
+      recurrenceFreq: params.recurrenceFreq,
+      recurrenceWeekday: params.recurrenceWeekday,
     });
 
     const client = this.supabaseService.getServiceRoleClient();
@@ -294,9 +313,13 @@ export class TasksService {
         metadata: params.metadata ?? {},
         organization_id: params.organizationId,
         priority: params.priority ?? 'normal',
+        recurrence_freq: recurrence.recurrenceFreq,
+        recurrence_weekday: recurrence.recurrenceWeekday,
+        remind_at: params.remindAt ?? null,
         source_key: params.sourceKey,
         status: 'pending',
         task_type: params.taskType ?? 'manual',
+        template_key: params.templateKey ?? null,
         title: params.title,
       })
       .select(TASK_SELECT)
@@ -327,7 +350,11 @@ export class TasksService {
     dueAt?: string | null;
     organizationId: string;
     priority?: 'low' | 'normal' | 'high';
+    recurrenceFreq?: RecurrenceFreq | null;
+    recurrenceWeekday?: number | null;
+    remindAt?: string | null;
     taskId: string;
+    templateKey?: string | null;
     title?: string;
   }): Promise<OwnerTaskRecord> {
     const updates: Record<string, unknown> = {};
@@ -343,11 +370,30 @@ export class TasksService {
     if (params.dueAt !== undefined) {
       updates.due_at = params.dueAt;
     }
+    if (params.remindAt !== undefined) {
+      updates.remind_at = params.remindAt;
+    }
     if (params.priority !== undefined) {
       updates.priority = params.priority;
     }
     if (params.contactId !== undefined) {
       updates.contact_id = params.contactId;
+    }
+    if (params.templateKey !== undefined) {
+      updates.template_key = params.templateKey;
+    }
+    if (params.recurrenceFreq !== undefined || params.recurrenceWeekday !== undefined) {
+      const recurrence = this.normalizeRecurrenceFields({
+        allowPartial: true,
+        recurrenceFreq: params.recurrenceFreq,
+        recurrenceWeekday: params.recurrenceWeekday,
+      });
+      if (params.recurrenceFreq !== undefined) {
+        updates.recurrence_freq = recurrence.recurrenceFreq;
+      }
+      if (params.recurrenceWeekday !== undefined) {
+        updates.recurrence_weekday = recurrence.recurrenceWeekday;
+      }
     }
 
     if (Object.keys(updates).length === 0) {
@@ -416,7 +462,19 @@ export class TasksService {
       throw new Error(`Failed to update owner task: ${error.message}`);
     }
 
-    const task = toOwnerTaskRecord(data as Record<string, unknown>);
+    let task = toOwnerTaskRecord(data as Record<string, unknown>);
+
+    if (params.status === 'completed' && task.recurrenceFreq) {
+      try {
+        task = await this.materializeNextRecurrenceInstance(task);
+      } catch (error) {
+        console.error('Failed to materialize recurring task instance', {
+          error: error instanceof Error ? error.message : error,
+          taskId: params.taskId,
+        });
+      }
+    }
+
     try {
       await this.emitStatusChangedIfNeeded({
         actorUserId: params.actorUserId ?? params.completedByUserId ?? null,
@@ -590,6 +648,124 @@ export class TasksService {
     return ((data ?? []) as Array<{ user_id: string }>)
       .map((row) => row.user_id)
       .filter((userId): userId is string => Boolean(userId));
+  }
+
+  private normalizeRecurrenceFields(params: {
+    allowPartial?: boolean;
+    recurrenceFreq?: RecurrenceFreq | null;
+    recurrenceWeekday?: number | null;
+  }): {
+    recurrenceFreq: RecurrenceFreq | null;
+    recurrenceWeekday: number | null;
+  } {
+    let recurrenceFreq: RecurrenceFreq | null | undefined = params.recurrenceFreq;
+    let recurrenceWeekday: number | null | undefined = params.recurrenceWeekday;
+
+    if (recurrenceFreq !== undefined && recurrenceFreq !== null) {
+      if (!RECURRENCE_FREQS.has(recurrenceFreq)) {
+        throw new BadRequestException(
+          'recurrenceFreq debe ser daily, weekly o monthly.',
+        );
+      }
+    }
+
+    if (recurrenceWeekday !== undefined && recurrenceWeekday !== null) {
+      if (
+        !Number.isInteger(recurrenceWeekday) ||
+        recurrenceWeekday < 0 ||
+        recurrenceWeekday > 6
+      ) {
+        throw new BadRequestException(
+          'recurrenceWeekday debe ser un entero entre 0 (domingo) y 6 (sábado).',
+        );
+      }
+    }
+
+    if (!params.allowPartial) {
+      return {
+        recurrenceFreq: recurrenceFreq ?? null,
+        recurrenceWeekday: recurrenceWeekday ?? null,
+      };
+    }
+
+    return {
+      recurrenceFreq: recurrenceFreq === undefined ? null : recurrenceFreq,
+      recurrenceWeekday: recurrenceWeekday === undefined ? null : recurrenceWeekday,
+    };
+  }
+
+  private async materializeNextRecurrenceInstance(
+    parent: OwnerTaskRecord,
+  ): Promise<OwnerTaskRecord> {
+    if (!parent.recurrenceFreq || !parent.dueAt) {
+      return parent;
+    }
+
+    const templateKey = parent.templateKey ?? parent.id;
+    const nextDueAt = advanceByRecurrence({
+      fromIso: parent.dueAt,
+      freq: parent.recurrenceFreq,
+      weekday: parent.recurrenceWeekday,
+    });
+    const nextRemindAt = parent.remindAt
+      ? advanceByRecurrence({
+          fromIso: parent.remindAt,
+          freq: parent.recurrenceFreq,
+          weekday: parent.recurrenceWeekday,
+        })
+      : null;
+    const sourceKey = buildRecurrenceInstanceSourceKey({
+      dueAtIso: nextDueAt,
+      templateKey,
+    });
+
+    const client = this.supabaseService.getServiceRoleClient();
+
+    if (!parent.templateKey) {
+      const { error: parentUpdateError } = await client
+        .from('owner_tasks')
+        .update({ template_key: templateKey })
+        .eq('id', parent.id)
+        .eq('organization_id', parent.organizationId);
+
+      if (parentUpdateError) {
+        throw new Error(
+          `Failed to set template_key on recurring parent: ${parentUpdateError.message}`,
+        );
+      }
+      parent = { ...parent, templateKey };
+    }
+
+    const { error: insertError } = await client.from('owner_tasks').insert({
+      assigned_to_user_id: parent.assignedToUserId,
+      business_center_id: parent.businessCenterId,
+      contact_id: parent.contactId,
+      conversation_id: parent.conversationId,
+      created_by_user_id: parent.createdByUserId,
+      description: parent.description,
+      due_at: nextDueAt,
+      metadata: { automation: 'recurrence', parentTaskId: parent.id },
+      organization_id: parent.organizationId,
+      priority: parent.priority,
+      recurrence_freq: parent.recurrenceFreq,
+      recurrence_weekday: parent.recurrenceWeekday,
+      remind_at: nextRemindAt,
+      source_key: sourceKey,
+      status: 'pending',
+      task_type: parent.taskType,
+      template_key: templateKey,
+      title: parent.title,
+    });
+
+    if (insertError) {
+      // Idempotent: unique (organization_id, source_key) means this instance already exists.
+      if (insertError.code === '23505') {
+        return parent;
+      }
+      throw new Error(`Failed to materialize recurring task: ${insertError.message}`);
+    }
+
+    return parent;
   }
 
   private assertCreateMandatoryFields(params: {
@@ -1061,9 +1237,14 @@ function toOwnerTaskRecord(row: Record<string, unknown>): OwnerTaskRecord {
     organizationId: (row.organization_id as string | null) ?? '',
     postponedUntil: (row.postponed_until as string | null) ?? null,
     priority: (row.priority as OwnerTaskRecord['priority']) ?? 'normal',
+    recurrenceFreq: (row.recurrence_freq as RecurrenceFreq | null) ?? null,
+    recurrenceWeekday:
+      typeof row.recurrence_weekday === 'number' ? row.recurrence_weekday : null,
+    remindAt: (row.remind_at as string | null) ?? null,
     reminderSnoozedUntil: (row.reminder_snoozed_until as string | null) ?? null,
     status: row.status as OwnerTaskStatus,
     taskType: (row.task_type as OwnerTaskType) ?? 'manual',
+    templateKey: (row.template_key as string | null) ?? null,
     title: row.title as string,
   };
 }

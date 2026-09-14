@@ -1,9 +1,11 @@
 import { Injectable } from '@nestjs/common';
 
 import { AppointmentsService } from '../appointments/appointments.service';
+import { CashService } from '../cash/cash.service';
 import { InventoryService } from '../inventory/inventory.service';
 import { TasksService } from '../tasks/tasks.service';
 import { SupabaseService } from '../../supabase/supabase.service';
+import { parseCashReportRange, todayYmd } from './copi-defaults';
 import { getZonedDayBounds, normalizeTimeZone } from './copi-timezone.util';
 import {
   extractSalesProductFilter,
@@ -48,6 +50,7 @@ export class CopiToolRegistry {
     private readonly inventoryService: InventoryService,
     private readonly tasksService: TasksService,
     private readonly appointmentsService: AppointmentsService,
+    private readonly cashService: CashService,
   ) {}
 
   async executeTools(context: CopiQueryContext, tools: CopiToolName[]): Promise<CopiToolResult[]> {
@@ -103,6 +106,18 @@ export class CopiToolRegistry {
         return this.appointmentsUpcoming(context);
       case 'appointments_today':
         return this.appointmentsToday(context);
+      case 'find_product':
+        return this.findProduct(context);
+      case 'cash_day':
+        return this.cashDay(context);
+      case 'cash_report':
+        return this.cashReport(context);
+      case 'conversation_thread':
+        return this.conversationThread(context);
+      case 'list_presupuestos':
+        return this.listPresupuestos(context);
+      case 'analyze_presupuesto':
+        return this.analyzePresupuesto(context);
       default:
         return { payload: {}, summary: 'Herramienta no disponible.' };
     }
@@ -742,6 +757,269 @@ export class CopiToolRegistry {
       summary: `Equipo: ${members.length} miembro(s) en la organización.`,
     };
   }
+
+  private async findProduct(context: CopiQueryContext): Promise<Omit<CopiToolResult, 'key'>> {
+    const query = extractProductQuery(context.question);
+    if (!query) {
+      return {
+        payload: { count: 0, products: [], query: null },
+        summary: 'No pude detectar el nombre del producto a buscar.',
+      };
+    }
+
+    const products = await this.inventoryService.lookupProducts({
+      businessCenterId: context.businessCenterId,
+      limit: 8,
+      organizationId: context.organizationId,
+      query,
+    });
+
+    const listed = products.map((product) => ({
+      id: product.id,
+      name: product.name,
+      quantityOnHand: product.stockQuantity,
+      reorderThreshold: product.reorderThreshold,
+      sku: product.sku,
+      unitCode: product.unitCode,
+      unitPriceCents: product.unitPriceCents,
+    }));
+
+    const preview = listed
+      .map(
+        (product) =>
+          `${formatCopiProductLink(product.id, product.name)} (${product.quantityOnHand} ${product.unitCode})`,
+      )
+      .join('; ');
+
+    return {
+      payload: { count: listed.length, products: listed, query },
+      summary:
+        listed.length === 0
+          ? `No encontré productos que coincidan con "${query}".`
+          : `Productos para "${query}": ${listed.length}. ${preview}.`,
+    };
+  }
+
+  private async cashDay(context: CopiQueryContext): Promise<Omit<CopiToolResult, 'key'>> {
+    const entryDate = todayYmd(context.now, normalizeTimeZone(context.timezone));
+    const day = await this.cashService.getDayBalancesInternal({
+      businessCenterId: context.businessCenterId,
+      entryDate,
+      organizationId: context.organizationId,
+    });
+
+    return {
+      payload: {
+        egresosCents: day.egresosCents,
+        entryCount: day.entries.length,
+        entryDate: day.entryDate,
+        ingresosCents: day.ingresosCents,
+        saldoFinalCents: day.saldoFinalCents,
+        saldoInicialCents: day.saldoInicialCents,
+      },
+      summary: `Caja del ${entryDate}: ingresos $${this.formatCents(day.ingresosCents)}, egresos $${this.formatCents(day.egresosCents)}, saldo final $${this.formatCents(day.saldoFinalCents)}.`,
+    };
+  }
+
+  private async cashReport(context: CopiQueryContext): Promise<Omit<CopiToolResult, 'key'>> {
+    const timeZone = normalizeTimeZone(context.timezone);
+    const range = parseCashReportRange(context.question, context.now, timeZone);
+    const report = await this.cashService.getRangeReportInternal({
+      businessCenterId: context.businessCenterId,
+      fromDate: range.fromYmd,
+      organizationId: context.organizationId,
+      toDate: range.toYmd,
+    });
+
+    return {
+      payload: {
+        closingCents: report.closingCents,
+        dayCount: report.days.length,
+        egresosCents: report.egresosCents,
+        fromDate: report.fromDate,
+        ingresosCents: report.ingresosCents,
+        openingCents: report.openingCents,
+        toDate: report.toDate,
+      },
+      summary: `Caja ${report.fromDate} → ${report.toDate}: ingresos $${this.formatCents(report.ingresosCents)}, egresos $${this.formatCents(report.egresosCents)}, cierre $${this.formatCents(report.closingCents)}.`,
+    };
+  }
+
+  private async conversationThread(
+    context: CopiQueryContext,
+  ): Promise<Omit<CopiToolResult, 'key'>> {
+    let conversationId = extractConversationIdHint(context);
+    if (!conversationId) {
+      const lookup = this.supabaseService.getServiceRoleClient();
+      const { data: assigned } = await lookup
+        .from('conversations')
+        .select('id')
+        .eq('organization_id', context.organizationId)
+        .eq('assigned_to_copi_user_id', context.userId)
+        .not('assigned_to_copi_at', 'is', null)
+        .order('assigned_to_copi_at', { ascending: false })
+        .limit(1)
+        .maybeSingle<{ id: string }>();
+      conversationId = assigned?.id ?? null;
+    }
+    if (!conversationId) {
+      return {
+        payload: { conversationId: null, count: 0, messages: [] },
+        summary:
+          'No hay un chat concreto en el contexto. Indicá la conversación o abrila desde Inbox.',
+      };
+    }
+
+    const client = this.supabaseService.getServiceRoleClient();
+    const { data, error } = await client
+      .from('conversation_messages')
+      .select('id, body, direction, created_at, sender_phone')
+      .eq('organization_id', context.organizationId)
+      .eq('business_center_id', context.businessCenterId)
+      .eq('conversation_id', conversationId)
+      .order('created_at', { ascending: false })
+      .limit(20);
+
+    if (error) {
+      throw new Error(`Failed to load conversation thread: ${error.message}`);
+    }
+
+    const messages = (data ?? []).map((row) => ({
+      body: (row as { body: string | null }).body,
+      createdAt: (row as { created_at: string }).created_at,
+      direction: (row as { direction: string }).direction,
+      id: (row as { id: string }).id,
+      senderPhone: (row as { sender_phone: string | null }).sender_phone,
+    }));
+
+    return {
+      payload: { conversationId, count: messages.length, messages: messages.reverse() },
+      summary:
+        messages.length === 0
+          ? `Conversación ${conversationId}: sin mensajes recientes.`
+          : `Conversación ${conversationId}: ${messages.length} mensaje(s) reciente(s).`,
+    };
+  }
+
+  private async listPresupuestos(context: CopiQueryContext): Promise<Omit<CopiToolResult, 'key'>> {
+    const client = this.supabaseService.getServiceRoleClient();
+    const { data, error } = await client
+      .from('sell_quotes')
+      .select('id, status, created_at, updated_at, draft')
+      .eq('organization_id', context.organizationId)
+      .eq('business_center_id', context.businessCenterId)
+      .order('updated_at', { ascending: false })
+      .limit(10);
+
+    if (error) {
+      throw new Error(`Failed to list presupuestos: ${error.message}`);
+    }
+
+    const quotes = ((data ?? []) as Array<{
+      created_at: string;
+      draft: { cart?: unknown[]; clientLabel?: string } | null;
+      id: string;
+      status: string;
+      updated_at: string;
+    }>).map((row) => {
+      const cart = Array.isArray(row.draft?.cart) ? row.draft.cart : [];
+      return {
+        clientLabel:
+          typeof row.draft?.clientLabel === 'string' ? row.draft.clientLabel : 'Estandar',
+        createdAt: row.created_at,
+        id: row.id,
+        lineCount: cart.length,
+        status: row.status,
+        updatedAt: row.updated_at,
+      };
+    });
+
+    return {
+      payload: { count: quotes.length, quotes },
+      summary:
+        quotes.length === 0
+          ? 'Presupuestos: no hay presupuestos guardados.'
+          : `Presupuestos: ${quotes.length} reciente(s).`,
+    };
+  }
+
+  private async analyzePresupuesto(
+    context: CopiQueryContext,
+  ): Promise<Omit<CopiToolResult, 'key'>> {
+    const quoteId = extractPresupuestoId(context.question);
+    const client = this.supabaseService.getServiceRoleClient();
+
+    let query = client
+      .from('sell_quotes')
+      .select('id, status, created_at, updated_at, draft')
+      .eq('organization_id', context.organizationId)
+      .eq('business_center_id', context.businessCenterId);
+
+    if (quoteId) {
+      query = query.eq('id', quoteId);
+    } else {
+      query = query.order('updated_at', { ascending: false }).limit(1);
+    }
+
+    const { data, error } = await query.maybeSingle<{
+      created_at: string;
+      draft: {
+        cart?: Array<{
+          name?: string;
+          quantity?: number;
+          unitPriceCents?: number;
+          weightGramsInput?: string | null;
+        }>;
+        clientLabel?: string;
+        discountMode?: string;
+        discountValue?: number;
+      } | null;
+      id: string;
+      status: string;
+      updated_at: string;
+    }>();
+
+    if (error) {
+      throw new Error(`Failed to analyze presupuesto: ${error.message}`);
+    }
+    if (!data) {
+      return {
+        payload: { quote: null },
+        summary: quoteId
+          ? `No encontré el presupuesto ${quoteId}.`
+          : 'No hay presupuestos para analizar.',
+      };
+    }
+
+    const cart = Array.isArray(data.draft?.cart) ? data.draft!.cart! : [];
+    let subtotalCents = 0;
+    const lines = cart.map((line) => {
+      const quantity = Number(line.quantity ?? 1) || 1;
+      const unitPriceCents = Number(line.unitPriceCents ?? 0) || 0;
+      const lineTotal = Math.round(quantity * unitPriceCents);
+      subtotalCents += lineTotal;
+      return {
+        lineTotalCents: lineTotal,
+        name: line.name ?? 'Ítem',
+        quantity,
+        unitPriceCents,
+        weightGramsInput: line.weightGramsInput ?? null,
+      };
+    });
+
+    return {
+      payload: {
+        clientLabel: data.draft?.clientLabel ?? 'Estandar',
+        discountMode: data.draft?.discountMode ?? 'amount',
+        discountValue: data.draft?.discountValue ?? 0,
+        id: data.id,
+        lines,
+        status: data.status,
+        subtotalCents,
+      },
+      summary: `Presupuesto ${data.id}: ${lines.length} ítem(s), subtotal ≈ $${this.formatCents(subtotalCents)}, estado ${data.status}.`,
+    };
+  }
 }
 
 function startOfDay(date: Date): string {
@@ -759,6 +1037,51 @@ function endOfDay(date: Date): string {
 function extractContactHint(question: string): string {
   const match = question.match(/\b(?:con|de|para)\s+([a-záéíóúñ0-9+\s]{2,40})/i);
   return match?.[1]?.trim() ?? '';
+}
+
+function extractProductQuery(question: string): string | null {
+  const patterns = [
+    /\b(?:producto|productos|buscar|busc[aá]|encontr[aá]|stock\s+de|precio\s+de)\s+(.+)$/i,
+    /\b(?:hay|ten[eé]s|tenemos)\s+(.+?)(?:\?|$)/i,
+  ];
+  for (const pattern of patterns) {
+    const match = question.match(pattern);
+    const raw = match?.[1]?.trim();
+    if (raw && raw.length >= 2) {
+      return raw
+        .replace(/\b(por\s+favor|pls|gracias)\b/gi, '')
+        .replace(/[?.!,]+$/g, '')
+        .trim()
+        .slice(0, 80);
+    }
+  }
+  return null;
+}
+
+function extractConversationIdHint(context: CopiQueryContext): string | null {
+  const uuid =
+    context.question.match(
+      /\b([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\b/i,
+    )?.[1] ?? null;
+  if (uuid) {
+    return uuid;
+  }
+
+  for (const turn of [...context.conversationHistory].reverse()) {
+    const match = turn.body.match(
+      /\bconversaci[oó]n[:\s]+([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\b/i,
+    );
+    if (match?.[1]) {
+      return match[1];
+    }
+  }
+
+  return null;
+}
+
+function extractPresupuestoId(question: string): string | null {
+  const match = question.match(/\b(PRES-[A-Z0-9]+)\b/i);
+  return match?.[1]?.toUpperCase() ?? null;
 }
 
 function formatDateEsAr(iso: string, timeZone: string): string {

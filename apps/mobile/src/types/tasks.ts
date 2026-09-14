@@ -22,9 +22,13 @@ export interface OwnerTask {
   postponedUntil: string | null;
   presupuestoId: string | null;
   priority: 'low' | 'normal' | 'high';
+  recurrenceFreq?: 'daily' | 'weekly' | 'monthly' | null;
+  recurrenceWeekday?: number | null;
+  remindAt?: string | null;
   reminderSnoozedUntil: string | null;
   status: OwnerTaskStatus;
   taskType: OwnerTaskType;
+  templateKey?: string | null;
   title: string;
 }
 

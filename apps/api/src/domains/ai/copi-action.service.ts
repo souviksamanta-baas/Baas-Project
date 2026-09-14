@@ -1,19 +1,32 @@
 import { Injectable, Optional } from '@nestjs/common';
 
 import { AppointmentsService } from '../appointments/appointments.service';
+import { CashService } from '../cash/cash.service';
+import { InventoryService } from '../inventory/inventory.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { TasksService } from '../tasks/tasks.service';
+import { WhatsAppOutboundMessageService } from '../whatsapp/whatsapp-outbound-message.service';
 import { SupabaseService } from '../../supabase/supabase.service';
 import type { CopiActionProposal, CopiActionType, CopiQueryContext } from './copi.types';
+import {
+  COPI_DEFAULT_PRODUCT_REORDER,
+  COPI_SUPPORT_TICKET_SUBJECT,
+  defaultTomorrowNineAmIso,
+  softDefaultAssumptionsLine,
+  todayYmd,
+  truncateLabel,
+} from './copi-defaults';
 import {
   detectProActionIntent,
   mentionsAppointmentIntent,
   normalizeCopiQuestion,
 } from './copi-intent-router';
+import { SalesAiService } from './sales-ai.service';
 import {
   buildCreateAppointmentPayload,
   buildCreateTaskPayload,
   parseCreatePresupuestoRequest,
+  parseCreateTaskItems,
   readTaskItems,
   summarizeCreateAppointmentPayload,
   summarizeCreateTaskPayload,
@@ -28,6 +41,10 @@ export class CopiActionService {
     private readonly supabaseService: SupabaseService,
     private readonly tasksService: TasksService,
     private readonly appointmentsService: AppointmentsService,
+    private readonly inventoryService: InventoryService,
+    private readonly cashService: CashService,
+    private readonly whatsAppOutbound: WhatsAppOutboundMessageService,
+    private readonly salesAiService: SalesAiService,
     @Optional() private readonly notificationsService?: NotificationsService,
   ) {}
 
@@ -38,7 +55,13 @@ export class CopiActionService {
 
     const actionType = inferCopiActionType(context.question);
     const timezone = context.timezone || DEFAULT_TIMEZONE;
-    const payload = buildActionPayload(context.question, actionType, timezone);
+    let payload = buildActionPayload(context.question, actionType, timezone);
+    if (actionType === 'add_stock') {
+      payload = await this.enrichAddStockPayload(context, payload);
+    }
+    if (actionType === 'propose_customer_reply') {
+      payload = await this.enrichCustomerReplyPayload(context, payload);
+    }
     const client = this.supabaseService.getServiceRoleClient();
     const { data, error } = await client
       .from('copi_action_proposals')
@@ -188,6 +211,20 @@ export class CopiActionService {
               ? item.description
               : item.title;
 
+          const recurrenceFreq =
+            (item as { recurrenceFreq?: 'daily' | 'weekly' | 'monthly' | null }).recurrenceFreq ??
+            (params.payload.recurrenceFreq as 'daily' | 'weekly' | 'monthly' | null | undefined) ??
+            null;
+          const recurrenceWeekday =
+            (item as { recurrenceWeekday?: number | null }).recurrenceWeekday ??
+            (typeof params.payload.recurrenceWeekday === 'number'
+              ? params.payload.recurrenceWeekday
+              : null);
+          const templateKey =
+            typeof params.payload.templateKey === 'string' && params.payload.templateKey.trim()
+              ? params.payload.templateKey.trim()
+              : null;
+
           const task = await this.tasksService.createTask({
             assignedToUserId,
             businessCenterId: params.businessCenterId,
@@ -207,12 +244,15 @@ export class CopiActionService {
                   ? { clarificationQuestion: item.clarificationQuestion }
                   : {}),
               copi: true,
-              ...(item.remindAt ? { remindAt: item.remindAt } : {}),
             },
             organizationId: params.organizationId,
             priority: (params.payload.priority as 'low' | 'normal' | 'high' | undefined) ?? 'normal',
+            recurrenceFreq,
+            recurrenceWeekday,
+            remindAt: item.remindAt ?? null,
             sourceKey: `copi:${params.userId}:${baseKey}:${index}`,
             taskType: 'copi',
+            templateKey,
             title: item.title,
           });
           created.push({
@@ -489,6 +529,10 @@ export class CopiActionService {
           },
           notes,
           organizationId: params.organizationId,
+          remindAt:
+            typeof params.payload.remindAt === 'string' && params.payload.remindAt.trim()
+              ? params.payload.remindAt
+              : null,
           startsAt,
           title,
         });
@@ -576,6 +620,315 @@ export class CopiActionService {
           appointmentId: appointment.id,
           assignedToUserId: appointment.assignedToUserId,
         };
+      }
+      case 'schedule_reminder': {
+        const title =
+          typeof params.payload.title === 'string' && params.payload.title.trim()
+            ? params.payload.title.trim()
+            : 'Recordatorio';
+        const remindAt =
+          typeof params.payload.remindAt === 'string' && params.payload.remindAt.trim()
+            ? params.payload.remindAt
+            : defaultTomorrowNineAmIso(new Date());
+        const recurrenceFreq =
+          (params.payload.recurrenceFreq as 'daily' | 'weekly' | 'monthly' | null | undefined) ??
+          null;
+        const recurrenceWeekday =
+          typeof params.payload.recurrenceWeekday === 'number'
+            ? params.payload.recurrenceWeekday
+            : null;
+        const task = await this.tasksService.createTask({
+          assignedToUserId: params.userId,
+          businessCenterId: params.businessCenterId,
+          createdByUserId: params.userId,
+          description:
+            typeof params.payload.description === 'string'
+              ? params.payload.description
+              : title,
+          dueAt: remindAt,
+          metadata: { copi: true, reminder: true },
+          organizationId: params.organizationId,
+          priority: 'normal',
+          recurrenceFreq,
+          recurrenceWeekday,
+          remindAt,
+          sourceKey: `copi:reminder:${params.userId}:${Date.now()}`,
+          taskType: 'callback',
+          title,
+        });
+        return { remindAt, taskId: task.id, title: task.title };
+      }
+      case 'navigate_to': {
+        const route =
+          typeof params.payload.route === 'string' && params.payload.route.trim()
+            ? params.payload.route.trim()
+            : '/(app)';
+        const routeParams =
+          params.payload.params && typeof params.payload.params === 'object'
+            ? (params.payload.params as Record<string, unknown>)
+            : {};
+        return { navigate: true, params: routeParams, route };
+      }
+      case 'create_support_ticket': {
+        const subject =
+          typeof params.payload.subject === 'string' && params.payload.subject.trim()
+            ? params.payload.subject.trim()
+            : COPI_SUPPORT_TICKET_SUBJECT;
+        const body =
+          typeof params.payload.body === 'string' && params.payload.body.trim()
+            ? params.payload.body.trim()
+            : typeof params.payload.question === 'string'
+              ? params.payload.question
+              : subject;
+        const client = this.supabaseService.getServiceRoleClient();
+        const { data, error } = await client
+          .from('copi_support_tickets')
+          .insert({
+            body,
+            business_center_id: params.businessCenterId,
+            metadata: { copi: true },
+            organization_id: params.organizationId,
+            session_id: readOptionalUuid(params.payload.sessionId),
+            severity:
+              typeof params.payload.severity === 'string' ? params.payload.severity : 'normal',
+            subject,
+            user_id: params.userId,
+          })
+          .select('id')
+          .single<{ id: string }>();
+        if (error || !data) {
+          throw new Error(error?.message ?? 'No se pudo crear el ticket de soporte.');
+        }
+        return { subject, ticketId: data.id };
+      }
+      case 'save_custom_question': {
+        const question =
+          typeof params.payload.question === 'string' && params.payload.question.trim()
+            ? params.payload.question.trim()
+            : '';
+        if (!question) {
+          throw new Error('Falta la pregunta a guardar.');
+        }
+        const label =
+          typeof params.payload.label === 'string' && params.payload.label.trim()
+            ? params.payload.label.trim()
+            : truncateLabel(question);
+        const client = this.supabaseService.getServiceRoleClient();
+        const { data, error } = await client
+          .from('copi_custom_questions')
+          .upsert(
+            {
+              business_center_id: params.businessCenterId,
+              label,
+              organization_id: params.organizationId,
+              question,
+              user_id: params.userId,
+            },
+            { onConflict: 'organization_id,user_id,question' },
+          )
+          .select('id')
+          .single<{ id: string }>();
+        if (error || !data) {
+          throw new Error(error?.message ?? 'No se pudo guardar la pregunta.');
+        }
+        return { label, questionId: data.id };
+      }
+      case 'add_stock': {
+        let productId = readOptionalUuid(params.payload.productId);
+        const productQuery =
+          typeof params.payload.productQuery === 'string'
+            ? params.payload.productQuery.trim()
+            : '';
+        if (!productId && productQuery) {
+          const resolved = await this.resolveProductByName(
+            params.organizationId,
+            productQuery,
+          );
+          productId = resolved?.id ?? null;
+        }
+        if (!productId) {
+          const lookedUp = productQuery
+            ? await this.inventoryService.lookupProducts({
+                businessCenterId: params.businessCenterId,
+                limit: 1,
+                organizationId: params.organizationId,
+                query: productQuery,
+              })
+            : [];
+          productId = lookedUp[0]?.id ?? null;
+        }
+        if (!productId) {
+          throw new Error(
+            productQuery
+              ? `No encontré el producto «${productQuery}». Indicá el nombre exacto o el id.`
+              : 'Falta el producto. Indicá cuál producto querés reponer.',
+          );
+        }
+        const quantity = Number(params.payload.quantity);
+        if (!Number.isFinite(quantity) || quantity < 1) {
+          throw new Error('Falta la cantidad a agregar.');
+        }
+        const result = await this.inventoryService.addStock({
+          businessCenterId: params.businessCenterId,
+          costCents:
+            typeof params.payload.costCents === 'number' ? params.payload.costCents : null,
+          createdByUserId: params.userId,
+          marginPercent:
+            typeof params.payload.marginPercent === 'number'
+              ? params.payload.marginPercent
+              : null,
+          organizationId: params.organizationId,
+          productId,
+          quantity: Math.trunc(quantity),
+          receivedAt:
+            typeof params.payload.receivedAt === 'string' ? params.payload.receivedAt : null,
+          unitPriceCents:
+            typeof params.payload.unitPriceCents === 'number'
+              ? params.payload.unitPriceCents
+              : null,
+        });
+        return { ...result, productId } as unknown as Record<string, unknown>;
+      }
+      case 'create_product': {
+        const name =
+          typeof params.payload.name === 'string' && params.payload.name.trim()
+            ? params.payload.name.trim()
+            : '';
+        const category =
+          typeof params.payload.category === 'string' && params.payload.category.trim()
+            ? params.payload.category.trim()
+            : '';
+        if (!name || !category) {
+          throw new Error('Faltan el nombre y la categoría del producto.');
+        }
+        const result = await this.inventoryService.createProduct({
+          businessCenterId: params.businessCenterId,
+          category,
+          costCents:
+            typeof params.payload.costCents === 'number' ? params.payload.costCents : 0,
+          marginPercent:
+            typeof params.payload.marginPercent === 'number'
+              ? params.payload.marginPercent
+              : 0,
+          name,
+          organizationId: params.organizationId,
+          reorderThreshold:
+            typeof params.payload.reorderThreshold === 'number'
+              ? params.payload.reorderThreshold
+              : COPI_DEFAULT_PRODUCT_REORDER,
+          stockQuantity:
+            typeof params.payload.stockQuantity === 'number'
+              ? params.payload.stockQuantity
+              : 0,
+          unitPriceCents:
+            typeof params.payload.unitPriceCents === 'number'
+              ? params.payload.unitPriceCents
+              : 0,
+        });
+        return result as unknown as Record<string, unknown>;
+      }
+      case 'cash_ingreso':
+      case 'cash_egreso': {
+        const entryType = params.actionType === 'cash_ingreso' ? 'ingreso' : 'egreso';
+        const amountCents = Number(params.payload.amountCents);
+        const concept =
+          typeof params.payload.concept === 'string' ? params.payload.concept.trim() : '';
+        if (!Number.isFinite(amountCents) || amountCents < 1 || !concept) {
+          throw new Error('Faltan el monto y el concepto del movimiento de caja.');
+        }
+        const entry = await this.cashService.createManualEntryForUser({
+          amountCents: Math.round(amountCents),
+          businessCenterId: params.businessCenterId,
+          concept,
+          entryDate:
+            typeof params.payload.entryDate === 'string' && params.payload.entryDate.trim()
+              ? params.payload.entryDate
+              : todayYmd(new Date(), DEFAULT_TIMEZONE),
+          entryType,
+          organizationId: params.organizationId,
+          userId: params.userId,
+        });
+        return { entryId: entry.id, entryType: entry.entryType };
+      }
+      case 'propose_customer_reply': {
+        let conversationId = readOptionalUuid(params.payload.conversationId);
+        if (!conversationId) {
+          const client = this.supabaseService.getServiceRoleClient();
+          const { data: assigned } = await client
+            .from('conversations')
+            .select('id')
+            .eq('organization_id', params.organizationId)
+            .eq('assigned_to_copi_user_id', params.userId)
+            .not('assigned_to_copi_at', 'is', null)
+            .order('assigned_to_copi_at', { ascending: false })
+            .limit(1)
+            .maybeSingle<{ id: string }>();
+          conversationId = assigned?.id ?? null;
+        }
+        if (!conversationId) {
+          throw new Error(
+            'Falta la conversación. Asigná un chat a Copi primero o indicá el id del chat.',
+          );
+        }
+        const body =
+          typeof params.payload.body === 'string' ? params.payload.body.trim() : '';
+        const replyBody =
+          body ||
+          (await this.draftCustomerReplyBody({
+            businessCenterId: params.businessCenterId,
+            conversationId,
+            organizationId: params.organizationId,
+          }));
+        if (!replyBody) {
+          throw new Error('Falta el texto de la respuesta al cliente.');
+        }
+        const client = this.supabaseService.getServiceRoleClient();
+        const { data: conversation, error } = await client
+          .from('conversations')
+          .select('id, external_contact_id, business_center_id, organization_id')
+          .eq('id', conversationId)
+          .eq('organization_id', params.organizationId)
+          .maybeSingle<{
+            business_center_id: string;
+            external_contact_id: string;
+            id: string;
+            organization_id: string;
+          }>();
+        if (error || !conversation) {
+          throw new Error('No se encontró la conversación.');
+        }
+        const sent = await this.whatsAppOutbound.sendTextMessage({
+          body: replyBody,
+          businessCenterId: conversation.business_center_id,
+          organizationId: conversation.organization_id,
+          recipientPhone: conversation.external_contact_id,
+        });
+        return {
+          body: replyBody,
+          conversationId,
+          externalMessageId: sent.externalMessageId,
+          status: sent.status,
+        };
+      }
+      case 'assign_conversation_to_copi': {
+        const conversationId = readRequiredUuid(
+          params.payload.conversationId,
+          'asignar a Copi',
+          'Falta el id de la conversación.',
+        );
+        const client = this.supabaseService.getServiceRoleClient();
+        const { error } = await client
+          .from('conversations')
+          .update({
+            assigned_to_copi_at: new Date().toISOString(),
+            assigned_to_copi_user_id: params.userId,
+          })
+          .eq('id', conversationId)
+          .eq('organization_id', params.organizationId);
+        if (error) {
+          throw new Error(`No se pudo asignar el chat a Copi: ${error.message}`);
+        }
+        return { assigned: true, conversationId };
       }
       default:
         throw new Error(`Unsupported Copi action: ${params.actionType}`);
@@ -748,6 +1101,113 @@ export class CopiActionService {
     return cart;
   }
 
+  private async enrichAddStockPayload(
+    context: CopiQueryContext,
+    payload: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> {
+    const productId = readOptionalUuid(payload.productId);
+    if (productId) {
+      return payload;
+    }
+    const productQuery =
+      typeof payload.productQuery === 'string' ? payload.productQuery.trim() : '';
+    if (!productQuery) {
+      return payload;
+    }
+    const resolved = await this.resolveProductByName(context.organizationId, productQuery);
+    if (resolved) {
+      return {
+        ...payload,
+        productId: resolved.id,
+        productName: resolved.name,
+        productQuery,
+      };
+    }
+    const lookedUp = await this.inventoryService.lookupProducts({
+      businessCenterId: context.businessCenterId,
+      limit: 1,
+      organizationId: context.organizationId,
+      query: productQuery,
+    });
+    if (lookedUp[0]) {
+      return {
+        ...payload,
+        productId: lookedUp[0].id,
+        productName: lookedUp[0].name,
+        productQuery,
+      };
+    }
+    return payload;
+  }
+
+  private async enrichCustomerReplyPayload(
+    context: CopiQueryContext,
+    payload: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> {
+    const existing =
+      typeof payload.body === 'string' && payload.body.trim() ? payload.body.trim() : '';
+    let conversationId = readOptionalUuid(payload.conversationId);
+    if (!conversationId) {
+      const client = this.supabaseService.getServiceRoleClient();
+      const { data: assigned } = await client
+        .from('conversations')
+        .select('id')
+        .eq('organization_id', context.organizationId)
+        .eq('assigned_to_copi_user_id', context.userId)
+        .not('assigned_to_copi_at', 'is', null)
+        .order('assigned_to_copi_at', { ascending: false })
+        .limit(1)
+        .maybeSingle<{ id: string }>();
+      conversationId = assigned?.id ?? null;
+    }
+    if (!conversationId) {
+      return payload;
+    }
+    const body =
+      existing ||
+      (await this.draftCustomerReplyBody({
+        businessCenterId: context.businessCenterId,
+        conversationId,
+        organizationId: context.organizationId,
+      }));
+    return {
+      ...payload,
+      body: body || null,
+      conversationId,
+    };
+  }
+
+  private async draftCustomerReplyBody(params: {
+    businessCenterId: string;
+    conversationId: string;
+    organizationId: string;
+  }): Promise<string | null> {
+    const client = this.supabaseService.getServiceRoleClient();
+    const { data: lastInbound } = await client
+      .from('conversation_messages')
+      .select('body')
+      .eq('organization_id', params.organizationId)
+      .eq('conversation_id', params.conversationId)
+      .eq('direction', 'inbound')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle<{ body: string | null }>();
+    const messageBody = lastInbound?.body?.trim();
+    if (!messageBody) {
+      return null;
+    }
+    try {
+      const draft = await this.salesAiService.generateDraft({
+        businessCenterId: params.businessCenterId,
+        messageBody,
+        organizationId: params.organizationId,
+      });
+      return draft.body.trim() || null;
+    } catch {
+      return null;
+    }
+  }
+
   private async resolveProductByName(
     organizationId: string,
     productQuery: string,
@@ -836,16 +1296,69 @@ function normalizePersonName(value: string): string {
 export function inferCopiActionType(question: string): CopiActionType {
   const normalized = normalizeCopiQuestion(question);
 
-  // Standalone presupuesto creation (not “crear tarea para presupuesto”).
   if (wantsCreatePresupuestoAction(question)) {
     return 'create_presupuesto';
+  }
+
+  if (
+    /\b(asign\w*|assign\w*)\s+(a\s+)?copi\b/.test(normalized) ||
+    /\bcopi\s+(analiz|revis|tome|toma)\b/.test(normalized)
+  ) {
+    return 'assign_conversation_to_copi';
+  }
+
+  if (
+    /\b(respond[eé]|responder|contest[aá]|contestar)\b/.test(normalized) &&
+    /\b(cliente|whatsapp|chat|mensaje|conversacion)\b/.test(normalized)
+  ) {
+    return 'propose_customer_reply';
+  }
+
+  if (
+    /\b(avisame|avisame|recordame|recordar|recordatorio|alerta)\b/.test(normalized) &&
+    !/\btareas?\b/.test(normalized)
+  ) {
+    return 'schedule_reminder';
+  }
+
+  if (/\b(llevame|abr[ií]|abrir|ir a|navega|mostrame la pantalla)\b/.test(normalized)) {
+    return 'navigate_to';
+  }
+
+  if (/\b(ticket|soporte|ayuda nexolia|reportar (un )?problema)\b/.test(normalized)) {
+    return 'create_support_ticket';
+  }
+
+  if (/\b(guardar|guarda)\b/.test(normalized) && /\b(pregunta|chip)\b/.test(normalized)) {
+    return 'save_custom_question';
+  }
+
+  if (
+    /\b(agregar|sumar|reponer|ingresar)\b/.test(normalized) &&
+    /\b(stock|unidades?|inventario)\b/.test(normalized)
+  ) {
+    return 'add_stock';
+  }
+
+  if (
+    /\b(crear|crea|creame|nuevo|nueva)\b/.test(normalized) &&
+    /\b(producto)\b/.test(normalized) &&
+    !/\btareas?\b/.test(normalized)
+  ) {
+    return 'create_product';
+  }
+
+  if (/\b(ingreso|egreso)\b/.test(normalized) && /\b(caja|efectivo|plata)\b/.test(normalized)) {
+    return /\begreso\b/.test(normalized) ? 'cash_egreso' : 'cash_ingreso';
+  }
+  if (/\b(anot[aá]|registrar|registra)\b/.test(normalized) && /\bcaja\b/.test(normalized)) {
+    return /\begreso|gaste|pague|pagué\b/.test(normalized) ? 'cash_egreso' : 'cash_ingreso';
   }
 
   const mentionsAppointment = mentionsAppointmentIntent(question);
   if (mentionsAppointment) {
     const wantsCreateAppointment =
       /\b(crea|crear|creas|creame|agend|program|nuevo|nueva)\b/.test(normalized);
-    // "asignada a JP" on a create request is organizer assignment, not appointment_assign.
     if (
       /\b(asign\w*|assign\w*|reassign|pasale)\b/.test(normalized) &&
       !wantsCreateAppointment
@@ -864,7 +1377,6 @@ export function inferCopiActionType(question: string): CopiActionType {
   }
 
   const mentionsTask = /\btareas?\b/.test(normalized);
-  // "asigna una tarea a X para…" is create+assign, not reassign of an existing task.
   const isAssignNewTask =
     /\b(?:asign\w*|assign\w*)\s+(?:una\s+|a\s+)?(?:nueva\s+)?(?:tarea|task|seguimiento)\b/.test(
       normalized,
@@ -876,7 +1388,6 @@ export function inferCopiActionType(question: string): CopiActionType {
         normalized,
       ));
 
-  // Creating tasks always wins — phrases like "mañana" must not become snooze.
   if (isCreate) {
     return 'create_task';
   }
@@ -937,11 +1448,165 @@ function buildActionPayload(
     };
   }
 
+  if (actionType === 'schedule_reminder') {
+    const parsed = parseCreateTaskItems(question, timezone)[0];
+    const remindAt =
+      parsed?.remindAt ??
+      parsed?.dueAt ??
+      defaultTomorrowNineAmIso(new Date(), timezone);
+    const assumptions = softDefaultAssumptionsLine([
+      `aviso ${remindAt}`,
+      'asignado a vos',
+      ...(parsed?.recurrenceFreq ? [`repite ${parsed.recurrenceFreq}`] : []),
+    ]);
+    return {
+      assumptions,
+      description: parsed?.description ?? question,
+      question,
+      recurrenceFreq: parsed?.recurrenceFreq ?? null,
+      recurrenceWeekday: parsed?.recurrenceWeekday ?? null,
+      remindAt,
+      title: parsed?.title || truncateLabel(question, 60) || 'Recordatorio',
+      timezone,
+    };
+  }
+
+  if (actionType === 'navigate_to') {
+    return {
+      params: {},
+      question,
+      route: inferNavigateRoute(question),
+      timezone,
+    };
+  }
+
+  if (actionType === 'create_support_ticket') {
+    return {
+      body: question,
+      question,
+      severity: 'normal',
+      subject: COPI_SUPPORT_TICKET_SUBJECT,
+      timezone,
+    };
+  }
+
+  if (actionType === 'save_custom_question') {
+    return {
+      label: truncateLabel(question),
+      question,
+      timezone,
+    };
+  }
+
+  if (actionType === 'add_stock') {
+    return {
+      productId: null,
+      productQuery: extractProductQuery(question),
+      quantity: extractPositiveInt(question),
+      question,
+      receivedAt: todayYmd(new Date(), timezone),
+      timezone,
+    };
+  }
+
+  if (actionType === 'create_product') {
+    return {
+      category: extractCategoryHint(question) ?? 'General',
+      name: extractProductNameForCreate(question),
+      question,
+      reorderThreshold: COPI_DEFAULT_PRODUCT_REORDER,
+      stockQuantity: 0,
+      timezone,
+    };
+  }
+
+  if (actionType === 'cash_ingreso' || actionType === 'cash_egreso') {
+    return {
+      amountCents: extractAmountCents(question),
+      concept: truncateLabel(question, 80) || (actionType === 'cash_ingreso' ? 'Ingreso' : 'Egreso'),
+      entryDate: todayYmd(new Date(), timezone),
+      question,
+      timezone,
+    };
+  }
+
+  if (actionType === 'propose_customer_reply' || actionType === 'assign_conversation_to_copi') {
+    const conversationIdMatch = question.match(
+      /[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/i,
+    );
+    return {
+      body: null,
+      conversationId: conversationIdMatch?.[0] ?? null,
+      question,
+      timezone,
+    };
+  }
+
   return {
     question,
     taskId: null,
     timezone,
   };
+}
+
+function inferNavigateRoute(question: string): string {
+  const normalized = normalizeCopiQuestion(question);
+  if (/\b(caja|balances|efectivo)\b/.test(normalized)) return '/(app)/cash';
+  if (/\b(agenda|turno|cita)\b/.test(normalized)) return '/(app)/appointments';
+  if (/\b(producto|stock|inventario)\b/.test(normalized)) return '/(app)/inventory/manage-stock';
+  if (/\b(chat|inbox|whatsapp|mensaje)\b/.test(normalized)) return '/inbox';
+  if (/\b(presupuesto|facturacion)\b/.test(normalized)) return '/(app)/billing';
+  if (/\b(tarea|seguimiento)\b/.test(normalized)) return '/(app)/tasks';
+  return '/(app)';
+}
+
+function extractAmountCents(question: string): number | null {
+  const match = question.match(
+    /\$?\s*(\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{1,2})?|\d+(?:[.,]\d{1,2})?)/,
+  );
+  if (!match?.[1]) {
+    return null;
+  }
+  let normalized = match[1].trim();
+  if (normalized.includes(',') && normalized.includes('.')) {
+    // 1.250,50 → 1250.50
+    normalized = normalized.replace(/\./g, '').replace(',', '.');
+  } else if (normalized.includes(',')) {
+    normalized = normalized.replace(',', '.');
+  }
+  const value = Number.parseFloat(normalized);
+  if (!Number.isFinite(value) || value <= 0) {
+    return null;
+  }
+  return Math.round(value * 100);
+}
+
+function extractPositiveInt(question: string): number | null {
+  const match = question.match(/\b(\d{1,6})\b/);
+  if (!match?.[1]) {
+    return null;
+  }
+  const value = Number.parseInt(match[1], 10);
+  return Number.isFinite(value) && value > 0 ? value : null;
+}
+
+function extractProductQuery(question: string): string | null {
+  const match = question.match(
+    /(?:stock|producto|de)\s+([a-záéíóúñ0-9][\wáéíóúñ\s-]{1,40})/i,
+  );
+  return match?.[1]?.trim() || null;
+}
+
+function extractProductNameForCreate(question: string): string | null {
+  const match = question.match(
+    /(?:producto|llamado|llamada)\s+["“]?([a-záéíóúñ0-9][\wáéíóúñ\s-]{1,40})["”]?/i,
+  );
+  return match?.[1]?.trim() || null;
+}
+
+function extractCategoryHint(question: string): string | null {
+  const match = question.match(/categor[ií]a\s+([a-záéíóúñ0-9][\wáéíóúñ\s-]{1,30})/i);
+  return match?.[1]?.trim() || null;
 }
 
 /**
@@ -1170,6 +1835,28 @@ function summarizeProposal(actionType: CopiActionType, payload: Record<string, u
       return 'Actualizar turno';
     case 'appointment_assign':
       return 'Asignar turno';
+    case 'schedule_reminder':
+      return `Programar recordatorio: ${String(payload.title ?? 'Recordatorio')}`;
+    case 'navigate_to':
+      return `Abrir pantalla: ${String(payload.route ?? 'home')}`;
+    case 'create_support_ticket':
+      return `Crear ticket: ${String(payload.subject ?? COPI_SUPPORT_TICKET_SUBJECT)}`;
+    case 'save_custom_question':
+      return `Guardar pregunta: ${String(payload.label ?? payload.question ?? '')}`;
+    case 'add_stock':
+      return `Agregar stock: ${String(payload.productName ?? payload.productQuery ?? 'producto')} (${String(payload.quantity ?? '?')} u.)`;
+    case 'create_product':
+      return `Crear producto: ${String(payload.name ?? 'Nuevo producto')}`;
+    case 'cash_ingreso':
+      return `Registrar ingreso de caja`;
+    case 'cash_egreso':
+      return `Registrar egreso de caja`;
+    case 'propose_customer_reply':
+      return typeof payload.body === 'string' && payload.body.trim()
+        ? `Enviar respuesta al cliente: «${truncateLabel(payload.body, 72)}»`
+        : 'Enviar respuesta al cliente por WhatsApp';
+    case 'assign_conversation_to_copi':
+      return 'Asignar conversación a Copi';
     default:
       return 'Acción de Copi';
   }

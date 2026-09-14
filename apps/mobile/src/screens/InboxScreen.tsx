@@ -384,6 +384,7 @@ export function ConversationDetailScreen(props: {
   isLoading: boolean;
   messages: WhatsAppMessagePreview[];
   onAddDeviceContact?: () => void;
+  onAssignToCopi?: () => void;
   onBack: () => void;
   onMessageLongPress?: (message: WhatsAppMessagePreview) => void;
   onSendAudio?: (params: {
@@ -654,6 +655,11 @@ export function ConversationDetailScreen(props: {
         {props.showAddContact && props.onAddDeviceContact ? (
           <Pressable hitSlop={8} onPress={props.onAddDeviceContact} style={styles.addContactButton}>
             <Text style={styles.addContactText}>Agregar contacto</Text>
+          </Pressable>
+        ) : null}
+        {props.onAssignToCopi ? (
+          <Pressable hitSlop={8} onPress={props.onAssignToCopi} style={styles.addContactButton}>
+            <Text style={styles.addContactText}>Asignar a Copi</Text>
           </Pressable>
         ) : null}
       </View>

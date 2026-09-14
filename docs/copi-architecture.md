@@ -66,19 +66,41 @@ No new public webhooks for this feature.
 
 ## Read tools (Basic)
 
-`messages_today`, `low_stock`, `expiring_lots`, `pending_follow_ups`, `sales_summary`, `open_conversations`, `pending_ai_drafts`, `products_overview`, `attention_summary`, `tasks_overview`, `tasks_due_today`, `tasks_overdue`, `tasks_by_contact`, `my_tasks`, `staff_roster`.
+`messages_today`, `low_stock`, `expiring_lots`, `pending_follow_ups`, `sales_summary`, `open_conversations`, `pending_ai_drafts`, `products_overview`, `attention_summary`, `tasks_overview`, `tasks_due_today`, `tasks_overdue`, `tasks_by_contact`, `my_tasks`, `staff_roster`, `appointments_upcoming`, `appointments_today`, `find_product`, `cash_day`, `cash_report`, `conversation_thread`, `list_presupuestos`, `analyze_presupuesto`.
 
 ## Pro actions
 
-`create_task`, `create_presupuesto`, `assign_task`, `complete_task`, `snooze_task`, `cancel_task`, `reassign_task`.
+Task lifecycle: `create_task`, `assign_task`, `complete_task`, `start_task`, `snooze_task`, `cancel_task`, `reassign_task`.
 
-`create_task` and `create_presupuesto` **auto-execute** on the query (no “¿Confirmo?”).
-Other mutations may still propose + confirm in the UI.
+Agent actions: `schedule_reminder`, `navigate_to`, `create_support_ticket`, `save_custom_question`, `add_stock` (resolves `productQuery` → product id on propose/confirm), `create_product`, `cash_ingreso`, `cash_egreso`, `propose_customer_reply` (Sales AI draft from last inbound when body empty; confirm before WhatsApp send), `assign_conversation_to_copi`, appointments create/update/assign.
+
+`create_presupuesto` **auto-executes** on the query (no confirm). Other mutations propose + confirm.
+
+Tools: `cash_day` / `cash_report` (ranges: hoy, ayer, esta semana, este mes, or ISO dates), `find_product`, `conversation_thread` (falls back to chat assigned to Copi), presupuestos list/analyze.
+
+### Defaults / ask policy
+
+Prefer propose-with-defaults over multi-turn Q&A. Soft defaults (assignee=me, due=tomorrow, cash date=today, etc.) appear on the confirm card. Hard-ask only for money amount+concept, product+qty, appointment Para, or empty customer reply.
+
+### Automations (tasks)
+
+`owner_tasks` supports `remind_at`, `recurrence_freq` (`daily|weekly|monthly`), `recurrence_weekday`, `template_key`. Scheduler uses `fireAt = remind_at ?? (due_at − lead)`. Completing a recurring task materializes the next instance with a unique `source_key`.
+
+Migration: `20260914200000_copi_agent_task_automations.sql` (also `appointments.remind_at`, `conversations.assigned_to_copi_*`, `copi_custom_questions`, `copi_support_tickets`).
+
+### API endpoints (additions)
+
+| Method | Path | Notes |
+| --- | --- | --- |
+| GET/POST | `/ai/copilot/custom-questions` | Server-persisted chips |
+| POST | `/ai/copilot/query` | Optional `documentContext` (PDF/text) alongside `imageContext` |
+
+No new Meta webhooks for this agent delivery.
 
 ### Multi-task create + inline assignment
 
 `copi-task-parse.ts` splits numbered / “tarea para …” messages into one or more
-cleaned task items (titles, due dates, reminders). Confirm/auto-exec creates **all**
+cleaned task items (titles, due dates, reminders, recurrence). Confirm creates **all**
 items in one `create_task` proposal.
 
 - Phrases like “mañana” are scheduling hints, **not** snooze. Create-task intent
@@ -95,7 +117,7 @@ items in one `create_task` proposal.
   recovered to `create_task` / `create_presupuesto` on confirm. Confirm domain
   errors surface as HTTP 400 with a Spanish message instead of an opaque 500.
 
-Tests: `apps/api/test/copi-task-parse.spec.ts`, `apps/api/test/copi-action-confirm.spec.ts`.
+Tests: `apps/api/test/copi-task-parse.spec.ts`, `apps/api/test/copi-action-confirm.spec.ts`, `apps/api/test/copi-defaults.spec.ts`.
 
 ## Key modules
 
@@ -109,8 +131,10 @@ Tests: `apps/api/test/copi-task-parse.spec.ts`, `apps/api/test/copi-action-confi
 - `apps/api/src/domains/ai/copi-llm-phraser.service.ts`
 - `apps/api/src/domains/ai/copi-action.service.ts`
 - `apps/api/src/domains/ai/copi-task-parse.ts`
+- `apps/api/src/domains/ai/copi-defaults.ts`
 - `apps/mobile/src/hooks/useOwnerCopilot.ts`
 - `apps/mobile/src/api/ai.ts`
+- `apps/mobile/src/lib/copiNavigate.ts`
 - `apps/mobile/src/lib/workQueue.ts` — Task Portal presentation; product links in chat use `returnTo` navigation to inventory and back to Copi chat
 
 ## Task Portal integration
@@ -126,6 +150,7 @@ From the task portal, low-stock alerts open product detail with `returnTo=tasks-
 
 - `20260705200000_copi_foundation.sql` — flags, sessions, messages, actions, reports, task columns, dashboard `features` + `weeklySalesCents`
 - `20260705210000_copi_pilot_pro_flags.sql` — Pro flags for Baas Admin + NEX Biz
+- `20260914200000_copi_agent_task_automations.sql` — remind/recurrence, Copi assign, custom questions, support tickets
 
 Confluence hub: [Copi](https://souviksamanta.atlassian.net/wiki/spaces/BaaS/pages/19857410/Copi)
 
@@ -134,4 +159,5 @@ Confluence hub: [Copi](https://souviksamanta.atlassian.net/wiki/spaces/BaaS/page
 - Copi HTTP routes require bearer auth + organization membership.
 - Message history is scoped to the **session owner** (`copi_sessions.user_id`), both in the Nest service layer and RLS (`copi_messages_select_owner`).
 - The 14-day window is a **read filter**, not automated deletion, until a purge job exists.
+- API-first shipping is safe for older mobile builds if new columns stay nullable and confirm request body is unchanged.
 - See [test-launch-security.md](./test-launch-security.md).

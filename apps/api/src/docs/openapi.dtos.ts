@@ -83,6 +83,14 @@ export class CopilotQuestionRequestDto {
   @IsOptional()
   @IsString()
   imageContext?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Optional document text/summary context (PDF/text ingest). Used for reasoning like imageContext.',
+  })
+  @IsOptional()
+  @IsString()
+  documentContext?: string;
 }
 
 export class OwnerCopilotResponseDto {

@@ -20,6 +20,8 @@ The **admin portal / public lead surface** (`admin.nexolia.com.ar`, `nexolia.com
 
 Inbound customer messages on `POST /webhooks/whatsapp` are mapped by merchant `phone_number_id`. Platform auth OTP traffic (login **or** link) does not appear in the merchant inbox. **No new Meta webhooks** are required for identity linking — delivery reuses the platform WABA templates already used for login.
 
+**Copi Independent Agent** (owner Copi chat → confirm → WhatsApp send / assign conversation) also requires **no new Meta webhooks**. Outbound still uses the existing merchant WhatsApp send path after owner confirm.
+
 See also `docs/whatsapp-webhook.md` and `docs/meta-platform-waba-setup.md` in the repo.
 
 Meta verifies the webhook URL with:

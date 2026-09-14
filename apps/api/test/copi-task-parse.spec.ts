@@ -69,6 +69,21 @@ describe('parseCreateTaskItems', () => {
     expect(tasks[0]?.description).not.toMatch(/Asigna una tarea/i);
     expect(tasks[0]?.dueAt).toBeTruthy();
   });
+
+  it('parses daily/weekly recurrence phrases', () => {
+    const daily = parseCreateTaskItems(
+      'Creá una tarea para revisar caja cada día a las 9',
+      'America/Argentina/Cordoba',
+    );
+    expect(daily[0]?.recurrenceFreq).toBe('daily');
+
+    const weekly = parseCreateTaskItems(
+      'Creá una tarea para comprar leche cada lunes a las 10',
+      'America/Argentina/Cordoba',
+    );
+    expect(weekly[0]?.recurrenceFreq).toBe('weekly');
+    expect(weekly[0]?.recurrenceWeekday).toBe(1);
+  });
 });
 
 describe('parseCreateAppointmentRequest', () => {

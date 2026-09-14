@@ -1,3 +1,4 @@
+import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Alert } from 'react-native';
 
@@ -6,6 +7,7 @@ import {
   confirmCopiAction,
   getActiveCopiSession,
 } from '../api/ai';
+import { resolveCopiNavigateRoute } from '../lib/copiNavigate';
 import type { CopilotMessage } from '../types/copilot';
 
 export interface OwnerCopilotState {
@@ -54,6 +56,7 @@ export function useOwnerCopilot(params: {
   businessCenterId: string | null;
   organizationId: string | null;
 }): OwnerCopilotState {
+  const router = useRouter();
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [inputValue, setInputValue] = useState('');
   const [isAsking, setIsAsking] = useState(false);
@@ -175,21 +178,38 @@ export function useOwnerCopilot(params: {
           organizationId: params.organizationId,
         });
         const answeredAt = new Date().toISOString();
+        const navigate =
+          result.result &&
+          typeof result.result === 'object' &&
+          result.result.navigate === true &&
+          typeof result.result.route === 'string'
+            ? resolveCopiNavigateRoute(
+                result.result.route,
+                (result.result.params as Record<string, unknown> | undefined) ?? {},
+              )
+            : null;
+
         setMessages((currentMessages) => [
           ...currentMessages,
           {
-            body: `Listo. Acción confirmada (${result.status}).`,
+            body: navigate
+              ? `Listo. Te llevo a esa pantalla.`
+              : `Listo. Acción confirmada (${result.status}).`,
             createdAt: answeredAt,
             id: `assistant:action:${answeredAt}`,
             role: 'assistant',
           },
         ]);
+
+        if (navigate) {
+          router.push(navigate as never);
+        }
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Unknown error';
         Alert.alert('No se pudo confirmar la acción', message);
       }
     },
-    [params.businessCenterId, params.organizationId],
+    [params.businessCenterId, params.organizationId, router],
   );
 
   const hasConversationHistory = messages.some((message) => message.id !== 'starter');

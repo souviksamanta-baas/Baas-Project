@@ -26,7 +26,13 @@ export type CopiToolName =
   | 'my_tasks'
   | 'staff_roster'
   | 'appointments_upcoming'
-  | 'appointments_today';
+  | 'appointments_today'
+  | 'find_product'
+  | 'cash_day'
+  | 'cash_report'
+  | 'conversation_thread'
+  | 'list_presupuestos'
+  | 'analyze_presupuesto';
 
 export type CopiActionType =
   | 'create_task'
@@ -39,7 +45,17 @@ export type CopiActionType =
   | 'reassign_task'
   | 'appointment_create'
   | 'appointment_update'
-  | 'appointment_assign';
+  | 'appointment_assign'
+  | 'schedule_reminder'
+  | 'navigate_to'
+  | 'create_support_ticket'
+  | 'save_custom_question'
+  | 'add_stock'
+  | 'create_product'
+  | 'cash_ingreso'
+  | 'cash_egreso'
+  | 'propose_customer_reply'
+  | 'assign_conversation_to_copi';
 
 export type CopiPolicyDecision = 'allowed' | 'policy_denied' | 'tier_required';
 

@@ -20,9 +20,13 @@ interface OwnerTaskApiRow {
   organizationId: string;
   postponedUntil: string | null;
   priority: 'low' | 'normal' | 'high';
+  recurrenceFreq?: 'daily' | 'weekly' | 'monthly' | null;
+  recurrenceWeekday?: number | null;
+  remindAt?: string | null;
   reminderSnoozedUntil: string | null;
   status: OwnerTaskStatus;
   taskType: OwnerTaskType;
+  templateKey?: string | null;
   title: string;
 }
 
@@ -678,9 +682,13 @@ function toOwnerTask(
     postponedUntil: row.postponedUntil,
     presupuestoId: extractPresupuestoId(combinedText),
     priority: row.priority ?? 'normal',
+    recurrenceFreq: row.recurrenceFreq ?? null,
+    recurrenceWeekday: row.recurrenceWeekday ?? null,
+    remindAt: row.remindAt ?? null,
     reminderSnoozedUntil: row.reminderSnoozedUntil,
     status: row.status,
     taskType: row.taskType ?? 'manual',
+    templateKey: row.templateKey ?? null,
     title: row.title,
   };
 }
