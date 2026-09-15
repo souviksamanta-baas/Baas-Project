@@ -211,6 +211,18 @@ export class CopiActionService {
               ? item.description
               : item.title;
 
+          // If remind_at already passed but due is still ahead, drop explicit remind so the
+          // scheduler can use due−lead (avoids silent miss when task is created mid-window).
+          let remindAt = item.remindAt ?? null;
+          const nowMs = Date.now();
+          const dueMs = new Date(dueAt).getTime();
+          if (remindAt) {
+            const remindMs = new Date(remindAt).getTime();
+            if (Number.isFinite(remindMs) && remindMs < nowMs && dueMs > nowMs) {
+              remindAt = null;
+            }
+          }
+
           const recurrenceFreq =
             (item as { recurrenceFreq?: 'daily' | 'weekly' | 'monthly' | null }).recurrenceFreq ??
             (params.payload.recurrenceFreq as 'daily' | 'weekly' | 'monthly' | null | undefined) ??
@@ -249,7 +261,7 @@ export class CopiActionService {
             priority: (params.payload.priority as 'low' | 'normal' | 'high' | undefined) ?? 'normal',
             recurrenceFreq,
             recurrenceWeekday,
-            remindAt: item.remindAt ?? null,
+            remindAt,
             sourceKey: `copi:${params.userId}:${baseKey}:${index}`,
             taskType: 'copi',
             templateKey,
@@ -258,7 +270,7 @@ export class CopiActionService {
           created.push({
             assignedToUserId,
             assigneeName: item.assigneeName,
-            remindAt: item.remindAt,
+            remindAt,
             taskId: task.id,
             title: task.title,
           });
@@ -1301,7 +1313,10 @@ export function inferCopiActionType(question: string): CopiActionType {
   }
 
   if (
-    /\b(asign\w*|assign\w*)\s+(a\s+)?copi\b/.test(normalized) ||
+    /\b(asign\w*|assign\w*)(?:\s+\w+){0,6}\s+(a\s+)?copi\b/.test(normalized) ||
+    /\b(asign\w*|assign\w*).{0,48}\b(chat|conversacion|inbox|mensaje)\b.{0,24}\bcopi\b/.test(
+      normalized,
+    ) ||
     /\bcopi\s+(analiz|revis|tome|toma)\b/.test(normalized)
   ) {
     return 'assign_conversation_to_copi';
@@ -1335,7 +1350,8 @@ export function inferCopiActionType(question: string): CopiActionType {
 
   if (
     /\b(agregar|sumar|reponer|ingresar)\b/.test(normalized) &&
-    /\b(stock|unidades?|inventario)\b/.test(normalized)
+    /\b(stock|unidades?|inventario)\b/.test(normalized) &&
+    !/\btareas?\b/.test(normalized)
   ) {
     return 'add_stock';
   }

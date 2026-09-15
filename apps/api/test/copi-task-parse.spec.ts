@@ -84,6 +84,32 @@ describe('parseCreateTaskItems', () => {
     expect(weekly[0]?.recurrenceFreq).toBe('weekly');
     expect(weekly[0]?.recurrenceWeekday).toBe(1);
   });
+
+  it('understands polite create-task utterances and afternoon clock times', () => {
+    const tasks = parseCreateTaskItems(
+      'buen día, crea una tarea por favor para hablar con Beto a las 4 de la tarde, hoy.',
+      'America/Argentina/Cordoba',
+    );
+
+    expect(tasks).toHaveLength(1);
+    expect(tasks[0]?.title).toBe('Hablar con Beto');
+    expect(tasks[0]?.description.toLocaleLowerCase('es-AR')).toMatch(/hablar con beto/);
+    expect(tasks[0]?.description.toLocaleLowerCase('es-AR')).not.toMatch(
+      /buen d[ií]a|crea una tarea|por favor|a las 4|tarde|hoy/,
+    );
+    // 16:00 America/Argentina/Cordoba = 19:00Z (no DST).
+    expect(tasks[0]?.dueAt).toMatch(/T19:00:00\.000Z$/);
+    expect(tasks[0]?.remindAt).toMatch(/T18:30:00\.000Z$/);
+  });
+
+  it('treats “4 de la tarde” as 16:00, not 04:00', () => {
+    const tasks = parseCreateTaskItems(
+      'Creá una tarea para revisar la caja hoy a las 4 de la tarde',
+      'America/Argentina/Cordoba',
+    );
+    expect(tasks[0]?.title.toLocaleLowerCase('es-AR')).toMatch(/revisar.*caja/);
+    expect(tasks[0]?.dueAt).toMatch(/T19:00:00\.000Z$/);
+  });
 });
 
 describe('parseCreateAppointmentRequest', () => {

@@ -78,6 +78,27 @@ describe('inferCopiActionType', () => {
       'create_product',
     );
   });
+
+  it('detects Independent Agent platform and chat intents', () => {
+    expect(inferCopiActionType('Llevame a caja')).toBe('navigate_to');
+    expect(inferCopiActionType('Abrí la pantalla de productos')).toBe('navigate_to');
+    expect(inferCopiActionType('Respondé al cliente por WhatsApp')).toBe(
+      'propose_customer_reply',
+    );
+    expect(inferCopiActionType('Asigná este chat a Copi')).toBe('assign_conversation_to_copi');
+    expect(inferCopiActionType('Creá un ticket de soporte por este error')).toBe(
+      'create_support_ticket',
+    );
+    expect(inferCopiActionType('Guardá esta pregunta como chip')).toBe('save_custom_question');
+  });
+
+  it('does not treat create-task-about-stock as add_stock', () => {
+    expect(
+      inferCopiActionType(
+        'Hola Copi, buen día. Necesitaría que creas una tarea para SOW para agregar más stock. Gracias.',
+      ),
+    ).toBe('create_task');
+  });
 });
 
 describe('parseCreatePresupuestoRequest', () => {

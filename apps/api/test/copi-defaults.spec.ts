@@ -4,8 +4,10 @@ import {
   advanceByRecurrence,
   buildRecurrenceInstanceSourceKey,
   defaultDueIn24hIso,
+  defaultRemindAtFromDue,
   parseCashReportRange,
   softDefaultAssumptionsLine,
+  todayYmd,
   truncateLabel,
 } from '../src/domains/ai/copi-defaults';
 
@@ -18,6 +20,15 @@ describe('copi-defaults', () => {
     ).toBe('2026-09-18T12:00:00.000Z');
   });
 
+  it('advances daily and monthly recurrence', () => {
+    expect(
+      advanceByRecurrence({ fromIso: '2026-09-14T12:00:00.000Z', freq: 'daily' }),
+    ).toBe('2026-09-15T12:00:00.000Z');
+    expect(
+      advanceByRecurrence({ fromIso: '2026-09-14T12:00:00.000Z', freq: 'monthly' }),
+    ).toBe('2026-10-14T12:00:00.000Z');
+  });
+
   it('builds instance source keys', () => {
     expect(
       buildRecurrenceInstanceSourceKey({
@@ -25,6 +36,15 @@ describe('copi-defaults', () => {
         dueAtIso: '2026-09-21T12:00:00.000Z',
       }),
     ).toBe('recur:tmpl-1:2026-09-21T12:00:00.000Z');
+  });
+
+  it('keeps instance source_key distinct from template_key', () => {
+    const key = buildRecurrenceInstanceSourceKey({
+      templateKey: 'weekly-caja',
+      dueAtIso: '2026-09-21T09:00:00.000Z',
+    });
+    expect(key).not.toBe('weekly-caja');
+    expect(key.startsWith('recur:weekly-caja:')).toBe(true);
   });
 
   it('formats soft assumptions and labels', () => {
@@ -35,6 +55,10 @@ describe('copi-defaults', () => {
     expect(defaultDueIn24hIso(new Date('2026-09-14T00:00:00.000Z'))).toBe(
       '2026-09-15T00:00:00.000Z',
     );
+    expect(defaultRemindAtFromDue('2026-09-15T12:00:00.000Z', 30)).toBe(
+      '2026-09-15T11:30:00.000Z',
+    );
+    expect(todayYmd(new Date('2026-09-14T15:00:00.000Z'), 'UTC')).toBe('2026-09-14');
   });
 
   it('parses cash report ranges from Spanish phrases', () => {

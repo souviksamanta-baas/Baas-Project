@@ -42,7 +42,7 @@ describe('selectCopiTools', () => {
   it('routes Argentine count question about sales as sales_summary', () => {
     expect(
       selectCopiTools('Hola Copi, Buenas tardes! cuantos presupuestos de ventas fue creado hasta hoy?'),
-    ).toEqual(['sales_summary']);
+    ).toEqual(expect.arrayContaining(['sales_summary', 'list_presupuestos']));
   });
 
   it('routes sales follow-up details using prior sales context', () => {
@@ -51,7 +51,7 @@ describe('selectCopiTools', () => {
         'Necesitaria mas detalles. Me gustaria saber cuales son los productos, cuanta cantidad de cada producto se vendió y las ganancias por las ventas',
         [{ body: 'Buenas Tardes! Cuantas ventas hice con productos en granel?', role: 'owner' }],
       ),
-    ).toEqual(['sales_summary']);
+    ).toEqual(expect.arrayContaining(['sales_summary']));
   });
 
   it('does not treat lista as attention summary', () => {

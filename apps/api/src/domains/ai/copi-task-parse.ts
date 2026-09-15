@@ -32,11 +32,7 @@ export function parseCreateTaskItems(question: string, timezone: string): Parsed
       due.needsExactTime && title.length > 0
         ? `¿A qué hora exacta querés completar «${title}»?`
         : null;
-    const description =
-      text
-        .replace(/^(para\s+)/i, '')
-        .replace(/\s+/g, ' ')
-        .trim() || segment.trim();
+    const description = buildTaskDescription(text, title);
 
     return {
       assigneeName,
@@ -75,7 +71,7 @@ export function buildCreateTaskPayload(
 
   return {
     clarificationQuestions: clarifications,
-    description: question,
+    description: tasks[0]?.description ?? question,
     dueAt: tasks[0]?.dueAt ?? null,
     recurrenceFreq: tasks[0]?.recurrenceFreq ?? null,
     recurrenceWeekday: tasks[0]?.recurrenceWeekday ?? null,
@@ -574,15 +570,38 @@ function isIntroOnly(text: string): boolean {
 }
 
 function stripIntroNoise(text: string): string {
-  return text
+  let cleaned = text.trim();
+
+  // Greetings / politeness (may repeat).
+  for (let i = 0; i < 3; i += 1) {
+    const next = cleaned
+      .replace(
+        /^(hola(\s+copi)?|buen(?:o|a|os|as)?\s+(?:d[ií]as?|tardes?|noches?)|hey|hi)[,!]?\s*/i,
+        '',
+      )
+      .replace(/^(por\s+favor|please)[,!]?\s*/i, '')
+      .trim();
+    if (next === cleaned) {
+      break;
+    }
+    cleaned = next;
+  }
+
+  cleaned = cleaned
     .replace(
-      /^(hola\s+copi[,!]?\s*)?(necesito\s+que\s+)?(creas?|creá|crear|recordá|recordar)\s+(dos|2|tres|3|varias|\d+)?\s*tareas?\s*[:.\-]?\s*/i,
+      /^(necesito\s+que\s+)?(creas?|creá|crear|recordá|recordar)\s+(dos|2|tres|3|varias|\d+)?\s*tareas?\s*[:.\-]?\s*/i,
       '',
     )
-    .replace(/^(hola\s+copi[,!]?\s*)?/i, '')
-    .replace(/^(necesito\s+que\s+)?(creas?|creá|crear)\s+(una\s+)?tarea\s+(para\s+)?/i, '')
+    .replace(
+      /^(necesito\s+que\s+)?(creas?|creá|crear)\s+(una\s+)?tarea\s+(por\s+favor\s+)?(para\s+)?/i,
+      '',
+    )
     .replace(/^(que\s+)?creas?\s+/i, '')
+    .replace(/\bpor\s+favor\b/gi, ' ')
+    .replace(/\s+/g, ' ')
     .trim();
+
+  return cleaned;
 }
 
 function cleanTaskTitle(segment: string): string {
@@ -605,9 +624,12 @@ function cleanTaskTitle(segment: string): string {
     .replace(/\b(esta|a\s+la|por\s+la)\s+tarde\b/gi, ' ')
     .replace(/\bantes\s+de\s+las?\s+\d{1,2}(?:[:h]\d{2})?\s*(?:am|pm|hs|hrs|horas)?\b/gi, ' ')
     .replace(/\ba\s+las?\s+\d{1,2}(?:[:h]\d{2})?\s*(?:am|pm|hs|hrs|horas)?\b/gi, ' ')
+    .replace(/\b\d{1,2}(?:[:h]\d{2})?\s*(?:am|pm|hs|hrs|horas)\b/gi, ' ')
     .replace(/\bhoy\b/gi, ' ')
     .replace(/\bmañana\b/gi, ' ')
+    .replace(/\s*,\s*/g, ' ')
     .replace(/\s+/g, ' ')
+    .replace(/^[:.\-\s]+/, '')
     .replace(/[.,\s]+$/g, '')
     .trim();
 
@@ -624,6 +646,34 @@ function cleanTaskTitle(segment: string): string {
   const cut = titled.slice(0, 48);
   const lastSpace = cut.lastIndexOf(' ');
   return `${(lastSpace > 24 ? cut.slice(0, lastSpace) : cut).trimEnd()}`;
+}
+
+/** Subject line for the task body — intent text, not the raw owner utterance. */
+function buildTaskDescription(segment: string, title: string): string {
+  let cleaned = stripIntroNoise(segment)
+    .replace(/^(una\s+)?tarea\s+para\s+/i, '')
+    .replace(/^tarea\s+/i, '')
+    .replace(/^(para\s+)/i, '')
+    .replace(/\bpasado\s+mañana\b/gi, ' ')
+    .replace(/\bde\s+la\s+(mañana|tarde|noche)\b/gi, ' ')
+    .replace(/\b(esta|por\s+la)\s+mañana\b/gi, ' ')
+    .replace(/\b(esta|a\s+la|por\s+la)\s+tarde\b/gi, ' ')
+    .replace(/\bantes\s+de\s+las?\s+\d{1,2}(?:[:h]\d{2})?\s*(?:am|pm|hs|hrs|horas)?\b/gi, ' ')
+    .replace(/\ba\s+las?\s+\d{1,2}(?:[:h]\d{2})?\s*(?:am|pm|hs|hrs|horas)?\b/gi, ' ')
+    .replace(/\b\d{1,2}(?:[:h]\d{2})?\s*(?:am|pm|hs|hrs|horas)\b/gi, ' ')
+    .replace(/\bhoy\b/gi, ' ')
+    .replace(/\bmañana\b/gi, ' ')
+    .replace(/\s*,\s*/g, ' ')
+    .replace(/\s+/g, ' ')
+    .replace(/^[:.\-\s]+/, '')
+    .replace(/[.,\s]+$/g, '')
+    .trim();
+
+  if (!cleaned) {
+    return title;
+  }
+
+  return sentenceCase(cleaned).slice(0, 280);
 }
 
 function sentenceCase(value: string): string {
@@ -646,12 +696,18 @@ function inferTaskSchedule(
   let minute = 0;
   let needsExactTime = false;
   let absoluteRemindOnly = false;
-  const morningOfDay = /\b(esta\s+mañana|por\s+la\s+mañana|a\s+la\s+mañana)\b/i.test(segment);
-  const afternoonOfDay = /\b(tarde|esta\s+tarde|a\s+la\s+tarde|por\s+la\s+tarde)\b/i.test(segment);
+  const morningOfDay = /\b(esta\s+mañana|por\s+la\s+mañana|a\s+la\s+mañana|de\s+la\s+mañana)\b/i.test(
+    segment,
+  );
+  const afternoonOfDay = /\b(tarde|esta\s+tarde|a\s+la\s+tarde|por\s+la\s+tarde|de\s+la\s+tarde)\b/i.test(
+    segment,
+  );
+  const eveningOfDay = /\b(noche|esta\s+noche|a\s+la\s+noche|de\s+la\s+noche)\b/i.test(segment);
   // Remove time-of-day phrases before detecting "mañana" = tomorrow.
   const withoutTimeOfDay = segment
-    .replace(/\b(esta|por\s+la|a\s+la)\s+mañana\b/gi, ' ')
-    .replace(/\b(esta|por\s+la|a\s+la)\s+tarde\b/gi, ' ');
+    .replace(/\b(esta|por\s+la|a\s+la|de\s+la)\s+mañana\b/gi, ' ')
+    .replace(/\b(esta|por\s+la|a\s+la|de\s+la)\s+tarde\b/gi, ' ')
+    .replace(/\b(esta|por\s+la|a\s+la|de\s+la)\s+noche\b/gi, ' ');
 
   if (/\bpasado\s+mañana\b/i.test(withoutTimeOfDay)) {
     dayOffset = 2;
@@ -676,15 +732,41 @@ function inferTaskSchedule(
   );
   const clockMatch =
     beforeMatch ??
-    segment.match(/\b(?:a\s+las?\s*)?(\d{1,2})(?:[:h](\d{2}))?\s*(am|pm|hs|hrs|horas)?\b/i);
+    segment.match(/\ba\s+las?\s*(\d{1,2})(?:[:h](\d{2}))?\s*(am|pm|hs|hrs|horas)?\b/i) ??
+    segment.match(/\b(\d{1,2})(?:[:h](\d{2}))?\s*(am|pm|hs|hrs|horas)\b/i) ??
+    segment.match(/\b(\d{1,2})\s+de\s+la\s+(mañana|tarde|noche)\b/i);
   if (clockMatch) {
     let parsedHour = Number.parseInt(clockMatch[1]!, 10);
-    const meridiem = clockMatch[3]?.toLocaleLowerCase('es-AR');
+    const meridiemOrPeriod = (clockMatch[3] ?? '').toLocaleLowerCase('es-AR');
+    const meridiem = ['am', 'pm', 'hs', 'hrs', 'horas'].includes(meridiemOrPeriod)
+      ? meridiemOrPeriod
+      : null;
+    const periodWord =
+      meridiemOrPeriod === 'mañana' || meridiemOrPeriod === 'tarde' || meridiemOrPeriod === 'noche'
+        ? meridiemOrPeriod
+        : null;
+
     if (meridiem === 'pm' && parsedHour < 12) {
       parsedHour += 12;
     }
     if (meridiem === 'am' && parsedHour === 12) {
       parsedHour = 0;
+    }
+    if (!meridiem) {
+      // "4 de la tarde" / "... a las 4 ... tarde" → 16:00, not 04:00.
+      if (
+        (periodWord === 'tarde' || afternoonOfDay) &&
+        parsedHour >= 1 &&
+        parsedHour <= 11
+      ) {
+        parsedHour += 12;
+      } else if (
+        (periodWord === 'noche' || eveningOfDay) &&
+        parsedHour >= 1 &&
+        parsedHour <= 11
+      ) {
+        parsedHour += 12;
+      }
     }
     if (parsedHour >= 0 && parsedHour <= 23) {
       hour = parsedHour;
@@ -697,6 +779,9 @@ function inferTaskSchedule(
     needsExactTime = true;
   } else if (morningOfDay) {
     hour = 10;
+    needsExactTime = true;
+  } else if (eveningOfDay) {
+    hour = 20;
     needsExactTime = true;
   } else if (dayOffset > 0 || weekdayOffset != null || absoluteDate) {
     hour = 10;
