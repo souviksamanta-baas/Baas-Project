@@ -1,0 +1,11 @@
+appId: ar.com.nexolia.app
+---
+# Chats — swipe actions on conversation list (silenciar / archivar)
+# Requires: seeded demo tenant with at least one conversation
+- launchApp
+# - assertVisible: "Chats"
+# - swipeLeft:
+#     id: "conversation-row-0"
+# - assertVisible: "Silenciar"
+# - tapOn: "Silenciar"
+# - assertVisible: "Conversación silenciada"

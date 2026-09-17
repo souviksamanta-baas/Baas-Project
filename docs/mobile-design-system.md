@@ -88,6 +88,21 @@ Do not use `light-content` with a dark status bar background — icons become in
 - Notification bell matches Más row icons: **26px**, stroke 1.7.
 - Collapsed scroll header shows page title (e.g. **Chats**); FlatList screens must call `useHeaderCollapseOnScroll`.
 
+### Sheets and action icons (Chats, Adjuntar, message menus)
+
+Bottom sheets and inline action menus (**Adjuntar**, message long-press card, **Más**
+overflow on Chats) use **brand-green outline icons** at ~26px stroke (`colors.primary` /
+`#08bd66`).
+
+| Rule | Do | Don't |
+| --- | --- | --- |
+| Icon style | Outline stroke via shared `Icon` + `ActionRow` | Ad-hoc filled circles per action (e.g. green/orange camera blobs) |
+| Row layout | Flat `ActionRow` with inset divider, regular 17px title | Grid of colored tiles inside attachment sheets |
+| Swipe list tiles | WhatsApp-style colored swipe backgrounds are OK on **list rows only** | Reuse swipe tile colors inside modals/sheets |
+
+Applies to: **Adjuntar** (Cámara / Galería), `MessageActionOverlay` action card,
+Chats **Más** sheet, purchase status sheets, and any new owner action sheet.
+
 ### Más menu
 
 - No section group titles (Inventarios / Operaciones removed from UI).

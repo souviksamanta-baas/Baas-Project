@@ -95,6 +95,65 @@ export class CopiActionService {
     return proposal;
   }
 
+  async updateProposalPayload(params: {
+    actionId: string;
+    organizationId: string;
+    payload: Record<string, unknown>;
+    userId: string;
+  }): Promise<void> {
+    const client = this.supabaseService.getServiceRoleClient();
+    const { error } = await client
+      .from('copi_action_proposals')
+      .update({ payload: params.payload })
+      .eq('id', params.actionId)
+      .eq('organization_id', params.organizationId)
+      .eq('user_id', params.userId)
+      .eq('status', 'pending');
+
+    if (error) {
+      throw new Error(`Failed to update Copi action proposal: ${error.message}`);
+    }
+  }
+
+  async findLatestPendingProposal(params: {
+    businessCenterId: string;
+    organizationId: string;
+    sessionId?: string | null;
+    userId: string;
+  }): Promise<{ actionType: CopiActionType; id: string } | null> {
+    const client = this.supabaseService.getServiceRoleClient();
+    let query = client
+      .from('copi_action_proposals')
+      .select('id, action_type, expires_at')
+      .eq('organization_id', params.organizationId)
+      .eq('business_center_id', params.businessCenterId)
+      .eq('user_id', params.userId)
+      .eq('status', 'pending')
+      .order('created_at', { ascending: false })
+      .limit(1);
+
+    if (params.sessionId) {
+      query = query.eq('session_id', params.sessionId);
+    }
+
+    const { data, error } = await query.maybeSingle<{
+      action_type: CopiActionType;
+      expires_at: string;
+      id: string;
+    }>();
+
+    if (error || !data) {
+      return null;
+    }
+
+    if (new Date(data.expires_at).getTime() < Date.now()) {
+      await client.from('copi_action_proposals').update({ status: 'expired' }).eq('id', data.id);
+      return null;
+    }
+
+    return { actionType: data.action_type, id: data.id };
+  }
+
   async confirmAction(params: {
     actionId: string;
     businessCenterId: string;
@@ -1182,9 +1241,15 @@ export class CopiActionService {
         conversationId,
         organizationId: context.organizationId,
       }));
+    const spanishBody =
+      body && looksLikeEnglishCustomerReply(body)
+        ? buildSpanishCustomerReply(
+            typeof context.question === 'string' ? context.question : body,
+          )
+        : body;
     return {
       ...payload,
-      body: body || null,
+      body: spanishBody || null,
       conversationId,
     };
   }
@@ -1195,29 +1260,55 @@ export class CopiActionService {
     organizationId: string;
   }): Promise<string | null> {
     const client = this.supabaseService.getServiceRoleClient();
-    const { data: lastInbound } = await client
+    const dayStart = new Date();
+    dayStart.setHours(0, 0, 0, 0);
+
+    const { data: sameDayRows } = await client
       .from('conversation_messages')
-      .select('body')
+      .select('body, direction, created_at')
       .eq('organization_id', params.organizationId)
       .eq('conversation_id', params.conversationId)
-      .eq('direction', 'inbound')
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle<{ body: string | null }>();
-    const messageBody = lastInbound?.body?.trim();
+      .gte('created_at', dayStart.toISOString())
+      .order('created_at', { ascending: true })
+      .limit(40);
+
+    const rows =
+      sameDayRows && sameDayRows.length > 0
+        ? sameDayRows
+        : (
+            await client
+              .from('conversation_messages')
+              .select('body, direction, created_at')
+              .eq('organization_id', params.organizationId)
+              .eq('conversation_id', params.conversationId)
+              .order('created_at', { ascending: false })
+              .limit(12)
+          ).data?.slice().reverse() ?? [];
+
+    const lastInbound = [...rows]
+      .reverse()
+      .find((row) => row.direction === 'inbound' && String(row.body ?? '').trim());
+    const messageBody = String(lastInbound?.body ?? '').trim();
     if (!messageBody) {
       return null;
     }
+
     try {
       const draft = await this.salesAiService.generateDraft({
         businessCenterId: params.businessCenterId,
         messageBody,
         organizationId: params.organizationId,
       });
-      return draft.body.trim() || null;
+      const matched = draft.catalogContext?.matchedProducts ?? [];
+      if (matched.length > 0) {
+        const productName = String(matched[0]?.name ?? 'ese producto').trim() || 'ese producto';
+        return `¡Hola! Sí, tenemos ${productName} disponible. ¿Querés que te pase precio y opciones?`;
+      }
     } catch {
-      return null;
+      // Fall through to Spanish templates.
     }
+
+    return buildSpanishCustomerReply(messageBody);
   }
 
   private async resolveProductByName(
@@ -1305,6 +1396,57 @@ function normalizePersonName(value: string): string {
     .replace(/\p{M}/gu, '');
 }
 
+function toSpanishCustomerReply(drafted: string, lastInbound: string): string {
+  if (!looksLikeEnglishCustomerReply(drafted)) {
+    return drafted.trim();
+  }
+  return buildSpanishCustomerReply(lastInbound);
+}
+
+function buildSpanishCustomerReply(lastInbound: string): string {
+  if (/cat[aá]logo|productos?|lista|precios?/i.test(lastInbound)) {
+    return '¡Hola! Claro, te paso el catálogo completo de productos. ¿Hay algo específico que te interese?';
+  }
+  if (/precio|cu[aá]nto|cotiz/i.test(lastInbound)) {
+    return '¡Hola! Gracias por tu consulta. Decime qué producto necesitás y te paso el precio.';
+  }
+  if (/turno|cita|reserva/i.test(lastInbound)) {
+    return '¡Hola! Claro, ¿qué día y horario te vendría bien para agendar?';
+  }
+  return '¡Hola! Gracias por tu mensaje. Enseguida te paso la información que pediste.';
+}
+
+function looksLikeEnglishCustomerReply(value: string): boolean {
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) {
+    return false;
+  }
+  if (/[áéíóúñ¿¡]/i.test(normalized)) {
+    return false;
+  }
+  return (
+    /\b(thanks for reaching|i can help|which product|i don't see|let me confirm|reaching out)\b/.test(
+      normalized,
+    ) || /\b(the|you|our|please|thanks|availability|pricing)\b/.test(normalized)
+  );
+}
+
+export function extractSpanishQuotedReply(answer: string): string | null {
+  const patterns = [
+    /[«"]([^«»"\n]{16,})[»"]/,
+    /'([^'\n]{16,})'/,
+    /respuesta:\s*[«"']?([^«"'»\n]{16,})/i,
+  ];
+  for (const pattern of patterns) {
+    const match = answer.match(pattern);
+    const candidate = match?.[1]?.trim();
+    if (candidate && !looksLikeEnglishCustomerReply(candidate)) {
+      return candidate;
+    }
+  }
+  return null;
+}
+
 export function inferCopiActionType(question: string): CopiActionType {
   const normalized = normalizeCopiQuestion(question);
 
@@ -1323,8 +1465,8 @@ export function inferCopiActionType(question: string): CopiActionType {
   }
 
   if (
-    /\b(respond[eé]|responder|contest[aá]|contestar)\b/.test(normalized) &&
-    /\b(cliente|whatsapp|chat|mensaje|conversacion)\b/.test(normalized)
+    /\b(respond[eé]|responder|respuesta|contest[aá]|contestar)\b/.test(normalized) &&
+    /\b(cliente|whatsapp|chat|mensaje|conversacion|hilo)\b/.test(normalized)
   ) {
     return 'propose_customer_reply';
   }

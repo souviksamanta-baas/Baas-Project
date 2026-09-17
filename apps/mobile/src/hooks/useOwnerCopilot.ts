@@ -32,6 +32,20 @@ const starterMessage: CopilotMessage = {
   role: 'assistant',
 };
 
+function isAffirmativeCopiReply(question: string): boolean {
+  const normalized = question
+    .trim()
+    .toLocaleLowerCase('es-AR')
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return /^(si|sip|sep|ok|okay|dale|claro|va|bueno|perfecto|listo|confirmo|confirmalo|envialo|mandalo|manda)$/.test(
+    normalized,
+  );
+}
+
 function mapHistoryMessages(
   history: Array<{
     body: string;
@@ -102,6 +116,61 @@ export function useOwnerCopilot(params: {
     void refreshHistory();
   }, [refreshHistory]);
 
+  const confirmProposedAction = useCallback(
+    async (actionId: string): Promise<void> => {
+      if (!params.organizationId || !params.businessCenterId) {
+        return;
+      }
+
+      try {
+        const result = await confirmCopiAction({
+          actionId,
+          businessCenterId: params.businessCenterId,
+          organizationId: params.organizationId,
+        });
+        const answeredAt = new Date().toISOString();
+        const navigate =
+          result.result &&
+          typeof result.result === 'object' &&
+          result.result.navigate === true &&
+          typeof result.result.route === 'string'
+            ? resolveCopiNavigateRoute(
+                result.result.route,
+                (result.result.params as Record<string, unknown> | undefined) ?? {},
+              )
+            : null;
+        const sentBody =
+          result.result &&
+          typeof result.result === 'object' &&
+          typeof result.result.body === 'string'
+            ? result.result.body.trim()
+            : '';
+
+        setMessages((currentMessages) => [
+          ...currentMessages,
+          {
+            body: navigate
+              ? `Listo. Te llevo a esa pantalla.`
+              : sentBody
+                ? `Listo. Envié al cliente por WhatsApp:\n\n«${sentBody}»`
+                : `Listo. Acción confirmada (${result.status}).`,
+            createdAt: answeredAt,
+            id: `assistant:action:${answeredAt}`,
+            role: 'assistant',
+          },
+        ]);
+
+        if (navigate) {
+          router.push(navigate as never);
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        Alert.alert('No se pudo confirmar la acción', message);
+      }
+    },
+    [params.businessCenterId, params.organizationId, router],
+  );
+
   const askQuestion = useCallback(
     async (questionOverride?: string, options?: { imageContext?: string }): Promise<void> => {
       if (!params.organizationId) {
@@ -111,6 +180,26 @@ export function useOwnerCopilot(params: {
       const question = (questionOverride ?? inputValue).trim();
       if (!question) {
         return;
+      }
+
+      if (isAffirmativeCopiReply(question)) {
+        const pendingActionId = [...messages]
+          .reverse()
+          .find((message) => message.proposedActionId)?.proposedActionId;
+        if (pendingActionId) {
+          setInputValue('');
+          setMessages((currentMessages) => [
+            ...currentMessages,
+            {
+              body: question,
+              createdAt: new Date().toISOString(),
+              id: `owner:${Date.now()}`,
+              role: 'owner',
+            },
+          ]);
+          await confirmProposedAction(pendingActionId);
+          return;
+        }
       }
 
       const askedAt = new Date().toISOString();
@@ -162,54 +251,14 @@ export function useOwnerCopilot(params: {
         setIsAsking(false);
       }
     },
-    [inputValue, params.businessCenterId, params.organizationId, sessionId],
-  );
-
-  const confirmProposedAction = useCallback(
-    async (actionId: string): Promise<void> => {
-      if (!params.organizationId || !params.businessCenterId) {
-        return;
-      }
-
-      try {
-        const result = await confirmCopiAction({
-          actionId,
-          businessCenterId: params.businessCenterId,
-          organizationId: params.organizationId,
-        });
-        const answeredAt = new Date().toISOString();
-        const navigate =
-          result.result &&
-          typeof result.result === 'object' &&
-          result.result.navigate === true &&
-          typeof result.result.route === 'string'
-            ? resolveCopiNavigateRoute(
-                result.result.route,
-                (result.result.params as Record<string, unknown> | undefined) ?? {},
-              )
-            : null;
-
-        setMessages((currentMessages) => [
-          ...currentMessages,
-          {
-            body: navigate
-              ? `Listo. Te llevo a esa pantalla.`
-              : `Listo. Acción confirmada (${result.status}).`,
-            createdAt: answeredAt,
-            id: `assistant:action:${answeredAt}`,
-            role: 'assistant',
-          },
-        ]);
-
-        if (navigate) {
-          router.push(navigate as never);
-        }
-      } catch (error) {
-        const message = error instanceof Error ? error.message : 'Unknown error';
-        Alert.alert('No se pudo confirmar la acción', message);
-      }
-    },
-    [params.businessCenterId, params.organizationId, router],
+    [
+      confirmProposedAction,
+      inputValue,
+      messages,
+      params.businessCenterId,
+      params.organizationId,
+      sessionId,
+    ],
   );
 
   const hasConversationHistory = messages.some((message) => message.id !== 'starter');

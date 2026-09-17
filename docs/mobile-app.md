@@ -401,13 +401,65 @@ sends can happen.
   “Abiertos / Todos los canales” tabs are removed. Collapsed header title
   updates on FlatList scroll.
 - Thread: mark read on open; **Agregar contacto** writes to the device phonebook
-  only. Message long-press: reactions, reply quote, edit, forward, copy, ask
-  Copi, **Cambiar estado a**, hide. Link preview cards when `link_preview` is
-  present. Client voice notes: empty composer → mic; recording → WhatsApp send
-  icon to send audio (`POST /whatsapp/messages/send-audio`). Dictation into the
-  text field uses the OS keyboard mic only.
+  only. Link preview cards when `link_preview` is present. See **Chats WhatsApp UX**
+  below for swipe actions, voice notes, Adjuntar, and message long-press.
 - Copi composer: mic = STT into the text box (review before send); send uses the
   same WhatsApp-style paper-plane icon. Copi does not send voice-note blobs.
+
+### Chats WhatsApp UX (KAN-402)
+
+Epic [KAN-402](https://souviksamanta.atlassian.net/browse/KAN-402). Confluence:
+[Chats WhatsApp UX (swipe, voice notes, reactions, Adjuntar, etiquetas)](https://souviksamanta.atlassian.net/wiki/spaces/BaaS/pages/46202881/Chats+WhatsApp+UX+swipe+voice+notes+reactions+Adjuntar+etiquetas).
+
+#### Swipe actions map (conversation list)
+
+Implementation: `SwipeableChatRow` on **Chats** (`InboxScreen`).
+
+| Swipe | Action | Label | Behavior |
+| --- | --- | --- | --- |
+| Left → | Toggle read | **Leído** / **No leído** | Updates `conversations.last_owner_read_at` via Supabase RLS |
+| Left → | Pin | **Fijar** / **Desfijar** | Sets `conversations.pinned_at`; pinned rows sort first |
+| Left → | Mute | **Silenciar** / **Activar** | Sets `conversations.muted_until` (duration picker on **Más**) |
+| Right ← | Overflow | **Más** | Bottom sheet: Vaciar, Eliminar, mute duration, etc. |
+| Right ← | Archive | **Archivar** / **Desarchivar** | Sets `conversations.archived_at` |
+
+Long-press on a row opens the same overflow sheet as **Más**.
+
+#### Voice notes vs transcription vs Copi STT
+
+| Surface | Mic behavior |
+| --- | --- |
+| **Chats thread composer** (empty text) | App mic → record **nota de voz**; send via `POST /whatsapp/messages/send-audio` (`sendConversationAudio` in `api/whatsapp.ts`). Inline player on `message_type = audio`. |
+| **Chats thread composer** (text field focused) | OS keyboard mic → **transcription** into the text field (dictation); owner reviews/edits before send. |
+| **Copi chat** | Mic → STT into composer (`POST /ai/copilot/voice`); review before send. Copi does **not** send voice-note blobs. |
+
+#### Adjuntar sheet (thread composer)
+
+**+** opens a bottom sheet titled **Adjuntar** with flat `ActionRow` lines (no colored
+icon circles):
+
+- **Cámara** — `expo-image-picker` camera
+- **Galería** — library pick → `sendConversationImage`
+
+Icons use brand-green **outline** strokes (`colors.primary`), matching Más menu rows.
+See `docs/mobile-design-system.md`.
+
+#### Message long-press
+
+`MessageActionOverlay` separates the **emoji reaction strip** (👍 ❤️ 😂 😮 😢 🙏) from
+the **action card** below:
+
+| Action | Notes |
+| --- | --- |
+| Responder | Sets reply quote (`replyToMessageId` on send) |
+| Reenviar | Pick target conversation |
+| Copiar | Clipboard |
+| Editar | Outbound text only; Meta edit API |
+| Preguntar a Copi | Opens Copi with message context |
+| **Asignar etiqueta** | Lead status picker — see `docs/crm-lead-status.md` |
+| Eliminar | Soft-delete / hide message |
+
+Reactions call `POST /whatsapp/messages/react` and mirror into `message_reactions`.
 - The Copi screen supports a hub state and continuous chat using
   `useOwnerCopilot`.
 - The More screen (`Más`) uses flat card groups **without** Inventarios /

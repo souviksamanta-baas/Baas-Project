@@ -28,6 +28,7 @@ The Phase 0 tenant foundation defines:
 | `20260606011500_redesign_domain_model_centers_inventory.sql` | Adds `organization_verticals`, `business_centers`, `business_center_members`, center scope on operational tables, center-level settings, and measured inventory tables. |
 | `20260705120000_inventory_lots_insert_policy.sql` | Grants authenticated org members INSERT on `inventory_lots` for stock intake. |
 | `20260805210000_inventory_lots_update_policy.sql` | Grants authenticated org members UPDATE on `inventory_lots` (e.g. zero `remaining_quantity` when unconfirming a compra). |
+| `20260916010000_chats_pin_mute_reactions.sql` | Adds `conversations.pinned_at`, `conversations.muted_until`, and `message_reactions` with member CRUD policies. |
 
 ## RLS Policy Model
 
@@ -43,6 +44,7 @@ All Phase 0 tenant tables have RLS enabled and forced:
 - `contacts`
 - `conversations`
 - `conversation_messages`
+- `message_reactions`
 - `products`
 - `inventory_items`
 - `inventory_lots`
@@ -78,6 +80,23 @@ server-only.
 Phase 2 conversation history is client-readable only for organization members.
 The API service role owns writes for inbound webhook events and outbound
 WhatsApp sends, preventing mobile clients from forging persisted message history.
+
+### `message_reactions`
+
+WhatsApp-style emoji reactions on thread messages. One row per `(message_id, actor)`
+where `actor` is `owner` or `contact`.
+
+| Policy | Operation | Rule |
+| --- | --- | --- |
+| `message_reactions_select_members` | SELECT | `organization_id in (select private.user_org_ids())` |
+| `message_reactions_insert_members` | INSERT | same org membership check |
+| `message_reactions_update_members` | UPDATE | same org membership check |
+| `message_reactions_delete_members` | DELETE | same org membership check |
+
+Inbound contact reactions are upserted by the webhook service role (`actor = contact`).
+Owner reactions from mobile use authenticated INSERT/UPDATE/DELETE via RLS and
+`POST /whatsapp/messages/react` for Meta sync. Mobile reads reactions in
+`api/conversations.ts` when loading thread messages.
 
 Phase 2 contact records follow the same model: authenticated owners can select
 contacts for their organizations, while the API service role owns writes from

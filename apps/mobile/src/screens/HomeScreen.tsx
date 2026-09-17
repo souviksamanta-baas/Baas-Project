@@ -13,6 +13,7 @@ import {
   formatConversationTime,
   leadStatusLabel,
 } from '../lib/inboxPresentation';
+import { useDeviceContactNames } from '../lib/deviceContactNames';
 import type { Appointment } from '../types/appointments';
 import type { OwnerDashboard } from '../types/dashboard';
 import type { InboxConversationSummary } from '../types/messages';
@@ -43,6 +44,7 @@ export function HomeScreen(props: {
   whatsappConnection: OwnerDashboard['whatsappConnection'] | null;
 }): ReactElement {
   const flags = useOrganizationFlags();
+  const deviceContacts = useDeviceContactNames();
   const connection = props.whatsappConnection ?? {
     status: 'not_configured' as const,
     phoneNumberId: null,
@@ -154,19 +156,24 @@ export function HomeScreen(props: {
           {props.conversations.length === 0 ? (
             <Text style={styles.emptyBody}>Todavía no hay conversaciones de WhatsApp.</Text>
           ) : null}
-          {props.conversations.slice(0, 4).map((conversation, index, rows) => (
+          {props.conversations.slice(0, 4).map((conversation, index, rows) => {
+            const deviceName = deviceContacts.resolveName(
+              conversation.contact.phoneNumber ?? conversation.externalContactId,
+            );
+            return (
             <ConversationRow
-              avatar={conversationAvatarLabel(conversation)}
+              avatar={conversationAvatarLabel(conversation, deviceName)}
               channel={conversation.channel}
               key={conversation.id}
-              name={conversationDisplayName(conversation)}
+              name={conversationDisplayName(conversation, deviceName)}
               onPress={() => props.onOpenConversation(conversation.id)}
               preview={conversationPreview(conversation)}
               showDivider={index < rows.length - 1}
               statusLabel={leadStatusLabel(conversation.contact.leadStatus)}
               time={formatConversationTime(conversation.lastMessageAt)}
             />
-          ))}
+            );
+          })}
         </ListBox>
       </FeatureGate>
 

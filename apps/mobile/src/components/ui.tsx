@@ -40,6 +40,7 @@ import { parseCopiRichText } from '../lib/copiRichText';
 import { resolveWhatsAppMediaUrl } from '../lib/whatsappMedia';
 import { ChannelIcon, CopiRobotIcon, Icon } from './icons';
 import type { IconKind } from './icons';
+import { MessageBubbleAudio } from './MessageBubbleAudio';
 import { NexoliaMark } from './NexoliaMark';
 
 export type AppTab = 'copi' | 'home' | 'inbox' | 'more';
@@ -445,6 +446,8 @@ export function MetricGrid(props: {
 export function ConversationRow(props: {
   avatar: string;
   channel: Channel;
+  isMuted?: boolean;
+  isPinned?: boolean;
   name: string;
   onPress?: () => void;
   preview: string;
@@ -460,7 +463,17 @@ export function ConversationRow(props: {
       <Avatar channel={props.channel} label={props.avatar} />
       <View style={[styles.listRowContent, showDivider && styles.listRowContentDivider]}>
         <View style={styles.flexShrink}>
-          <Text numberOfLines={1} style={styles.listTitle}>{props.name}</Text>
+          <View style={styles.conversationTitleRow}>
+            <Text numberOfLines={1} style={[styles.listTitle, styles.flexShrink]}>
+              {props.name}
+            </Text>
+            {props.isPinned ? (
+              <Icon color={colors.textMuted} kind="pin" size={14} strokeWidth={2} />
+            ) : null}
+            {props.isMuted ? (
+              <Icon color={colors.textMuted} kind="bell" size={14} strokeWidth={2} />
+            ) : null}
+          </View>
           <Text numberOfLines={1} style={styles.listDescription}>{props.preview}</Text>
           {props.statusLabel ? <Text numberOfLines={1} style={styles.leadBadge}>{props.statusLabel}</Text> : null}
         </View>
@@ -586,13 +599,17 @@ export function MessageBubble(props: {
     title?: string | null;
     url?: string | null;
   } | null;
+  mediaDurationMs?: number | null;
   mediaMimeType?: string | null;
   mediaStoragePath?: string | null;
   mediaUrl?: string | null;
+  messageId?: string;
   messageType?: string | null;
   onLongPress?: () => void;
   onPressPresupuesto?: (quoteId: string) => void;
   onPressProduct?: (productId: string) => void;
+  onPressReactionChip?: () => void;
+  reactions?: Array<{ actor: 'owner' | 'contact'; emoji: string }>;
   source?: MessageSource;
   text: string;
   time: string;
@@ -607,6 +624,7 @@ export function MessageBubble(props: {
   const hasImage = !isAudio && Boolean(props.mediaUrl || props.mediaStoragePath);
   const preview = props.linkPreview;
   const hasPreview = Boolean(preview?.url || preview?.title);
+  const reactions = props.reactions ?? [];
 
   return (
     <Pressable
@@ -616,6 +634,14 @@ export function MessageBubble(props: {
     >
       <View style={[styles.messageBubble, outbound && styles.outboundMessageBubble]}>
         {showCopiTag ? <MessageSourceBadge source="copi" /> : null}
+        {isAudio ? (
+          <MessageBubbleAudio
+            mediaDurationMs={props.mediaDurationMs}
+            mediaStoragePath={props.mediaStoragePath}
+            mediaUrl={props.mediaUrl}
+            messageId={props.messageId ?? `${props.mediaStoragePath ?? props.mediaUrl ?? 'audio'}`}
+          />
+        ) : null}
         {hasImage ? (
           <MessageBubbleImage
             mediaStoragePath={props.mediaStoragePath}
@@ -695,6 +721,16 @@ export function MessageBubble(props: {
           {props.editedAt ? `Editado · ${props.time}` : props.time}
         </Text>
       </View>
+      {reactions.length > 0 ? (
+        <Pressable
+          onPress={props.onPressReactionChip}
+          style={[styles.reactionChip, outbound && styles.reactionChipOutbound]}
+        >
+          <Text style={styles.reactionChipText}>
+            {reactions.map((reaction) => reaction.emoji).join('')}
+          </Text>
+        </Pressable>
+      ) : null}
     </Pressable>
   );
 }
@@ -791,6 +827,7 @@ export function ReplyComposer(props: {
   onPressAttachLibrary?: () => void;
   onPressPlus?: () => void;
   onPressVoice?: () => void;
+  onDiscardVoice?: () => void;
   onSend?: () => void;
   pendingImageHint?: string;
   pendingImageUri?: string | null;
@@ -892,7 +929,14 @@ export function ReplyComposer(props: {
         />
       </View>
       {props.isRecordingVoice ? (
-        <Text style={styles.recordingHint}>{recordingHint}</Text>
+        <View style={styles.recordingHintRow}>
+          <Text style={styles.recordingHint}>{recordingHint}</Text>
+          {props.voiceMode !== 'stt' && props.onDiscardVoice ? (
+            <Pressable hitSlop={8} onPress={props.onDiscardVoice}>
+              <Text style={styles.pendingImageClear}>Descartar</Text>
+            </Pressable>
+          ) : null}
+        </View>
       ) : null}
 
       <Modal
@@ -911,39 +955,32 @@ export function ReplyComposer(props: {
           >
             <View style={styles.attachmentSheetHandle} />
             <Text style={styles.attachmentSheetTitle}>Adjuntar</Text>
-            <View style={styles.attachmentGrid}>
+            <View style={styles.attachmentList}>
               {props.onPressAttachCamera ? (
-                <Pressable
+                <ActionRow
+                  icon="camera"
                   onPress={() => {
                     closeAttachmentSheet();
-                    // Let the sheet dismiss before opening the system picker (iOS).
                     setTimeout(() => {
                       props.onPressAttachCamera?.();
                     }, 280);
                   }}
-                  style={styles.attachmentCircleOption}
-                >
-                  <View style={[styles.attachmentCircle, styles.attachmentCircleCamera]}>
-                    <Icon color={colors.surface} kind="camera" size={24} strokeWidth={1.9} />
-                  </View>
-                  <Text style={styles.attachmentCircleLabel}>Cámara</Text>
-                </Pressable>
+                  showChevron={false}
+                  title="Cámara"
+                />
               ) : null}
               {props.onPressAttachLibrary ? (
-                <Pressable
+                <ActionRow
+                  icon="image"
                   onPress={() => {
                     closeAttachmentSheet();
                     setTimeout(() => {
                       props.onPressAttachLibrary?.();
                     }, 280);
                   }}
-                  style={styles.attachmentCircleOption}
-                >
-                  <View style={[styles.attachmentCircle, styles.attachmentCircleGallery]}>
-                    <Icon color={colors.surface} kind="image" size={24} strokeWidth={1.9} />
-                  </View>
-                  <Text style={styles.attachmentCircleLabel}>Galería</Text>
-                </Pressable>
+                  showChevron={false}
+                  title="Galería"
+                />
               ) : null}
             </View>
           </View>
@@ -1461,6 +1498,11 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
   },
+  conversationTitleRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 6,
+  },
   greenText: {
     color: colors.primary,
   },
@@ -1686,6 +1728,29 @@ const styles = StyleSheet.create({
     marginTop: 2,
     textAlign: 'right',
   },
+  reactionChip: {
+    alignSelf: 'flex-start',
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: 999,
+    borderWidth: StyleSheet.hairlineWidth,
+    bottom: -10,
+    left: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    position: 'absolute',
+    zIndex: 2,
+  },
+  reactionChipOutbound: {
+    left: undefined,
+    right: 12,
+  },
+  reactionChipText: {
+    fontSize: 14,
+  },
+  attachmentList: {
+    paddingTop: spacing.sm,
+  },
   linkPreviewCard: {
     backgroundColor: 'rgba(0,0,0,0.04)',
     borderRadius: 10,
@@ -1724,6 +1789,7 @@ const styles = StyleSheet.create({
   messageWrap: {
     alignItems: 'flex-start',
     marginBottom: 13,
+    position: 'relative',
   },
   metricGrid: {
     flexDirection: 'row',
@@ -1895,40 +1961,9 @@ const styles = StyleSheet.create({
   replyBarWrapEmbedded: {
     backgroundColor: 'transparent',
   },
-  attachmentCircle: {
-    alignItems: 'center',
-    borderRadius: 28,
-    height: 56,
-    justifyContent: 'center',
-    width: 56,
-  },
-  attachmentCircleCamera: {
-    backgroundColor: '#e05c84',
-  },
-  attachmentCircleGallery: {
-    backgroundColor: '#8f66d8',
-  },
-  attachmentCircleLabel: {
-    color: colors.navy,
-    fontSize: 15,
-    fontWeight: '500',
-    marginTop: spacing.sm,
-  },
-  attachmentCircleOption: {
-    alignItems: 'center',
-    minWidth: 76,
-  },
   attachmentBackdrop: {
     ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(16, 25, 53, 0.35)',
-  },
-  attachmentGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.xl,
-    justifyContent: 'flex-start',
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.md,
   },
   attachmentModalRoot: {
     flex: 1,
@@ -1984,10 +2019,15 @@ const styles = StyleSheet.create({
   },
   recordingHint: {
     color: colors.slate,
+    flex: 1,
     fontSize: 13,
+  },
+  recordingHintRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: spacing.md,
     paddingBottom: spacing.xs,
     paddingHorizontal: spacing.xl,
-    textAlign: 'center',
   },
   robot: {
     alignItems: 'center',

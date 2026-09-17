@@ -1,0 +1,14 @@
+appId: ar.com.nexolia.app
+---
+# Chats — add and clear message reactions
+# Requires: conversation with at least one inbound message
+- launchApp
+# - tapOn: "Chats"
+# - tapOn: "Cliente Demo"
+# - longPressOn:
+#     id: "message-bubble-inbound-0"
+# - tapOn: "👍"
+# - assertVisible: "👍"
+# - longPressOn:
+#     id: "message-bubble-inbound-0"
+# - tapOn: "Quitar reacción"

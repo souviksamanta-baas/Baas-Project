@@ -23,6 +23,7 @@ export interface SendConversationTextMessageParams {
   businessCenterId: string;
   conversationId: string;
   organizationId: string;
+  replyToMessageId?: string | null;
 }
 
 export interface SendConversationImageMessageParams {
@@ -97,11 +98,23 @@ export class WhatsAppMessagingService {
       organizationId: params.organizationId,
     });
 
+    let replyToExternalMessageId: string | null = null;
+    if (params.replyToMessageId) {
+      const replyTarget = await this.messageRepository.getMessageById({
+        businessCenterId: params.businessCenterId,
+        messageId: params.replyToMessageId,
+        organizationId: params.organizationId,
+      });
+      replyToExternalMessageId = replyTarget?.externalMessageId ?? null;
+    }
+
     return this.outboundMessageService.sendTextMessage({
       body,
       businessCenterId: conversation.business_center_id,
       organizationId: conversation.organization_id,
       recipientPhone: conversation.external_contact_id,
+      replyToExternalMessageId,
+      replyToMessageId: params.replyToMessageId ?? null,
     });
   }
 

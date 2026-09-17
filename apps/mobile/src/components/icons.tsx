@@ -36,6 +36,9 @@ export type IconKind =
   | 'mic'
   | 'money'
   | 'more'
+  | 'pause'
+  | 'pin'
+  | 'play'
   | 'plus'
   | 'puzzle'
   | 'qr'
@@ -280,6 +283,16 @@ function iconPath(kind: IconKind, color: string, filled?: boolean): ReactElement
     );
   }
   if (kind === 'check') return <Path d="m5 12 4 4 10-10" />;
+  if (kind === 'pin') {
+    return (
+      <>
+        <Path d="M12 17v5" />
+        <Path d="M9 3h6l1 6-3 2v3l-2.5-2.5L8 14v-3L5 9l1-6h3Z" fill={filled ? color : 'none'} />
+      </>
+    );
+  }
+  if (kind === 'play') return <Path d="M8 5v14l11-7L8 5Z" fill={filled ? color : 'none'} />;
+  if (kind === 'pause') return <><Path d="M8 5h3v14H8z" fill={filled ? color : 'none'} /><Path d="M13 5h3v14h-3z" fill={filled ? color : 'none'} /></>;
   if (kind === 'clock') return <><Circle cx="12" cy="12" r="9" /><Path d="M12 7v5l3 2" /></>;
   if (kind === 'shield') {
     return (

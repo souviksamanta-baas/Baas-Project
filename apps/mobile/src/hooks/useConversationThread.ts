@@ -76,6 +76,7 @@ export function useConversationThread(params: {
   isLoading: boolean;
   messages: WhatsAppMessagePreview[];
   messagingWindowState: InstagramMessagingWindowState | FacebookMessagingWindowState | null;
+  reloadMessages: () => Promise<void>;
   sendAudioReply: (params: {
     audioBase64: string;
     durationMs?: number;
@@ -86,7 +87,7 @@ export function useConversationThread(params: {
     imageBase64: string;
     mimeType?: string;
   }) => Promise<void>;
-  sendReply: (body: string) => Promise<void>;
+  sendReply: (body: string, options?: { replyToMessageId?: string | null }) => Promise<void>;
 } {
   const [messages, setMessages] = useState<WhatsAppMessagePreview[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -94,6 +95,17 @@ export function useConversationThread(params: {
   const [messagingWindowState, setMessagingWindowState] = useState<
     InstagramMessagingWindowState | FacebookMessagingWindowState | null
   >(null);
+
+  const reloadMessages = useCallback(async (): Promise<void> => {
+    if (!params.conversationId) {
+      setMessages([]);
+      return;
+    }
+    const threadMessages = await getConversationMessages(params.conversationId, {
+      messagesClearedAt: params.messagesClearedAt,
+    });
+    setMessages(threadMessages);
+  }, [params.conversationId, params.messagesClearedAt]);
 
   useEffect(() => {
     if (!params.conversationId) {
@@ -135,6 +147,12 @@ export function useConversationThread(params: {
       params.businessCenterId,
       (message) => {
         if (message.conversationId !== params.conversationId) {
+          return;
+        }
+        if (message.messageType === 'reaction' || message.messageType === '__hidden__') {
+          setMessages((currentMessages) =>
+            currentMessages.filter((current) => current.id !== message.id),
+          );
           return;
         }
 
@@ -195,7 +213,7 @@ export function useConversationThread(params: {
   }, [params.channel, params.conversationId, params.organizationId, messages.length]);
 
   const sendReply = useCallback(
-    async (body: string): Promise<void> => {
+    async (body: string, options?: { replyToMessageId?: string | null }): Promise<void> => {
       if (!params.organizationId || !params.businessCenterId || !params.conversationId) {
         throw new Error('Missing conversation context.');
       }
@@ -225,6 +243,7 @@ export function useConversationThread(params: {
         businessCenterId: params.businessCenterId,
         conversationId: params.conversationId,
         organizationId: params.organizationId,
+        replyToMessageId: options?.replyToMessageId,
       });
     },
     [params.businessCenterId, params.channel, params.conversationId, params.organizationId],
@@ -302,6 +321,7 @@ export function useConversationThread(params: {
     isLoading,
     messages,
     messagingWindowState,
+    reloadMessages,
     sendAudioReply,
     sendImageReply,
     sendReply,

@@ -1,0 +1,10 @@
+appId: ar.com.nexolia.app
+---
+# Cash — record cash in/out movement
+- launchApp
+# - tapOn: "Caja"
+# - tapOn: "Nuevo movimiento"
+# - tapOn: "Ingreso"
+# - inputText: "1250"
+# - tapOn: "Guardar"
+# - assertVisible: "$1.250"

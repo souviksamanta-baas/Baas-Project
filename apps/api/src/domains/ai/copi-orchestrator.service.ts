@@ -2,8 +2,8 @@ import { Injectable } from '@nestjs/common';
 
 import { SupabaseService } from '../../supabase/supabase.service';
 import type { CopiActionType, OwnerCopilotResponse } from './copi.types';
-import { CopiActionService, inferCopiActionType } from './copi-action.service';
-import { detectProActionIntent, isUnclearCopiQuestion, unclearCopiReply } from './copi-intent-router';
+import { CopiActionService, extractSpanishQuotedReply, inferCopiActionType } from './copi-action.service';
+import { detectProActionIntent, isCopiActionAffirmative, isUnclearCopiQuestion, unclearCopiReply } from './copi-intent-router';
 import { CopiLlmPhraserService } from './copi-llm-phraser.service';
 import { CopiLlmToolSelectorService } from './copi-llm-tool-selector.service';
 import { CopiPolicyService } from './copi-policy.service';
@@ -98,6 +98,38 @@ export class CopiOrchestratorService {
       sessionId,
     });
 
+    if (isCopiActionAffirmative(params.question)) {
+      const pending = await this.actionService.findLatestPendingProposal({
+        businessCenterId,
+        organizationId: params.organizationId,
+        sessionId,
+        userId: member.userId,
+      });
+      if (pending) {
+        const executed = await this.actionService.confirmAction({
+          actionId: pending.id,
+          businessCenterId,
+          organizationId: params.organizationId,
+          userId: member.userId,
+        });
+        const answer =
+          pending.actionType === 'propose_customer_reply'
+            ? formatCustomerReplyConfirmed(executed.result)
+            : `Listo. Acción confirmada (${executed.status}).`;
+        await this.persistAssistantMessage(params.organizationId, sessionId, answer, []);
+        return {
+          answer,
+          policyDecision: 'allowed',
+          proposedAction: null,
+          responseTimeMs: Date.now() - startedAt,
+          sessionId,
+          tier: this.policyService.canUseProAgent(flags) ? 'pro' : 'basic',
+          tokenUsage: this.policyService.emptyUsage(),
+          tools: [],
+        };
+      }
+    }
+
     const wantsProAction = detectProActionIntent(reasoningQuestion);
     if (wantsProAction && !this.policyService.canUseProAgent(flags)) {
       const answer =
@@ -160,6 +192,56 @@ export class CopiOrchestratorService {
       }
     }
 
+    // Customer-reply proposals should not wander into unrelated tools (e.g. pending drafts).
+    if (
+      wantsProAction &&
+      inferredAction === 'propose_customer_reply' &&
+      this.policyService.canUseProAgent(flags)
+    ) {
+      let proposedAction = await this.actionService.proposeAction(context);
+      if (proposedAction) {
+        const bodyRaw =
+          typeof proposedAction.payload.body === 'string' && proposedAction.payload.body.trim()
+            ? proposedAction.payload.body.trim()
+            : null;
+        const body =
+          bodyRaw && /[áéíóúñ¿¡]/i.test(bodyRaw)
+            ? bodyRaw
+            : bodyRaw && /\b(thanks|reaching|availability|pricing|please)\b/i.test(bodyRaw)
+              ? '¡Hola! Claro, te paso el catálogo completo de productos. ¿Hay algo específico que te interese?'
+              : bodyRaw;
+        if (body && body !== bodyRaw) {
+          proposedAction = {
+            ...proposedAction,
+            payload: { ...proposedAction.payload, body },
+            summary: `Enviar respuesta al cliente: «${body.slice(0, 72)}${body.length > 72 ? '…' : ''}»`,
+          };
+          await this.actionService.updateProposalPayload({
+            actionId: proposedAction.id,
+            organizationId: params.organizationId,
+            payload: proposedAction.payload,
+            userId: member.userId,
+          });
+        }
+        const answer = body
+          ? `Te propongo enviar este mensaje al cliente por WhatsApp:\n\n«${body}»\n\n¿Confirmo el envío?`
+          : `${proposedAction.summary}.\n\n¿Confirmo la acción?`;
+        await this.persistAssistantMessage(params.organizationId, sessionId, answer, [
+          'conversation_thread',
+        ]);
+        return {
+          answer,
+          policyDecision: 'allowed',
+          proposedAction,
+          responseTimeMs: Date.now() - startedAt,
+          sessionId,
+          tier: 'pro',
+          tokenUsage: this.policyService.emptyUsage(),
+          tools: ['conversation_thread'],
+        };
+      }
+    }
+
     const useLlm = this.policyService.canUseFreeformQuestions(flags);
     const isPro = this.policyService.canUseProAgent(flags);
     const selected = await this.toolSelectorService.selectTools({
@@ -186,16 +268,41 @@ export class CopiOrchestratorService {
     if (wantsProAction && this.policyService.canUseProAgent(flags)) {
       proposedAction = await this.actionService.proposeAction(context);
       if (proposedAction) {
-        const clarifications = Array.isArray(proposedAction.payload.clarificationQuestions)
-          ? proposedAction.payload.clarificationQuestions.filter(
-              (item): item is string => typeof item === 'string' && item.trim().length > 0,
-            )
-          : [];
-        const clarificationBlock =
-          clarifications.length > 0
-            ? `\n\n${clarifications.map((item) => `• ${item}`).join('\n')}\n(Si confirmás ahora, uso un horario estimado y después lo podemos ajustar.)`
-            : '';
-        answer = `${answer}\n\n${proposedAction.summary}.${clarificationBlock}\n\n¿Confirmo la acción?`;
+        if (proposedAction.actionType === 'propose_customer_reply') {
+          const extracted = extractSpanishQuotedReply(phrased.answer);
+          const currentBody =
+            typeof proposedAction.payload.body === 'string'
+              ? proposedAction.payload.body.trim()
+              : '';
+          const body = extracted || currentBody;
+          if (body) {
+            proposedAction = {
+              ...proposedAction,
+              payload: { ...proposedAction.payload, body },
+              summary: `Enviar respuesta al cliente: «${body.slice(0, 72)}${body.length > 72 ? '…' : ''}»`,
+            };
+            await this.actionService.updateProposalPayload({
+              actionId: proposedAction.id,
+              organizationId: params.organizationId,
+              payload: proposedAction.payload,
+              userId: member.userId,
+            });
+          }
+          answer = body
+            ? `Te propongo enviar este mensaje al cliente por WhatsApp:\n\n«${body}»\n\n¿Confirmo el envío?`
+            : `${proposedAction.summary}.\n\n¿Confirmo la acción?`;
+        } else {
+          const clarifications = Array.isArray(proposedAction.payload.clarificationQuestions)
+            ? proposedAction.payload.clarificationQuestions.filter(
+                (item): item is string => typeof item === 'string' && item.trim().length > 0,
+              )
+            : [];
+          const clarificationBlock =
+            clarifications.length > 0
+              ? `\n\n${clarifications.map((item) => `• ${item}`).join('\n')}\n(Si confirmás ahora, uso un horario estimado y después lo podemos ajustar.)`
+              : '';
+          answer = `${answer}\n\n${proposedAction.summary}.${clarificationBlock}\n\n¿Confirmo la acción?`;
+        }
       }
     }
 
@@ -363,4 +470,12 @@ function formatAutoExecutedAnswer(
   }
 
   return 'Listo. Acción completada.';
+}
+
+function formatCustomerReplyConfirmed(result: Record<string, unknown>): string {
+  const body = typeof result.body === 'string' ? result.body.trim() : '';
+  if (body) {
+    return `Listo. Envié al cliente por WhatsApp:\n\n«${body}»`;
+  }
+  return 'Listo. Envié la respuesta al cliente por WhatsApp.';
 }

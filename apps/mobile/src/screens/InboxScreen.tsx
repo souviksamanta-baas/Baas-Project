@@ -29,6 +29,7 @@ import { readImageAssetAsBase64 } from '../lib/readImageAssetAsBase64';
 import { useAndroidBackHandler } from '../hooks/useAndroidBackHandler';
 import { useAndroidKeyboardHeight } from '../hooks/useAndroidKeyboard';
 
+import { ConversationMoreSheet } from '../components/ConversationMoreSheet';
 import { MobileContainedModal } from '../components/MobileContainedModal';
 import { SwipeableChatRow } from '../components/SwipeableChatRow';
 
@@ -37,8 +38,15 @@ import {
   archiveConversation,
   clearConversationMessages,
   deleteConversation,
+  isConversationMuted,
+  markConversationRead,
   markConversationUnread,
+  muteConversation,
+  muteUntilPreset,
+  pinConversation,
   unarchiveConversation,
+  unmuteConversation,
+  unpinConversation,
 } from '../api/conversationActions';
 import {
   Card,
@@ -68,6 +76,7 @@ import {
   messageBubbleText,
   messageBubbleTime,
 } from '../lib/inboxPresentation';
+import { useDeviceContactNames } from '../lib/deviceContactNames';
 import type { OwnerDashboard } from '../types/dashboard';
 import type { InboxConversationSummary, WhatsAppMessagePreview } from '../types/messages';
 import { whatsappConnectionLabel } from '../lib/whatsappPresentation';
@@ -117,6 +126,7 @@ export function InboxScreen(props: {
   const setHeaderCollapsedFromScroll = useHeaderCollapseOnScroll();
   const insets = useSafeAreaInsets();
   const bottomClearance = getBottomNavClearance(insets.bottom);
+  const deviceContacts = useDeviceContactNames();
 
   const runAction = useCallback(
     async (action: () => Promise<void>, errorTitle: string): Promise<void> => {
@@ -130,71 +140,142 @@ export function InboxScreen(props: {
     [props],
   );
 
-  function openConversationMenu(conversation: InboxConversationSummary): void {
-    const archived = Boolean(conversation.archivedAt || conversation.status === 'closed');
-    Alert.alert(conversationDisplayName(conversation), undefined, [
+  function openMuteMenu(conversation: InboxConversationSummary): void {
+    if (isConversationMuted(conversation.mutedUntil)) {
+      void runAction(() => unmuteConversation(conversation.id), 'No se pudo activar');
+      return;
+    }
+    Alert.alert('Silenciar', '¿Por cuánto tiempo?', [
       {
-        text: 'Marcar como no leído',
-        onPress: () => {
-          void runAction(() => markConversationUnread(conversation.id), 'No se pudo marcar');
-        },
-      },
-      {
-        text: archived ? 'Desarchivar' : 'Archivar',
+        text: '8 horas',
         onPress: () => {
           void runAction(
             () =>
-              archived
-                ? unarchiveConversation(conversation.id)
-                : archiveConversation(conversation.id),
-            'No se pudo archivar',
+              muteConversation({
+                conversationId: conversation.id,
+                until: muteUntilPreset('8h'),
+              }),
+            'No se pudo silenciar',
           );
         },
       },
       {
-        text: 'Vaciar chat',
+        text: '1 semana',
         onPress: () => {
-          Alert.alert(
-            'Vaciar chat',
-            'Se van a ocultar los mensajes de este chat para tu negocio. El chat sigue abierto.',
-            [
-              { text: 'Cancelar', style: 'cancel' },
-              {
-                text: 'Vaciar',
-                style: 'destructive',
-                onPress: () => {
-                  void runAction(
-                    () => clearConversationMessages(conversation.id),
-                    'No se pudo vaciar',
-                  );
-                },
-              },
-            ],
+          void runAction(
+            () =>
+              muteConversation({
+                conversationId: conversation.id,
+                until: muteUntilPreset('1w'),
+              }),
+            'No se pudo silenciar',
           );
         },
       },
       {
-        text: 'Eliminar chat',
-        style: 'destructive',
+        text: 'Siempre',
         onPress: () => {
-          Alert.alert(
-            'Eliminar chat',
-            'El chat se oculta de todos los filtros para tu negocio. No borra el historial del cliente en WhatsApp.',
-            [
-              { text: 'Cancelar', style: 'cancel' },
-              {
-                text: 'Eliminar',
-                style: 'destructive',
-                onPress: () => {
-                  void runAction(() => deleteConversation(conversation.id), 'No se pudo eliminar');
-                },
-              },
-            ],
+          void runAction(
+            () =>
+              muteConversation({
+                conversationId: conversation.id,
+                until: muteUntilPreset('always'),
+              }),
+            'No se pudo silenciar',
           );
         },
       },
-      { text: 'Cancelar', style: 'cancel' },
     ]);
+  }
+
+  const [moreMenuConversation, setMoreMenuConversation] =
+    useState<InboxConversationSummary | null>(null);
+
+  function openConversationMenu(conversation: InboxConversationSummary): void {
+    setMoreMenuConversation(conversation);
+  }
+
+  function handleMoreMenuAction(
+    conversation: InboxConversationSummary,
+    action:
+      | 'toggle-read'
+      | 'toggle-pin'
+      | 'mute'
+      | 'archive'
+      | 'clear'
+      | 'delete',
+  ): void {
+    setMoreMenuConversation(null);
+    const archived = Boolean(conversation.archivedAt || conversation.status === 'closed');
+    const unread = (conversation.unreadCount ?? 0) > 0;
+    const pinned = Boolean(conversation.pinnedAt);
+
+    if (action === 'toggle-read') {
+      void runAction(
+        () =>
+          unread
+            ? markConversationRead(conversation.id)
+            : markConversationUnread(conversation.id),
+        'No se pudo marcar',
+      );
+      return;
+    }
+    if (action === 'toggle-pin') {
+      void runAction(
+        () =>
+          pinned ? unpinConversation(conversation.id) : pinConversation(conversation.id),
+        'No se pudo fijar',
+      );
+      return;
+    }
+    if (action === 'mute') {
+      openMuteMenu(conversation);
+      return;
+    }
+    if (action === 'archive') {
+      void runAction(
+        () =>
+          archived
+            ? unarchiveConversation(conversation.id)
+            : archiveConversation(conversation.id),
+        'No se pudo archivar',
+      );
+      return;
+    }
+    if (action === 'clear') {
+      Alert.alert(
+        'Vaciar chat',
+        'Se van a ocultar los mensajes de este chat para tu negocio. El chat sigue abierto.',
+        [
+          {
+            text: 'Vaciar',
+            style: 'destructive',
+            onPress: () => {
+              void runAction(
+                () => clearConversationMessages(conversation.id),
+                'No se pudo vaciar',
+              );
+            },
+          },
+        ],
+      );
+      return;
+    }
+    if (action === 'delete') {
+      Alert.alert(
+        'Eliminar chat',
+        'El chat se oculta de todos los filtros para tu negocio. No borra el historial del cliente en WhatsApp.',
+        [
+          {
+            text: 'Eliminar',
+            style: 'destructive',
+            onPress: () => {
+              void runAction(() => deleteConversation(conversation.id), 'No se pudo eliminar');
+            },
+          },
+        ],
+      );
+    }
   }
 
   return (
@@ -254,31 +335,62 @@ export function InboxScreen(props: {
         }
         renderItem={({ item: conversation, index }) => {
           const archived = Boolean(conversation.archivedAt || conversation.status === 'closed');
+          const unread = (conversation.unreadCount ?? 0) > 0;
+          const pinned = Boolean(conversation.pinnedAt);
+          const muted = isConversationMuted(conversation.mutedUntil);
           return (
             <SwipeableChatRow
               archived={archived}
+              isMuted={muted}
+              isPinned={pinned}
+              isUnread={unread}
               onArchive={() => {
                 void runAction(() => archiveConversation(conversation.id), 'No se pudo archivar');
               }}
               onLongPress={() => openConversationMenu(conversation)}
               onMore={() => openConversationMenu(conversation)}
+              onMute={() => openMuteMenu(conversation)}
+              onPin={() => {
+                void runAction(
+                  () =>
+                    pinned
+                      ? unpinConversation(conversation.id)
+                      : pinConversation(conversation.id),
+                  'No se pudo fijar',
+                );
+              }}
+              onToggleRead={() => {
+                void runAction(
+                  () =>
+                    unread
+                      ? markConversationRead(conversation.id)
+                      : markConversationUnread(conversation.id),
+                  'No se pudo marcar',
+                );
+              }}
               onUnarchive={() => {
                 void runAction(
                   () => unarchiveConversation(conversation.id),
                   'No se pudo desarchivar',
                 );
               }}
-              onUnread={() => {
-                void runAction(
-                  () => markConversationUnread(conversation.id),
-                  'No se pudo marcar',
-                );
-              }}
             >
               <ConversationRow
-                avatar={conversationAvatarLabel(conversation)}
+                avatar={conversationAvatarLabel(
+                  conversation,
+                  deviceContacts.resolveName(
+                    conversation.contact.phoneNumber ?? conversation.externalContactId,
+                  ),
+                )}
                 channel={conversation.channel as Channel}
-                name={conversationDisplayName(conversation)}
+                isMuted={muted}
+                isPinned={pinned}
+                name={conversationDisplayName(
+                  conversation,
+                  deviceContacts.resolveName(
+                    conversation.contact.phoneNumber ?? conversation.externalContactId,
+                  ),
+                )}
                 onPress={() => props.onOpenConversation(conversation.id)}
                 preview={conversationPreview(conversation)}
                 showDivider={index < filteredConversations.length - 1}
@@ -302,6 +414,33 @@ export function InboxScreen(props: {
         onApply={setFilters}
         onClose={() => setFiltersOpen(false)}
         visible={filtersOpen}
+      />
+
+      <ConversationMoreSheet
+        archived={Boolean(
+          moreMenuConversation?.archivedAt || moreMenuConversation?.status === 'closed',
+        )}
+        isMuted={isConversationMuted(moreMenuConversation?.mutedUntil)}
+        isPinned={Boolean(moreMenuConversation?.pinnedAt)}
+        isUnread={(moreMenuConversation?.unreadCount ?? 0) > 0}
+        onAction={(action) => {
+          if (moreMenuConversation) {
+            handleMoreMenuAction(moreMenuConversation, action);
+          }
+        }}
+        onClose={() => setMoreMenuConversation(null)}
+        title={
+          moreMenuConversation
+            ? conversationDisplayName(
+                moreMenuConversation,
+                deviceContacts.resolveName(
+                  moreMenuConversation.contact.phoneNumber ??
+                    moreMenuConversation.externalContactId,
+                ),
+              )
+            : 'Conversación'
+        }
+        visible={Boolean(moreMenuConversation)}
       />
     </ScreenContent>
   );
@@ -384,7 +523,6 @@ export function ConversationDetailScreen(props: {
   isLoading: boolean;
   messages: WhatsAppMessagePreview[];
   onAddDeviceContact?: () => void;
-  onAssignToCopi?: () => void;
   onBack: () => void;
   onMessageLongPress?: (message: WhatsAppMessagePreview) => void;
   onSendAudio?: (params: {
@@ -401,7 +539,6 @@ export function ConversationDetailScreen(props: {
   phoneNumber?: string | null;
   replySeed?: string | null;
   showAddContact?: boolean;
-  statusLabel?: string;
   threadAvatar?: string;
 }): ReactElement {
   const [draft, setDraft] = useState('');
@@ -557,6 +694,20 @@ export function ConversationDetailScreen(props: {
     }
   }
 
+  const handleDiscardVoice = useCallback(async (): Promise<void> => {
+    try {
+      if (recorderState.isRecording || isRecordingVoice) {
+        await audioRecorder.stop();
+      }
+    } catch {
+      // ignore stop errors on discard
+    } finally {
+      setIsRecordingVoice(false);
+      setRecordingStartedAt(null);
+      setSendError(null);
+    }
+  }, [audioRecorder, isRecordingVoice, recorderState.isRecording]);
+
   const handleVoicePress = useCallback(async (): Promise<void> => {
     if (props.composerBlockedMessage || !props.onSendAudio) {
       return;
@@ -651,15 +802,9 @@ export function ConversationDetailScreen(props: {
         <Pressable hitSlop={8} onPress={props.onBack} style={styles.chatBackButton}>
           <Text style={styles.backText}>‹</Text>
         </Pressable>
-        {props.statusLabel ? <Text style={styles.leadBadge}>{props.statusLabel}</Text> : null}
         {props.showAddContact && props.onAddDeviceContact ? (
           <Pressable hitSlop={8} onPress={props.onAddDeviceContact} style={styles.addContactButton}>
             <Text style={styles.addContactText}>Agregar contacto</Text>
-          </Pressable>
-        ) : null}
-        {props.onAssignToCopi ? (
-          <Pressable hitSlop={8} onPress={props.onAssignToCopi} style={styles.addContactButton}>
-            <Text style={styles.addContactText}>Asignar a Copi</Text>
           </Pressable>
         ) : null}
       </View>
@@ -688,11 +833,15 @@ export function ConversationDetailScreen(props: {
                 editedAt={message.editedAt}
                 key={message.id}
                 linkPreview={message.linkPreview}
+                mediaDurationMs={message.mediaDurationMs}
                 mediaMimeType={message.mediaMimeType}
                 mediaStoragePath={message.mediaStoragePath}
                 mediaUrl={message.mediaUrl}
+                messageId={message.id}
                 messageType={message.messageType}
                 onLongPress={() => props.onMessageLongPress?.(message)}
+                onPressReactionChip={() => props.onMessageLongPress?.(message)}
+                reactions={message.reactions}
                 text={messageBubbleText(message)}
                 time={messageBubbleTime(message)}
               />
@@ -738,6 +887,13 @@ export function ConversationDetailScreen(props: {
             props.onSendAudio && !props.composerBlockedMessage
               ? () => {
                   void handleVoicePress();
+                }
+              : undefined
+          }
+          onDiscardVoice={
+            isRecordingVoice
+              ? () => {
+                  void handleDiscardVoice();
                 }
               : undefined
           }

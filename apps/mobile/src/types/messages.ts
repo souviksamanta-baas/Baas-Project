@@ -27,6 +27,7 @@ export interface WhatsAppMessagePreview {
   mediaUrl: string | null;
   messageStatus: string;
   messageType: string;
+  reactions?: Array<{ actor: 'owner' | 'contact'; emoji: string }>;
   recipientPhone: string | null;
   replyToMessageId?: string | null;
   senderPhone: string | null;
@@ -52,6 +53,8 @@ export interface InboxConversationSummary {
   lastOwnerReadAt: string | null;
   latestMessage: WhatsAppMessagePreview | null;
   messagesClearedAt: string | null;
+  mutedUntil: string | null;
+  pinnedAt: string | null;
   status: 'open' | 'closed';
   unreadCount: number;
 }

@@ -178,6 +178,19 @@ describe('detectProActionIntent / create-task vs stock', () => {
       ),
     ).toBe('create_task');
   });
+
+  it('detects customer-reply intent from chat assignment seeds', () => {
+    expect(
+      detectProActionIntent(
+        'Respondé al cliente por WhatsApp en este chat abc. Proponé el texto exacto a enviar.',
+      ),
+    ).toBe(true);
+    expect(
+      detectProActionIntent(
+        'Analizá este mensaje y proponé una respuesta para el chat',
+      ),
+    ).toBe(true);
+  });
 });
 
 describe('isUnclearCopiQuestion', () => {

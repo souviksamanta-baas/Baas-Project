@@ -215,18 +215,17 @@ Sales AI draft generation asynchronously. Draft generation uses the stored
 conversation/message IDs, writes `ai_drafts` and `ai_draft_events`, and logs
 errors without failing the webhook acknowledgement.
 
-## Media (images)
+## Media (images and audio)
 
-Inbound and outbound **image** messages are supported for the owner inbox.
-Android and iOS share this contract unchanged
+Inbound and outbound **image** and **audio** messages are supported for the owner
+inbox. Android and iOS share this contract unchanged
 ([KAN-346](https://souviksamanta.atlassian.net/browse/KAN-346) / [KAN-350](https://souviksamanta.atlassian.net/browse/KAN-350)):
-same webhook parse → Storage hydrate → signed `media_url`, and the same
-owner `POST /whatsapp/messages/send-image` path. No Android-specific webhook
-payload or endpoint.
+same webhook parse → Storage hydrate → signed `media_url`, and the same owner
+send paths. No Android-specific webhook payload or endpoint.
 
 ### Inbound images
 
-Webhook parsing extracts Meta `image.id`, `mime_type`, and optional `caption`:
+Webhook parsing extracts Meta `message.image.id`, `mime_type`, and optional `caption`:
 
 - `message_type` is stored as `image`
 - caption (if any) is stored in `conversation_messages.body`
@@ -235,10 +234,33 @@ Webhook parsing extracts Meta `image.id`, `mime_type`, and optional `caption`:
   Supabase Storage bucket `whatsapp-media`, then updates
   `media_storage_path` + `media_url` (signed URL, ~30 days)
 
-Path layout: `{organization_id}/{business_center_id}/{conversation_id}/{message_id}.{ext}`
+### Inbound audio
+
+Webhook parsing extracts Meta `message.audio.id` and `mime_type`:
+
+- `message_type` is stored as `audio`
+- `body` is typically empty (voice note has no caption)
+- `media_id` / `media_mime_type` are persisted on insert
+- Same async **media hydration** path as images (`hydrateInboundMedia`), with
+  fallback MIME `audio/ogg` when Meta omits `mime_type`
+
+Path layout (image + audio): `{organization_id}/{business_center_id}/{conversation_id}/{message_id}.{ext}`
 
 Org members can create signed URLs client-side via Storage RLS when
 `media_url` expires (mobile helper: `resolveWhatsAppMediaUrl`).
+
+### Inbound reactions
+
+When `message.type === 'reaction'`:
+
+- Parser reads `message.reaction.message_id` (target) and `message.reaction.emoji`
+- **No** `conversation_messages` row is inserted for the reaction event
+- Service role **upserts** `message_reactions` with `actor = 'contact'` on the
+  target message (matched by `external_message_id`)
+- Empty emoji removes the contact reaction row
+
+Owner reactions from mobile use `POST /whatsapp/messages/react` and upsert
+`actor = 'owner'` via the same table (member RLS — see `docs/tenant-rls.md`).
 
 ### Outbound images
 
@@ -252,6 +274,16 @@ Body: `{ organizationId, businessCenterId, conversationId, imageBase64, mimeType
 (`body` is the optional caption). The API uploads to Meta media, sends
 `type: image`, mirrors the file into `whatsapp-media`, and persists
 `message_type: image` with media columns. Max size **5 MB**. JPEG/PNG/WebP/GIF.
+
+### Outbound audio
+
+```text
+POST /whatsapp/messages/send-audio
+```
+
+Body: `{ organizationId, businessCenterId, conversationId, audioBase64, mimeType?, durationMs? }`.
+Uploads to Meta, sends `type: audio`, mirrors into `whatsapp-media`, persists
+`message_type: audio` with media columns.
 
 Mobile never calls Meta with a Cloud token; only the Nest API does.
 

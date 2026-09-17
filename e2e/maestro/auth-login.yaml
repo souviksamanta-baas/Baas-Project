@@ -1,0 +1,11 @@
+appId: ar.com.nexolia.app
+---
+# Auth — owner login with demo credentials
+- launchApp
+# - assertVisible: "Iniciar sesión"
+# - tapOn: "Correo electrónico"
+# - inputText: "${DEMO_OWNER_EMAIL}"
+# - tapOn: "Contraseña"
+# - inputText: "${DEMO_OWNER_PASSWORD}"
+# - tapOn: "Iniciar sesión"
+# - assertVisible: "Inicio"

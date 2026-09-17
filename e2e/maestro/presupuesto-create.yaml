@@ -1,0 +1,10 @@
+appId: ar.com.nexolia.app
+---
+# Presupuestos — create a quote
+- launchApp
+# - tapOn: "Presupuestos"
+# - tapOn: "Nuevo presupuesto"
+# - tapOn: "Agregar ítem"
+# - inputText: "Servicio demo"
+# - tapOn: "Guardar"
+# - assertVisible: "Presupuesto creado"

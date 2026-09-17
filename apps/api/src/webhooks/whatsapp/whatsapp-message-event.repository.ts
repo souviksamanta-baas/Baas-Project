@@ -164,6 +164,11 @@ export class WhatsAppMessageEventRepository {
       return;
     }
 
+    if (event.messageType === 'reaction') {
+      await this.upsertInboundReaction(event, messageEvent);
+      return;
+    }
+
     const persistedMessage = await this.messageRepository.recordInboundMessage({
       businessCenterId: messageEvent.business_center_id,
       eventId: messageEvent.id,
@@ -182,9 +187,9 @@ export class WhatsAppMessageEventRepository {
     if (
       persistedMessage.conversationMessageId &&
       event.mediaId &&
-      event.messageType === 'image'
+      (event.messageType === 'image' || event.messageType === 'audio')
     ) {
-      void this.hydrateInboundImage({
+      void this.hydrateInboundMedia({
         businessCenterId: messageEvent.business_center_id,
         conversationId: persistedMessage.conversationId,
         conversationMessageId: persistedMessage.conversationMessageId,
@@ -192,6 +197,7 @@ export class WhatsAppMessageEventRepository {
         mediaMimeType: event.mediaMimeType,
         organizationId: messageEvent.organization_id,
         phoneNumberId: event.phoneNumberId,
+        fallbackMimeType: event.messageType === 'audio' ? 'audio/ogg' : 'image/jpeg',
       }).catch((error: unknown) => {
         this.logger.error(
           JSON.stringify({
@@ -243,10 +249,69 @@ export class WhatsAppMessageEventRepository {
     }
   }
 
-  private async hydrateInboundImage(params: {
+  private async upsertInboundReaction(
+    event: WhatsAppInboundMessageLog,
+    messageEvent: WhatsAppMessageEventRecord,
+  ): Promise<void> {
+    const targetExternalId = event.reactionTargetExternalId?.trim();
+    if (!targetExternalId || !messageEvent.organization_id || !messageEvent.business_center_id) {
+      return;
+    }
+
+    const client = this.supabaseService.getServiceRoleClient();
+    const { data: target, error } = await client
+      .from('conversation_messages')
+      .select('id')
+      .eq('organization_id', messageEvent.organization_id)
+      .eq('external_message_id', targetExternalId)
+      .maybeSingle<{ id: string }>();
+
+    if (error) {
+      throw new Error(`Failed to resolve reaction target: ${error.message}`);
+    }
+    if (!target?.id) {
+      this.logger.warn(
+        JSON.stringify({
+          event: 'whatsapp.reaction.target_missing',
+          externalMessageId: targetExternalId,
+        }),
+      );
+      return;
+    }
+
+    const emoji = (event.reactionEmoji ?? '').trim();
+    if (!emoji) {
+      const { error: deleteError } = await client
+        .from('message_reactions')
+        .delete()
+        .eq('message_id', target.id)
+        .eq('actor', 'contact');
+      if (deleteError) {
+        throw new Error(`Failed to clear reaction: ${deleteError.message}`);
+      }
+      return;
+    }
+
+    const { error: upsertError } = await client.from('message_reactions').upsert(
+      {
+        actor: 'contact',
+        business_center_id: messageEvent.business_center_id,
+        emoji,
+        message_id: target.id,
+        organization_id: messageEvent.organization_id,
+      },
+      { onConflict: 'message_id,actor' },
+    );
+    if (upsertError) {
+      throw new Error(`Failed to upsert reaction: ${upsertError.message}`);
+    }
+  }
+
+  private async hydrateInboundMedia(params: {
     businessCenterId: string;
     conversationId: string;
     conversationMessageId: string;
+    fallbackMimeType: string;
     mediaId: string;
     mediaMimeType: string | null;
     organizationId: string;
@@ -273,7 +338,7 @@ export class WhatsAppMessageEventRepository {
       businessCenterId: params.businessCenterId,
       conversationId: params.conversationId,
       messageId: params.conversationMessageId,
-      mimeType: downloaded.mimeType || params.mediaMimeType || 'image/jpeg',
+      mimeType: downloaded.mimeType || params.mediaMimeType || params.fallbackMimeType,
       organizationId: params.organizationId,
     });
 

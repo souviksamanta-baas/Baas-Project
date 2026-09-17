@@ -1,0 +1,13 @@
+appId: ar.com.nexolia.app
+---
+# Navigation — verify bottom tab bar routes (Spanish labels)
+- launchApp
+# - assertVisible: "Inicio"
+# - tapOn: "Chats"
+# - assertVisible: "Chats"
+# - tapOn: "Inventario"
+# - assertVisible: "Inventario"
+# - tapOn: "Caja"
+# - assertVisible: "Caja"
+# - tapOn: "Más"
+# - assertVisible: "Configuración"

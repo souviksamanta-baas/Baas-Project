@@ -1,0 +1,9 @@
+appId: ar.com.nexolia.app
+---
+# Onboarding — first-run business setup (fresh tenant)
+- launchApp
+# - assertVisible: "Bienvenido a Nexolia"
+# - tapOn: "Comenzar"
+# - inputText: "Mi Negocio Demo"
+# - tapOn: "Continuar"
+# - assertVisible: "Inicio"

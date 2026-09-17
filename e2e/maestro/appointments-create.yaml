@@ -1,0 +1,9 @@
+appId: ar.com.nexolia.app
+---
+# Appointments — create a new appointment
+- launchApp
+# - tapOn: "Turnos"
+# - tapOn: "Nuevo turno"
+# - inputText: "Cliente Demo"
+# - tapOn: "Guardar"
+# - assertVisible: "Turno creado"

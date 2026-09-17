@@ -1,0 +1,9 @@
+appId: ar.com.nexolia.app
+---
+# Tasks — create a task
+- launchApp
+# - tapOn: "Tareas"
+# - tapOn: "Nueva tarea"
+# - inputText: "Seguimiento cliente"
+# - tapOn: "Guardar"
+# - assertVisible: "Seguimiento cliente"

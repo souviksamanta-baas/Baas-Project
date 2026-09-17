@@ -1,0 +1,10 @@
+appId: ar.com.nexolia.app
+---
+# Chats — Agregar contacto from conversation header
+- launchApp
+# - tapOn: "Chats"
+# - tapOn: "Número desconocido"
+# - tapOn: "Agregar contacto"
+# - inputText: "María García"
+# - tapOn: "Guardar"
+# - assertVisible: "María García"

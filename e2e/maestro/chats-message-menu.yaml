@@ -1,0 +1,11 @@
+appId: ar.com.nexolia.app
+---
+# Chats — long-press message context menu (responder, copiar, etc.)
+- launchApp
+# - tapOn: "Chats"
+# - tapOn: "Cliente Demo"
+# - longPressOn:
+#     id: "message-bubble-outbound-0"
+# - assertVisible: "Responder"
+# - assertVisible: "Copiar"
+# - tapOn: "Copiar"

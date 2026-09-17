@@ -14,11 +14,15 @@ export interface DeviceContactOption {
   rawPhone: string;
 }
 
-export async function loadDeviceContacts(): Promise<DeviceContactOption[]> {
+export async function loadDeviceContacts(options?: {
+  silentPermissionDenied?: boolean;
+}): Promise<DeviceContactOption[]> {
   const permission = await requestPermissionsAsync();
 
   if (permission.status !== 'granted') {
-    showPermissionDeniedAlert('contacts', { canAskAgain: permission.canAskAgain !== false });
+    if (!options?.silentPermissionDenied) {
+      showPermissionDeniedAlert('contacts', { canAskAgain: permission.canAskAgain !== false });
+    }
     throw new Error('Necesitamos acceso a contactos para buscar un número.');
   }
 
@@ -26,7 +30,7 @@ export async function loadDeviceContacts(): Promise<DeviceContactOption[]> {
     sortOrder: ContactsSortOrder.GivenName,
   });
 
-  const options: DeviceContactOption[] = [];
+  const optionsList: DeviceContactOption[] = [];
 
   for (const contact of contacts) {
     const displayName = contact.fullName?.trim() || 'Sin nombre';
@@ -39,7 +43,7 @@ export async function loadDeviceContacts(): Promise<DeviceContactOption[]> {
         continue;
       }
 
-      options.push({
+      optionsList.push({
         displayName,
         phoneE164: normalizePhoneNumber(rawPhone),
         rawPhone,
@@ -47,7 +51,7 @@ export async function loadDeviceContacts(): Promise<DeviceContactOption[]> {
     }
   }
 
-  return options.sort((left, right) => left.displayName.localeCompare(right.displayName, 'es'));
+  return optionsList.sort((left, right) => left.displayName.localeCompare(right.displayName, 'es'));
 }
 
 export function filterContactOptions(

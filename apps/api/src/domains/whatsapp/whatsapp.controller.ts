@@ -34,6 +34,7 @@ interface SendConversationMessageBody {
   businessCenterId: string;
   conversationId: string;
   organizationId: string;
+  replyToMessageId?: string;
 }
 
 interface SendConversationImageBody {
@@ -162,6 +163,7 @@ export class WhatsAppController {
         businessCenterId: body.businessCenterId,
         conversationId: body.conversationId,
         organizationId: body.organizationId,
+        replyToMessageId: body.replyToMessageId,
       });
     } catch (error) {
       if (error instanceof Error && error.message.toLocaleLowerCase().includes('token')) {

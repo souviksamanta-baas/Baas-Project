@@ -22,6 +22,7 @@ export interface SendConversationReplyParams {
   businessCenterId: string;
   conversationId: string;
   organizationId: string;
+  replyToMessageId?: string | null;
 }
 
 export interface SendConversationReplyResult {

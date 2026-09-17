@@ -43,6 +43,15 @@ npm run ci:verify
 Any failing lint, migration validation, RLS coverage validation, typecheck, test,
 API build, or Expo config validation step fails CI.
 
+The default `npm test` run excludes E2E specs (`**/*.e2e.spec.ts`). Layer A API/webhook
+E2E runs separately via `npm run test:e2e`. Full pre-release regression:
+
+```bash
+npm run test:regression
+```
+
+See [e2e-regression.md](./e2e-regression.md) for the three-layer program.
+
 ## Linting
 
 Linting is configured with ESLint flat config in:
@@ -106,6 +115,19 @@ psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/rls_cross_tenant.sq
 ```
 
 It wraps test data in a transaction and rolls back at the end.
+
+## API E2E (Layer A)
+
+The `e2e` GitHub Actions job runs after the quality gate:
+
+```bash
+supabase start --exclude studio,imgproxy,edge-runtime,logflare,vector,realtime
+npm run test:e2e
+```
+
+The job uses `continue-on-error: true` while the suite matures. Current specs are
+mock-based and do not require a live Supabase instance. Local Supabase is started for
+future integration coverage.
 
 ## Remote Migration Behavior
 

@@ -1,0 +1,14 @@
+appId: ar.com.nexolia.app
+---
+# Chats — attach image via Adjuntar
+# Requires: open conversation; device/simulator photo library
+- launchApp
+# - tapOn: "Chats"
+# - tapOn: "Cliente Demo"
+# - tapOn:
+#     id: "composer-adjuntar-button"
+# - tapOn: "Galería"
+# - tapOn:
+#     index: 0
+# - tapOn: "Enviar"
+# - assertVisible: "Imagen"

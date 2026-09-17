@@ -1,0 +1,13 @@
+appId: ar.com.nexolia.app
+---
+# Chats — record and send a voice note
+# Requires: open conversation thread
+- launchApp
+# - tapOn: "Chats"
+# - tapOn: "Cliente Demo"
+# - longPressOn:
+#     id: "composer-mic-button"
+# - assertVisible: "Grabando"
+# - tapOn:
+#     id: "composer-send-button"
+# - assertVisible: "Nota de voz"

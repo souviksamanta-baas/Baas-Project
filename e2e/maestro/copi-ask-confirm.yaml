@@ -1,0 +1,10 @@
+appId: ar.com.nexolia.app
+---
+# Copi — ask a question and confirm a proposed action
+- launchApp
+# - tapOn: "Copi"
+# - inputText: "¿Cuánto stock queda del producto demo?"
+# - tapOn: "Enviar"
+# - assertVisible: "producto demo"
+# - tapOn: "Confirmar"
+# - assertVisible: "Listo"

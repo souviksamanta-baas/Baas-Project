@@ -1,0 +1,10 @@
+appId: ar.com.nexolia.app
+---
+# Inventory — register a sale
+- launchApp
+# - tapOn: "Inventario"
+# - tapOn: "Registrar venta"
+# - tapOn: "Producto demo"
+# - inputText: "1"
+# - tapOn: "Confirmar"
+# - assertVisible: "Venta registrada"

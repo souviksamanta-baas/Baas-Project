@@ -8,5 +8,6 @@ export default defineConfig({
   root,
   test: {
     include: ['apps/**/*.spec.ts'],
+    exclude: ['**/*.e2e.spec.ts'],
   },
 });

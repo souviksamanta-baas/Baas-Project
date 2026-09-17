@@ -1,8 +1,12 @@
-import * as Contacts from 'expo-contacts';
+import {
+  Contact,
+  ContactField,
+  requestPermissionsAsync,
+} from 'expo-contacts';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import type { ReactElement } from 'react';
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, Clipboard, Platform } from 'react-native';
+import { Alert, Clipboard, Modal, Platform, Pressable, Text, TextInput, View } from 'react-native';
 
 import {
   assignConversationToCopi,
@@ -17,6 +21,10 @@ import {
   forwardConversationMessage,
   reactToConversationMessage,
 } from '../../../src/api/whatsapp';
+import {
+  MessageActionOverlay,
+  type MessageActionId,
+} from '../../../src/components/MessageActionOverlay';
 import { useOwnerSessionContext } from '../../../src/context/OwnerSessionProvider';
 import {
   useConversationThread,
@@ -25,18 +33,25 @@ import {
 import {
   conversationAvatarLabel,
   conversationDisplayName,
-  leadStatusLabel,
 } from '../../../src/lib/inboxPresentation';
+import { useDeviceContactNames } from '../../../src/lib/deviceContactNames';
 import { supabase } from '../../../src/lib/supabase';
 import { routes } from '../../../src/navigation/routes';
 import { ConversationDetailScreen } from '../../../src/screens/InboxScreen';
 import type { WhatsAppMessagePreview } from '../../../src/types/messages';
 
-const REACTION_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🙏'] as const;
+const LABEL_OPTIONS: Array<{ label: string; value: ManualLeadStatus }> = [
+  { label: 'Nuevo', value: 'new' },
+  { label: 'Oportunidad', value: 'opportunity' },
+  { label: 'Seguimiento pendiente', value: 'active' },
+  { label: 'Ganado', value: 'won' },
+  { label: 'Perdido', value: 'lost' },
+  { label: 'Terminado', value: 'finished' },
+];
 
 async function isPhoneInDeviceContacts(phone: string): Promise<boolean> {
-  const permission = await Contacts.requestPermissionsAsync();
-  if (!permission.granted) {
+  const permission = await requestPermissionsAsync();
+  if (permission.status !== 'granted') {
     return false;
   }
 
@@ -45,12 +60,9 @@ async function isPhoneInDeviceContacts(phone: string): Promise<boolean> {
     return false;
   }
 
-  const { data } = await Contacts.getContactsAsync({
-    fields: [Contacts.Fields.PhoneNumbers],
-  });
-
-  return data.some((contact) =>
-    (contact.phoneNumbers ?? []).some((entry) => {
+  const contacts = await Contact.getAllDetails([ContactField.PHONES]);
+  return contacts.some((contact) =>
+    (contact.phones ?? []).some((entry) => {
       const candidate = (entry.number ?? '').replace(/\D/g, '');
       return candidate.includes(digits) || digits.includes(candidate);
     }),
@@ -75,8 +87,23 @@ export default function ConversationDetailRoute(): ReactElement {
     messagesClearedAt: conversation?.messagesClearedAt ?? null,
     organizationId,
   });
+  const deviceContacts = useDeviceContactNames();
+  const resolvedCustomerName = conversation
+    ? conversationDisplayName(
+        conversation,
+        deviceContacts.resolveName(
+          conversation.contact.phoneNumber ?? conversation.externalContactId,
+        ),
+      )
+    : 'Conversación';
   const [showAddContact, setShowAddContact] = useState(false);
   const [replySeed, setReplySeed] = useState<string | null>(null);
+  const [replyToMessageId, setReplyToMessageId] = useState<string | null>(null);
+  const [menuMessage, setMenuMessage] = useState<WhatsAppMessagePreview | null>(null);
+  const [androidEditMessage, setAndroidEditMessage] = useState<WhatsAppMessagePreview | null>(
+    null,
+  );
+  const [androidEditDraft, setAndroidEditDraft] = useState('');
 
   useEffect(() => {
     if (!conversationId) {
@@ -114,59 +141,27 @@ export default function ConversationDetailRoute(): ReactElement {
       return;
     }
     try {
-      const permission = await Contacts.requestPermissionsAsync();
-      if (!permission.granted) {
+      const permission = await requestPermissionsAsync();
+      if (permission.status !== 'granted') {
         Alert.alert('Permiso requerido', 'Necesitamos acceso a contactos para guardar el número.');
         return;
       }
 
-      await Contacts.addContactAsync({
-        contactType: Contacts.ContactTypes.Person,
-        name: conversation?.contact.displayName?.trim() || phone,
-        [Contacts.Fields.FirstName]:
-          conversation?.contact.displayName?.trim() || phone,
-        [Contacts.Fields.PhoneNumbers]: [
-          {
-            label: 'mobile',
-            number: phone,
-          },
-        ],
+      const givenName = conversation?.contact.displayName?.trim() || undefined;
+      const created = await Contact.presentCreateForm({
+        ...(givenName && !/^\+?\d[\d\s-]*$/.test(givenName) ? { givenName } : {}),
+        phones: [{ label: 'mobile', number: phone }],
       });
-      setShowAddContact(false);
-      Alert.alert('Listo', 'Contacto guardado en la agenda del teléfono.');
+      if (created) {
+        setShowAddContact(false);
+      }
     } catch (error) {
       Alert.alert(
-        'No se pudo guardar',
+        'No se pudo abrir contactos',
         error instanceof Error ? error.message : 'Error desconocido',
       );
     }
   }, [conversation]);
-
-  const handleAssignToCopi = useCallback(async (): Promise<void> => {
-    if (!conversationId) {
-      return;
-    }
-    try {
-      const { data: auth } = await supabase.auth.getUser();
-      const userId = auth.user?.id;
-      if (!userId) {
-        Alert.alert('Sesión', 'Tenés que iniciar sesión para asignar a Copi.');
-        return;
-      }
-      await assignConversationToCopi({ conversationId, userId });
-      router.push({
-        pathname: routes.appCopiChat,
-        params: {
-          seedQuestion: `Analizá el chat ${conversationId} y sugerime qué responder. No envíes nada sin confirmar.`,
-        },
-      } as never);
-    } catch (error) {
-      Alert.alert(
-        'No se pudo asignar',
-        error instanceof Error ? error.message : 'Error desconocido',
-      );
-    }
-  }, [conversationId, router]);
 
   const requireWhatsAppContext = useCallback((): {
     businessCenterId: string;
@@ -184,36 +179,27 @@ export default function ConversationDetailRoute(): ReactElement {
   }, [businessCenterId, conversation?.channel, organizationId]);
 
   const handleReact = useCallback(
-    (message: WhatsAppMessagePreview): void => {
-      Alert.alert(
-        'Reaccionar',
-        undefined,
-        [
-          ...REACTION_EMOJIS.map((emoji) => ({
-            text: emoji,
-            onPress: () => {
-              const ctx = requireWhatsAppContext();
-              if (!ctx) {
-                return;
-              }
-              void reactToConversationMessage({
-                businessCenterId: ctx.businessCenterId,
-                emoji,
-                messageId: message.id,
-                organizationId: ctx.organizationId,
-              }).catch((error) =>
-                Alert.alert(
-                  'No se pudo reaccionar',
-                  error instanceof Error ? error.message : 'Error',
-                ),
-              );
-            },
-          })),
-          { text: 'Cancelar', style: 'cancel' as const },
-        ],
-      );
+    async (message: WhatsAppMessagePreview, emoji: string): Promise<void> => {
+      const ctx = requireWhatsAppContext();
+      if (!ctx) {
+        return;
+      }
+      try {
+        await reactToConversationMessage({
+          businessCenterId: ctx.businessCenterId,
+          emoji,
+          messageId: message.id,
+          organizationId: ctx.organizationId,
+        });
+        await thread.reloadMessages();
+      } catch (error) {
+        Alert.alert(
+          'No se pudo reaccionar',
+          error instanceof Error ? error.message : 'Error',
+        );
+      }
     },
-    [requireWhatsAppContext],
+    [requireWhatsAppContext, thread],
   );
 
   const handleEdit = useCallback(
@@ -236,33 +222,32 @@ export default function ConversationDetailRoute(): ReactElement {
           businessCenterId: ctx.businessCenterId,
           messageId: message.id,
           organizationId: ctx.organizationId,
-        }).catch((error) =>
-          Alert.alert('No se pudo editar', error instanceof Error ? error.message : 'Error'),
-        );
+        })
+          .then(() => thread.reloadMessages())
+          .catch((error) =>
+            Alert.alert('No se pudo editar', error instanceof Error ? error.message : 'Error'),
+          );
       };
 
       if (Platform.OS === 'ios' && typeof Alert.prompt === 'function') {
-        Alert.prompt('Editar mensaje', undefined, (value) => {
-          if (typeof value === 'string') {
-            applyEdit(value);
-          }
-        }, 'plain-text', message.body ?? '');
+        Alert.prompt(
+          'Editar mensaje',
+          undefined,
+          (value) => {
+            if (typeof value === 'string') {
+              applyEdit(value);
+            }
+          },
+          'plain-text',
+          message.body ?? '',
+        );
         return;
       }
 
-      Alert.alert(
-        'Editar mensaje',
-        'En Android, reescribí el mensaje completo a continuación y confirmá.',
-        [
-          {
-            text: 'Usar texto actual',
-            onPress: () => applyEdit(message.body ?? ''),
-          },
-          { text: 'Cancelar', style: 'cancel' },
-        ],
-      );
+      setAndroidEditMessage(message);
+      setAndroidEditDraft(message.body ?? '');
     },
-    [requireWhatsAppContext],
+    [requireWhatsAppContext, thread],
   );
 
   const handleForward = useCallback(
@@ -283,29 +268,25 @@ export default function ConversationDetailRoute(): ReactElement {
           Alert.alert('Reenviar', 'No hay otras conversaciones de WhatsApp disponibles.');
           return;
         }
-        Alert.alert(
-          'Reenviar a',
-          undefined,
-          [
-            ...targets.map((target) => ({
-              text: conversationDisplayName(target),
-              onPress: () => {
-                void forwardConversationMessage({
-                  businessCenterId: ctx.businessCenterId,
-                  messageId: message.id,
-                  organizationId: ctx.organizationId,
-                  targetConversationId: target.id,
-                }).catch((error) =>
-                  Alert.alert(
-                    'No se pudo reenviar',
-                    error instanceof Error ? error.message : 'Error',
-                  ),
-                );
-              },
-            })),
-            { text: 'Cancelar', style: 'cancel' as const },
-          ],
-        );
+        Alert.alert('Reenviar a', undefined, [
+          ...targets.map((target) => ({
+            text: conversationDisplayName(target),
+            onPress: () => {
+              void forwardConversationMessage({
+                businessCenterId: ctx.businessCenterId,
+                messageId: message.id,
+                organizationId: ctx.organizationId,
+                targetConversationId: target.id,
+              }).catch((error) =>
+                Alert.alert(
+                  'No se pudo reenviar',
+                  error instanceof Error ? error.message : 'Error',
+                ),
+              );
+            },
+          })),
+          { text: 'Cancelar', style: 'cancel' as const },
+        ]);
       } catch (error) {
         Alert.alert(
           'No se pudo reenviar',
@@ -316,176 +297,280 @@ export default function ConversationDetailRoute(): ReactElement {
     [conversationId, requireWhatsAppContext],
   );
 
-  const handleMessageLongPress = useCallback(
-    (message: WhatsAppMessagePreview): void => {
-      const contactId = conversation?.contact.id;
-      Alert.alert('Mensaje', undefined, [
-        {
-          text: 'Reaccionar',
-          onPress: () => handleReact(message),
-        },
-        {
-          text: 'Responder',
+  const handleAssignLabel = useCallback(
+    (contactId: string): void => {
+      Alert.alert(
+        'Asignar etiqueta',
+        undefined,
+        LABEL_OPTIONS.map((option) => ({
+          text: option.label,
           onPress: () => {
-            const quote = (message.body ?? 'Nota de voz / media').trim().slice(0, 200);
-            setReplySeed(`${Date.now()}|${quote}`);
-          },
-        },
-        {
-          text: 'Editar',
-          onPress: () => handleEdit(message),
-        },
-        {
-          text: 'Reenviar',
-          onPress: () => {
-            void handleForward(message);
-          },
-        },
-        {
-          text: 'Copiar',
-          onPress: () => {
-            if (message.body) {
-              Clipboard.setString(message.body);
-            }
-          },
-        },
-        {
-          text: 'Preguntar a Copi',
-          onPress: () => {
-            const seed = [
-              `Cliente: ${conversationDisplayName(conversation!)}`,
-              `Canal: ${conversation?.channel ?? 'whatsapp'}`,
-              `Mensaje: ${message.body ?? '(sin texto)'}`,
-            ].join('\n');
-            router.push({
-              pathname: routes.appCopiChat,
-              params: { seed },
-            });
-          },
-        },
-        contactId
-          ? {
-              text: 'Cambiar estado a',
-              onPress: () => {
-                Alert.alert('Cambiar estado a', undefined, [
-                  {
-                    text: 'Ganado',
-                    onPress: () => {
-                      void updateContactLeadStatus({
-                        contactId,
-                        leadStatus: 'won' satisfies ManualLeadStatus,
-                      }).catch((error) =>
-                        Alert.alert(
-                          'No se pudo actualizar',
-                          error instanceof Error ? error.message : 'Error',
-                        ),
-                      );
-                    },
-                  },
-                  {
-                    text: 'Perdido',
-                    onPress: () => {
-                      void updateContactLeadStatus({
-                        contactId,
-                        leadStatus: 'lost',
-                      }).catch((error) =>
-                        Alert.alert(
-                          'No se pudo actualizar',
-                          error instanceof Error ? error.message : 'Error',
-                        ),
-                      );
-                    },
-                  },
-                  {
-                    text: 'Terminado',
-                    onPress: () => {
-                      void updateContactLeadStatus({
-                        contactId,
-                        leadStatus: 'finished',
-                      }).catch((error) =>
-                        Alert.alert(
-                          'No se pudo actualizar',
-                          error instanceof Error ? error.message : 'Error',
-                        ),
-                      );
-                    },
-                  },
-                  { text: 'Cancelar', style: 'cancel' },
-                ]);
-              },
-            }
-          : undefined,
-        {
-          text: 'Eliminar',
-          style: 'destructive',
-          onPress: () => {
-            void hideConversationMessage(message.id).catch((error) =>
+            void updateContactLeadStatus({
+              contactId,
+              leadStatus: option.value,
+            }).catch((error) =>
               Alert.alert(
-                'No se pudo eliminar',
+                'No se pudo actualizar',
                 error instanceof Error ? error.message : 'Error',
               ),
             );
           },
-        },
-        { text: 'Cancelar', style: 'cancel' },
-      ].filter(Boolean) as Array<{
-        text: string;
-        style?: 'cancel' | 'destructive';
-        onPress?: () => void;
-      }>);
+        })),
+      );
     },
-    [conversation, handleEdit, handleForward, handleReact, router],
+    [],
+  );
+
+  const handleAskCopi = useCallback(
+    async (message: WhatsAppMessagePreview): Promise<void> => {
+      if (!conversationId || !conversation) {
+        return;
+      }
+      try {
+        const { data: auth } = await supabase.auth.getUser();
+        const userId = auth.user?.id;
+        if (!userId) {
+          Alert.alert('Sesión', 'Tenés que iniciar sesión para asignar a Copi.');
+          return;
+        }
+        await assignConversationToCopi({ conversationId, userId });
+
+        const dayStart = new Date();
+        dayStart.setHours(0, 0, 0, 0);
+        const sameDayMessages = thread.messages.filter((item) => {
+          const createdAt = Date.parse(item.createdAt);
+          return Number.isFinite(createdAt) && createdAt >= dayStart.getTime();
+        });
+        const transcriptSource =
+          sameDayMessages.length > 0 ? sameDayMessages : thread.messages.slice(-20);
+        const transcript = transcriptSource
+          .map((item) => {
+            const who = item.direction === 'inbound' ? 'Cliente' : 'Negocio';
+            const body = (item.body ?? '').trim() || '[media]';
+            return `${who}: ${body}`;
+          })
+          .join('\n');
+
+        const seedQuestion = [
+          `Respondé al cliente por WhatsApp en este chat ${conversationId}.`,
+          `Contacto: ${resolvedCustomerName}. Canal: ${conversation.channel}.`,
+          `Mensaje seleccionado: ${message.body ?? '(sin texto / media)'}`,
+          'Usá estos mensajes del mismo día (o los más recientes) como contexto del hilo:',
+          transcript || '(sin mensajes)',
+          'Proponé el texto exacto a enviar en español. No envíes nada hasta que confirme.',
+        ].join('\n');
+
+        router.push({
+          pathname: routes.appCopiChat,
+          params: { seedQuestion },
+        } as never);
+      } catch (error) {
+        Alert.alert(
+          'No se pudo asignar',
+          error instanceof Error ? error.message : 'Error desconocido',
+        );
+      }
+    },
+    [conversation, conversationId, resolvedCustomerName, router, thread.messages],
+  );
+
+  const handleMenuAction = useCallback(
+    (action: MessageActionId): void => {
+      const message = menuMessage;
+      setMenuMessage(null);
+      if (!message) {
+        return;
+      }
+
+      if (action === 'reply') {
+        const quote = (message.body ?? 'Nota de voz / media').trim().slice(0, 200);
+        setReplyToMessageId(message.id);
+        setReplySeed(`${Date.now()}|${quote}`);
+        return;
+      }
+      if (action === 'forward') {
+        void handleForward(message);
+        return;
+      }
+      if (action === 'copy') {
+        if (message.body) {
+          Clipboard.setString(message.body);
+        }
+        return;
+      }
+      if (action === 'edit') {
+        handleEdit(message);
+        return;
+      }
+      if (action === 'ask-copi') {
+        void handleAskCopi(message);
+        return;
+      }
+      if (action === 'assign-label') {
+        const contactId = conversation?.contact.id;
+        if (contactId) {
+          handleAssignLabel(contactId);
+        }
+        return;
+      }
+      if (action === 'delete') {
+        void hideConversationMessage(message.id)
+          .then(() => thread.reloadMessages())
+          .catch((error) =>
+            Alert.alert(
+              'No se pudo eliminar',
+              error instanceof Error ? error.message : 'Error',
+            ),
+          );
+      }
+    },
+    [
+      conversation?.contact.id,
+      handleAskCopi,
+      handleAssignLabel,
+      handleEdit,
+      handleForward,
+      menuMessage,
+      thread,
+    ],
   );
 
   const canSendReply = Boolean(
     organizationId && businessCenterId && conversationId && !thread.composerBlockedMessage,
   );
 
-  if (!conversation) {
-    return (
-      <ConversationDetailScreen
-        composerBlockedMessage={thread.composerBlockedMessage}
-        customerName="Conversación"
-        isLoading={isLoadingConversation || thread.isLoading}
-        messages={thread.messages}
-        onAssignToCopi={() => {
-          void handleAssignToCopi();
-        }}
-        onBack={() => router.replace(routes.appInbox)}
-        onMessageLongPress={handleMessageLongPress}
-        onSendAudio={canSendReply ? thread.sendAudioReply : undefined}
-        onSendImage={canSendReply ? thread.sendImageReply : undefined}
-        onSendReply={canSendReply ? thread.sendReply : undefined}
-        replySeed={replySeed}
-        statusLabel={undefined}
-      />
-    );
-  }
+  const selectedEmoji =
+    menuMessage?.reactions?.find((reaction) => reaction.actor === 'owner')?.emoji ?? null;
 
-  return (
+  const detail = (
     <ConversationDetailScreen
-      channel={conversation.channel}
+      channel={conversation?.channel}
       composerBlockedMessage={thread.composerBlockedMessage}
-      customerName={conversationDisplayName(conversation)}
+      customerName={resolvedCustomerName}
       displayPhoneNumber={dashboard?.whatsappConnection?.displayPhoneNumber ?? null}
-      isLoading={thread.isLoading}
+      isLoading={isLoadingConversation || thread.isLoading}
       messages={thread.messages}
-      onAddDeviceContact={() => {
-        void handleAddDeviceContact();
-      }}
-      onAssignToCopi={() => {
-        void handleAssignToCopi();
-      }}
+      onAddDeviceContact={
+        conversation
+          ? () => {
+              void handleAddDeviceContact();
+            }
+          : undefined
+      }
       onBack={() => router.replace(routes.appInbox)}
-      onMessageLongPress={handleMessageLongPress}
+      onMessageLongPress={setMenuMessage}
       onSendAudio={canSendReply ? thread.sendAudioReply : undefined}
       onSendImage={canSendReply ? thread.sendImageReply : undefined}
-      onSendReply={canSendReply ? thread.sendReply : undefined}
-      phoneNumber={conversation.contact.phoneNumber}
+      onSendReply={
+        canSendReply
+          ? async (body) => {
+              await thread.sendReply(body, { replyToMessageId });
+              setReplyToMessageId(null);
+              setReplySeed(null);
+            }
+          : undefined
+      }
+      phoneNumber={conversation?.contact.phoneNumber}
       replySeed={replySeed}
       showAddContact={showAddContact}
-      statusLabel={leadStatusLabel(conversation.contact.leadStatus)}
-      threadAvatar={conversationAvatarLabel(conversation)}
+      threadAvatar={
+        conversation
+          ? conversationAvatarLabel(
+              conversation,
+              deviceContacts.resolveName(
+                conversation.contact.phoneNumber ?? conversation.externalContactId,
+              ),
+            )
+          : undefined
+      }
     />
+  );
+
+  return (
+    <View style={{ flex: 1 }}>
+      {detail}
+      {androidEditMessage ? (
+        <Modal
+          animationType="fade"
+          onRequestClose={() => setAndroidEditMessage(null)}
+          transparent
+          visible
+        >
+          <View
+            style={{
+              backgroundColor: 'rgba(0,0,0,0.35)',
+              flex: 1,
+              justifyContent: 'center',
+              padding: 16,
+            }}
+          >
+            <View style={{ backgroundColor: '#fff', borderRadius: 12, padding: 16 }}>
+              <Text style={{ fontWeight: '600', marginBottom: 8 }}>Editar mensaje</Text>
+              <TextInput
+                autoFocus
+                multiline
+                onChangeText={setAndroidEditDraft}
+                style={{ minHeight: 80, marginBottom: 12 }}
+                value={androidEditDraft}
+              />
+              <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 16 }}>
+                <Pressable onPress={() => setAndroidEditMessage(null)}>
+                  <Text>Cancelar</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => {
+                    const message = androidEditMessage;
+                    const draft = androidEditDraft;
+                    setAndroidEditMessage(null);
+                    if (!message) {
+                      return;
+                    }
+                    const trimmed = draft.trim();
+                    if (!trimmed) {
+                      return;
+                    }
+                    const ctx = requireWhatsAppContext();
+                    if (!ctx) {
+                      return;
+                    }
+                    void editConversationMessage({
+                      body: trimmed,
+                      businessCenterId: ctx.businessCenterId,
+                      messageId: message.id,
+                      organizationId: ctx.organizationId,
+                    })
+                      .then(() => thread.reloadMessages())
+                      .catch((error) =>
+                        Alert.alert(
+                          'No se pudo editar',
+                          error instanceof Error ? error.message : 'Error',
+                        ),
+                      );
+                  }}
+                >
+                  <Text style={{ fontWeight: '600' }}>Guardar</Text>
+                </Pressable>
+              </View>
+            </View>
+          </View>
+        </Modal>
+      ) : null}
+      <MessageActionOverlay
+        canEdit={
+          menuMessage?.direction === 'outbound' && menuMessage.messageType === 'text'
+        }
+        onAction={handleMenuAction}
+        onClose={() => setMenuMessage(null)}
+        onReact={(emoji) => {
+          const message = menuMessage;
+          setMenuMessage(null);
+          if (message) {
+            void handleReact(message, emoji);
+          }
+        }}
+        selectedEmoji={selectedEmoji}
+        visible={Boolean(menuMessage)}
+      />
+    </View>
   );
 }

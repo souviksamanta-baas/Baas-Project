@@ -325,9 +325,13 @@ function isShortAffirmative(question: string): boolean {
     .replace(/\s+/g, ' ')
     .trim();
 
-  return /^(si|sip|sep|ok|okay|dale|claro|va|bueno|perfecto|listo|por favor|dale si|si por favor|si dale|si gracias)$/.test(
+  return /^(si|sip|sep|ok|okay|dale|claro|va|bueno|perfecto|listo|por favor|dale si|si por favor|si dale|si gracias|confirmo|confirmalo|envialo|mandalo|manda)$/.test(
     normalized,
   );
+}
+
+export function isCopiActionAffirmative(question: string): boolean {
+  return isShortAffirmative(question);
 }
 
 function lastAssistantOfferedSalesDetails(history: CopiConversationTurn[]): boolean {
@@ -371,7 +375,7 @@ export function detectProActionIntent(question: string): boolean {
   // Use asign\w*|assign\w* so "asigna"/"asignar"/"asigname" match (plain "asign" does not:
   // there is no word boundary between "asign" and the trailing "a").
   return (
-    /\b(creas?|crear|creame|crees?|asign\w*|assign\w*|marca|marcar|complet|cancel|pospon|snooze|recorda|recordar|recordame|avisame|anota|anotar|reagenda|reagendar|reprograma|reprogramar|reservar|reservame|agregar|sumar|reponer|registra|registrar|llevame|abr[ií]|abrir|guardar|guarda|respond[eé]|contestar)\b/.test(
+    /\b(creas?|crear|creame|crees?|asign\w*|assign\w*|marca|marcar|complet|cancel|pospon|snooze|recorda|recordar|recordame|avisame|anota|anotar|reagenda|reagendar|reprograma|reprogramar|reservar|reservame|agregar|sumar|reponer|registra|registrar|llevame|abr[ií]|abrir|guardar|guarda|respond[eé]|responder|respuesta|contest[aá]|contestar)\b/.test(
       normalized,
     ) ||
     /\bnecesito\s+que\s+creas?\b/.test(normalized) ||

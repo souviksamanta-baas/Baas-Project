@@ -29,6 +29,8 @@ export interface SendWhatsAppTextMessageParams {
   businessCenterId: string;
   organizationId: string;
   recipientPhone: string;
+  replyToExternalMessageId?: string | null;
+  replyToMessageId?: string | null;
 }
 
 export interface SendWhatsAppTextMessageResult {
@@ -106,6 +108,13 @@ export class WhatsAppOutboundMessageService {
             preview_url: false,
             body: params.body,
           },
+          ...(params.replyToExternalMessageId
+            ? {
+                context: {
+                  message_id: params.replyToExternalMessageId,
+                },
+              }
+            : {}),
         }),
       },
     );
@@ -142,6 +151,7 @@ export class WhatsAppOutboundMessageService {
       linkPreview,
       organizationId: params.organizationId,
       recipientPhone: params.recipientPhone,
+      replyToMessageId: params.replyToMessageId ?? null,
       senderPhone: config.display_phone_number,
       sentAt,
       status: 'sent',
@@ -470,10 +480,6 @@ export class WhatsAppOutboundMessageService {
 
   async reactToMessage(params: ReactWhatsAppMessageParams): Promise<{ status: 'reacted' }> {
     const emoji = params.emoji.trim();
-    if (!emoji) {
-      throw new Error('emoji is required');
-    }
-
     const message = await this.messageRepository.getMessageById({
       businessCenterId: params.businessCenterId,
       messageId: params.messageId,
@@ -514,6 +520,26 @@ export class WhatsAppOutboundMessageService {
     if (!response.ok) {
       throw new Error(
         responseBody.error?.message ?? `WhatsApp reaction failed with HTTP ${response.status}`,
+      );
+    }
+
+    const client = this.supabaseService.getServiceRoleClient();
+    if (!emoji) {
+      await client
+        .from('message_reactions')
+        .delete()
+        .eq('message_id', params.messageId)
+        .eq('actor', 'owner');
+    } else {
+      await client.from('message_reactions').upsert(
+        {
+          actor: 'owner',
+          business_center_id: params.businessCenterId,
+          emoji,
+          message_id: params.messageId,
+          organization_id: params.organizationId,
+        },
+        { onConflict: 'message_id,actor' },
       );
     }
 

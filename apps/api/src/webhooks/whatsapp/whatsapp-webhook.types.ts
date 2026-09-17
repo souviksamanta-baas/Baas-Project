@@ -50,6 +50,15 @@ export interface WhatsAppMessage {
     caption?: string;
     sha256?: string;
   };
+  audio?: {
+    id?: string;
+    mime_type?: string;
+    voice?: boolean;
+  };
+  reaction?: {
+    message_id?: string;
+    emoji?: string;
+  };
 }
 
 export interface WhatsAppInboundMessageLog {
@@ -62,6 +71,8 @@ export interface WhatsAppInboundMessageLog {
   textBody: string | null;
   mediaId: string | null;
   mediaMimeType: string | null;
+  reactionTargetExternalId?: string | null;
+  reactionEmoji?: string | null;
   duplicate: boolean;
 }
 

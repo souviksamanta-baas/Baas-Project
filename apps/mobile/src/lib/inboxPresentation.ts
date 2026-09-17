@@ -40,7 +40,15 @@ export function formatConversationTime(value: string | null): string {
   });
 }
 
-export function conversationDisplayName(conversation: InboxConversationSummary): string {
+export function conversationDisplayName(
+  conversation: InboxConversationSummary,
+  deviceContactName?: string | null,
+): string {
+  const fromDevice = deviceContactName?.trim();
+  if (fromDevice) {
+    return fromDevice;
+  }
+
   const named = conversation.contact.displayName?.trim();
   if (named) {
     return named;
@@ -60,8 +68,11 @@ export function conversationDisplayName(conversation: InboxConversationSummary):
   return conversation.contact.phoneNumber?.trim() || conversation.externalContactId || 'Sin nombre';
 }
 
-export function conversationAvatarLabel(conversation: InboxConversationSummary): string {
-  const label = conversationDisplayName(conversation);
+export function conversationAvatarLabel(
+  conversation: InboxConversationSummary,
+  deviceContactName?: string | null,
+): string {
+  const label = conversationDisplayName(conversation, deviceContactName);
   const initials = label
     .split(/\s+/)
     .filter(Boolean)

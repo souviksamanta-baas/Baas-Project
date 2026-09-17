@@ -332,6 +332,27 @@ export class NotificationsService {
     organizationId: string;
     senderLabel: string;
   }): Promise<void> {
+    const client = this.supabaseService.getServiceRoleClient();
+    const { data: conversation } = await client
+      .from('conversations')
+      .select('muted_until')
+      .eq('id', params.conversationId)
+      .eq('organization_id', params.organizationId)
+      .maybeSingle<{ muted_until: string | null }>();
+
+    if (
+      conversation?.muted_until &&
+      new Date(conversation.muted_until).getTime() > Date.now()
+    ) {
+      this.logger.log(
+        JSON.stringify({
+          event: 'notifications.inbox.new_message.skipped_muted',
+          conversationId: params.conversationId,
+        }),
+      );
+      return;
+    }
+
     const preview = (params.bodyPreview ?? '').trim().slice(0, 120);
     await this.emit({
       body: preview

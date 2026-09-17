@@ -47,6 +47,8 @@ interface ConversationRow {
   customer_display_name: string | null;
   last_owner_read_at: string | null;
   messages_cleared_at: string | null;
+  muted_until: string | null;
+  pinned_at: string | null;
   status: 'open' | 'closed';
   last_message_at: string | null;
   contacts: ContactRow | ContactRow[] | null;
@@ -64,11 +66,12 @@ export async function getInboxConversations(
   let query = supabase
     .from('conversations')
     .select(
-      'id, channel, external_contact_id, customer_display_name, status, last_message_at, last_owner_read_at, archived_at, deleted_at, messages_cleared_at, contacts(id, display_name, phone_number, lead_status)',
+      'id, channel, external_contact_id, customer_display_name, status, last_message_at, last_owner_read_at, archived_at, deleted_at, messages_cleared_at, pinned_at, muted_until, contacts(id, display_name, phone_number, lead_status)',
     )
     .eq('organization_id', organizationId)
     .eq('business_center_id', businessCenterId)
     .is('deleted_at', null)
+    .order('pinned_at', { ascending: false, nullsFirst: false })
     .order('last_message_at', { ascending: false, nullsFirst: false });
 
   if (options?.limit) {
@@ -110,7 +113,7 @@ export async function getInboxConversationById(
   const { data, error } = await supabase
     .from('conversations')
     .select(
-      'id, channel, external_contact_id, customer_display_name, status, last_message_at, last_owner_read_at, archived_at, deleted_at, messages_cleared_at, contacts(id, display_name, phone_number, lead_status)',
+      'id, channel, external_contact_id, customer_display_name, status, last_message_at, last_owner_read_at, archived_at, deleted_at, messages_cleared_at, pinned_at, muted_until, contacts(id, display_name, phone_number, lead_status)',
     )
     .eq('id', conversationId)
     .eq('organization_id', organizationId)
@@ -201,6 +204,7 @@ export async function getConversationMessages(
     )
     .eq('conversation_id', conversationId)
     .is('owner_hidden_at', null)
+    .neq('message_type', 'reaction')
     .order('created_at', { ascending: true });
 
   if (options?.messagesClearedAt) {
@@ -213,7 +217,76 @@ export async function getConversationMessages(
     throw new Error(error.message);
   }
 
-  return (data as ConversationMessageRow[]).map(toWhatsAppMessagePreview);
+  const messages = (data as ConversationMessageRow[]).map(toWhatsAppMessagePreview);
+  const reactionsByMessage = await getReactionsForMessages(messages.map((message) => message.id));
+
+  return messages.map((message) => ({
+    ...message,
+    reactions: reactionsByMessage.get(message.id) ?? [],
+  }));
+}
+
+async function getReactionsForMessages(
+  messageIds: string[],
+): Promise<Map<string, Array<{ actor: 'owner' | 'contact'; emoji: string }>>> {
+  const map = new Map<string, Array<{ actor: 'owner' | 'contact'; emoji: string }>>();
+  if (messageIds.length === 0) {
+    return map;
+  }
+
+  const { data, error } = await supabase
+    .from('message_reactions')
+    .select('message_id, actor, emoji')
+    .in('message_id', messageIds);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  for (const row of data ?? []) {
+    const actor = row.actor === 'contact' ? 'contact' : 'owner';
+    const list = map.get(row.message_id) ?? [];
+    list.push({ actor, emoji: row.emoji });
+    map.set(row.message_id, list);
+  }
+
+  return map;
+}
+
+export async function upsertMessageReaction(params: {
+  actor: 'owner' | 'contact';
+  businessCenterId: string;
+  emoji: string;
+  messageId: string;
+  organizationId: string;
+}): Promise<void> {
+  const emoji = params.emoji.trim();
+  if (!emoji) {
+    const { error } = await supabase
+      .from('message_reactions')
+      .delete()
+      .eq('message_id', params.messageId)
+      .eq('actor', params.actor);
+    if (error) {
+      throw new Error(error.message);
+    }
+    return;
+  }
+
+  const { error } = await supabase.from('message_reactions').upsert(
+    {
+      actor: params.actor,
+      business_center_id: params.businessCenterId,
+      emoji,
+      message_id: params.messageId,
+      organization_id: params.organizationId,
+    },
+    { onConflict: 'message_id,actor' },
+  );
+
+  if (error) {
+    throw new Error(error.message);
+  }
 }
 
 export function subscribeToConversationMessages(
@@ -235,7 +308,11 @@ export function subscribeToConversationMessages(
         filter: `business_center_id=eq.${businessCenterId}`,
       },
       (payload) => {
-        onMessage(toWhatsAppMessagePreview(payload.new as ConversationMessageRow));
+        const row = payload.new as ConversationMessageRow;
+        if (row.owner_hidden_at || row.message_type === 'reaction') {
+          return;
+        }
+        onMessage(toWhatsAppMessagePreview(row));
       },
     )
     .on(
@@ -247,7 +324,17 @@ export function subscribeToConversationMessages(
         filter: `business_center_id=eq.${businessCenterId}`,
       },
       (payload) => {
-        onMessage(toWhatsAppMessagePreview(payload.new as ConversationMessageRow));
+        const row = payload.new as ConversationMessageRow;
+        if (row.owner_hidden_at || row.message_type === 'reaction') {
+          // Soft-hide: notify with a tombstone by sending an update that clients drop.
+          onMessage({
+            ...toWhatsAppMessagePreview(row),
+            body: null,
+            messageType: '__hidden__',
+          });
+          return;
+        }
+        onMessage(toWhatsAppMessagePreview(row));
       },
     )
     .subscribe();
@@ -327,6 +414,7 @@ function toWhatsAppMessagePreview(row: ConversationMessageRow): WhatsAppMessageP
     mediaUrl: row.media_url ?? null,
     messageStatus: row.message_status,
     messageType: row.message_type ?? 'text',
+    reactions: [],
     recipientPhone: row.recipient_phone,
     replyToMessageId: row.reply_to_message_id ?? null,
     senderPhone: row.sender_phone,
@@ -368,6 +456,8 @@ function toInboxConversationSummary(row: ConversationRow): InboxConversationSumm
     lastOwnerReadAt: row.last_owner_read_at ?? null,
     latestMessage: null,
     messagesClearedAt: row.messages_cleared_at ?? null,
+    mutedUntil: row.muted_until ?? null,
+    pinnedAt: row.pinned_at ?? null,
     status: row.status,
     unreadCount: 0,
   };

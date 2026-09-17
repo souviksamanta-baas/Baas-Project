@@ -116,6 +116,8 @@ describe('WhatsAppWebhookService', () => {
         textBody: 'Hello',
         mediaId: null,
         mediaMimeType: null,
+        reactionEmoji: null,
+        reactionTargetExternalId: null,
         duplicate: false,
       },
     ]);
@@ -177,6 +179,8 @@ describe('WhatsAppWebhookService', () => {
         textBody: 'Miren esto',
         mediaId: 'media-123',
         mediaMimeType: 'image/jpeg',
+        reactionEmoji: null,
+        reactionTargetExternalId: null,
         duplicate: false,
       },
     ]);

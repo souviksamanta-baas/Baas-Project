@@ -1,0 +1,10 @@
+appId: ar.com.nexolia.app
+---
+# Inventory — add stock to a product
+- launchApp
+# - tapOn: "Inventario"
+# - tapOn: "Producto demo"
+# - tapOn: "Agregar stock"
+# - inputText: "10"
+# - tapOn: "Guardar"
+# - assertVisible: "Stock actualizado"

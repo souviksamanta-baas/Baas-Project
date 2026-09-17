@@ -29,7 +29,24 @@ Mapping: `apps/mobile/src/lib/inboxPresentation.ts` → `leadStatusLabel()`
 4. **Oportunidad (`opportunity`):** on inbound, if contact is `cold` and
    `cold_at` is older than **365 days**, promote to `opportunity`.
 5. **Ganado / Perdido / Terminado:** only via message long-press →
-   **Cambiar estado a** (manual; never offer Frío or Nuevo in that submenu).
+   **Asignar etiqueta** (manual; never offer Frío or Nuevo in that picker).
+
+## Asignar etiqueta (message long-press)
+
+UI entry: thread message long-press → **Asignar etiqueta** (`MessageActionOverlay`).
+
+| App label (Spanish) | `contacts.lead_status` |
+| --- | --- |
+| Nuevo | `new` |
+| Oportunidad | `opportunity` |
+| Seguimiento pendiente | `active` |
+| Ganado | `won` |
+| Perdido | `lost` |
+| Terminado | `finished` |
+
+**Hidden in UI:** Frío (`cold`) — never show in the picker or filter chips. Backend
+cold-sweep still sets `cold` for idle contacts; badges stay blank (`leadStatusLabel`
+returns `undefined` for `cold`).
 
 ## Filters (KAN-318)
 

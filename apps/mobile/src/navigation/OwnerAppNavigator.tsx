@@ -88,6 +88,8 @@ const legacyInboxConversations: InboxConversationSummary[] = conversations.map((
     senderPhone: null,
   },
   messagesClearedAt: null,
+  mutedUntil: null,
+  pinnedAt: null,
   status: 'open',
   unreadCount: 0,
 }));
@@ -315,7 +317,6 @@ export function OwnerAppNavigator(props: { onSignOut: () => void }): ReactElemen
             senderPhone: null,
           }))}
           onBack={() => selectTab('inbox')}
-          statusLabel={selectedConversation.statusLabel}
           threadAvatar={selectedConversation.avatar}
         />
       ) : route === 'copi-chat' ? (

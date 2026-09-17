@@ -76,6 +76,27 @@ Work in order. Each layer is a separate Jira story under KAN-278.
 | `staffInvites.ts` | `staffInvites.ts` |
 | `copilot.ts`, `aiDrafts.ts` | `ai.ts` |
 
+## `api/whatsapp.ts` (NestJS — Chats outbound)
+
+Owner-authenticated Nest routes for conversation sends and Meta message actions.
+All use `apiFetchAuthJson` + Supabase session bearer.
+
+| Function | Endpoint | Body / notes |
+| --- | --- | --- |
+| `sendConversationReply` | `POST /whatsapp/messages/send` | `{ organizationId, businessCenterId, conversationId, body, replyToMessageId? }` — optional `replyToMessageId` (UUID of `conversation_messages`) sends a WhatsApp quote reply |
+| `sendConversationImage` | `POST /whatsapp/messages/send-image` | `{ …, imageBase64, mimeType?, body? }` — optional caption in `body` |
+| `sendConversationAudio` | `POST /whatsapp/messages/send-audio` | `{ organizationId, businessCenterId, conversationId, audioBase64, mimeType?, durationMs? }` — voice note; persists `message_type = audio` |
+| `reactToConversationMessage` | `POST /whatsapp/messages/react` | `{ organizationId, businessCenterId, messageId, emoji }` — empty emoji removes owner reaction |
+| `editConversationMessage` | `POST /whatsapp/messages/edit` | Outbound text edit via Meta |
+| `forwardConversationMessage` | `POST /whatsapp/messages/forward` | Resend into another org conversation |
+| `registerWhatsAppConnection` | `POST /whatsapp/connection/register` | Merchant WABA connect |
+
+Reads (inbox list, thread, reactions) stay on Supabase RLS via `api/conversations.ts`
+(`message_reactions` join, Realtime). Mobile never calls Meta Cloud API directly.
+
+Hook: `useConversationThread` → `sendReply(body, { replyToMessageId })`,
+`sendAudio` → `sendConversationAudio`.
+
 ## `api/ai.ts` (NestJS)
 
 | Function | Endpoint | Notes |
