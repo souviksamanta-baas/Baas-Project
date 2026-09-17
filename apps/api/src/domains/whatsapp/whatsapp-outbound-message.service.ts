@@ -27,6 +27,7 @@ interface WhatsAppSendResponse {
 export interface SendWhatsAppTextMessageParams {
   body: string;
   businessCenterId: string;
+  conversationId?: string | null;
   organizationId: string;
   recipientPhone: string;
   replyToExternalMessageId?: string | null;
@@ -142,11 +143,19 @@ export class WhatsAppOutboundMessageService {
     }
 
     const url = extractFirstUrl(params.body);
-    const linkPreview = url ? await fetchLinkPreview(url) : null;
+    let linkPreview: Awaited<ReturnType<typeof fetchLinkPreview>> = null;
+    if (url) {
+      try {
+        linkPreview = await fetchLinkPreview(url);
+      } catch {
+        linkPreview = null;
+      }
+    }
 
     await this.messageRepository.recordOutboundMessage({
       body: params.body,
       businessCenterId: config.business_center_id,
+      conversationId: params.conversationId ?? null,
       externalMessageId: externalMessageId ?? undefined,
       linkPreview,
       organizationId: params.organizationId,

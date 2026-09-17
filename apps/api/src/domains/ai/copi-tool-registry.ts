@@ -520,20 +520,58 @@ export class CopiToolRegistry {
 
   private async pendingAiDrafts(context: CopiQueryContext): Promise<Omit<CopiToolResult, 'key'>> {
     const client = this.supabaseService.getServiceRoleClient();
-    const { count, error } = await client
+    const { data, error } = await client
       .from('ai_drafts')
-      .select('id', { count: 'exact', head: true })
+      .select(
+        'id, draft_type, reply_body, edited_body, created_at, conversations(customer_display_name, external_contact_id, contacts(display_name, phone_number))',
+      )
       .eq('organization_id', context.organizationId)
       .eq('business_center_id', context.businessCenterId)
-      .eq('status', 'pending_approval');
+      .eq('status', 'pending_approval')
+      .order('created_at', { ascending: false })
+      .limit(10);
 
     if (error) {
       throw new Error(`Failed to load pending AI drafts: ${error.message}`);
     }
 
+    const drafts = (data ?? []).map((row) => {
+      const conversation = Array.isArray(row.conversations)
+        ? row.conversations[0]
+        : row.conversations;
+      const contact = conversation?.contacts
+        ? Array.isArray(conversation.contacts)
+          ? conversation.contacts[0]
+          : conversation.contacts
+        : null;
+      const customerName =
+        String(contact?.display_name ?? '').trim() ||
+        String(conversation?.customer_display_name ?? '').trim() ||
+        String(contact?.phone_number ?? conversation?.external_contact_id ?? 'Cliente').trim();
+      const body = String(row.edited_body ?? row.reply_body ?? '').trim();
+      return {
+        bodyPreview: body.slice(0, 160),
+        createdAt: row.created_at,
+        customerName,
+        draftType: row.draft_type,
+        id: row.id,
+      };
+    });
+
+    const summaryLines =
+      drafts.length === 0
+        ? ['No hay borradores IA pendientes.']
+        : [
+            `Borradores IA pendientes: ${drafts.length}.`,
+            ...drafts.map(
+              (draft, index) =>
+                `${index + 1}. ${draft.customerName}: «${draft.bodyPreview || '(sin texto)'}»`,
+            ),
+          ];
+
     return {
-      payload: { count: count ?? 0 },
-      summary: `Borradores IA pendientes: ${count ?? 0}.`,
+      payload: { count: drafts.length, drafts },
+      summary: summaryLines.join(' '),
     };
   }
 
@@ -1040,21 +1078,94 @@ function extractContactHint(question: string): string {
 }
 
 function extractProductQuery(question: string): string | null {
+  const selectedLine =
+    question.match(/Mensaje seleccionado:\s*(.+?)(?:\n|$)/i)?.[1]?.trim() ??
+    question.match(/Mensaje del cliente:\s*(.+?)(?:\n|$)/i)?.[1]?.trim() ??
+    question.match(/Cliente:\s*(.+?)(?:\n|$)/i)?.[1]?.trim() ??
+    null;
+  const sources = [selectedLine, question].filter(
+    (value): value is string => typeof value === 'string' && value.trim().length > 0,
+  );
+
   const patterns = [
     /\b(?:producto|productos|buscar|busc[aá]|encontr[aá]|stock\s+de|precio\s+de)\s+(.+)$/i,
-    /\b(?:hay|ten[eé]s|tenemos)\s+(.+?)(?:\?|$)/i,
+    /\b(?:hay|ten[eé]s|tenemos|tienen)\s+(.+?)(?:\?|$)/i,
   ];
-  for (const pattern of patterns) {
-    const match = question.match(pattern);
-    const raw = match?.[1]?.trim();
-    if (raw && raw.length >= 2) {
-      return raw
-        .replace(/\b(por\s+favor|pls|gracias)\b/gi, '')
-        .replace(/[?.!,]+$/g, '')
-        .trim()
-        .slice(0, 80);
+
+  for (const source of sources) {
+    for (const pattern of patterns) {
+      const match = source.match(pattern);
+      const raw = match?.[1]?.trim();
+      if (raw && raw.length >= 2) {
+        return raw
+          .replace(/\b(por\s+favor|pls|gracias|algun[oa]?s?|tipo\s+de)\b/gi, '')
+          .replace(/[?.!,]+$/g, '')
+          .trim()
+          .slice(0, 80);
+      }
+    }
+
+    // Token fallback: strip common Spanish fillers and use remaining content words.
+    const stop = new Set([
+      'hola',
+      'buenas',
+      'buen',
+      'dias',
+      'dia',
+      'tardes',
+      'noches',
+      'tenes',
+      'tene',
+      'tienen',
+      'tenemos',
+      'hay',
+      'algun',
+      'alguna',
+      'algunas',
+      'algunos',
+      'tipo',
+      'tipos',
+      'stock',
+      'disponible',
+      'disponibles',
+      'por',
+      'favor',
+      'me',
+      'quiero',
+      'necesito',
+      'busco',
+      'de',
+      'del',
+      'la',
+      'las',
+      'los',
+      'el',
+      'un',
+      'una',
+      'en',
+      'con',
+      'para',
+      'que',
+      'como',
+      'mensaje',
+      'seleccionado',
+      'cliente',
+      'respond',
+      'responde',
+      'responder',
+    ]);
+    const tokens = source
+      .toLocaleLowerCase('es-AR')
+      .normalize('NFD')
+      .replace(/\p{M}/gu, '')
+      .split(/[^a-z0-9]+/i)
+      .map((token) => token.trim())
+      .filter((token) => token.length > 2 && !stop.has(token));
+    if (tokens.length > 0) {
+      return tokens.slice(0, 4).join(' ');
     }
   }
+
   return null;
 }
 

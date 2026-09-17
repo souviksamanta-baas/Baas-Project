@@ -111,6 +111,7 @@ export class WhatsAppMessagingService {
     return this.outboundMessageService.sendTextMessage({
       body,
       businessCenterId: conversation.business_center_id,
+      conversationId: params.conversationId,
       organizationId: conversation.organization_id,
       recipientPhone: conversation.external_contact_id,
       replyToExternalMessageId,
@@ -288,6 +289,7 @@ export class WhatsAppMessagingService {
     return this.outboundMessageService.sendTextMessage({
       body,
       businessCenterId: target.business_center_id,
+      conversationId: params.targetConversationId,
       organizationId: target.organization_id,
       recipientPhone: target.external_contact_id,
     });

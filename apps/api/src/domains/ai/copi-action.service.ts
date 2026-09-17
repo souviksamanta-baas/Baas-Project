@@ -222,6 +222,53 @@ export class CopiActionService {
     return { result, status: 'executed' };
   }
 
+  async rejectAction(params: {
+    actionId: string;
+    businessCenterId: string;
+    organizationId: string;
+    userId: string;
+  }): Promise<{ status: 'rejected' }> {
+    const client = this.supabaseService.getServiceRoleClient();
+    const { data, error } = await client
+      .from('copi_action_proposals')
+      .select('id, status, expires_at')
+      .eq('id', params.actionId)
+      .eq('organization_id', params.organizationId)
+      .eq('user_id', params.userId)
+      .single<{ expires_at: string; id: string; status: string }>();
+
+    if (error || !data) {
+      throw new Error('Copi action proposal not found');
+    }
+
+    if (data.status !== 'pending') {
+      throw new Error(`Copi action is already ${data.status}`);
+    }
+
+    if (new Date(data.expires_at).getTime() < Date.now()) {
+      await client.from('copi_action_proposals').update({ status: 'expired' }).eq('id', data.id);
+      throw new Error('Copi action proposal expired');
+    }
+
+    const { error: updateError } = await client
+      .from('copi_action_proposals')
+      .update({
+        result: { rejected: true },
+        status: 'rejected',
+      })
+      .eq('id', data.id);
+
+    if (updateError) {
+      throw new Error(`Failed to reject Copi action: ${updateError.message}`);
+    }
+
+    if (this.notificationsService) {
+      await this.notificationsService.dismissCopiActionNeeded(data.id);
+    }
+
+    return { status: 'rejected' };
+  }
+
   private async executeAction(params: {
     actionType: CopiActionType;
     businessCenterId: string;
@@ -971,6 +1018,7 @@ export class CopiActionService {
         const sent = await this.whatsAppOutbound.sendTextMessage({
           body: replyBody,
           businessCenterId: conversation.business_center_id,
+          conversationId,
           organizationId: conversation.organization_id,
           recipientPhone: conversation.external_contact_id,
         });
@@ -1236,24 +1284,15 @@ export class CopiActionService {
     }
     const body =
       existing ||
-      (await this.draftCustomerReplyBody({
-        businessCenterId: context.businessCenterId,
-        conversationId,
-        organizationId: context.organizationId,
-      }));
-    const spanishBody =
-      body && looksLikeEnglishCustomerReply(body)
-        ? buildSpanishCustomerReply(
-            typeof context.question === 'string' ? context.question : body,
-          )
-        : body;
+      null;
     return {
       ...payload,
-      body: spanishBody || null,
+      body,
       conversationId,
     };
   }
 
+  /** Last-resort body if a proposal was confirmed without text (LLM path should usually fill it). */
   private async draftCustomerReplyBody(params: {
     businessCenterId: string;
     conversationId: string;
@@ -1301,14 +1340,40 @@ export class CopiActionService {
       });
       const matched = draft.catalogContext?.matchedProducts ?? [];
       if (matched.length > 0) {
-        const productName = String(matched[0]?.name ?? 'ese producto').trim() || 'ese producto';
-        return `¡Hola! Sí, tenemos ${productName} disponible. ¿Querés que te pase precio y opciones?`;
+        return formatStockFactsReply(matched);
+      }
+      const drafted = typeof draft.body === 'string' ? draft.body.trim() : '';
+      if (drafted && !looksLikeEnglishCustomerReply(drafted)) {
+        return drafted;
       }
     } catch {
-      // Fall through to Spanish templates.
+      // Fall through to inventory lookup.
     }
 
-    return buildSpanishCustomerReply(messageBody);
+    const productQuery = extractCustomerProductQuery(messageBody);
+    if (productQuery) {
+      try {
+        const lookedUp = await this.inventoryService.lookupProducts({
+          businessCenterId: params.businessCenterId,
+          limit: 8,
+          organizationId: params.organizationId,
+          query: productQuery,
+        });
+        if (lookedUp.length > 0) {
+          return formatStockFactsReply(
+            lookedUp.map((product) => ({
+              name: product.name,
+              stockQuantity: product.stockQuantity,
+              unitPriceCents: product.unitPriceCents,
+            })),
+          );
+        }
+      } catch {
+        // Fall through.
+      }
+    }
+
+    return '¡Hola! Gracias por tu mensaje. Enseguida te paso la información que pediste.';
   }
 
   private async resolveProductByName(
@@ -1396,24 +1461,84 @@ function normalizePersonName(value: string): string {
     .replace(/\p{M}/gu, '');
 }
 
-function toSpanishCustomerReply(drafted: string, lastInbound: string): string {
-  if (!looksLikeEnglishCustomerReply(drafted)) {
-    return drafted.trim();
-  }
-  return buildSpanishCustomerReply(lastInbound);
+function formatStockFactsReply(
+  products: Array<{
+    name: string;
+    stockQuantity: number;
+    unitPriceCents: number;
+  }>,
+): string {
+  const lines = products.slice(0, 8).map((product) => {
+    const stock =
+      product.stockQuantity > 0 ? `${product.stockQuantity} u. en stock` : 'sin stock ahora';
+    return `• ${product.name} — ${stock} — ${formatArsCents(product.unitPriceCents)}`;
+  });
+  return [
+    '¡Hola! Según nuestro stock:',
+    ...lines,
+    '¿Te interesa alguno?',
+  ].join('\n');
 }
 
-function buildSpanishCustomerReply(lastInbound: string): string {
-  if (/cat[aá]logo|productos?|lista|precios?/i.test(lastInbound)) {
-    return '¡Hola! Claro, te paso el catálogo completo de productos. ¿Hay algo específico que te interese?';
-  }
-  if (/precio|cu[aá]nto|cotiz/i.test(lastInbound)) {
-    return '¡Hola! Gracias por tu consulta. Decime qué producto necesitás y te paso el precio.';
-  }
-  if (/turno|cita|reserva/i.test(lastInbound)) {
-    return '¡Hola! Claro, ¿qué día y horario te vendría bien para agendar?';
-  }
-  return '¡Hola! Gracias por tu mensaje. Enseguida te paso la información que pediste.';
+function extractCustomerProductQuery(message: string): string {
+  const stop = new Set([
+    'hola',
+    'buenas',
+    'buen',
+    'dias',
+    'dia',
+    'tardes',
+    'noches',
+    'tenes',
+    'tene',
+    'tienen',
+    'hay',
+    'algun',
+    'alguna',
+    'algunas',
+    'algunos',
+    'tipo',
+    'tipos',
+    'stock',
+    'disponible',
+    'disponibles',
+    'por',
+    'favor',
+    'me',
+    'pasas',
+    'pasar',
+    'podrias',
+    'podes',
+    'quiero',
+    'necesito',
+    'busco',
+    'de',
+    'del',
+    'la',
+    'las',
+    'los',
+    'el',
+    'un',
+    'una',
+    'en',
+    'con',
+    'para',
+    'que',
+    'como',
+  ]);
+  const tokens = normalizePersonName(message)
+    .split(/\s+/)
+    .map((token) => token.trim())
+    .filter((token) => token.length > 2 && !stop.has(token));
+  return tokens.slice(0, 4).join(' ');
+}
+
+function formatArsCents(cents: number): string {
+  const amount = (cents / 100).toLocaleString('es-AR', {
+    maximumFractionDigits: 2,
+    minimumFractionDigits: 0,
+  });
+  return `$${amount}`;
 }
 
 function looksLikeEnglishCustomerReply(value: string): boolean {

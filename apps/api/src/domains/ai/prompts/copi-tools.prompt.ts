@@ -161,7 +161,7 @@ The mobile app turns these into tappable product screens. Plain product names wi
 
 - \`messages_today\`: \`{ count, messages[] }\`
 - \`open_conversations\`: \`{ count, conversations[] }\`
-- \`pending_ai_drafts\`: \`{ count }\`
+- \`pending_ai_drafts\`: \`{ count, drafts: [{ id, customerName, bodyPreview, draftType, createdAt }] }\` â€” when the owner asks to list/show drafts, summarize each item; do not only repeat the count.
 - \`low_stock\`: \`{ count, products[] }\`
 - \`expiring_lots\`: \`{ count, lots[], mode: today|nearest, nearest? }\`
 - \`products_overview\`: \`{ activeProducts, lowStockCount }\`
@@ -221,7 +221,7 @@ Lightweight callback task: \`remind_at\` (+ \`due_at = remind_at\`). Default maÃ
 Returns a mobile route payload on confirm (no DB write).
 
 ### propose_customer_reply
-Stores reply body in the proposal; on confirm sends WhatsApp via outbound service.
+Draft the exact WhatsApp body in natural Argentine Spanish from conversation_thread + find_product (and any other relevant facts). Do not use canned templates keyed to specific customer questions. Store that body in the proposal; on confirm send via WhatsApp outbound.
 
 ### Task statuses
 

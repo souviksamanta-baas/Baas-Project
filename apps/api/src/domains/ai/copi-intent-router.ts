@@ -177,7 +177,10 @@ export function selectCopiTools(
     tools.add('open_conversations');
   }
 
-  if (/\b(draft|borrador|borradores|ai draft)\b/.test(normalized)) {
+  if (
+    /\b(draft|borrador|borradores|ai draft)\b/.test(normalized) ||
+    wantsPendingDraftsList(question, history)
+  ) {
     tools.add('pending_ai_drafts');
   }
 
@@ -332,6 +335,46 @@ function isShortAffirmative(question: string): boolean {
 
 export function isCopiActionAffirmative(question: string): boolean {
   return isShortAffirmative(question);
+}
+
+export function isCopiActionNegative(question: string): boolean {
+  const normalized = normalizeCopiQuestion(question)
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  return /^(no|nop|nope|nel|cancel[aeá]|cancelalo|cancelar|mejor no|no envies|no mandes|no gracias|ahora no)$/.test(
+    normalized,
+  );
+}
+
+export function wantsPendingDraftsList(
+  question: string,
+  history: CopiConversationTurn[] = [],
+): boolean {
+  const normalized = normalizeCopiQuestion(question);
+  const asksList =
+    /\b(mostrame|mostra|list[aá]|cuales|cuáles|ver todos|todo|detalle|detalles)\b/.test(
+      normalized,
+    );
+  if (!asksList && !/\b(draft|borrador|borradores)\b/.test(normalized)) {
+    return false;
+  }
+  if (/\b(draft|borrador|borradores)\b/.test(normalized)) {
+    return true;
+  }
+  return lastAssistantMentionedPendingDrafts(history);
+}
+
+function lastAssistantMentionedPendingDrafts(history: CopiConversationTurn[]): boolean {
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    if (history[index]?.role !== 'assistant') {
+      continue;
+    }
+    const normalized = normalizeCopiQuestion(history[index]?.body ?? '');
+    return /\b(borrador|borradores|draft)\b/.test(normalized);
+  }
+  return false;
 }
 
 function lastAssistantOfferedSalesDetails(history: CopiConversationTurn[]): boolean {

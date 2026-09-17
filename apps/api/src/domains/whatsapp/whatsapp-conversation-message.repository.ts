@@ -37,6 +37,7 @@ export interface RecordInboundWhatsAppMessageParams {
 export interface RecordOutboundWhatsAppMessageParams {
   body: string | null;
   businessCenterId: string;
+  conversationId?: string | null;
   errorMessage?: string;
   externalMessageId?: string;
   linkPreview?: {
@@ -195,20 +196,53 @@ export class WhatsAppConversationMessageRepository {
 
   async recordOutboundMessage(params: RecordOutboundWhatsAppMessageParams): Promise<void> {
     const sentAt = params.sentAt ?? new Date().toISOString();
-    const conversation = await this.upsertConversation({
-      businessCenterId: params.businessCenterId,
-      organizationId: params.organizationId,
-      whatsappConfigId: params.whatsappConfigId,
-      externalContactId: params.recipientPhone,
-      customerDisplayName: null,
-      lastMessageAt: sentAt,
-    });
-
     const client = this.supabaseService.getServiceRoleClient();
+
+    let conversationId = params.conversationId?.trim() || null;
+    let contactId: string | null = null;
+
+    if (conversationId) {
+      const { data: existing, error: existingError } = await client
+        .from('conversations')
+        .select('id, contact_id')
+        .eq('id', conversationId)
+        .eq('organization_id', params.organizationId)
+        .eq('business_center_id', params.businessCenterId)
+        .maybeSingle<{ contact_id: string | null; id: string }>();
+
+      if (existingError) {
+        throw new Error(`Failed to load conversation for outbound message: ${existingError.message}`);
+      }
+
+      if (existing?.id) {
+        conversationId = existing.id;
+        contactId = existing.contact_id;
+        await client
+          .from('conversations')
+          .update({ last_message_at: sentAt, updated_at: sentAt })
+          .eq('id', existing.id);
+      } else {
+        conversationId = null;
+      }
+    }
+
+    if (!conversationId) {
+      const conversation = await this.upsertConversation({
+        businessCenterId: params.businessCenterId,
+        organizationId: params.organizationId,
+        whatsappConfigId: params.whatsappConfigId,
+        externalContactId: params.recipientPhone,
+        customerDisplayName: null,
+        lastMessageAt: sentAt,
+      });
+      conversationId = conversation.id;
+      contactId = conversation.contactId;
+    }
+
     const { error } = await client.from('conversation_messages').insert({
       organization_id: params.organizationId,
       business_center_id: params.businessCenterId,
-      conversation_id: conversation.id,
+      conversation_id: conversationId,
       direction: 'outbound',
       external_message_id: params.externalMessageId,
       sender_phone: params.senderPhone,
@@ -242,8 +276,8 @@ export class WhatsAppConversationMessageRepository {
       throw new Error(`Failed to persist outbound WhatsApp message: ${error.message}`);
     }
 
-    if (params.status === 'sent' && conversation.contactId) {
-      await this.promoteNewToActive(conversation.contactId);
+    if (params.status === 'sent' && contactId) {
+      await this.promoteNewToActive(contactId);
     }
   }
 
