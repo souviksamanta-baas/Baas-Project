@@ -61,6 +61,10 @@ export class CopiActionService {
     }
     if (actionType === 'propose_customer_reply') {
       payload = await this.enrichCustomerReplyPayload(context, payload);
+      await this.supersedePendingCustomerReplyProposals({
+        organizationId: context.organizationId,
+        userId: context.userId,
+      });
     }
     const client = this.supabaseService.getServiceRoleClient();
     const { data, error } = await client
@@ -88,11 +92,51 @@ export class CopiActionService {
       summary: summarizeProposal(data.action_type, data.payload),
     };
 
-    // Do not push "Copi necesita confirmación" immediately — chat already shows
-    // the confirm card. A reminder is emitted after 5 minutes only if still pending
-    // (see NotificationsService.notifyStaleCopiActionProposals).
+    // Do not push "Copi necesita confirmación" for chat-bound flows (customer
+    // reply is confirmed in Copi). Other Pro actions may get a 5-minute reminder
+    // via NotificationsService.notifyStaleCopiActionProposals.
 
     return proposal;
+  }
+
+  /** Drop older unconfirmed WhatsApp-reply drafts so they cannot keep notifying. */
+  private async supersedePendingCustomerReplyProposals(params: {
+    organizationId: string;
+    userId: string;
+  }): Promise<void> {
+    const client = this.supabaseService.getServiceRoleClient();
+    const { data: pending, error } = await client
+      .from('copi_action_proposals')
+      .select('id')
+      .eq('organization_id', params.organizationId)
+      .eq('user_id', params.userId)
+      .eq('action_type', 'propose_customer_reply')
+      .eq('status', 'pending');
+
+    if (error || !pending?.length) {
+      return;
+    }
+
+    const ids = pending
+      .map((row) => row.id as string)
+      .filter((id) => typeof id === 'string' && id.length > 0);
+    if (ids.length === 0) {
+      return;
+    }
+
+    await client
+      .from('copi_action_proposals')
+      .update({
+        result: { superseded: true },
+        status: 'expired',
+      })
+      .in('id', ids);
+
+    if (this.notificationsService) {
+      for (const id of ids) {
+        await this.notificationsService.dismissCopiActionNeeded(id);
+      }
+    }
   }
 
   async updateProposalPayload(params: {

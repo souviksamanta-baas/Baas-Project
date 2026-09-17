@@ -18,6 +18,14 @@ const INVOICE_OVERDUE_DAYS = 30;
 const DIGEST_HOUR = 8;
 /** Remind the owner to confirm a Copi proposal only after this idle window. */
 const COPI_ACTION_REMINDER_DELAY_MS = 5 * 60_000;
+/**
+ * Confirmed entirely inside Copi chat — never nudge via push/inbox.
+ * (Customer WhatsApp reply drafts and assign-to-Copi are in-thread UX.)
+ */
+const COPI_CHAT_ONLY_ACTION_TYPES = new Set([
+  'propose_customer_reply',
+  'assign_conversation_to_copi',
+]);
 
 export interface NotificationPrefs {
   enabled: Record<string, boolean>;
@@ -448,6 +456,9 @@ export class NotificationsService {
       payload: Record<string, unknown>;
       user_id: string;
     }>) {
+      if (COPI_CHAT_ONLY_ACTION_TYPES.has(row.action_type)) {
+        continue;
+      }
       const details = extractCopiProposalDetails(row.action_type, row.payload);
       try {
         const result = await this.emit({
