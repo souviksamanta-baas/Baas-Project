@@ -227,7 +227,7 @@ export class WhatsAppConversationMessageRepository {
             title: params.linkPreview.title,
             url: params.linkPreview.url,
           }
-        : null,
+        : {},
       reply_to_message_id: params.replyToMessageId ?? null,
       message_status: params.status,
       sent_at: params.status === 'sent' ? sentAt : null,
@@ -326,7 +326,7 @@ export class WhatsAppConversationMessageRepository {
               title: params.linkPreview.title,
               url: params.linkPreview.url,
             }
-          : null,
+          : {},
         updated_at: new Date().toISOString(),
       })
       .eq('id', params.messageId);
