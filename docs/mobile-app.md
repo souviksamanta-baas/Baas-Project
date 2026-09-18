@@ -347,20 +347,21 @@ assistant with sessions, task actions, and OpenAI-backed multimodal features.
 
 - The Copi chat (`CopiScreen`, `useOwnerCopilot`) sends authenticated requests to
   the NestJS API with the active organization ID and Supabase access token.
-- **Basic:** `POST /ai/copilot/query` uses the tool registry (messages today,
-  low stock, follow-ups, sales summary, attention summary, task reads, and more).
-  Answers may be phrased by OpenAI when `copi_freeform_questions` is enabled.
+- **Query:** `POST /ai/copilot/query` uses the LLM turn planner (with regex
+  fallback), tool registry, and OpenAI phrasing when freeform is enabled.
+  Owner sí/no (and partial confirms) go through the same endpoint — no client
+  confirm short-circuit.
 - **Sessions:** `sessionId` is returned and persisted; history reloads via
-  `GET /ai/copilot/sessions/:sessionId/messages`.
-- **Pro:** action confirm cards (`POST /ai/copilot/actions/:id/confirm`), voice
-  (`/ai/copilot/voice`), vision (`/ai/copilot/vision`), and reports
-  (`/ai/copilot/reports/run`) are gated by org `feature_flags` from
-  `get_owner_dashboard().features` (`useFeatureVisibility`).
+  `GET /ai/copilot/sessions/:sessionId/messages` and
+  `GET /ai/copilot/session/active`.
+- **Actions / multimodal:** voice, vision, reports, and write proposals are
+  available when `copi_enabled` (defaults on for Pro-capable flags). Confirm
+  writes in chat before execution; WhatsApp send always needs confirm.
 - **Multi-task create:** Copi splits numbered create requests into multiple
   `owner_tasks` on confirm (`copi-task-parse.ts`). Inline “asignarlo a …”
   assigns to a matching org member; “mañana” is a due date, not snooze.
 - **Tasks screen:** `/(app)/tasks` lists tasks + alerts with ⋮ actions; Copi can propose task
-  writes when `copi_pro_agent` is on.
+  writes when Copi is enabled.
 - The AI and follow-up settings card edits active business center settings
   through authenticated Supabase RLS: `ai_auto_send`,
   `ai_follow_up_delay_hours`, and `business_hours`.

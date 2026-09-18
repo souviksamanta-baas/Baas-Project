@@ -2,49 +2,76 @@
 
 Copi is the owner-facing AI assistant. It is separate from `SalesAiService`, which handles customer WhatsApp draft generation.
 
+There is **one Copi** (everything-Pro): gate product access on `copi_enabled` only. There is no Basic composer lock, Pro upsell, or `tier_required` product wall. Org OpenAI / subscription spend caps still apply.
+
 ## Prompt layers
 
-Copi LLM calls use three maintainable prompt layers under \`apps/api/src/domains/ai/prompts/\`:
+Copi LLM calls use maintainable prompt layers under `apps/api/src/domains/ai/prompts/`:
 
-1. **System** (\`copi-system.prompt.ts\`) — full personality/language/behavior brief from product (ROLE, greetings, Argentine Spanish, safety, proactive help, GOAL).
-2. **Business context** (\`copi-business-context.prompt.ts\`) — Nexolia modules, live vs roadmap help areas, sale/WhatsApp relationships, KPI limits, owner-language mapping.
-3. **Tools** (\`copi-tools.prompt.ts\`) — brief→live tool aliases, Basic/Pro permissions, JSON contracts, router schema.
+1. **System** (`copi-system.prompt.ts`) — personality/language/behavior (ROLE, greetings, Argentine Spanish, safety).
+2. **Business context** (`copi-business-context.prompt.ts`) — Nexolia modules, live vs roadmap help areas.
+3. **Tools** (`copi-tools.prompt.ts`) — live tool aliases, JSON contracts, router schema.
+4. **Planner** (`copi-planner.prompt.ts`) — turn plan JSON schema and kind rules.
 
-\`buildCopiSystemPrompt(layer)\` composes them for the tool router or answer phraser.
+`buildCopiSystemPrompt(layer)` composes them for `planner`, `router`, or `phraser`.
 
-**Routing philosophy:** the LLM understands freeform Argentine Spanish first. Regex \`selectCopiTools\` is only a safety net when the model returns nothing or wrongly picks generic \`attention_summary\` for a specific ask. Do not treat suggested UI questions as an exhaustive wired list — they are examples of coverage.
+## Turn planner (primary path)
+
+```
+Owner message + history + pendingProposal
+  → CopiLlmTurnPlannerService (gpt-4o via resolveCopiModel('planner'))
+  → plan.kind → execute
+```
+
+Plan kinds: `answer` | `confirm_pending` | `reject_pending` | `propose_action` | `revise_customer_reply` | `clarify`.
+
+Regex/rules (affirm/deny, unclear exit, `inferCopiActionType`, customer-reply short-circuit) run **only as fallback** when there is no API key or the planner fails.
+
+Safety is unchanged: propose → owner confirms in chat (“sí” / “no” / partial) before writes; WhatsApp send always needs confirm; tool registry is source of truth for stock/prices.
+
+## Models (`resolveCopiModel`)
+
+Models are chosen **in code** by role — not via Railway `OPENAI_MODEL` / `OPENAI_VISION_MODEL`:
+
+| Role | Model |
+| --- | --- |
+| `planner` | `gpt-4o` |
+| `phrase` / `whatsapp_draft` / `vision` / `router` | `gpt-4o-mini` |
+
+Server env: `OPENAI_API_KEY` (shared fallback), optional `OPENAI_ADMIN_KEY` (staff provision).
 
 ## Flow
 
-Mobile \`POST /ai/copilot/query\` → \`CopiOrchestratorService\` → policy check → **resume active session within 14 days** (or create) → session history → tool selector (LLM + rules safety net) → tool registry → LLM phraser → optional Pro action proposal → session persistence.
+Mobile `POST /ai/copilot/query` → `CopiOrchestratorService` → policy (`copi_enabled`) → session → **LLM turn planner** → tools / confirm / propose / revise WA draft → phraser when answering → session persistence.
 
-\`GET /ai/copilot/session/active\` resumes the same WhatsApp-style thread (messages from the last 14 days) without requiring a new question.
+All owner messages including sí/no go through `/ai/copilot/query` (no client confirm short-circuit). Server pending proposal is source of truth.
 
-## Licensing
+`GET /ai/copilot/session/active` resumes the thread (messages from the last 14 days).
 
-Organization `feature_flags` JSON on `organizations`:
+## Feature flags
 
-- Basic: `copi_enabled`, `copi_basic_reports`, `copi_freeform_questions`
-- Pro add-on: `copi_pro_agent`, `copi_voice`, `copi_vision`, `copi_custom_reports`
+Organization `feature_flags` on `organizations` (defaults all Copi capabilities **on**):
 
-Dashboard exposes flags as `features` from `get_owner_dashboard()`. Mobile reads them via `useFeatureVisibility`.
+- `copi_enabled` — master gate
+- `copi_basic_reports`, `copi_freeform_questions`, `copi_pro_agent`, `copi_voice`, `copi_vision`, `copi_custom_reports`
+
+Dashboard exposes flags as `features` from `get_owner_dashboard()`. Mobile reads them via `useFeatureVisibility`. Composer unlocks when Copi is enabled.
 
 ## API endpoints
 
 All require `Authorization: Bearer <supabase-jwt>`.
 
-| Method | Path | Tier |
+| Method | Path | Notes |
 | --- | --- | --- |
-| POST | `/ai/copilot/query` | Basic+ |
-| GET | `/ai/copilot/sessions/:sessionId/messages?organizationId=` | Basic+ |
-| POST | `/ai/copilot/actions/:actionId/confirm` | Pro |
-| POST | `/ai/copilot/voice` | Pro |
-| POST | `/ai/copilot/vision` | Pro |
-| POST | `/ai/copilot/reports/run` | Pro |
+| POST | `/ai/copilot/query` | Ask Copi; sí/no confirms/rejects pending proposals |
+| GET | `/ai/copilot/session/active` | Resume active thread |
+| GET | `/ai/copilot/sessions/:sessionId/messages?organizationId=` | Session history |
+| POST | `/ai/copilot/actions/:actionId/confirm` | Optional programmatic confirm (chat is primary UX) |
+| POST | `/ai/copilot/voice` | STT |
+| POST | `/ai/copilot/vision` | Image analysis |
+| POST | `/ai/copilot/reports/run` | Saved/built-in reports |
 
-Server env: `OPENAI_API_KEY` (shared fallback), optional `OPENAI_ADMIN_KEY` (staff provision), optional `OPENAI_MODEL` / `OPENAI_VISION_MODEL`.
-
-## Per-org OpenAI keys (Pro / Enterprise)
+## Per-org OpenAI keys
 
 Nexolia pays OpenAI. Customers are never billed by OpenAI and never paste keys.
 
@@ -52,7 +79,7 @@ Nexolia pays OpenAI. Customers are never billed by OpenAI and never paste keys.
 | --- | --- | --- |
 | `OPENAI_API_KEY` | Railway | Shared fallback for orgs without a dedicated key |
 | `OPENAI_ADMIN_KEY` | Railway | Admin API only — create projects/keys from staff portal |
-| Per-org `sk-…` | Supabase `organization_llm_credentials.api_key_encrypted` | Created when staff clicks **Provisionar clave OpenAI** |
+| Per-org `sk-…` | Supabase `organization_llm_credentials.api_key_encrypted` | Staff **Provisionar clave OpenAI** |
 
 Default hard spend limits (synced to the OpenAI project): Pro **$25**/mo, Enterprise **$150**/mo. When the project hard cap is hit, that org’s Copi calls get `429` / `project_spend_limit_exceeded`; other orgs keep working.
 
@@ -62,102 +89,35 @@ Staff API (no raw key returned):
 - `POST /admin/organizations/:id/llm-credentials/provision`
 - `POST /admin/organizations/:id/llm-credentials/revoke`
 
-No new public webhooks for this feature.
+## Read tools
 
-## Read tools (Basic)
+`messages_today`, `low_stock`, `expiring_lots`, `pending_follow_ups`, `sales_summary`, `sales_today`, `sales_yesterday`, `open_conversations`, `pending_ai_drafts`, `products_overview`, `attention_summary`, `tasks_overview`, `tasks_due_today`, `tasks_overdue`, `tasks_by_contact`, `my_tasks`, `staff_roster`, `appointments_upcoming`, `appointments_today`, `find_product`, `cash_day`, `cash_report`, `conversation_thread`, `list_presupuestos`, `analyze_presupuesto`.
 
-`messages_today`, `low_stock`, `expiring_lots`, `pending_follow_ups`, `sales_summary`, `open_conversations`, `pending_ai_drafts`, `products_overview`, `attention_summary`, `tasks_overview`, `tasks_due_today`, `tasks_overdue`, `tasks_by_contact`, `my_tasks`, `staff_roster`, `appointments_upcoming`, `appointments_today`, `find_product`, `cash_day`, `cash_report`, `conversation_thread`, `list_presupuestos`, `analyze_presupuesto`.
-
-## Pro actions
+## Actions (propose → confirm)
 
 Task lifecycle: `create_task`, `assign_task`, `complete_task`, `start_task`, `snooze_task`, `cancel_task`, `reassign_task`.
 
-Agent actions: `schedule_reminder`, `navigate_to`, `create_support_ticket`, `save_custom_question`, `add_stock` (resolves `productQuery` → product id on propose/confirm), `create_product`, `cash_ingreso`, `cash_egreso`, `propose_customer_reply` (Sales AI draft from last inbound when body empty; confirm before WhatsApp send), `assign_conversation_to_copi`, appointments create/update/assign.
+Agent actions: `schedule_reminder`, `navigate_to`, `create_support_ticket`, `save_custom_question`, `add_stock`, `create_product`, `cash_ingreso`, `cash_egreso`, `propose_customer_reply` (confirm before WhatsApp send), `assign_conversation_to_copi`, appointments create/update/assign.
 
-`create_presupuesto` **auto-executes** on the query (no confirm). Other mutations propose + confirm.
-
-Tools: `cash_day` / `cash_report` (ranges: hoy, ayer, esta semana, este mes, or ISO dates), `find_product`, `conversation_thread` (falls back to chat assigned to Copi), presupuestos list/analyze.
+`create_presupuesto` **auto-executes** on the query (no confirm). Other mutations propose + confirm via chat.
 
 ### Defaults / ask policy
 
-Prefer propose-with-defaults over multi-turn Q&A. Soft defaults (assignee=me, due=tomorrow, cash date=today, etc.) appear on the confirm card. Hard-ask only for money amount+concept, product+qty, appointment Para, or empty customer reply.
+Prefer propose-with-defaults over multi-turn Q&A. Soft defaults appear in the proposal summary. Hard-ask only for money amount+concept, product+qty, appointment Para, or empty customer reply.
 
 ### Automations (tasks)
 
 `owner_tasks` supports `remind_at`, `recurrence_freq` (`daily|weekly|monthly`), `recurrence_weekday`, `template_key`. Scheduler uses `fireAt = remind_at ?? (due_at − lead)`. Completing a recurring task materializes the next instance with a unique `source_key`.
 
-Migration: `20260914200000_copi_agent_task_automations.sql` (also `appointments.remind_at`, `conversations.assigned_to_copi_*`, `copi_custom_questions`, `copi_support_tickets`).
-
-### API endpoints (additions)
-
-| Method | Path | Notes |
-| --- | --- | --- |
-| GET/POST | `/ai/copilot/custom-questions` | Server-persisted chips |
-| POST | `/ai/copilot/query` | Optional `documentContext` (PDF/text) alongside `imageContext` |
-
-No new Meta webhooks for this agent delivery.
+Migration: `20260914200000_copi_agent_task_automations.sql`.
 
 ### Multi-task create + inline assignment
 
-`copi-task-parse.ts` splits numbered / “tarea para …” messages into one or more
-cleaned task items (titles, due dates, reminders, recurrence). Confirm creates **all**
-items in one `create_task` proposal.
+`copi-task-parse.ts` splits numbered / “tarea para …” messages into one or more cleaned task items. Confirm creates **all** items in one `create_task` proposal.
 
-- Phrases like “mañana” are scheduling hints, **not** snooze. Create-task intent
-  always wins over snooze when the owner asks to create tasks.
-- “asignarlo a Beto” / “asignalo a …” strips the assignee from the title and
-  stores `assigneeName`. On execute, `CopiActionService` resolves the name to an
-  org member via Auth `user_metadata` (`preferred_name` / `full_name`). If no
-  match, the task is still created and **assigned to the task creator**.
-- “Creá un presupuesto con 500 g de X. Creá una tarea y asignalo a Juan” uses
-  `create_presupuesto`: inserts a `sell_quotes` draft (matched catalog lines when
-  possible), creates a follow-up task, and replies with a tappable
-  `[[presupuesto:ID|…]]` link (opens Facturación). Assignee fallback = creator.
-- Misclassified pending proposals (legacy snooze with `taskId: null`) are
-  recovered to `create_task` / `create_presupuesto` on confirm. Confirm domain
-  errors surface as HTTP 400 with a Spanish message instead of an opaque 500.
+- “mañana” is a scheduling hint, not snooze, when creating tasks.
+- “asignarlo a Beto” stores `assigneeName`; execute resolves org members via Auth metadata; fallback = creator.
+- “Creá un presupuesto…” uses `create_presupuesto` with tappable `[[presupuesto:ID|…]]` links.
+- Revising a WhatsApp reply (“no es una tarea… respondé…”) is `revise_customer_reply` / `propose_customer_reply` — never invent `create_task`.
 
-Tests: `apps/api/test/copi-task-parse.spec.ts`, `apps/api/test/copi-action-confirm.spec.ts`, `apps/api/test/copi-defaults.spec.ts`.
-
-## Key modules
-
-- `apps/api/src/domains/ai/prompts/copi-system.prompt.ts`
-- `apps/api/src/domains/ai/prompts/copi-business-context.prompt.ts`
-- `apps/api/src/domains/ai/prompts/copi-tools.prompt.ts`
-- `apps/api/src/domains/ai/prompts/copi-prompt-composer.ts`
-- `apps/api/src/domains/ai/copi-orchestrator.service.ts`
-- `apps/api/src/domains/ai/copi-tool-registry.ts`
-- `apps/api/src/domains/ai/copi-policy.service.ts`
-- `apps/api/src/domains/ai/copi-llm-phraser.service.ts`
-- `apps/api/src/domains/ai/copi-action.service.ts`
-- `apps/api/src/domains/ai/copi-task-parse.ts`
-- `apps/api/src/domains/ai/copi-defaults.ts`
-- `apps/mobile/src/hooks/useOwnerCopilot.ts`
-- `apps/mobile/src/api/ai.ts`
-- `apps/mobile/src/lib/copiNavigate.ts`
-- `apps/mobile/src/lib/workQueue.ts` — Task Portal presentation; product links in chat use `returnTo` navigation to inventory and back to Copi chat
-
-## Task Portal integration
-
-Copi task write tools (`create_task`, `assign_task`, etc.) execute through
-`copi-action.service.ts` after owner confirmation. Task and alert reads in the
-mobile Centro de tareas use the same `owner_tasks` / `owner_notifications` data.
-Product names in Copi answers link to inventory with `[[product:UUID|Name]]` markup;
-from Copi chat, product detail back navigation returns to chat (`returnTo=copi-chat`).
-From the task portal, low-stock alerts open product detail with `returnTo=tasks-portal`.
-
-## Database
-
-- `20260705200000_copi_foundation.sql` — flags, sessions, messages, actions, reports, task columns, dashboard `features` + `weeklySalesCents`
-- `20260705210000_copi_pilot_pro_flags.sql` — Pro flags for Baas Admin + NEX Biz
-- `20260914200000_copi_agent_task_automations.sql` — remind/recurrence, Copi assign, custom questions, support tickets
-
-Confluence hub: [Copi](https://souviksamanta.atlassian.net/wiki/spaces/BaaS/pages/19857410/Copi)
-
-## Security (Test Launch)
-
-- Copi HTTP routes require bearer auth + organization membership.
-- Message history is scoped to the **session owner** (`copi_sessions.user_id`), both in the Nest service layer and RLS (`copi_messages_select_owner`).
-- The 14-day window is a **read filter**, not automated deletion, until a purge job exists.
-- API-first shipping is safe for older mobile builds if new columns stay nullable and confirm request body is unchanged.
-- See [test-launch-security.md](./test-launch-security.md).
+Tests: `apps/api/test/copi-task-parse.spec.ts`, `apps/api/test/copi-action-confirm.spec.ts`, `apps/api/test/copi-llm-turn-planner.spec.ts`, `apps/api/test/copi-defaults.spec.ts`.

@@ -76,8 +76,6 @@ export const envValidationSchema = Joi.object({
   RESEND_API_KEY: Joi.string().trim().optional().allow(''),
   OPENAI_API_KEY: Joi.string().trim().optional().allow(''),
   OPENAI_ADMIN_KEY: Joi.string().trim().optional().allow(''),
-  OPENAI_MODEL: Joi.string().trim().optional().allow(''),
-  OPENAI_VISION_MODEL: Joi.string().trim().optional().allow(''),
   ARCA_ENV: Joi.string().trim().valid('homologacion', 'production').optional().allow(''),
   ARCA_MOCK: Joi.string().trim().valid('true', 'false', '1', '0', '').optional().allow(''),
   ARCA_WSAA_URL: Joi.string().trim().optional().allow(''),

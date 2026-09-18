@@ -9,9 +9,6 @@ import {
   type CopiTokenUsage,
 } from './copi.types';
 
-const BASIC_INPUT_TOKEN_CAP = 2000;
-const BASIC_OUTPUT_TOKEN_CAP = 500;
-
 @Injectable()
 export class CopiPolicyService {
   constructor(private readonly supabaseService: SupabaseService) {}
@@ -59,17 +56,8 @@ export class CopiPolicyService {
     estimatedOutputTokens: number;
     tier: 'basic' | 'pro';
   }): CopiPolicyDecision {
-    if (params.tier === 'pro') {
-      return 'allowed';
-    }
-
-    if (
-      params.estimatedInputTokens > BASIC_INPUT_TOKEN_CAP ||
-      params.estimatedOutputTokens > BASIC_OUTPUT_TOKEN_CAP
-    ) {
-      return 'policy_denied';
-    }
-
+    // Everything-Pro: no Basic token caps; spend is controlled by org OpenAI project limits.
+    void params;
     return 'allowed';
   }
 

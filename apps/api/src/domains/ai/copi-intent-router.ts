@@ -334,7 +334,23 @@ function isShortAffirmative(question: string): boolean {
 }
 
 export function isCopiActionAffirmative(question: string): boolean {
-  return isShortAffirmative(question);
+  if (isShortAffirmative(question)) {
+    return true;
+  }
+  const normalized = normalizeCopiQuestion(question)
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  // "sí, enviálo" / "dale, confirmá el envío" / "sí al mensaje, no a la tarea"
+  if (
+    /\b(no\s+(es|quiero|crees?).{0,20}tarea|no\s+a\s+la\s+tarea)\b/.test(normalized) &&
+    /\b(si|dale|ok|envi|mand|confirm)\b/.test(normalized)
+  ) {
+    return true;
+  }
+  return /^(si|dale|ok|okay|listo|claro).{0,40}\b(envi[aá]|mand[aá]|confirm|mensaje|respuesta|envio)\b/.test(
+    normalized,
+  );
 }
 
 export function isCopiActionNegative(question: string): boolean {
@@ -343,9 +359,71 @@ export function isCopiActionNegative(question: string): boolean {
     .replace(/\s+/g, ' ')
     .trim();
 
-  return /^(no|nop|nope|nel|cancel[aeá]|cancelalo|cancelar|mejor no|no envies|no mandes|no gracias|ahora no)$/.test(
+  // Mixed: affirming the WhatsApp send while rejecting a task is not a full cancel.
+  if (
+    /\b(si|dale|ok|envi|mand|confirm)\b/.test(normalized) &&
+    /\b(mensaje|envio|envi[aá]|respuesta|whatsapp)\b/.test(normalized)
+  ) {
+    return false;
+  }
+
+  return /^(no|nop|nope|nel|cancel[aeá]|cancelalo|cancelar|mejor no|no envies|no mandes|no gracias|ahora no|no lo envies|no lo mandes|no confirmes)$/.test(
     normalized,
   );
+}
+
+/** True when the owner is refining a proposed WhatsApp reply (not creating a task). */
+export function isCustomerReplyFollowUp(
+  question: string,
+  history: CopiConversationTurn[] = [],
+): boolean {
+  if (wantsExplicitCreateTask(question)) {
+    return false;
+  }
+  if (lastAssistantProposedCustomerReply(history)) {
+    return true;
+  }
+  const normalized = normalizeCopiQuestion(question);
+  return (
+    /\b(reform[aá]|reformul|correg[ií]|cambiá|cambia|agreg[aá]|agrega|inclu[ií]|incluye)\b/.test(
+      normalized,
+    ) && /\b(respuesta|mensaje|whatsapp|texto|envio|propuesta)\b/.test(normalized)
+  );
+}
+
+export function wantsExplicitCreateTask(question: string): boolean {
+  const normalized = normalizeCopiQuestion(question);
+  if (
+    /\b(no\s+es\s+(una\s+)?tarea|no\s+quiero\s+(una\s+)?tarea|sin\s+tarea|no\s+a\s+la\s+tarea)\b/.test(
+      normalized,
+    )
+  ) {
+    return false;
+  }
+  return (
+    /\b(?:asign\w*|assign\w*)\s+(?:una\s+|a\s+)?(?:nueva\s+)?(?:tarea|task|seguimiento)\b/.test(
+      normalized,
+    ) ||
+    (/\btareas?\b/.test(normalized) &&
+      /\b(crea|crear|creas|creame|necesito\s+que\s+creas?|recorda|recordar|anota|anotar)\b/.test(
+        normalized,
+      )) ||
+    /\b(haceme|haga|hagan)\s+(una\s+)?tarea\b/.test(normalized)
+  );
+}
+
+function lastAssistantProposedCustomerReply(history: CopiConversationTurn[]): boolean {
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    if (history[index]?.role !== 'assistant') {
+      continue;
+    }
+    const normalized = normalizeCopiQuestion(history[index]?.body ?? '');
+    return (
+      /\b(confirmo el envio|enviar este mensaje al cliente|por whatsapp)\b/.test(normalized) ||
+      /\bte propongo enviar\b/.test(normalized)
+    );
+  }
+  return false;
 }
 
 export function wantsPendingDraftsList(

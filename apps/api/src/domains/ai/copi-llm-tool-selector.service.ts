@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 
+import { resolveCopiModel } from './copi-model';
 import {
   buildIntentQuestion,
   sanitizeSelectedTools,
@@ -58,7 +59,7 @@ export class CopiLlmToolSelectorService {
               role: 'user',
             },
           ],
-          model: process.env.OPENAI_MODEL?.trim() || 'gpt-4o-mini',
+          model: resolveCopiModel('router'),
           temperature: 0,
         }),
         headers: {

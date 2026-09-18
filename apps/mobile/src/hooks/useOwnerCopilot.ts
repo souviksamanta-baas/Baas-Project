@@ -32,20 +32,6 @@ const starterMessage: CopilotMessage = {
   role: 'assistant',
 };
 
-function isAffirmativeCopiReply(question: string): boolean {
-  const normalized = question
-    .trim()
-    .toLocaleLowerCase('es-AR')
-    .normalize('NFD')
-    .replace(/\p{M}/gu, '')
-    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-  return /^(si|sip|sep|ok|okay|dale|claro|va|bueno|perfecto|listo|confirmo|confirmalo|envialo|mandalo|manda)$/.test(
-    normalized,
-  );
-}
-
 function mapHistoryMessages(
   history: Array<{
     body: string;
@@ -182,26 +168,6 @@ export function useOwnerCopilot(params: {
         return;
       }
 
-      if (isAffirmativeCopiReply(question)) {
-        const pendingActionId = [...messages]
-          .reverse()
-          .find((message) => message.proposedActionId)?.proposedActionId;
-        if (pendingActionId) {
-          setInputValue('');
-          setMessages((currentMessages) => [
-            ...currentMessages,
-            {
-              body: question,
-              createdAt: new Date().toISOString(),
-              id: `owner:${Date.now()}`,
-              role: 'owner',
-            },
-          ]);
-          await confirmProposedAction(pendingActionId);
-          return;
-        }
-      }
-
       const askedAt = new Date().toISOString();
       setMessages((currentMessages) => [
         ...currentMessages,
@@ -251,14 +217,7 @@ export function useOwnerCopilot(params: {
         setIsAsking(false);
       }
     },
-    [
-      confirmProposedAction,
-      inputValue,
-      messages,
-      params.businessCenterId,
-      params.organizationId,
-      sessionId,
-    ],
+    [inputValue, params.businessCenterId, params.organizationId, sessionId],
   );
 
   const hasConversationHistory = messages.some((message) => message.id !== 'starter');

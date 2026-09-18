@@ -99,6 +99,23 @@ describe('inferCopiActionType', () => {
       ),
     ).toBe('create_task');
   });
+
+  it('treats reply revisions as propose_customer_reply, not create_task', () => {
+    expect(
+      inferCopiActionType(
+        'No es una tarea. Quise decir que tenemos galletitas. Frutigran es galletita y esta en stock. Deberíamos responder que tenemos galletitas en stock. Agrega todos los productos relacionados en la respuesta.',
+      ),
+    ).toBe('propose_customer_reply');
+    expect(
+      inferCopiActionType(
+        'Los productos de frutigran son galletitas. Reforma tu respuesta con ese producto',
+      ),
+    ).toBe('propose_customer_reply');
+  });
+
+  it('does not invent create_task when intent is ambiguous', () => {
+    expect(inferCopiActionType('Agregar todos los productos relacionados')).toBeNull();
+  });
 });
 
 describe('parseCreatePresupuestoRequest', () => {

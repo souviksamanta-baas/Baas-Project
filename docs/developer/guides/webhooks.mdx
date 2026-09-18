@@ -103,7 +103,9 @@ Before enabling a WhatsApp number:
 ## Related: Copi owner API
 
 Owner Copi is not delivered via webhooks. Mobile clients call authenticated
-NestJS routes (`POST /ai/copilot/query`, etc.) with a Supabase bearer token.
+NestJS routes (`POST /ai/copilot/query`, etc.) with a Supabase bearer token —
+including sí/no confirmation of pending proposals (chat is primary UX).
 Inbound WhatsApp webhooks may still create customer-facing `ai_drafts`; Copi
-answers owner business questions separately. See `docs/copi-architecture.md` in
-the repo.
+answers owner business questions separately and only sends customer WhatsApp
+after owner confirm on the existing outbound path (no new Meta webhooks).
+See `docs/copi-architecture.md` in the repo.

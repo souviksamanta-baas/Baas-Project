@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
+import { resolveCopiModel } from './copi-model';
 import { CopiPolicyService } from './copi-policy.service';
 import type { CopiFeatureFlags } from './copi.types';
 import { OrganizationLlmCredentialsService } from './organization-llm-credentials.service';
@@ -60,7 +61,7 @@ export class CopiVisionService {
             role: 'user',
           },
         ],
-        model: process.env.OPENAI_VISION_MODEL?.trim() || 'gpt-4o-mini',
+        model: resolveCopiModel('vision'),
         temperature: 0,
       }),
       headers: {

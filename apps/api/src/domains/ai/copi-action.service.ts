@@ -48,14 +48,28 @@ export class CopiActionService {
     @Optional() private readonly notificationsService?: NotificationsService,
   ) {}
 
-  async proposeAction(context: CopiQueryContext): Promise<CopiActionProposal | null> {
-    if (!detectProActionIntent(context.question)) {
+  async proposeAction(
+    context: CopiQueryContext,
+    options?: {
+      forcedActionType?: CopiActionType;
+      payloadOverrides?: Record<string, unknown>;
+    },
+  ): Promise<CopiActionProposal | null> {
+    let actionType = options?.forcedActionType ?? null;
+    if (!actionType) {
+      if (!detectProActionIntent(context.question)) {
+        return null;
+      }
+      actionType = inferCopiActionType(context.question);
+    }
+    if (!actionType) {
       return null;
     }
-
-    const actionType = inferCopiActionType(context.question);
     const timezone = context.timezone || DEFAULT_TIMEZONE;
-    let payload = buildActionPayload(context.question, actionType, timezone);
+    let payload = {
+      ...buildActionPayload(context.question, actionType, timezone),
+      ...(options?.payloadOverrides ?? {}),
+    };
     if (actionType === 'add_stock') {
       payload = await this.enrichAddStockPayload(context, payload);
     }
@@ -164,11 +178,11 @@ export class CopiActionService {
     organizationId: string;
     sessionId?: string | null;
     userId: string;
-  }): Promise<{ actionType: CopiActionType; id: string } | null> {
+  }): Promise<{ actionType: CopiActionType; id: string; summary: string } | null> {
     const client = this.supabaseService.getServiceRoleClient();
     let query = client
       .from('copi_action_proposals')
-      .select('id, action_type, expires_at')
+      .select('id, action_type, expires_at, payload')
       .eq('organization_id', params.organizationId)
       .eq('business_center_id', params.businessCenterId)
       .eq('user_id', params.userId)
@@ -184,6 +198,7 @@ export class CopiActionService {
       action_type: CopiActionType;
       expires_at: string;
       id: string;
+      payload: Record<string, unknown>;
     }>();
 
     if (error || !data) {
@@ -195,7 +210,11 @@ export class CopiActionService {
       return null;
     }
 
-    return { actionType: data.action_type, id: data.id };
+    return {
+      actionType: data.action_type,
+      id: data.id,
+      summary: summarizeProposal(data.action_type, data.payload ?? {}),
+    };
   }
 
   async confirmAction(params: {
@@ -1616,8 +1635,26 @@ export function extractSpanishQuotedReply(answer: string): string | null {
   return null;
 }
 
-export function inferCopiActionType(question: string): CopiActionType {
+export function inferCopiActionType(question: string): CopiActionType | null {
   const normalized = normalizeCopiQuestion(question);
+
+  // Owner explicitly rejecting a task — never invent create_task from this turn.
+  if (
+    /\b(no\s+es\s+(una\s+)?tarea|no\s+quiero\s+(una\s+)?tarea|sin\s+tarea|no\s+crees?\s+(una\s+)?tarea)\b/.test(
+      normalized,
+    )
+  ) {
+    if (
+      /\b(respond[eé]|responder|respuesta|contest[aá]|contestar|reform[aá]|reformul|mensaje|whatsapp)\b/.test(
+        normalized,
+      ) ||
+      (/\b(agreg|inclu|sum[aá]|pon[eé]|mand[aá]|envi[aá])\b/.test(normalized) &&
+        /\b(respuesta|mensaje|whatsapp|texto|cliente)\b/.test(normalized))
+    ) {
+      return 'propose_customer_reply';
+    }
+    return null;
+  }
 
   if (wantsCreatePresupuestoAction(question)) {
     return 'create_presupuesto';
@@ -1715,6 +1752,7 @@ export function inferCopiActionType(question: string): CopiActionType {
         normalized,
       ));
 
+  // Explicit create only — never invent create_task from "responder"/"agregar en la respuesta".
   if (isCreate) {
     return 'create_task';
   }
@@ -1734,7 +1772,19 @@ export function inferCopiActionType(question: string): CopiActionType {
   if (/\b(cancel)\b/.test(normalized) && mentionsTask) {
     return 'cancel_task';
   }
-  return 'create_task';
+
+  // Reply revisions (“deberíamos responder…”, “agregá X en la respuesta”) — not tasks.
+  if (
+    /\b(respond[eé]|responder|respuesta|contest[aá]|contestar|reform[aá]|reformul)\b/.test(
+      normalized,
+    ) ||
+    (/\b(agreg|inclu|sum[aá]|pon[eé]|mand[aá]|envi[aá])\b/.test(normalized) &&
+      /\b(respuesta|mensaje|whatsapp|texto|cliente)\b/.test(normalized))
+  ) {
+    return 'propose_customer_reply';
+  }
+
+  return null;
 }
 
 function buildActionPayload(

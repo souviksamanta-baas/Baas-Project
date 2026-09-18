@@ -3,9 +3,22 @@ import { Injectable } from '@nestjs/common';
 import { SupabaseService } from '../../supabase/supabase.service';
 import type { CopiActionType, OwnerCopilotResponse } from './copi.types';
 import { CopiActionService, extractSpanishQuotedReply, inferCopiActionType } from './copi-action.service';
-import { detectProActionIntent, isCopiActionAffirmative, isCopiActionNegative, isUnclearCopiQuestion, unclearCopiReply, wantsPendingDraftsList } from './copi-intent-router';
+import {
+  detectProActionIntent,
+  isCopiActionAffirmative,
+  isCopiActionNegative,
+  isCustomerReplyFollowUp,
+  isUnclearCopiQuestion,
+  unclearCopiReply,
+  wantsExplicitCreateTask,
+  wantsPendingDraftsList,
+} from './copi-intent-router';
 import { CopiLlmPhraserService } from './copi-llm-phraser.service';
 import { CopiLlmToolSelectorService } from './copi-llm-tool-selector.service';
+import {
+  CopiLlmTurnPlannerService,
+  type CopiTurnPlan,
+} from './copi-llm-turn-planner.service';
 import { CopiPolicyService } from './copi-policy.service';
 import { formatCopiPresupuestoLink } from './copi-product-link.util';
 import { CopiSessionService } from './copi-session.service';
@@ -26,6 +39,7 @@ export class CopiOrchestratorService {
     private readonly toolRegistry: CopiToolRegistry,
     private readonly toolSelectorService: CopiLlmToolSelectorService,
     private readonly phraserService: CopiLlmPhraserService,
+    private readonly turnPlannerService: CopiLlmTurnPlannerService,
     private readonly sessionService: CopiSessionService,
     private readonly actionService: CopiActionService,
   ) {}
@@ -98,13 +112,49 @@ export class CopiOrchestratorService {
       sessionId,
     });
 
-    if (isCopiActionAffirmative(params.question)) {
-      const pending = await this.actionService.findLatestPendingProposal({
-        businessCenterId,
+    const pending = await this.actionService.findLatestPendingProposal({
+      businessCenterId,
+      organizationId: params.organizationId,
+      sessionId,
+      userId: member.userId,
+    });
+
+    const useLlm = this.policyService.canUseFreeformQuestions(flags);
+    if (useLlm) {
+      const plan = await this.turnPlannerService.planTurn({
+        history: conversationHistory,
         organizationId: params.organizationId,
-        sessionId,
-        userId: member.userId,
+        pendingProposal: pending
+          ? {
+              actionType: pending.actionType,
+              id: pending.id,
+              summary: pending.summary,
+            }
+          : null,
+        question: reasoningQuestion,
       });
+
+      if (plan) {
+        const planned = await this.executeTurnPlan({
+          businessCenterId,
+          context,
+          memberUserId: member.userId,
+          ownerDisplayName: member.displayName,
+          pending,
+          plan,
+          reasoningQuestion,
+          sessionId,
+          startedAt,
+          useLlm,
+        });
+        if (planned) {
+          return planned;
+        }
+      }
+    }
+
+    // Fallback when planner unavailable or failed — regex short-circuits (no tier_required).
+    if (isCopiActionAffirmative(params.question)) {
       if (pending) {
         const executed = await this.actionService.confirmAction({
           actionId: pending.id,
@@ -123,7 +173,7 @@ export class CopiOrchestratorService {
           proposedAction: null,
           responseTimeMs: Date.now() - startedAt,
           sessionId,
-          tier: this.policyService.canUseProAgent(flags) ? 'pro' : 'basic',
+          tier: 'pro',
           tokenUsage: this.policyService.emptyUsage(),
           tools: [],
         };
@@ -131,12 +181,6 @@ export class CopiOrchestratorService {
     }
 
     if (isCopiActionNegative(params.question)) {
-      const pending = await this.actionService.findLatestPendingProposal({
-        businessCenterId,
-        organizationId: params.organizationId,
-        sessionId,
-        userId: member.userId,
-      });
       if (pending) {
         await this.actionService.rejectAction({
           actionId: pending.id,
@@ -155,7 +199,7 @@ export class CopiOrchestratorService {
           proposedAction: null,
           responseTimeMs: Date.now() - startedAt,
           sessionId,
-          tier: this.policyService.canUseProAgent(flags) ? 'pro' : 'basic',
+          tier: 'pro',
           tokenUsage: this.policyService.emptyUsage(),
           tools: [],
         };
@@ -177,28 +221,13 @@ export class CopiOrchestratorService {
         proposedAction: null,
         responseTimeMs: Date.now() - startedAt,
         sessionId,
-        tier: this.policyService.canUseProAgent(flags) ? 'pro' : 'basic',
+        tier: 'pro',
         tokenUsage: this.policyService.emptyUsage(),
         tools: ['pending_ai_drafts'],
       };
     }
 
     const wantsProAction = detectProActionIntent(reasoningQuestion);
-    if (wantsProAction && !this.policyService.canUseProAgent(flags)) {
-      const answer =
-        'Esta acción requiere Copi Pro. Activá el add-on para crear tareas, asignaciones y automatizaciones.';
-      await this.persistAssistantMessage(params.organizationId, sessionId, answer, []);
-      return {
-        answer,
-        policyDecision: 'tier_required',
-        proposedAction: null,
-        responseTimeMs: Date.now() - startedAt,
-        sessionId,
-        tier: 'basic',
-        tokenUsage: this.policyService.emptyUsage(),
-        tools: [],
-      };
-    }
 
     if (!wantsProAction && isUnclearCopiQuestion(reasoningQuestion)) {
       const answer = unclearCopiReply();
@@ -209,7 +238,7 @@ export class CopiOrchestratorService {
         proposedAction: null,
         responseTimeMs: Date.now() - startedAt,
         sessionId,
-        tier: this.policyService.canUseProAgent(flags) ? 'pro' : 'basic',
+        tier: 'pro',
         tokenUsage: this.policyService.emptyUsage(),
         tools: [],
       };
@@ -217,9 +246,7 @@ export class CopiOrchestratorService {
 
     const inferredAction = wantsProAction ? inferCopiActionType(reasoningQuestion) : null;
     const shouldAutoExecute =
-      inferredAction != null &&
-      AUTO_EXECUTE_ACTIONS.has(inferredAction) &&
-      this.policyService.canUseProAgent(flags);
+      inferredAction != null && AUTO_EXECUTE_ACTIONS.has(inferredAction);
 
     if (shouldAutoExecute) {
       const proposedAction = await this.actionService.proposeAction(context);
@@ -245,86 +272,29 @@ export class CopiOrchestratorService {
       }
     }
 
-    // Customer-reply: load chat + inventory facts, then LLM-draft natural Spanish WhatsApp text.
-    if (
-      wantsProAction &&
-      inferredAction === 'propose_customer_reply' &&
-      this.policyService.canUseProAgent(flags)
-    ) {
-      const useLlm = this.policyService.canUseFreeformQuestions(flags);
-      const customerReplyTools = ['conversation_thread', 'find_product'] as const;
-      let toolResults = await this.toolRegistry.executeTools(context, [...customerReplyTools]);
+    // Customer-reply follow-up (fallback when planner missed revise).
+    const pendingForFollowUp = pending;
+    const followUpCustomerReply =
+      !wantsExplicitCreateTask(reasoningQuestion) &&
+      (inferredAction === 'propose_customer_reply' ||
+        pendingForFollowUp?.actionType === 'propose_customer_reply' ||
+        isCustomerReplyFollowUp(reasoningQuestion, conversationHistory));
 
-      const thread = toolResults.find((result) => result.key === 'conversation_thread');
-      const findProduct = toolResults.find((result) => result.key === 'find_product');
-      const products = Array.isArray(findProduct?.payload?.products)
-        ? findProduct.payload.products
-        : [];
-      if (products.length === 0 && thread?.payload) {
-        const lastInbound = extractLastInboundFromThreadPayload(thread.payload);
-        if (lastInbound) {
-          const enrichedContext = {
-            ...context,
-            question: `${reasoningQuestion}\n\nMensaje del cliente: ${lastInbound}`,
-          };
-          const productOnly = await this.toolRegistry.executeTools(enrichedContext, [
-            'find_product',
-          ]);
-          toolResults = [
-            ...toolResults.filter((result) => result.key !== 'find_product'),
-            ...productOnly,
-          ];
-        }
-      }
-
-      const drafted = await this.phraserService.phraseCustomerWhatsAppReply({
-        enabled: useLlm,
+    if (followUpCustomerReply) {
+      const customerReply = await this.runCustomerReplyDraft({
+        context,
+        memberUserId: member.userId,
         organizationId: params.organizationId,
-        question: reasoningQuestion,
-        tier: 'pro',
-        toolResults,
+        reasoningQuestion,
+        sessionId,
+        startedAt,
+        useLlm,
       });
-
-      let proposedAction = await this.actionService.proposeAction({
-        ...context,
-        question: reasoningQuestion,
-      });
-      if (proposedAction) {
-        const body = drafted.body.trim();
-        if (body) {
-          proposedAction = {
-            ...proposedAction,
-            payload: { ...proposedAction.payload, body },
-            summary: `Enviar respuesta al cliente: «${body.slice(0, 72)}${body.length > 72 ? '…' : ''}»`,
-          };
-          await this.actionService.updateProposalPayload({
-            actionId: proposedAction.id,
-            organizationId: params.organizationId,
-            payload: proposedAction.payload,
-            userId: member.userId,
-          });
-        }
-        const answer = body
-          ? `Te propongo enviar este mensaje al cliente por WhatsApp:\n\n«${body}»\n\n¿Confirmo el envío?`
-          : `${proposedAction.summary}.\n\n¿Confirmo la acción?`;
-        await this.persistAssistantMessage(params.organizationId, sessionId, answer, [
-          ...customerReplyTools,
-        ]);
-        return {
-          answer,
-          policyDecision: 'allowed',
-          proposedAction,
-          responseTimeMs: Date.now() - startedAt,
-          sessionId,
-          tier: 'pro',
-          tokenUsage: drafted.tokenUsage,
-          tools: [...customerReplyTools],
-        };
+      if (customerReply) {
+        return customerReply;
       }
     }
 
-    const useLlm = this.policyService.canUseFreeformQuestions(flags);
-    const isPro = this.policyService.canUseProAgent(flags);
     const selected = await this.toolSelectorService.selectTools({
       enabled: useLlm,
       history: conversationHistory,
@@ -340,13 +310,13 @@ export class CopiOrchestratorService {
       organizationId: params.organizationId,
       ownerDisplayName: member.displayName,
       question: reasoningQuestion,
-      tier: isPro ? 'pro' : 'basic',
+      tier: 'pro',
       toolResults,
     });
 
     let proposedAction = null;
     let answer = phrased.answer;
-    if (wantsProAction && this.policyService.canUseProAgent(flags)) {
+    if (wantsProAction && inferredAction && inferredAction !== 'propose_customer_reply') {
       proposedAction = await this.actionService.proposeAction(context);
       if (proposedAction) {
         if (proposedAction.actionType === 'propose_customer_reply') {
@@ -370,8 +340,8 @@ export class CopiOrchestratorService {
             });
           }
           answer = body
-            ? `Te propongo enviar este mensaje al cliente por WhatsApp:\n\n«${body}»\n\n¿Confirmo el envío?`
-            : `${proposedAction.summary}.\n\n¿Confirmo la acción?`;
+            ? `Te propongo enviar este mensaje al cliente por WhatsApp:\n\n«${body}»\n\n¿Lo envío? Respondeme sí o no.`
+            : `${proposedAction.summary}.\n\n¿Lo hago? Respondeme sí o no.`;
         } else {
           const clarifications = Array.isArray(proposedAction.payload.clarificationQuestions)
             ? proposedAction.payload.clarificationQuestions.filter(
@@ -382,7 +352,7 @@ export class CopiOrchestratorService {
             clarifications.length > 0
               ? `\n\n${clarifications.map((item) => `• ${item}`).join('\n')}\n(Si confirmás ahora, uso un horario estimado y después lo podemos ajustar.)`
               : '';
-          answer = `${answer}\n\n${proposedAction.summary}.${clarificationBlock}\n\n¿Confirmo la acción?`;
+          answer = `${answer}\n\n${proposedAction.summary}.${clarificationBlock}\n\n¿Lo hago? Respondeme sí o no.`;
         }
       }
     }
@@ -395,9 +365,355 @@ export class CopiOrchestratorService {
       proposedAction,
       responseTimeMs: Date.now() - startedAt,
       sessionId,
-      tier: this.policyService.canUseProAgent(flags) ? 'pro' : 'basic',
+      tier: 'pro',
       tokenUsage: phrased.tokenUsage,
       tools,
+    };
+  }
+
+  private async executeTurnPlan(params: {
+    businessCenterId: string;
+    context: {
+      authorizationHeader: string | undefined;
+      businessCenterId: string;
+      conversationHistory: Array<{ body: string; role: 'owner' | 'assistant' | 'system' }>;
+      now: Date;
+      organizationId: string;
+      ownerDisplayName: string | null;
+      question: string;
+      sessionId: string;
+      timezone: string;
+      userId: string;
+    };
+    memberUserId: string;
+    ownerDisplayName: string | null;
+    pending: { actionType: CopiActionType; id: string; summary: string } | null;
+    plan: CopiTurnPlan;
+    reasoningQuestion: string;
+    sessionId: string;
+    startedAt: number;
+    useLlm: boolean;
+  }): Promise<OwnerCopilotResponse | null> {
+    const {
+      businessCenterId,
+      context,
+      memberUserId,
+      ownerDisplayName,
+      pending,
+      plan,
+      reasoningQuestion,
+      sessionId,
+      startedAt,
+      useLlm,
+    } = params;
+    const organizationId = context.organizationId;
+
+    if (plan.kind === 'confirm_pending') {
+      if (!pending) {
+        return null;
+      }
+      const executed = await this.actionService.confirmAction({
+        actionId: pending.id,
+        businessCenterId,
+        organizationId,
+        userId: memberUserId,
+      });
+      const answer =
+        pending.actionType === 'propose_customer_reply'
+          ? formatCustomerReplyConfirmed(executed.result)
+          : `Listo. Acción confirmada (${executed.status}).`;
+      await this.persistAssistantMessage(organizationId, sessionId, answer, []);
+      return {
+        answer,
+        policyDecision: 'allowed',
+        proposedAction: null,
+        responseTimeMs: Date.now() - startedAt,
+        sessionId,
+        tier: 'pro',
+        tokenUsage: this.policyService.emptyUsage(),
+        tools: [],
+      };
+    }
+
+    if (plan.kind === 'reject_pending') {
+      if (!pending) {
+        return null;
+      }
+      await this.actionService.rejectAction({
+        actionId: pending.id,
+        businessCenterId,
+        organizationId,
+        userId: memberUserId,
+      });
+      const answer =
+        pending.actionType === 'propose_customer_reply'
+          ? 'Listo. No envío nada al cliente.'
+          : 'Listo. Cancelé esa acción.';
+      await this.persistAssistantMessage(organizationId, sessionId, answer, []);
+      return {
+        answer,
+        policyDecision: 'allowed',
+        proposedAction: null,
+        responseTimeMs: Date.now() - startedAt,
+        sessionId,
+        tier: 'pro',
+        tokenUsage: this.policyService.emptyUsage(),
+        tools: [],
+      };
+    }
+
+    if (plan.kind === 'clarify') {
+      const answer =
+        plan.ownerNotes?.trim() ||
+        'No estoy seguro de lo que necesitás. ¿Podés aclararme un poco más?';
+      await this.persistAssistantMessage(organizationId, sessionId, answer, []);
+      return {
+        answer,
+        policyDecision: 'allowed',
+        proposedAction: null,
+        responseTimeMs: Date.now() - startedAt,
+        sessionId,
+        tier: 'pro',
+        tokenUsage: this.policyService.emptyUsage(),
+        tools: [],
+      };
+    }
+
+    if (plan.kind === 'revise_customer_reply') {
+      return this.runCustomerReplyDraft({
+        context,
+        memberUserId,
+        organizationId,
+        reasoningQuestion,
+        sessionId,
+        startedAt,
+        useLlm,
+        toolArgs: plan.toolArgs,
+      });
+    }
+
+    const toolContext = enrichContextWithToolArgs(context, plan.toolArgs);
+    const tools =
+      plan.tools.length > 0
+        ? plan.tools
+        : plan.kind === 'answer'
+          ? (
+              await this.toolSelectorService.selectTools({
+                enabled: useLlm,
+                history: context.conversationHistory,
+                organizationId,
+                question: reasoningQuestion,
+              })
+            ).tools
+          : [];
+
+    if (plan.kind === 'answer') {
+      const toolResults = await this.toolRegistry.executeTools(toolContext, tools);
+      const phrased = await this.phraserService.phraseAnswer({
+        enabled: useLlm,
+        history: context.conversationHistory,
+        locale: 'es-AR',
+        organizationId,
+        ownerDisplayName,
+        ownerNotes: plan.ownerNotes,
+        question: reasoningQuestion,
+        tier: 'pro',
+        toolResults,
+      });
+      await this.persistAssistantMessage(
+        organizationId,
+        sessionId,
+        phrased.answer,
+        tools,
+        phrased.tokenUsage,
+      );
+      return {
+        answer: phrased.answer,
+        policyDecision: 'allowed',
+        proposedAction: null,
+        responseTimeMs: Date.now() - startedAt,
+        sessionId,
+        tier: 'pro',
+        tokenUsage: phrased.tokenUsage,
+        tools,
+      };
+    }
+
+    if (plan.kind === 'propose_action') {
+      const actionType = plan.action?.type ?? null;
+      if (actionType === 'propose_customer_reply') {
+        return this.runCustomerReplyDraft({
+          context: toolContext,
+          memberUserId,
+          organizationId,
+          reasoningQuestion,
+          sessionId,
+          startedAt,
+          useLlm,
+          toolArgs: plan.toolArgs,
+        });
+      }
+
+      if (actionType && AUTO_EXECUTE_ACTIONS.has(actionType)) {
+        const proposedAction = await this.actionService.proposeAction(toolContext, {
+          forcedActionType: actionType,
+          payloadOverrides: plan.action?.payload,
+        });
+        if (proposedAction) {
+          const executed = await this.actionService.confirmAction({
+            actionId: proposedAction.id,
+            businessCenterId,
+            organizationId,
+            userId: memberUserId,
+          });
+          const answer = formatAutoExecutedAnswer(proposedAction.actionType, executed.result);
+          await this.persistAssistantMessage(organizationId, sessionId, answer, tools);
+          return {
+            answer,
+            policyDecision: 'allowed',
+            proposedAction: null,
+            responseTimeMs: Date.now() - startedAt,
+            sessionId,
+            tier: 'pro',
+            tokenUsage: this.policyService.emptyUsage(),
+            tools,
+          };
+        }
+      }
+
+      if (tools.length > 0) {
+        await this.toolRegistry.executeTools(toolContext, tools);
+      }
+
+      const proposedAction = await this.actionService.proposeAction(toolContext, {
+        forcedActionType: actionType ?? undefined,
+        payloadOverrides: plan.action?.payload,
+      });
+      if (!proposedAction) {
+        return null;
+      }
+
+      const clarifications = Array.isArray(proposedAction.payload.clarificationQuestions)
+        ? proposedAction.payload.clarificationQuestions.filter(
+            (item): item is string => typeof item === 'string' && item.trim().length > 0,
+          )
+        : [];
+      const clarificationBlock =
+        clarifications.length > 0
+          ? `\n\n${clarifications.map((item) => `• ${item}`).join('\n')}\n(Si confirmás ahora, uso un horario estimado y después lo podemos ajustar.)`
+          : '';
+      const answer = `${proposedAction.summary}.${clarificationBlock}\n\n¿Lo hago? Respondeme sí o no.`;
+      await this.persistAssistantMessage(organizationId, sessionId, answer, tools);
+      return {
+        answer,
+        policyDecision: 'allowed',
+        proposedAction,
+        responseTimeMs: Date.now() - startedAt,
+        sessionId,
+        tier: 'pro',
+        tokenUsage: this.policyService.emptyUsage(),
+        tools,
+      };
+    }
+
+    return null;
+  }
+
+  private async runCustomerReplyDraft(params: {
+    context: {
+      authorizationHeader: string | undefined;
+      businessCenterId: string;
+      conversationHistory: Array<{ body: string; role: 'owner' | 'assistant' | 'system' }>;
+      now: Date;
+      organizationId: string;
+      ownerDisplayName: string | null;
+      question: string;
+      sessionId: string;
+      timezone: string;
+      userId: string;
+    };
+    memberUserId: string;
+    organizationId: string;
+    reasoningQuestion: string;
+    sessionId: string;
+    startedAt: number;
+    toolArgs?: CopiTurnPlan['toolArgs'];
+    useLlm: boolean;
+  }): Promise<OwnerCopilotResponse | null> {
+    const customerReplyTools = ['conversation_thread', 'find_product'] as const;
+    const toolContext = enrichContextWithToolArgs(params.context, params.toolArgs);
+    let toolResults = await this.toolRegistry.executeTools(toolContext, [...customerReplyTools]);
+
+    const thread = toolResults.find((result) => result.key === 'conversation_thread');
+    const findProduct = toolResults.find((result) => result.key === 'find_product');
+    const products = Array.isArray(findProduct?.payload?.products)
+      ? findProduct.payload.products
+      : [];
+    if (products.length === 0 && thread?.payload) {
+      const lastInbound = extractLastInboundFromThreadPayload(thread.payload);
+      if (lastInbound) {
+        const enrichedContext = {
+          ...toolContext,
+          question: `${params.reasoningQuestion}\n\nMensaje del cliente: ${lastInbound}`,
+        };
+        const productOnly = await this.toolRegistry.executeTools(enrichedContext, ['find_product']);
+        toolResults = [
+          ...toolResults.filter((result) => result.key !== 'find_product'),
+          ...productOnly,
+        ];
+      }
+    }
+
+    const drafted = await this.phraserService.phraseCustomerWhatsAppReply({
+      enabled: params.useLlm,
+      organizationId: params.organizationId,
+      question: params.reasoningQuestion,
+      tier: 'pro',
+      toolResults,
+    });
+
+    let proposedAction = await this.actionService.proposeAction(
+      {
+        ...toolContext,
+        question: /respond[eé]/i.test(params.reasoningQuestion)
+          ? params.reasoningQuestion
+          : `Respondé al cliente por WhatsApp. Instrucciones del dueño: ${params.reasoningQuestion}`,
+      },
+      { forcedActionType: 'propose_customer_reply' },
+    );
+    if (!proposedAction) {
+      return null;
+    }
+
+    const body = drafted.body.trim();
+    if (body) {
+      proposedAction = {
+        ...proposedAction,
+        payload: { ...proposedAction.payload, body },
+        summary: `Enviar respuesta al cliente: «${body.slice(0, 72)}${body.length > 72 ? '…' : ''}»`,
+      };
+      await this.actionService.updateProposalPayload({
+        actionId: proposedAction.id,
+        organizationId: params.organizationId,
+        payload: proposedAction.payload,
+        userId: params.memberUserId,
+      });
+    }
+    const answer = body
+      ? `Te propongo enviar este mensaje al cliente por WhatsApp:\n\n«${body}»\n\n¿Lo envío? Respondeme sí o no.`
+      : `${proposedAction.summary}.\n\n¿Lo hago? Respondeme sí o no.`;
+    await this.persistAssistantMessage(params.organizationId, params.sessionId, answer, [
+      ...customerReplyTools,
+    ]);
+    return {
+      answer,
+      policyDecision: 'allowed',
+      proposedAction,
+      responseTimeMs: Date.now() - params.startedAt,
+      sessionId: params.sessionId,
+      tier: 'pro',
+      tokenUsage: drafted.tokenUsage,
+      tools: [...customerReplyTools],
     };
   }
 
@@ -574,4 +890,26 @@ function extractLastInboundFromThreadPayload(payload: Record<string, unknown>): 
     }
   }
   return null;
+}
+
+function enrichContextWithToolArgs<T extends { question: string }>(
+  context: T,
+  toolArgs?: CopiTurnPlan['toolArgs'],
+): T {
+  if (!toolArgs) {
+    return context;
+  }
+  const findProduct = toolArgs.find_product;
+  const query =
+    findProduct && typeof findProduct.query === 'string' ? findProduct.query.trim() : '';
+  if (!query) {
+    return context;
+  }
+  if (context.question.toLocaleLowerCase('es-AR').includes(query.toLocaleLowerCase('es-AR'))) {
+    return context;
+  }
+  return {
+    ...context,
+    question: `${context.question}\n\nProducto a buscar: ${query}`,
+  };
 }

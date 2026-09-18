@@ -4,6 +4,7 @@ import { CopiOrchestratorService } from '../src/domains/ai/copi-orchestrator.ser
 import { CopiPolicyService } from '../src/domains/ai/copi-policy.service';
 import { CopiLlmPhraserService } from '../src/domains/ai/copi-llm-phraser.service';
 import { CopiLlmToolSelectorService } from '../src/domains/ai/copi-llm-tool-selector.service';
+import { CopiLlmTurnPlannerService } from '../src/domains/ai/copi-llm-turn-planner.service';
 import { CopiToolRegistry } from '../src/domains/ai/copi-tool-registry';
 import { CopiSessionService } from '../src/domains/ai/copi-session.service';
 import { CopiActionService } from '../src/domains/ai/copi-action.service';
@@ -72,12 +73,12 @@ function createOrchestrator(): {
   const policyService = new CopiPolicyService(supabaseService);
   vi.spyOn(policyService, 'loadFeatureFlags').mockResolvedValue({
     copi_basic_reports: true,
-    copi_custom_reports: false,
+    copi_custom_reports: true,
     copi_enabled: true,
-    copi_freeform_questions: false,
-    copi_pro_agent: false,
-    copi_vision: false,
-    copi_voice: false,
+    copi_freeform_questions: true,
+    copi_pro_agent: true,
+    copi_vision: true,
+    copi_voice: true,
   });
 
   const sessionService = {
@@ -87,7 +88,11 @@ function createOrchestrator(): {
   } as unknown as CopiSessionService;
 
   const actionService = {
+    confirmAction: vi.fn(async () => ({ result: {}, status: 'executed' })),
+    findLatestPendingProposal: vi.fn(async () => null),
     proposeAction: vi.fn(async () => null),
+    rejectAction: vi.fn(async () => undefined),
+    updateProposalPayload: vi.fn(async () => undefined),
   } as unknown as CopiActionService;
 
   const appointmentsService = {
@@ -124,6 +129,7 @@ function createOrchestrator(): {
   } as unknown as import('../src/domains/ai/organization-llm-credentials.service').OrganizationLlmCredentialsService;
   const toolSelectorService = new CopiLlmToolSelectorService(llmCredentials);
   const phraserService = new CopiLlmPhraserService(policyService, llmCredentials);
+  const turnPlannerService = new CopiLlmTurnPlannerService(llmCredentials);
 
   return {
     orchestrator: new CopiOrchestratorService(
@@ -132,6 +138,7 @@ function createOrchestrator(): {
       toolRegistry,
       toolSelectorService,
       phraserService,
+      turnPlannerService,
       sessionService,
       actionService,
     ),

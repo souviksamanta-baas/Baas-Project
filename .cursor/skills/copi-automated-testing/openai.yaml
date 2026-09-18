@@ -1,0 +1,4 @@
+interface:
+  display_name: "Copi Automated Testing"
+  short_description: "Run safe regression and end-to-end tests for Copi"
+  default_prompt: "Audit and run the Copi automated test suite, then report regressions with evidence."

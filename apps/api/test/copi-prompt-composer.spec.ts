@@ -20,4 +20,11 @@ describe('buildCopiSystemPrompt', () => {
     expect(prompt).toContain('getSales()');
     expect(prompt).not.toContain('final answer the owner will read');
   });
+
+  it('builds a planner prompt with kind schema', () => {
+    const prompt = buildCopiSystemPrompt('planner');
+    expect(prompt).toContain('TURN PLANNER');
+    expect(prompt).toContain('revise_customer_reply');
+    expect(prompt).not.toContain('CURRENT TASK');
+  });
 });

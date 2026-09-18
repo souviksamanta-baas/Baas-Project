@@ -1,10 +1,17 @@
 import { COPI_BUSINESS_CONTEXT_PROMPT } from './copi-business-context.prompt';
+import { COPI_PLANNER_PROMPT } from './copi-planner.prompt';
 import { COPI_SYSTEM_PROMPT } from './copi-system.prompt';
 import { COPI_TOOLS_PROMPT } from './copi-tools.prompt';
 
-export type CopiPromptLayer = 'router' | 'phraser';
+export type CopiPromptLayer = 'router' | 'phraser' | 'planner';
 
 export function buildCopiSystemPrompt(layer: CopiPromptLayer): string {
+  if (layer === 'planner') {
+    return [COPI_SYSTEM_PROMPT, COPI_BUSINESS_CONTEXT_PROMPT, COPI_TOOLS_PROMPT, COPI_PLANNER_PROMPT].join(
+      '\n\n---\n\n',
+    );
+  }
+
   const layerHint =
     layer === 'router'
       ? [
@@ -31,6 +38,7 @@ export function buildCopiSystemPrompt(layer: CopiPromptLayer): string {
           'If responseMode is count, give count + total. If detail, list products.',
           'Whenever you mention a product that appears in toolResults with an id, keep or write it as [[product:UUID|Nombre exacto]]. Never invent product ids.',
           'At most one short optional next-step suggestion at the end.',
+          'Never invent create_task offers unless the owner explicitly asked for a task.',
         ].join('\n');
 
   return [COPI_SYSTEM_PROMPT, COPI_BUSINESS_CONTEXT_PROMPT, COPI_TOOLS_PROMPT, layerHint].join(
@@ -38,4 +46,4 @@ export function buildCopiSystemPrompt(layer: CopiPromptLayer): string {
   );
 }
 
-export { COPI_BUSINESS_CONTEXT_PROMPT, COPI_SYSTEM_PROMPT, COPI_TOOLS_PROMPT };
+export { COPI_BUSINESS_CONTEXT_PROMPT, COPI_PLANNER_PROMPT, COPI_SYSTEM_PROMPT, COPI_TOOLS_PROMPT };

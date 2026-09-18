@@ -73,7 +73,7 @@ export function CopiScreen(props: {
   const visibility = useFeatureVisibility();
   const { dashboard } = useOwnerSessionContext();
   const organizationId = dashboard?.organization?.id ?? null;
-  const hasCopiPro = !visibility.copiProUpsell;
+  const hasCopi = visibility.copiSuggestedQuestions || visibility.copiComposer;
   const [suggestedQuestions, setSuggestedQuestions] = useState<CopiSuggestedQuestion[]>([]);
   const [customDraft, setCustomDraft] = useState('');
   const openConversations = props.metrics?.openConversations ?? 0;
@@ -82,7 +82,7 @@ export function CopiScreen(props: {
 
   useEffect(() => {
     let mounted = true;
-    void listCopiHomeQuestions({ hasCopiPro, organizationId }).then((questions) => {
+    void listCopiHomeQuestions({ hasCopiPro: hasCopi, organizationId }).then((questions) => {
       if (mounted) {
         setSuggestedQuestions(questions);
       }
@@ -90,11 +90,11 @@ export function CopiScreen(props: {
     return () => {
       mounted = false;
     };
-  }, [hasCopiPro, organizationId]);
+  }, [hasCopi, organizationId]);
 
   async function handleAddCustomQuestion(): Promise<void> {
     const text = customDraft.trim();
-    if (!text || !organizationId || !hasCopiPro) {
+    if (!text || !organizationId || !hasCopi) {
       return;
     }
 
@@ -117,7 +117,7 @@ export function CopiScreen(props: {
     ];
     await saveCustomCopiQuestions(organizationId, nextCustom);
     setCustomDraft('');
-    setSuggestedQuestions(await listCopiHomeQuestions({ hasCopiPro, organizationId }));
+    setSuggestedQuestions(await listCopiHomeQuestions({ hasCopiPro: hasCopi, organizationId }));
   }
 
   return (
@@ -126,48 +126,25 @@ export function CopiScreen(props: {
 
       <FeatureGate feature="copiQuickSummary" visibility={visibility}>
         <Pressable
-          onPress={hasCopiPro ? props.onOpenChat : undefined}
+          onPress={props.onOpenChat}
           style={styles.copiCard}
         >
           <RobotAvatar />
           <View style={[styles.flex, styles.flexShrink]}>
             <Text style={styles.homeCardTitle}>Copi - Tu asistente IA</Text>
             <Text numberOfLines={2} style={styles.cardDescription}>
-              {hasCopiPro
-                ? 'Preguntame sobre tus ventas, stock, clientes y mas.'
-                : 'Elegí una de las 5 preguntas sugeridas para consultar a Copi.'}
+              Preguntame sobre tus ventas, stock, clientes y mas.
             </Text>
           </View>
-          {hasCopiPro ? (
-            <Pressable
-              accessibilityRole="button"
-              hitSlop={8}
-              onPress={props.onOpenChat}
-              style={styles.chatButton}
-            >
-              <Icon color={colors.primary} kind="message" size={18} strokeWidth={1.8} />
-            </Pressable>
-          ) : null}
-        </Pressable>
-      </FeatureGate>
-
-      <FeatureGate feature="copiProUpsell" visibility={visibility}>
-        <Card style={styles.upsellCard}>
-          <Text style={styles.upsellTitle}>Activá Copi Pro</Text>
-          <Text style={styles.cardDescription}>
-            Con Copi básico solo podés usar las preguntas preconfiguradas. Activá Copi Pro para
-            escribirle libremente, usar el micrófono, crear tareas y turnos, reportes a medida y
-            análisis de fotos.
-          </Text>
           <Pressable
-            accessibilityRole="link"
+            accessibilityRole="button"
             hitSlop={8}
-            onPress={props.onOpenSupport}
-            style={styles.supportLink}
+            onPress={props.onOpenChat}
+            style={styles.chatButton}
           >
-            <Text style={styles.supportLinkText}>Contactanos para habilitar Copi Pro</Text>
+            <Icon color={colors.primary} kind="message" size={18} strokeWidth={1.8} />
           </Pressable>
-        </Card>
+        </Pressable>
       </FeatureGate>
 
       <FeatureGate feature="copiQuestionComposer" visibility={visibility}>
@@ -228,11 +205,11 @@ export function CopiScreen(props: {
                   question: question.text,
                 })
               }
-              showDivider={index < suggestedQuestions.length - 1 || hasCopiPro}
+              showDivider={index < suggestedQuestions.length - 1 || hasCopi}
               title={question.text}
             />
           ))}
-          {hasCopiPro ? (
+          {hasCopi ? (
             <View style={styles.customQuestionRow}>
               <TextInput
                 onChangeText={setCustomDraft}
@@ -279,7 +256,6 @@ export function CopiChatScreen(props: {
   const visibility = useFeatureVisibility();
   const scrollRef = useRef<ScrollView>(null);
   const androidKeyboardHeight = useAndroidKeyboardHeight();
-  const hasCopiPro = !visibility.copiProUpsell;
   useHeaderScreenOptions({
     forceCollapsed: true,
     onBack: props.onBack,
@@ -345,14 +321,6 @@ export function CopiChatScreen(props: {
                   text={message.body}
                   time={message.id === 'starter' ? '' : formatConversationTime(message.createdAt)}
                 />
-                {message.proposedActionId ? (
-                  <Pressable
-                    onPress={() => void props.copilot.confirmProposedAction(message.proposedActionId!)}
-                    style={styles.confirmButton}
-                  >
-                    <Text style={styles.confirmButtonText}>Confirmar acción</Text>
-                  </Pressable>
-                ) : null}
               </View>
             ))}
             {props.copilot.isAsking ? (
@@ -365,47 +333,28 @@ export function CopiChatScreen(props: {
         </FeatureGate>
       </View>
 
-      {hasCopiPro ? (
-        <FeatureGate feature="copiComposer" visibility={visibility}>
-          <ReplyComposer
-            attachmentMenuOpen={props.composer.attachmentMenuOpen}
-            canUseVision={props.composer.canUseVision}
-            canUseVoice={props.composer.canUseVoice}
-            isAnalyzingImage={props.composer.isAnalyzingImage}
-            isRecordingVoice={props.composer.isRecordingVoice}
-            isSending={props.copilot.isAsking}
-            isTranscribingVoice={props.composer.isTranscribingVoice}
-            onChangeText={props.copilot.setInputValue}
-            onClearPendingImage={props.composer.onClearPendingImage}
-            onPressAttachCamera={props.composer.onPressAttachCamera}
-            onPressAttachLibrary={props.composer.onPressAttachLibrary}
-            onPressPlus={props.composer.onPressPlus}
-            onPressVoice={props.composer.onPressVoice}
-            onSend={() => void props.onSend()}
-            pendingImageUri={props.composer.pendingImageUri}
-            placeholder="Escribí un mensaje..."
-            value={props.copilot.inputValue}
-            voiceMode="stt"
-          />
-        </FeatureGate>
-      ) : (
-        <View style={styles.basicComposerBanner}>
-          <Text style={styles.basicComposerText}>
-            Con Copi básico no podés escribir mensajes libres. Activá Copi Pro para chatear, usar el
-            micrófono y el resto de capacidades.
-          </Text>
-          {props.onOpenSupport ? (
-            <Pressable
-              accessibilityRole="link"
-              hitSlop={8}
-              onPress={props.onOpenSupport}
-              style={styles.supportLink}
-            >
-              <Text style={styles.supportLinkText}>Contactanos para habilitar Copi Pro</Text>
-            </Pressable>
-          ) : null}
-        </View>
-      )}
+      <FeatureGate feature="copiComposer" visibility={visibility}>
+        <ReplyComposer
+          attachmentMenuOpen={props.composer.attachmentMenuOpen}
+          canUseVision={props.composer.canUseVision}
+          canUseVoice={props.composer.canUseVoice}
+          isAnalyzingImage={props.composer.isAnalyzingImage}
+          isRecordingVoice={props.composer.isRecordingVoice}
+          isSending={props.copilot.isAsking}
+          isTranscribingVoice={props.composer.isTranscribingVoice}
+          onChangeText={props.copilot.setInputValue}
+          onClearPendingImage={props.composer.onClearPendingImage}
+          onPressAttachCamera={props.composer.onPressAttachCamera}
+          onPressAttachLibrary={props.composer.onPressAttachLibrary}
+          onPressPlus={props.composer.onPressPlus}
+          onPressVoice={props.composer.onPressVoice}
+          onSend={() => void props.onSend()}
+          pendingImageUri={props.composer.pendingImageUri}
+          placeholder="Escribí un mensaje..."
+          value={props.copilot.inputValue}
+          voiceMode="stt"
+        />
+      </FeatureGate>
     </KeyboardAvoidingView>
   );
 }
@@ -481,20 +430,6 @@ const styles = StyleSheet.create({
   },
   composerCard: {
     ...shadows.card,
-  },
-  confirmButton: {
-    alignSelf: 'flex-start',
-    backgroundColor: colors.primary,
-    borderRadius: 8,
-    marginBottom: 8,
-    marginLeft: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  confirmButtonText: {
-    color: colors.surface,
-    fontSize: 15,
-    fontWeight: '600',
   },
   copiCard: {
     ...shadows.card,

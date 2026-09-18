@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 
 import { buildGreetingReply, hasGreeting, isUnclearCopiQuestion, unclearCopiReply } from './copi-intent-router';
+import { resolveCopiModel } from './copi-model';
 import {
   collectProductsFromToolResults,
   ensureCopiProductLinks,
@@ -25,6 +26,7 @@ export class CopiLlmPhraserService {
     locale: string;
     organizationId: string;
     ownerDisplayName?: string | null;
+    ownerNotes?: string | null;
     question: string;
     tier?: 'basic' | 'pro';
     toolResults: CopiToolResult[];
@@ -71,6 +73,7 @@ export class CopiLlmPhraserService {
       history: recentHistory,
       locale: params.locale,
       ownerDisplayName: params.ownerDisplayName ?? null,
+      ownerNotes: params.ownerNotes ?? null,
       question: params.question,
       toolResults: params.toolResults.map((result) => ({
         key: result.key,
@@ -111,7 +114,7 @@ export class CopiLlmPhraserService {
               role: 'user',
             },
           ],
-          model: process.env.OPENAI_MODEL?.trim() || 'gpt-4o-mini',
+          model: resolveCopiModel('phrase'),
           temperature: 0.35,
         }),
         headers: {
@@ -236,7 +239,8 @@ export class CopiLlmPhraserService {
                 'Usá SOLO hechos de toolResults (hilo del chat + productos/stock/precios). No inventes stock ni precios.',
                 'Si hay productos relevantes, mencionalos con stock y precio cuando estén en toolResults.',
                 'Si no hay match de productos, pedí una aclaración amable sin inventar catálogo.',
-                'NO escribas para el dueño. NO digas “te propongo” ni “¿confirmo?”.',
+                'NO escribas para el dueño. NO digas “te propongo” ni “¿confirmo?” ni “¿lo envío?”.',
+                'NO ofrezcas crear tareas, presupuestos ni otras acciones internas.',
                 'NO uses markdown de productos [[product:...]].',
                 'Devolvé ÚNICAMENTE el texto del mensaje al cliente, sin comillas envolventes ni prefijos.',
               ].join('\n'),
@@ -247,7 +251,7 @@ export class CopiLlmPhraserService {
               role: 'user',
             },
           ],
-          model: process.env.OPENAI_MODEL?.trim() || 'gpt-4o-mini',
+          model: resolveCopiModel('whatsapp_draft'),
           temperature: 0.4,
         }),
         headers: {

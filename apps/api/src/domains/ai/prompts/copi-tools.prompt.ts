@@ -19,7 +19,7 @@ Never invent tool names. Never invent payloads.
 ## Permission tiers
 
 - **Basic (read tools below)**: available when Copi is enabled.
-- **Pro actions**: task mutations require Copi Pro (\`copi_pro_agent\`) and explicit owner confirmation in the app. Voice/vision/reports are separate Pro features and are not selected via this router JSON.
+- **Actions**: task mutations require explicit owner confirmation in chat (sí/no). Voice/vision/reports are separate flags and are not selected via this router JSON.
 
 If a Pro action is requested without Pro, the orchestrator already handles the denial — do not invent a workaround.
 

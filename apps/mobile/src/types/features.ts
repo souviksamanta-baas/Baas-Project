@@ -61,12 +61,12 @@ export const BASELINE_FEATURE_FLAGS: Array<keyof OrganizationFeatureFlags> = [
 
 export const DEFAULT_COPI_FEATURE_FLAGS: Required<CopiFeatureFlags> = {
   copi_basic_reports: true,
-  copi_custom_reports: false,
+  copi_custom_reports: true,
   copi_enabled: true,
   copi_freeform_questions: true,
-  copi_pro_agent: false,
-  copi_vision: false,
-  copi_voice: false,
+  copi_pro_agent: true,
+  copi_vision: true,
+  copi_voice: true,
 };
 
 /** Full-commerce defaults (legacy / kiosco-like). */

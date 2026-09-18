@@ -156,9 +156,8 @@ Health check path:
 Client onboarding (Spanish): Confluence [Onboarding de clientes](https://souviksamanta.atlassian.net/wiki/spaces/BaaS/pages/27230209/Onboarding+de+clientes). Ops checklist: [Instagram Messaging](https://souviksamanta.atlassian.net/wiki/spaces/BaaS/pages/26247169/Instagram+Messaging+Owner+inbox).
 
 | `BAAS_TASKS_JOB_SECRET` | Required for task automation trigger | Shared secret expected in `x-baas-job-secret` for `POST /tasks/run-maintenance`. |
-| `OPENAI_API_KEY` | Optional | Enables Copi LLM phrasing, voice STT, and vision. Falls back to deterministic templates when unset. |
-| `OPENAI_MODEL` | Optional | Copi phrasing model. Default `gpt-4o-mini`. |
-| `OPENAI_VISION_MODEL` | Optional | Copi vision model. Default `gpt-4o-mini`. |
+| `OPENAI_API_KEY` | Optional | Enables Copi LLM (planner, phrasing, voice, vision). Falls back to templates / regex when unset. Models via `resolveCopiModel(role)` in code. |
+| `OPENAI_ADMIN_KEY` | Optional | Admin API for staff-provisioned per-org OpenAI projects/keys. |
 | `BAAS_CORS_ALLOWED_ORIGINS` | Required for Expo Web | Comma-separated origin allowlist for browser clients. |
 
 Do not put real secret values in source files, Jira, Confluence, or local docs.
@@ -166,18 +165,17 @@ Do not put real secret values in source files, Jira, Confluence, or local docs.
 ## Copi (Owner AI) Endpoints
 
 All Copi routes require `Authorization: Bearer <supabase-access-token>` and org
-membership. Feature flags on `organizations.feature_flags` gate Basic vs Pro.
+membership. Gate product access with `copi_enabled` (everything-Pro defaults; no Basic vs Pro wall).
 
-| Method | Path | Tier | Purpose |
+| Method | Path | Notes | Purpose |
 | --- | --- | --- | --- |
-| `POST` | `/ai/copilot/query` | Basic+ | Ask Copi a business question |
-| `GET` | `/ai/copilot/sessions/:sessionId/messages` | Basic+ | Load session history |
-| `POST` | `/ai/copilot/actions/:actionId/confirm` | Pro | Confirm a proposed write action (multi-task create, assignee resolve with creator fallback, or create presupuesto + task) |
-| `POST` | `/ai/copilot/voice` | Pro | Transcribe voice note (OpenAI) |
-| `POST` | `/ai/copilot/vision` | Pro | Analyze image (OpenAI) |
-| `POST` | `/ai/copilot/reports/run` | Pro | Run a built-in or saved report |
+| `POST` | `/ai/copilot/query` | Primary | Ask Copi; sí/no confirms pending proposals via turn planner |
+| `GET` | `/ai/copilot/sessions/:sessionId/messages` | | Load session history |
+| `POST` | `/ai/copilot/actions/:actionId/confirm` | Optional API | Programmatic confirm (chat sí/no is primary UX) |
+| `POST` | `/ai/copilot/voice` | | Transcribe voice note (OpenAI) |
+| `POST` | `/ai/copilot/vision` | | Analyze image (OpenAI) |
+| `POST` | `/ai/copilot/reports/run` | | Run a built-in or saved report |
 
-Pilot orgs **Baas Admin** and **NEX Biz** have Pro flags enabled in production.
 See `docs/copi-architecture.md` and Confluence → Nexolia → Copi.
 
 ## Task Maintenance Trigger

@@ -106,14 +106,16 @@ catalog-backed and marked safe. When `business_centers.business_hours` is
 enabled, auto-send is also limited to the configured center timezone, days, start
 time, and end time.
 
-`OwnerCopilotService` delegates to `CopiOrchestratorService` (KAN-319). It
+`OwnerCopilotService` delegates to `CopiOrchestratorService`. It
 validates the Supabase bearer token against `organization_members`, loads org
-`feature_flags`, routes questions through the tool registry, optionally phrases
-answers with OpenAI when `copi_freeform_questions` is enabled, and may propose
-Pro actions behind `copi_pro_agent`. It does not expose raw SQL or arbitrary LLM
-tool calls; reports use predefined `report_key` values only.
+`feature_flags`, plans each turn with `CopiLlmTurnPlannerService` (regex
+fallback), routes tools through the registry, phrases answers with OpenAI when
+`copi_freeform_questions` is enabled, and may propose write actions (confirm in
+chat before execute). It does not expose raw SQL or arbitrary LLM tool calls;
+reports use predefined `report_key` values only. Models are selected via
+`resolveCopiModel(role)` in code.
 
-See `docs/copi-architecture.md` for the full Copi flow and licensing flags.
+See `docs/copi-architecture.md` for the full Copi flow and flags.
 
 `ArcaModule` + `BillingModule` (KAN-377) expose owner-authenticated fiscal APIs:
 

@@ -197,10 +197,8 @@ Deployment platforms should define:
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY` for the NestJS API only
 - `BAAS_TASKS_JOB_SECRET` for the task maintenance endpoint
-- `OPENAI_API_KEY` (optional) for Copi LLM phrasing, voice STT, and vision. Shared fallback for orgs without a dedicated key. Without it, Copi falls back to deterministic templates.
+- `OPENAI_API_KEY` (optional) for Copi LLM (planner, phrasing, voice STT, vision). Shared fallback for orgs without a dedicated key. Without it, Copi falls back to deterministic templates / regex planner fallback. Models are chosen in code via `resolveCopiModel(role)` — not env vars.
 - `OPENAI_ADMIN_KEY` (optional) Admin API key for staff-provisioned per-org OpenAI projects/keys from the admin portal. Cannot call inference endpoints.
-- `OPENAI_MODEL` (optional, default `gpt-4o-mini`)
-- `OPENAI_VISION_MODEL` (optional, default `gpt-4o-mini`)
 - `EXPO_PUBLIC_API_BASE_URL` for mobile builds that need server-side owner
   actions such as AI draft approve/send and Owner Copilot questions
 - Mobile public variables through Expo or app build environment configuration
