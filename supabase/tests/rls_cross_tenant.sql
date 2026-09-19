@@ -437,6 +437,127 @@ values
     'unit'
   );
 
+insert into public.product_categories (
+  id,
+  organization_id,
+  name
+)
+values
+  (
+    'aaaaaaaa-5200-4000-8000-000000000001',
+    '11111111-1111-4111-8111-111111111111',
+    'Almacen A'
+  ),
+  (
+    'bbbbbbbb-5200-4000-8000-000000000001',
+    '22222222-2222-4222-8222-222222222222',
+    'Almacen B'
+  );
+
+insert into public.product_category_links (product_id, category_id)
+values
+  (
+    'aaaaaaaa-5000-4000-8000-000000000001',
+    'aaaaaaaa-5200-4000-8000-000000000001'
+  ),
+  (
+    'bbbbbbbb-5000-4000-8000-000000000001',
+    'bbbbbbbb-5200-4000-8000-000000000001'
+  );
+
+insert into public.suppliers (
+  id,
+  organization_id,
+  comercio,
+  name
+)
+values
+  (
+    'aaaaaaaa-5300-4000-8000-000000000001',
+    '11111111-1111-4111-8111-111111111111',
+    'Proveedor A',
+    'Contacto A'
+  ),
+  (
+    'bbbbbbbb-5300-4000-8000-000000000001',
+    '22222222-2222-4222-8222-222222222222',
+    'Proveedor B',
+    'Contacto B'
+  );
+
+insert into public.purchases (
+  id,
+  organization_id,
+  business_center_id,
+  number,
+  supplier,
+  purchase_date,
+  status,
+  item_count,
+  subtotal_cents,
+  total_cents
+)
+values
+  (
+    'aaaaaaaa-5400-4000-8000-000000000001',
+    '11111111-1111-4111-8111-111111111111',
+    'aaaaaaaa-0200-4000-8000-000000000001',
+    'A-001',
+    'Proveedor A',
+    '2026-09-11',
+    'pending_confirmation',
+    1,
+    1000,
+    1000
+  ),
+  (
+    'bbbbbbbb-5400-4000-8000-000000000001',
+    '22222222-2222-4222-8222-222222222222',
+    'bbbbbbbb-0200-4000-8000-000000000001',
+    'B-001',
+    'Proveedor B',
+    '2026-09-11',
+    'pending_confirmation',
+    1,
+    2000,
+    2000
+  );
+
+insert into public.purchase_lines (
+  id,
+  purchase_id,
+  organization_id,
+  product_id,
+  product_name,
+  quantity,
+  unit_code,
+  unit_cost_cents,
+  line_total_cents
+)
+values
+  (
+    'aaaaaaaa-5500-4000-8000-000000000001',
+    'aaaaaaaa-5400-4000-8000-000000000001',
+    '11111111-1111-4111-8111-111111111111',
+    'aaaaaaaa-5000-4000-8000-000000000001',
+    'Tenant A Product',
+    1,
+    'unit',
+    1000,
+    1000
+  ),
+  (
+    'bbbbbbbb-5500-4000-8000-000000000001',
+    'bbbbbbbb-5400-4000-8000-000000000001',
+    '22222222-2222-4222-8222-222222222222',
+    'bbbbbbbb-5000-4000-8000-000000000001',
+    'Tenant B Product',
+    1,
+    'unit',
+    2000,
+    2000
+  );
+
 insert into public.inventory_items (
   id,
   organization_id,
@@ -933,6 +1054,16 @@ select pg_temp.assert_equal((select count(*) from public.conversation_messages),
 select pg_temp.assert_equal((select count(*) from public.conversation_messages where body = 'Tenant B message'), 0::bigint, 'Tenant A cannot see Tenant B conversation messages');
 select pg_temp.assert_equal((select count(*) from public.products), 1::bigint, 'Tenant A sees one product');
 select pg_temp.assert_equal((select count(*) from public.products where name = 'Tenant B Product'), 0::bigint, 'Tenant A cannot see Tenant B products');
+select pg_temp.assert_equal((select count(*) from public.product_categories), 1::bigint, 'Tenant A sees one product category');
+select pg_temp.assert_equal((select count(*) from public.product_categories where name = 'Almacen B'), 0::bigint, 'Tenant A cannot see Tenant B product categories');
+select pg_temp.assert_equal((select count(*) from public.product_category_links), 1::bigint, 'Tenant A sees one category link');
+select pg_temp.assert_equal((select count(*) from public.product_category_links where category_id = 'bbbbbbbb-5200-4000-8000-000000000001'), 0::bigint, 'Tenant A cannot see Tenant B category links');
+select pg_temp.assert_equal((select count(*) from public.suppliers), 1::bigint, 'Tenant A sees one supplier');
+select pg_temp.assert_equal((select count(*) from public.suppliers where comercio = 'Proveedor B'), 0::bigint, 'Tenant A cannot see Tenant B suppliers');
+select pg_temp.assert_equal((select count(*) from public.purchases), 1::bigint, 'Tenant A sees one purchase');
+select pg_temp.assert_equal((select count(*) from public.purchases where number = 'B-001'), 0::bigint, 'Tenant A cannot see Tenant B purchases');
+select pg_temp.assert_equal((select count(*) from public.purchase_lines), 1::bigint, 'Tenant A sees one purchase line');
+select pg_temp.assert_equal((select count(*) from public.purchase_lines where product_name = 'Tenant B Product'), 0::bigint, 'Tenant A cannot see Tenant B purchase lines');
 select pg_temp.assert_equal((select count(*) from public.owner_tasks), 1::bigint, 'Tenant A sees one owner task');
 select pg_temp.assert_equal((select count(*) from public.owner_tasks where title = 'Tenant B follow-up'), 0::bigint, 'Tenant A cannot see Tenant B tasks');
 select pg_temp.assert_equal((select count(*) from public.owner_notifications), 1::bigint, 'Tenant A sees one owner notification');
@@ -986,6 +1117,16 @@ select pg_temp.assert_equal((select count(*) from public.conversation_messages),
 select pg_temp.assert_equal((select count(*) from public.conversation_messages where body = 'Tenant A message'), 0::bigint, 'Tenant B cannot see Tenant A conversation messages');
 select pg_temp.assert_equal((select count(*) from public.products), 1::bigint, 'Tenant B sees one product');
 select pg_temp.assert_equal((select count(*) from public.products where name = 'Tenant A Product'), 0::bigint, 'Tenant B cannot see Tenant A products');
+select pg_temp.assert_equal((select count(*) from public.product_categories), 1::bigint, 'Tenant B sees one product category');
+select pg_temp.assert_equal((select count(*) from public.product_categories where name = 'Almacen A'), 0::bigint, 'Tenant B cannot see Tenant A product categories');
+select pg_temp.assert_equal((select count(*) from public.product_category_links), 1::bigint, 'Tenant B sees one category link');
+select pg_temp.assert_equal((select count(*) from public.product_category_links where category_id = 'aaaaaaaa-5200-4000-8000-000000000001'), 0::bigint, 'Tenant B cannot see Tenant A category links');
+select pg_temp.assert_equal((select count(*) from public.suppliers), 1::bigint, 'Tenant B sees one supplier');
+select pg_temp.assert_equal((select count(*) from public.suppliers where comercio = 'Proveedor A'), 0::bigint, 'Tenant B cannot see Tenant A suppliers');
+select pg_temp.assert_equal((select count(*) from public.purchases), 1::bigint, 'Tenant B sees one purchase');
+select pg_temp.assert_equal((select count(*) from public.purchases where number = 'A-001'), 0::bigint, 'Tenant B cannot see Tenant A purchases');
+select pg_temp.assert_equal((select count(*) from public.purchase_lines), 1::bigint, 'Tenant B sees one purchase line');
+select pg_temp.assert_equal((select count(*) from public.purchase_lines where product_name = 'Tenant A Product'), 0::bigint, 'Tenant B cannot see Tenant A purchase lines');
 select pg_temp.assert_equal((select count(*) from public.owner_tasks), 1::bigint, 'Tenant B sees one owner task');
 select pg_temp.assert_equal((select count(*) from public.owner_tasks where title = 'Tenant A follow-up'), 0::bigint, 'Tenant B cannot see Tenant A tasks');
 select pg_temp.assert_equal((select count(*) from public.owner_notifications), 1::bigint, 'Tenant B sees one owner notification');
