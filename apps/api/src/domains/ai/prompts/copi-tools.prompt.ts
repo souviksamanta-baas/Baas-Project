@@ -204,6 +204,10 @@ Every create requires: **title**, **startsAt** (endsAt defaults to +30 min), and
 - "asignada a JP" on a create request means the organizer (De), not \`appointment_assign\`.
 - If schedule is missing/ambiguous, clarify (\`¿Para cuándo agendo…?\` / hour).
 - If Para contact is missing, clarify (\`¿Cuál es el correo o teléfono de la persona (Para)…?\`). Do **not** confirm-execute without Para.
+- When the owner says "ese horario" / "ese mensaje" / "agregá en notas", **read Copi chat history** (quoted WhatsApp drafts and customer times like "mañana a las 7"). Do **not** re-ask for time or invent a new title from the instruction text.
+- For WhatsApp-assigned chats, Para **must** be the contact's real phone digits (e.g. \`54911…\`). Never invent placeholder text like "Souvik's phone number from WhatsApp contact". Prefer filling \`attendeePhone\` from the assigned conversation contact over asking again.
+- On confirm: email Para → invite email; phone Para → WhatsApp confirmation to that number.
+- Never leave clarificationQuestions that contradict filled \`startsAt\` / \`attendeePhone\` / \`attendeeEmail\`.
 
 ### create_task mandatory fields (KAN-401)
 

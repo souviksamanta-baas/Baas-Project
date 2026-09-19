@@ -24,15 +24,19 @@ import {
 import { applyCustomerReplyGreeting } from './copi-customer-greeting';
 import { SalesAiService } from './sales-ai.service';
 import {
+  applyAppointmentContextFromHistory,
   buildCreateAppointmentPayload,
   buildCreateTaskPayload,
+  normalizeAttendeePhone,
   parseCreatePresupuestoRequest,
   parseCreateTaskItems,
   readTaskItems,
+  reconcileAppointmentClarifications,
   summarizeCreateAppointmentPayload,
   summarizeCreateTaskPayload,
   wantsCreatePresupuestoAction,
 } from './copi-task-parse';
+import { applyChainContextToActionPayload } from './copi-chain-context';
 
 const DEFAULT_TIMEZONE = 'America/Argentina/Cordoba';
 
@@ -79,6 +83,17 @@ export class CopiActionService {
       await this.supersedePendingCustomerReplyProposals({
         organizationId: context.organizationId,
         userId: context.userId,
+      });
+    } else if (actionType === 'appointment_create') {
+      payload = await this.enrichAppointmentCreatePayload(context, payload);
+    } else {
+      // Tasks, cash, reminders, etc.: resolve este/ese/eso from the Copi chain.
+      payload = applyChainContextToActionPayload({
+        actionType,
+        history: context.conversationHistory,
+        payload,
+        question: context.question,
+        timezone,
       });
     }
     const client = this.supabaseService.getServiceRoleClient();
@@ -669,16 +684,40 @@ export class CopiActionService {
           typeof params.payload.endsAt === 'string' && params.payload.endsAt.trim()
             ? params.payload.endsAt
             : new Date(new Date(startsAt).getTime() + 30 * 60 * 1000).toISOString();
-        const attendeeEmail =
+        let attendeeEmail =
           typeof params.payload.attendeeEmail === 'string' &&
           params.payload.attendeeEmail.trim()
             ? params.payload.attendeeEmail.trim().toLowerCase()
             : null;
-        const attendeePhone =
-          typeof params.payload.attendeePhone === 'string' &&
-          params.payload.attendeePhone.trim()
-            ? params.payload.attendeePhone.trim()
+        let attendeePhone = normalizeAttendeePhone(
+          typeof params.payload.attendeePhone === 'string'
+            ? params.payload.attendeePhone
+            : null,
+        );
+        let contactId = readOptionalUuid(params.payload.contactId);
+        let inviteConversationId: string | null =
+          typeof params.payload.conversationId === 'string' &&
+          params.payload.conversationId.trim()
+            ? params.payload.conversationId.trim()
             : null;
+
+        if (!attendeeEmail && !attendeePhone) {
+          const contact = await this.resolveAssignedConversationContact({
+            organizationId: params.organizationId,
+            userId: params.userId,
+          });
+          const resolvedPhone = normalizeAttendeePhone(contact?.phoneNumber);
+          if (resolvedPhone) {
+            attendeePhone = resolvedPhone;
+          }
+          if (!contactId && contact?.contactId) {
+            contactId = contact.contactId;
+          }
+          if (!inviteConversationId && contact?.conversationId) {
+            inviteConversationId = contact.conversationId;
+          }
+        }
+
         if (!attendeeEmail && !attendeePhone) {
           throw new Error(
             'Falta el correo o teléfono de la persona (Para) para enviar la invitación del turno.',
@@ -701,7 +740,7 @@ export class CopiActionService {
         const appointment = await this.appointmentsService.createAppointment({
           assignedToUserId,
           businessCenterId: params.businessCenterId,
-          contactId: readOptionalUuid(params.payload.contactId),
+          contactId,
           createdByUserId: params.userId,
           endsAt,
           metadata: {
@@ -720,6 +759,7 @@ export class CopiActionService {
         });
 
         let inviteEmailSent = false;
+        let inviteEmailError: string | null = null;
         if (attendeeEmail) {
           try {
             await this.appointmentsService.sendInviteEmail({
@@ -732,18 +772,49 @@ export class CopiActionService {
             });
             inviteEmailSent = true;
           } catch (error) {
-            // Appointment is already created; surface invite failure in the result.
-            return {
-              appointmentId: appointment.id,
-              attendeeEmail,
-              attendeePhone,
-              endsAt: appointment.endsAt,
-              inviteEmailError:
-                error instanceof Error ? error.message : 'No se pudo enviar la invitación.',
-              inviteEmailSent: false,
-              startsAt: appointment.startsAt,
-              title: appointment.title,
-            };
+            inviteEmailError =
+              error instanceof Error ? error.message : 'No se pudo enviar la invitación.';
+          }
+        }
+
+        let inviteWhatsAppSent = false;
+        let inviteWhatsAppError: string | null = null;
+        if (attendeePhone) {
+          try {
+            if (!inviteConversationId) {
+              const contact = await this.resolveAssignedConversationContact({
+                organizationId: params.organizationId,
+                userId: params.userId,
+              });
+              inviteConversationId = contact?.conversationId ?? null;
+            }
+            await this.whatsAppOutbound.sendTextMessage({
+              body: buildAppointmentInviteWhatsAppBody({
+                endsAt: appointment.endsAt,
+                fromLabel,
+                notes: appointment.notes,
+                startsAt: appointment.startsAt,
+                timezone:
+                  typeof params.payload.timezone === 'string'
+                    ? params.payload.timezone
+                    : DEFAULT_TIMEZONE,
+                title: appointment.title,
+              }),
+              businessCenterId: params.businessCenterId,
+              conversationId: inviteConversationId,
+              organizationId: params.organizationId,
+              recipientPhone: attendeePhone,
+              uiSender: {
+                kind: 'copi',
+                label: 'Copi',
+              },
+            });
+            inviteWhatsAppSent = true;
+          } catch (error) {
+            inviteWhatsAppError =
+              error instanceof Error
+                ? error.message
+                : 'No se pudo enviar la confirmación por WhatsApp.';
           }
         }
 
@@ -752,7 +823,10 @@ export class CopiActionService {
           attendeeEmail,
           attendeePhone,
           endsAt: appointment.endsAt,
+          inviteEmailError,
           inviteEmailSent,
+          inviteWhatsAppError,
+          inviteWhatsAppSent,
           startsAt: appointment.startsAt,
           title: appointment.title,
         };
@@ -1357,6 +1431,159 @@ export class CopiActionService {
       ...payload,
       body,
       conversationId,
+    };
+  }
+
+  private async enrichAppointmentCreatePayload(
+    context: CopiQueryContext,
+    payload: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> {
+    let next: Record<string, unknown> = { ...payload };
+
+    const question =
+      typeof next.question === 'string' && next.question.trim()
+        ? next.question
+        : context.question;
+
+    next = applyAppointmentContextFromHistory({
+      history: context.conversationHistory,
+      payload: next,
+      question,
+      timezone: context.timezone || DEFAULT_TIMEZONE,
+    });
+
+    const hasEmail =
+      typeof next.attendeeEmail === 'string' && Boolean(next.attendeeEmail.trim());
+    const normalizedPhone = normalizeAttendeePhone(
+      typeof next.attendeePhone === 'string' ? next.attendeePhone : null,
+    );
+    next = { ...next, attendeePhone: normalizedPhone };
+
+    if (!hasEmail && !normalizedPhone) {
+      const contact = await this.resolveAssignedConversationContact({
+        organizationId: context.organizationId,
+        userId: context.userId,
+      });
+      const contactPhone = normalizeAttendeePhone(contact?.phoneNumber);
+      if (contactPhone) {
+        next = {
+          ...next,
+          attendeePhone: contactPhone,
+          ...(contact?.contactId ? { contactId: contact.contactId } : {}),
+          ...(contact?.conversationId
+            ? { conversationId: contact.conversationId }
+            : {}),
+        };
+      }
+      if (
+        contact?.displayName &&
+        (typeof next.title !== 'string' ||
+          !next.title.trim() ||
+          /\b(ese\s+horario|agrega\s+ese|en\s+nuestra)\b/i.test(String(next.title)))
+      ) {
+        const baseTitle =
+          typeof next.title === 'string' &&
+          next.title.trim() &&
+          !/\b(ese\s+horario|agrega\s+ese|en\s+nuestra)\b/i.test(next.title)
+            ? next.title.trim()
+            : typeof next.notes === 'string' && /\bdegust/i.test(next.notes)
+              ? 'Degustación de café'
+              : 'Turno';
+        if (!/\bcon\s+/i.test(baseTitle)) {
+          next = { ...next, title: `${baseTitle} con ${contact.displayName}` };
+        }
+      }
+    } else if (normalizedPhone) {
+      // Keep digits-only phone on the proposal so the confirm card shows the real number.
+      next = { ...next, attendeePhone: normalizedPhone };
+      if (!next.contactId || !next.conversationId) {
+        const contact = await this.resolveAssignedConversationContact({
+          organizationId: context.organizationId,
+          userId: context.userId,
+        });
+        next = {
+          ...next,
+          ...(contact?.contactId && !next.contactId
+            ? { contactId: contact.contactId }
+            : {}),
+          ...(contact?.conversationId && !next.conversationId
+            ? { conversationId: contact.conversationId }
+            : {}),
+        };
+      }
+    }
+
+    next = {
+      ...next,
+      clarificationQuestions: reconcileAppointmentClarifications(next),
+    };
+
+    return next;
+  }
+
+  private async resolveAssignedConversationContact(params: {
+    organizationId: string;
+    userId: string;
+  }): Promise<{
+    contactId: string | null;
+    conversationId: string;
+    displayName: string | null;
+    phoneNumber: string | null;
+  } | null> {
+    const client = this.supabaseService.getServiceRoleClient();
+    const { data: conversation } = await client
+      .from('conversations')
+      .select(
+        'id, contact_id, external_contact_id, customer_display_name, contacts(display_name, phone_number)',
+      )
+      .eq('organization_id', params.organizationId)
+      .eq('assigned_to_copi_user_id', params.userId)
+      .not('assigned_to_copi_at', 'is', null)
+      .order('assigned_to_copi_at', { ascending: false })
+      .limit(1)
+      .maybeSingle<{
+        contact_id: string | null;
+        contacts:
+          | { display_name: string | null; phone_number: string | null }
+          | Array<{ display_name: string | null; phone_number: string | null }>
+          | null;
+        customer_display_name: string | null;
+        external_contact_id: string | null;
+        id: string;
+      }>();
+
+    if (!conversation) {
+      return null;
+    }
+
+    const contactRow = Array.isArray(conversation.contacts)
+      ? conversation.contacts[0]
+      : conversation.contacts;
+    const phoneNumber =
+      (typeof contactRow?.phone_number === 'string' && contactRow.phone_number.trim()
+        ? contactRow.phone_number.trim()
+        : null) ||
+      (typeof conversation.external_contact_id === 'string' &&
+      conversation.external_contact_id.trim()
+        ? conversation.external_contact_id.trim()
+        : null);
+    const displayName =
+      (typeof contactRow?.display_name === 'string' && contactRow.display_name.trim()
+        ? contactRow.display_name.trim()
+        : null) ||
+      (typeof conversation.customer_display_name === 'string' &&
+      conversation.customer_display_name.trim()
+        ? conversation.customer_display_name.trim()
+        : null);
+
+    return {
+      contactId:
+        typeof conversation.contact_id === 'string' && conversation.contact_id.trim()
+          ? conversation.contact_id.trim()
+          : null,
+      conversationId: conversation.id,
+      displayName,
+      phoneNumber,
     };
   }
 
@@ -2291,4 +2518,47 @@ function summarizeProposal(actionType: CopiActionType, payload: Record<string, u
     default:
       return 'Acción de Copi';
   }
+}
+
+function buildAppointmentInviteWhatsAppBody(params: {
+  endsAt: string;
+  fromLabel: string | null;
+  notes: string | null;
+  startsAt: string;
+  title: string;
+  timezone?: string | null;
+}): string {
+  const timeZone = params.timezone?.trim() || DEFAULT_TIMEZONE;
+  const starts = new Date(params.startsAt);
+  const ends = new Date(params.endsAt);
+  const whenLabel = Number.isNaN(starts.getTime())
+    ? params.startsAt
+    : starts.toLocaleString('es-AR', {
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        month: 'long',
+        timeZone,
+        weekday: 'long',
+      });
+  const endLabel = Number.isNaN(ends.getTime())
+    ? params.endsAt
+    : ends.toLocaleTimeString('es-AR', {
+        hour: '2-digit',
+        minute: '2-digit',
+        timeZone,
+      });
+
+  return [
+    'Confirmamos tu turno:',
+    '',
+    params.title,
+    `Cuándo: ${whenLabel} – ${endLabel}`,
+    params.fromLabel?.trim() ? `Con: ${params.fromLabel.trim()}` : null,
+    params.notes?.trim() ? `Notas: ${params.notes.trim()}` : null,
+    '',
+    'Si necesitás cambiar el horario, respondé a este mensaje.',
+  ]
+    .filter((line): line is string => line != null)
+    .join('\n');
 }

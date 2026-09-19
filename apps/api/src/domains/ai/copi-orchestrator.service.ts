@@ -86,7 +86,7 @@ export class CopiOrchestratorService {
       await this.sessionService.listMessages(sessionId, params.organizationId, member.userId)
     )
       .filter((message) => message.role !== 'system')
-      .slice(-8)
+      .slice(-16)
       .map((message) => ({ body: message.body, role: message.role }));
 
     const imageContext = params.imageContext?.trim();
@@ -172,7 +172,9 @@ export class CopiOrchestratorService {
         const answer =
           pending.actionType === 'propose_customer_reply'
             ? formatCustomerReplyConfirmed(executed.result)
-            : `Listo. Acción confirmada (${executed.status}).`;
+            : pending.actionType === 'appointment_create'
+              ? formatAppointmentCreateConfirmed(executed.result)
+              : `Listo. Acción confirmada (${executed.status}).`;
         await this.persistAssistantMessage(params.organizationId, sessionId, answer, []);
         return {
           answer,
@@ -471,7 +473,9 @@ export class CopiOrchestratorService {
       const answer =
         pending.actionType === 'propose_customer_reply'
           ? formatCustomerReplyConfirmed(executed.result)
-          : `Listo. Acción confirmada (${executed.status}).`;
+          : pending.actionType === 'appointment_create'
+            ? formatAppointmentCreateConfirmed(executed.result)
+            : `Listo. Acción confirmada (${executed.status}).`;
       await this.persistAssistantMessage(organizationId, sessionId, answer, []);
       return {
         answer,
@@ -604,6 +608,9 @@ export class CopiOrchestratorService {
         });
       }
 
+      // Keep WhatsApp/client thread in context for any write while a chain is active.
+      const proposeTools = ensureConversationThreadTool(tools, reasoningQuestion, context.conversationHistory);
+
       if (actionType && AUTO_EXECUTE_ACTIONS.has(actionType)) {
         const proposedAction = await this.actionService.proposeAction(toolContext, {
           forcedActionType: actionType,
@@ -617,7 +624,7 @@ export class CopiOrchestratorService {
             userId: memberUserId,
           });
           const answer = formatAutoExecutedAnswer(proposedAction.actionType, executed.result);
-          await this.persistAssistantMessage(organizationId, sessionId, answer, tools);
+          await this.persistAssistantMessage(organizationId, sessionId, answer, proposeTools);
           return {
             answer,
             policyDecision: 'allowed',
@@ -626,13 +633,13 @@ export class CopiOrchestratorService {
             sessionId,
             tier: 'pro',
             tokenUsage: this.policyService.emptyUsage(),
-            tools,
+            tools: proposeTools,
           };
         }
       }
 
-      if (tools.length > 0) {
-        await this.toolRegistry.executeTools(toolContext, tools);
+      if (proposeTools.length > 0) {
+        await this.toolRegistry.executeTools(toolContext, proposeTools);
       }
 
       const proposedAction = await this.actionService.proposeAction(toolContext, {
@@ -653,7 +660,7 @@ export class CopiOrchestratorService {
           ? `\n\n${clarifications.map((item) => `• ${item}`).join('\n')}\n(Si confirmás ahora, uso un horario estimado y después lo podemos ajustar.)`
           : '';
       const answer = `${proposedAction.summary}.${clarificationBlock}\n\n¿Lo hago? Respondeme sí o no.`;
-      await this.persistAssistantMessage(organizationId, sessionId, answer, tools);
+      await this.persistAssistantMessage(organizationId, sessionId, answer, proposeTools);
       return {
         answer,
         policyDecision: 'allowed',
@@ -662,7 +669,7 @@ export class CopiOrchestratorService {
         sessionId,
         tier: 'pro',
         tokenUsage: this.policyService.emptyUsage(),
-        tools,
+        tools: proposeTools,
       };
     }
 
@@ -1032,6 +1039,10 @@ function formatAutoExecutedAnswer(
     return `Listo. Creé ${titles.length} tareas:\n${titles.map((title) => `• ${title}`).join('\n')}`;
   }
 
+  if (actionType === 'appointment_create') {
+    return formatAppointmentCreateConfirmed(result);
+  }
+
   return 'Listo. Acción completada.';
 }
 
@@ -1041,6 +1052,35 @@ function formatCustomerReplyConfirmed(result: Record<string, unknown>): string {
     return `Listo. Envié al cliente por WhatsApp:\n\n«${body}»`;
   }
   return 'Listo. Envié la respuesta al cliente por WhatsApp.';
+}
+
+function formatAppointmentCreateConfirmed(result: Record<string, unknown>): string {
+  const title =
+    typeof result.title === 'string' && result.title.trim()
+      ? result.title.trim()
+      : 'el turno';
+  const inviteWhatsAppSent = Boolean(result.inviteWhatsAppSent);
+  const inviteEmailSent = Boolean(result.inviteEmailSent);
+  const phone =
+    typeof result.attendeePhone === 'string' && result.attendeePhone.trim()
+      ? result.attendeePhone.trim()
+      : null;
+  const email =
+    typeof result.attendeeEmail === 'string' && result.attendeeEmail.trim()
+      ? result.attendeeEmail.trim()
+      : null;
+
+  const parts = [`Listo. Creé «${title}».`];
+  if (inviteWhatsAppSent && phone) {
+    parts.push(`Envié la confirmación por WhatsApp a ${phone}.`);
+  } else if (inviteEmailSent && email) {
+    parts.push(`Envié la invitación por correo a ${email}.`);
+  } else if (result.inviteWhatsAppError) {
+    parts.push('El turno quedó creado, pero no pude enviar la confirmación por WhatsApp.');
+  } else if (result.inviteEmailError) {
+    parts.push('El turno quedó creado, pero no pude enviar la invitación por correo.');
+  }
+  return parts.join(' ');
 }
 
 function extractLastInboundFromThreadPayload(payload: Record<string, unknown>): string | null {
@@ -1078,4 +1118,26 @@ function enrichContextWithToolArgs<T extends { question: string }>(
     ...context,
     question: `${context.question}\n\nProducto a buscar: ${query}`,
   };
+}
+
+function ensureConversationThreadTool(
+  tools: CopiToolName[],
+  question: string,
+  history: Array<{ body: string; role: string }>,
+): CopiToolName[] {
+  if (tools.includes('conversation_thread')) {
+    return tools;
+  }
+  const blob = `${question}\n${history
+    .slice(-8)
+    .map((turn) => turn.body)
+    .join('\n')}`;
+  if (
+    /\b(whatsapp|cliente|clienta|respond[eé]|mensaje|chat|turno|agenda|ese\s+horario|ese\s+mensaje)\b/i.test(
+      blob,
+    )
+  ) {
+    return [...tools, 'conversation_thread'];
+  }
+  return tools;
 }

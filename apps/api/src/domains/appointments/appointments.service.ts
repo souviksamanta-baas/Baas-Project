@@ -343,6 +343,7 @@ export class AppointmentsService {
 
     const starts = new Date(params.startsAt);
     const ends = new Date(params.endsAt);
+    const timeZone = 'America/Argentina/Cordoba';
     const whenLabel = Number.isNaN(starts.getTime())
       ? params.startsAt
       : starts.toLocaleString('es-AR', {
@@ -350,11 +351,16 @@ export class AppointmentsService {
           hour: '2-digit',
           minute: '2-digit',
           month: 'long',
+          timeZone,
           weekday: 'long',
         });
     const endLabel = Number.isNaN(ends.getTime())
       ? params.endsAt
-      : ends.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+      : ends.toLocaleTimeString('es-AR', {
+          hour: '2-digit',
+          minute: '2-digit',
+          timeZone,
+        });
     const fromLine = params.fromLabel?.trim()
       ? `<p><strong>Con:</strong> ${escapeHtml(params.fromLabel.trim())}</p>`
       : '';

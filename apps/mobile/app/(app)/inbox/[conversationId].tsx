@@ -336,11 +336,10 @@ export default function ConversationDetailRoute(): ReactElement {
         await assignConversationToCopi({ conversationId, userId });
 
         const clientBody = (message.body ?? '').trim() || '(sin texto / media)';
-        // Keep this short and owner-readable in Copi chat. Thread context is loaded
-        // by conversation_thread via the chat UUID — no need to dump the transcript.
+        // Owner-visible Copi bubble: short and readable. Conversation is already
+        // assigned to Copi, so tools resolve the chat without embedding the UUID.
         const seedQuestion = [
-          `Respondé al cliente por WhatsApp en este chat ${conversationId}.`,
-          `Contacto: ${resolvedCustomerName}. Canal: ${conversation.channel}.`,
+          `Respondé al cliente ${resolvedCustomerName} por WhatsApp.`,
           '',
           'Mensaje del cliente:',
           `«${clientBody}»`,

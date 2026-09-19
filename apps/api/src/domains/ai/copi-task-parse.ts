@@ -172,10 +172,9 @@ export function summarizeCreateAppointmentPayload(payload: Record<string, unknow
     typeof payload.attendeeEmail === 'string' && payload.attendeeEmail.trim()
       ? payload.attendeeEmail.trim().toLowerCase()
       : null;
-  const phone =
-    typeof payload.attendeePhone === 'string' && payload.attendeePhone.trim()
-      ? payload.attendeePhone.trim()
-      : null;
+  const phone = normalizeAttendeePhone(
+    typeof payload.attendeePhone === 'string' ? payload.attendeePhone : null,
+  );
   const para = email
     ? ` · Para: ${email}`
     : phone
@@ -186,6 +185,167 @@ export function summarizeCreateAppointmentPayload(payload: Record<string, unknow
       ? ` · De: ${payload.assigneeName.trim()}`
       : '';
   return `Crear turno: ${title}${startsAt}${para}${assignee}`;
+}
+
+/**
+ * Rebuild clarifications from the *final* payload so planner/history overrides
+ * do not leave stale questions about fields that are already filled.
+ */
+export function reconcileAppointmentClarifications(
+  payload: Record<string, unknown>,
+): string[] {
+  const title =
+    typeof payload.title === 'string' && payload.title.trim()
+      ? payload.title.trim()
+      : 'Nuevo turno';
+  const startsAt =
+    typeof payload.startsAt === 'string' && payload.startsAt.trim()
+      ? payload.startsAt.trim()
+      : null;
+  const hasEmail =
+    typeof payload.attendeeEmail === 'string' && Boolean(payload.attendeeEmail.trim());
+  const hasPhone = Boolean(normalizeAttendeePhone(
+    typeof payload.attendeePhone === 'string' ? payload.attendeePhone : null,
+  ));
+  const questions: string[] = [];
+
+  if (!startsAt) {
+    questions.push(`¿Para cuándo agendo «${title}»?`);
+  }
+  if (!hasEmail && !hasPhone) {
+    questions.push(
+      `¿Cuál es el correo o teléfono de la persona (Para) para enviar la invitación de «${title}»?`,
+    );
+  }
+  return questions;
+}
+
+/**
+ * When the owner refers to "ese horario" / "ese mensaje", pull schedule + notes
+ * from recent Copi/customer chat turns instead of asking again.
+ */
+export function applyAppointmentContextFromHistory(params: {
+  history: Array<{ body: string; role: 'owner' | 'assistant' | 'system' }>;
+  payload: Record<string, unknown>;
+  question: string;
+  timezone: string;
+}): Record<string, unknown> {
+  const question = params.question;
+  const wantsNotes = /\b(nota|notas|ese\s+mensaje|agrega\s+ese|añade\s+ese)\b/i.test(question);
+  const wantsSchedule = /\b(ese\s+horario|ese\s+turno|para\s+ese|ese\s+día|esa\s+hora)\b/i.test(
+    question,
+  );
+
+  const quoted = extractRecentQuotedSnippets(params.history);
+  const lastQuoted = quoted.length > 0 ? quoted[quoted.length - 1]! : null;
+  const scheduleSource =
+    lastQuoted ||
+    findRecentScheduleHint(params.history) ||
+    (typeof params.payload.notes === 'string' ? params.payload.notes : null);
+
+  let next: Record<string, unknown> = { ...params.payload };
+
+  if (wantsNotes && lastQuoted && !String(next.notes ?? '').trim()) {
+    next = { ...next, notes: lastQuoted };
+  } else if (wantsNotes && lastQuoted) {
+    // Prefer the latest customer-facing draft as notes when owner says "ese mensaje".
+    next = { ...next, notes: lastQuoted };
+  }
+
+  const existingStartsAt =
+    typeof next.startsAt === 'string' && next.startsAt.trim() ? next.startsAt.trim() : null;
+  const startsAtIsStale =
+    existingStartsAt != null && isAppointmentStartsAtStale(existingStartsAt);
+
+  if ((wantsSchedule || !existingStartsAt || startsAtIsStale) && scheduleSource) {
+    const schedule = inferTaskSchedule(scheduleSource, params.timezone);
+    if (schedule.dueAt && !schedule.needsExactTime) {
+      next = {
+        ...next,
+        endsAt: new Date(
+          new Date(schedule.dueAt).getTime() + APPOINTMENT_DURATION_MS,
+        ).toISOString(),
+        startsAt: schedule.dueAt,
+      };
+    } else if (schedule.dueAt && startsAtIsStale) {
+      next = {
+        ...next,
+        endsAt: new Date(
+          new Date(schedule.dueAt).getTime() + APPOINTMENT_DURATION_MS,
+        ).toISOString(),
+        startsAt: schedule.dueAt,
+      };
+    }
+  }
+
+  // Prefer a concrete title from notes/history over a mangled owner-instruction title.
+  const title =
+    typeof next.title === 'string' && next.title.trim() ? next.title.trim() : '';
+  if (!title || looksLikeInstructionTitle(title)) {
+    const fromNotes =
+      typeof next.notes === 'string' ? inferAppointmentTitleFromNotes(next.notes) : null;
+    if (fromNotes) {
+      next = { ...next, title: fromNotes };
+    }
+  }
+
+  next = {
+    ...next,
+    clarificationQuestions: reconcileAppointmentClarifications(next),
+  };
+  return next;
+}
+
+function extractRecentQuotedSnippets(
+  history: Array<{ body: string; role: 'owner' | 'assistant' | 'system' }>,
+): string[] {
+  const snippets: string[] = [];
+  for (const turn of history.slice(-12)) {
+    const matches = turn.body.matchAll(/[«"]([^»"]{8,500})[»"]/g);
+    for (const match of matches) {
+      const text = match[1]?.trim();
+      if (text) {
+        snippets.push(text);
+      }
+    }
+  }
+  return snippets;
+}
+
+function findRecentScheduleHint(
+  history: Array<{ body: string; role: 'owner' | 'assistant' | 'system' }>,
+): string | null {
+  for (const turn of [...history].reverse().slice(0, 12)) {
+    if (/\b(mañana|hoy|pasado\s+mañana|a\s+las\s+\d|tarde|noche|\d{1,2}:\d{2})\b/i.test(turn.body)) {
+      return turn.body;
+    }
+  }
+  return null;
+}
+
+function isAppointmentStartsAtStale(startsAtIso: string): boolean {
+  const startsAt = new Date(startsAtIso);
+  if (Number.isNaN(startsAt.getTime())) {
+    return true;
+  }
+  // More than ~36h in the past → almost certainly a bad LLM year/date.
+  return startsAt.getTime() < Date.now() - 36 * 60 * 60 * 1000;
+}
+
+function looksLikeInstructionTitle(title: string): boolean {
+  return /\b(ese\s+horario|agrega\s+ese|en\s+nuestra|por\s+favor|mensaje\s+en\s+notas)\b/i.test(
+    title,
+  );
+}
+
+function inferAppointmentTitleFromNotes(notes: string): string | null {
+  if (/\bdegust/i.test(notes) && /\bcaf[eé]/i.test(notes)) {
+    return 'Degustación de café';
+  }
+  if (/\bdegust/i.test(notes)) {
+    return 'Degustación';
+  }
+  return null;
 }
 
 function extractAttendeeEmail(question: string): string | null {
@@ -202,12 +362,33 @@ function extractAttendeePhone(question: string): string | null {
   if (!match?.[0]) {
     return null;
   }
-  const digits = match[0].replace(/\D/g, '');
-  // Avoid matching bare times like "10" from "a las 10".
-  if (digits.length < 8) {
+  return normalizeAttendeePhone(match[0]);
+}
+
+/**
+ * Accept only real phone digits. Reject LLM placeholders like
+ * "Souvik's phone number from WhatsApp contact".
+ */
+export function normalizeAttendeePhone(value: string | null | undefined): string | null {
+  if (typeof value !== 'string') {
     return null;
   }
-  return match[0].trim();
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+  // Placeholder / prose — not a phone number.
+  if (/[a-záéíóúñü]{3,}/i.test(trimmed) && (trimmed.match(/\d/g) ?? []).length < 8) {
+    return null;
+  }
+  if (/phone number|whatsapp contact|correo|tel[eé]fono del|número del/i.test(trimmed)) {
+    return null;
+  }
+  const digits = trimmed.replace(/\D/g, '');
+  if (digits.length < 8 || digits.length > 15) {
+    return null;
+  }
+  return digits;
 }
 
 function cleanAppointmentTitle(question: string, attendeeEmail: string | null): string {

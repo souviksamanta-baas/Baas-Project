@@ -3,6 +3,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { resolveCopiModel } from './copi-model';
 import type { CopiConversationTurn } from './copi-intent-router';
 import type { CopiActionType, CopiToolName } from './copi.types';
+import { buildChainContextBrief } from './copi-chain-context';
 import { OrganizationLlmCredentialsService } from './organization-llm-credentials.service';
 import { buildCopiSystemPrompt } from './prompts/copi-prompt-composer';
 
@@ -108,8 +109,10 @@ export class CopiLlmTurnPlannerService {
       return null;
     }
 
+    const history = params.history.slice(-16);
     const payload = {
-      history: params.history.slice(-8),
+      chainContext: buildChainContextBrief(history),
+      history,
       pendingProposal: params.pendingProposal,
       question: params.question,
     };

@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  applyAppointmentContextFromHistory,
+  normalizeAttendeePhone,
   parseCreateAppointmentRequest,
   parseCreateTaskItems,
+  reconcileAppointmentClarifications,
 } from '../src/domains/ai/copi-task-parse';
 
 describe('parseCreateTaskItems', () => {
@@ -150,5 +153,67 @@ describe('parseCreateAppointmentRequest', () => {
     expect(parsed.clarificationQuestions.some((item) => /cuándo|cuando/i.test(item))).toBe(
       true,
     );
+  });
+});
+
+describe('appointment history + clarifications', () => {
+  it('drops clarifications when startsAt and Para are already filled', () => {
+    expect(
+      reconcileAppointmentClarifications({
+        attendeePhone: '5491138617148',
+        startsAt: '2026-09-19T22:00:00.000Z',
+        title: 'Degustación de café con Souvik',
+      }),
+    ).toEqual([]);
+  });
+
+  it('treats LLM phone placeholders as missing Para', () => {
+    expect(normalizeAttendeePhone("Souvik's phone number from WhatsApp contact")).toBeNull();
+    expect(normalizeAttendeePhone('5491138617148')).toBe('5491138617148');
+    expect(normalizeAttendeePhone('+54 9 11 3861-7148')).toBe('5491138617148');
+
+    expect(
+      reconcileAppointmentClarifications({
+        attendeePhone: "Souvik's phone number from WhatsApp contact",
+        startsAt: '2026-09-21T22:00:00.000Z',
+        title: 'Degustación de café con Souvik',
+      }),
+    ).toEqual([expect.stringMatching(/correo|Para|tel[eé]fono/i)]);
+  });
+
+  it('fills schedule and notes from Copi history for ese horario / ese mensaje', () => {
+    const enriched = applyAppointmentContextFromHistory({
+      history: [
+        {
+          body: 'Te propongo enviar este mensaje al cliente por WhatsApp:\n\n«Podemos coordinar la degustación de café para mañana a las 7 de la tarde. ¿Te parece bien?»\n\n¿Lo envío?',
+          role: 'assistant',
+        },
+        {
+          body: 'Listo. Envié al cliente por WhatsApp:\n\n«Podemos coordinar la degustación de café para mañana a las 7 de la tarde. ¿Te parece bien?»',
+          role: 'assistant',
+        },
+      ],
+      payload: {
+        attendeePhone: null,
+        clarificationQuestions: [
+          '¿Para cuándo agendo «Ese horario conmigo en nuestra . agrega ese»?',
+          '¿Cuál es el correo o teléfono de la persona (Para)…?',
+        ],
+        notes: null,
+        question: 'Agenda un turno para ese horario conmigo. Agrega ese mensaje en notas',
+        startsAt: '2023-10-06T19:00:00',
+        title: 'Ese horario conmigo en nuestra . agrega ese',
+      },
+      question: 'Agenda un turno para ese horario conmigo. Agrega ese mensaje en notas',
+      timezone: 'America/Argentina/Cordoba',
+    });
+
+    expect(String(enriched.notes)).toMatch(/degustación de café para mañana a las 7/i);
+    expect(enriched.startsAt).toBeTruthy();
+    expect(new Date(String(enriched.startsAt)).getFullYear()).toBeGreaterThanOrEqual(2026);
+    expect(String(enriched.title)).toMatch(/degust/i);
+    expect(enriched.clarificationQuestions).toEqual([
+      expect.stringMatching(/correo|Para|tel[eé]fono/i),
+    ]);
   });
 });
