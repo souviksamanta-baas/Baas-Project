@@ -80,6 +80,16 @@ function createOrchestrator(): {
     copi_vision: true,
     copi_voice: true,
   });
+  vi.spyOn(policyService, 'loadOrganizationFeatureFlags').mockResolvedValue({
+    appointments: true,
+    billing_cash: true,
+    billing_quotes: true,
+    commerce_inventory: true,
+    commerce_lots: true,
+    copi_enabled: true,
+    inbox: true,
+    tasks: true,
+  });
 
   const sessionService = {
     appendMessage: vi.fn(async () => undefined),

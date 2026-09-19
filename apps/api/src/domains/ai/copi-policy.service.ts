@@ -14,21 +14,42 @@ export class CopiPolicyService {
   constructor(private readonly supabaseService: SupabaseService) {}
 
   async loadFeatureFlags(organizationId: string): Promise<CopiFeatureFlags> {
+    const orgFlags = await this.loadOrganizationFeatureFlags(organizationId);
+    return {
+      ...DEFAULT_COPI_FEATURE_FLAGS,
+      copi_basic_reports: Boolean(orgFlags.copi_basic_reports ?? true),
+      copi_custom_reports: Boolean(orgFlags.copi_custom_reports ?? true),
+      copi_enabled: Boolean(orgFlags.copi_enabled ?? true),
+      copi_freeform_questions: Boolean(orgFlags.copi_freeform_questions ?? true),
+      copi_pro_agent: Boolean(orgFlags.copi_pro_agent ?? true),
+      copi_vision: Boolean(orgFlags.copi_vision ?? true),
+      copi_voice: Boolean(orgFlags.copi_voice ?? true),
+    };
+  }
+
+  /** Full product module flags for the org (appointments, inventory, caja, etc.). */
+  async loadOrganizationFeatureFlags(
+    organizationId: string,
+  ): Promise<Record<string, boolean>> {
     const client = this.supabaseService.getServiceRoleClient();
     const { data, error } = await client
       .from('organizations')
       .select('feature_flags')
       .eq('id', organizationId)
-      .single<{ feature_flags: Partial<CopiFeatureFlags> | null }>();
+      .single<{ feature_flags: Record<string, unknown> | null }>();
 
     if (error) {
-      throw new Error(`Failed to load Copi feature flags: ${error.message}`);
+      throw new Error(`Failed to load organization feature flags: ${error.message}`);
     }
 
-    return {
-      ...DEFAULT_COPI_FEATURE_FLAGS,
-      ...(data.feature_flags ?? {}),
-    };
+    const raw = data.feature_flags ?? {};
+    const flags: Record<string, boolean> = {};
+    for (const [key, value] of Object.entries(raw)) {
+      if (typeof value === 'boolean') {
+        flags[key] = value;
+      }
+    }
+    return flags;
   }
 
   assertCopiEnabled(flags: CopiFeatureFlags): CopiPolicyDecision {

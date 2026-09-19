@@ -842,6 +842,11 @@ export function ConversationDetailScreen(props: {
                 onLongPress={() => props.onMessageLongPress?.(message)}
                 onPressReactionChip={() => props.onMessageLongPress?.(message)}
                 reactions={message.reactions}
+                senderLabel={message.senderLabel}
+                source={
+                  message.source ??
+                  (message.direction === 'outbound' ? 'owner' : undefined)
+                }
                 text={messageBubbleText(message)}
                 time={messageBubbleTime(message)}
               />

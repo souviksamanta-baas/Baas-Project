@@ -108,6 +108,8 @@ export class WhatsAppMessagingService {
       replyToExternalMessageId = replyTarget?.externalMessageId ?? null;
     }
 
+    const sender = await this.resolveUiSender(params.authorizationHeader);
+
     return this.outboundMessageService.sendTextMessage({
       body,
       businessCenterId: conversation.business_center_id,
@@ -116,6 +118,7 @@ export class WhatsAppMessagingService {
       recipientPhone: conversation.external_contact_id,
       replyToExternalMessageId,
       replyToMessageId: params.replyToMessageId ?? null,
+      uiSender: sender,
     });
   }
 
@@ -137,6 +140,8 @@ export class WhatsAppMessagingService {
       organizationId: params.organizationId,
     });
 
+    const sender = await this.resolveUiSender(params.authorizationHeader);
+
     return this.outboundMessageService.sendImageMessage({
       body: params.body,
       businessCenterId: conversation.business_center_id,
@@ -145,6 +150,7 @@ export class WhatsAppMessagingService {
       mimeType: params.mimeType,
       organizationId: conversation.organization_id,
       recipientPhone: conversation.external_contact_id,
+      uiSender: sender,
     });
   }
 
@@ -166,6 +172,8 @@ export class WhatsAppMessagingService {
       organizationId: params.organizationId,
     });
 
+    const sender = await this.resolveUiSender(params.authorizationHeader);
+
     return this.outboundMessageService.sendAudioMessage({
       audioBase64: params.audioBase64,
       businessCenterId: conversation.business_center_id,
@@ -174,6 +182,7 @@ export class WhatsAppMessagingService {
       mimeType: params.mimeType,
       organizationId: conversation.organization_id,
       recipientPhone: conversation.external_contact_id,
+      uiSender: sender,
     });
   }
 
@@ -320,7 +329,14 @@ export class WhatsAppMessagingService {
     authorizationHeader: string | undefined;
     organizationId: string;
   }): Promise<void> {
-    const token = params.authorizationHeader?.replace(/^Bearer\s+/i, '').trim();
+    await this.resolveUiSender(params.authorizationHeader, params.organizationId);
+  }
+
+  private async resolveUiSender(
+    authorizationHeader: string | undefined,
+    organizationId?: string,
+  ): Promise<{ kind: 'owner'; label: string }> {
+    const token = authorizationHeader?.replace(/^Bearer\s+/i, '').trim();
 
     if (!token) {
       throw new Error('Missing bearer token');
@@ -333,15 +349,31 @@ export class WhatsAppMessagingService {
       throw new Error('Invalid bearer token');
     }
 
-    const { data, error } = await client
-      .from('organization_members')
-      .select('role')
-      .eq('organization_id', params.organizationId)
-      .eq('user_id', userData.user.id)
-      .single<MembershipRow>();
+    if (organizationId) {
+      const { data, error } = await client
+        .from('organization_members')
+        .select('role')
+        .eq('organization_id', organizationId)
+        .eq('user_id', userData.user.id)
+        .single<MembershipRow>();
 
-    if (error || !data) {
-      throw new Error('User is not a member of this organization');
+      if (error || !data) {
+        throw new Error('User is not a member of this organization');
+      }
     }
+
+    const metadata = userData.user.user_metadata as
+      | { full_name?: unknown; preferred_name?: unknown }
+      | null
+      | undefined;
+    const preferred =
+      typeof metadata?.preferred_name === 'string' ? metadata.preferred_name.trim() : '';
+    const fullName = typeof metadata?.full_name === 'string' ? metadata.full_name.trim() : '';
+    const firstName = (preferred || fullName).split(/\s+/)[0]?.trim() || '';
+
+    return {
+      kind: 'owner',
+      label: firstName || 'Tienda',
+    };
   }
 }

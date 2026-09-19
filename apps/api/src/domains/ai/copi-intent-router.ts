@@ -380,6 +380,9 @@ export function isCustomerReplyFollowUp(
   if (wantsExplicitCreateTask(question)) {
     return false;
   }
+  if (isInboxCustomerReplyDraftRequest(question)) {
+    return true;
+  }
   if (lastAssistantProposedCustomerReply(history)) {
     return true;
   }
@@ -388,6 +391,21 @@ export function isCustomerReplyFollowUp(
     /\b(reform[aá]|reformul|correg[ií]|cambiá|cambia|agreg[aá]|agrega|inclu[ií]|incluye)\b/.test(
       normalized,
     ) && /\b(respuesta|mensaje|whatsapp|texto|envio|propuesta)\b/.test(normalized)
+  );
+}
+
+/**
+ * Inbox / Asignar-a-Copi style prompts that ask Copi to draft a customer WhatsApp reply.
+ * These must never be treated as confirmation of a pending send.
+ */
+export function isInboxCustomerReplyDraftRequest(question: string): boolean {
+  const normalized = normalizeCopiQuestion(question);
+  return (
+    /\brespond[eé]\s+al\s+cliente\b/.test(normalized) ||
+    /\brespond[eé]\s+por\s+whatsapp\b/.test(normalized) ||
+    /\bmensaje\s+seleccionado\b/.test(normalized) ||
+    /\bmensaje\s+del\s+cliente\b/.test(normalized) ||
+    /\binstrucciones\s+del\s+dueño\b/.test(normalized)
   );
 }
 

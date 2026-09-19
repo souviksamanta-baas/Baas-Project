@@ -1,13 +1,14 @@
 import { Injectable } from '@nestjs/common';
 
 import { SupabaseService } from '../../supabase/supabase.service';
-import type { CopiActionType, OwnerCopilotResponse } from './copi.types';
+import type { CopiActionType, CopiToolName, CopiToolResult, OwnerCopilotResponse } from './copi.types';
 import { CopiActionService, extractSpanishQuotedReply, inferCopiActionType } from './copi-action.service';
 import {
   detectProActionIntent,
   isCopiActionAffirmative,
   isCopiActionNegative,
   isCustomerReplyFollowUp,
+  isInboxCustomerReplyDraftRequest,
   isUnclearCopiQuestion,
   unclearCopiReply,
   wantsExplicitCreateTask,
@@ -19,6 +20,12 @@ import {
   CopiLlmTurnPlannerService,
   type CopiTurnPlan,
 } from './copi-llm-turn-planner.service';
+import { applyCustomerReplyGreeting } from './copi-customer-greeting';
+import {
+  buildCustomerReplyCapabilitiesPrompt,
+  filterToolsByOrgFlags,
+  isOrgFlagEnabled,
+} from './copi-org-capabilities';
 import { CopiPolicyService } from './copi-policy.service';
 import { formatCopiPresupuestoLink } from './copi-product-link.util';
 import { CopiSessionService } from './copi-session.service';
@@ -412,6 +419,49 @@ export class CopiOrchestratorService {
       if (!pending) {
         return null;
       }
+
+      // Hard gate: never send WhatsApp (or confirm any pending) unless the owner
+      // clearly affirmed. Inbox "Respondé al cliente…" must re-draft, not send.
+      if (!isCopiActionAffirmative(reasoningQuestion)) {
+        if (
+          pending.actionType === 'propose_customer_reply' &&
+          (isInboxCustomerReplyDraftRequest(reasoningQuestion) ||
+            isCustomerReplyFollowUp(reasoningQuestion, context.conversationHistory))
+        ) {
+          return this.runCustomerReplyDraft({
+            context,
+            memberUserId,
+            organizationId,
+            reasoningQuestion,
+            sessionId,
+            startedAt,
+            useLlm,
+            toolArgs: plan.toolArgs,
+          });
+        }
+
+        const answer =
+          pending.actionType === 'propose_customer_reply'
+            ? 'Todavía no envié nada al cliente. ¿Confirmás el envío? Respondeme sí o no.'
+            : `Todavía no ejecuté la acción pendiente (${pending.summary}). ¿La confirmo? Respondeme sí o no.`;
+        await this.persistAssistantMessage(organizationId, sessionId, answer, []);
+        return {
+          answer,
+          policyDecision: 'allowed',
+          proposedAction: {
+            actionType: pending.actionType,
+            id: pending.id,
+            payload: {},
+            summary: pending.summary,
+          },
+          responseTimeMs: Date.now() - startedAt,
+          sessionId,
+          tier: 'pro',
+          tokenUsage: this.policyService.emptyUsage(),
+          tools: [],
+        };
+      }
+
       const executed = await this.actionService.confirmAction({
         actionId: pending.id,
         businessCenterId,
@@ -640,35 +690,84 @@ export class CopiOrchestratorService {
     toolArgs?: CopiTurnPlan['toolArgs'];
     useLlm: boolean;
   }): Promise<OwnerCopilotResponse | null> {
-    const customerReplyTools = ['conversation_thread', 'find_product'] as const;
+    const orgFlags = await this.policyService.loadOrganizationFeatureFlags(params.organizationId);
+    const capabilitiesPrompt = buildCustomerReplyCapabilitiesPrompt(orgFlags);
     const toolContext = enrichContextWithToolArgs(params.context, params.toolArgs);
-    let toolResults = await this.toolRegistry.executeTools(toolContext, [...customerReplyTools]);
 
+    // Always load the thread first so intent routing can see the customer message.
+    let toolResults = await this.toolRegistry.executeTools(toolContext, ['conversation_thread']);
     const thread = toolResults.find((result) => result.key === 'conversation_thread');
+    const lastInbound = thread?.payload
+      ? extractLastInboundFromThreadPayload(thread.payload)
+      : null;
+    const selectionQuestion = lastInbound
+      ? `${params.reasoningQuestion}\n\nMensaje del cliente: ${lastInbound}`
+      : params.reasoningQuestion;
+
+    const selected = await this.toolSelectorService.selectTools({
+      enabled: params.useLlm,
+      history: params.context.conversationHistory,
+      organizationId: params.organizationId,
+      question: selectionQuestion,
+    });
+
+    const selectedTools: CopiToolName[] = filterToolsByOrgFlags(selected.tools, orgFlags).filter(
+      (tool) => tool !== 'conversation_thread',
+    );
+    // Inventory lookup stays a default when commerce is on — product asks are common in WA.
+    if (
+      isOrgFlagEnabled(orgFlags, 'commerce_inventory') &&
+      !selectedTools.includes('find_product')
+    ) {
+      selectedTools.push('find_product');
+    }
+
+    const toolsUsed: CopiToolName[] = ['conversation_thread', ...selectedTools];
+    if (selectedTools.length > 0) {
+      const enrichedContext = {
+        ...toolContext,
+        question: selectionQuestion,
+      };
+      const extraResults = await this.toolRegistry.executeTools(enrichedContext, selectedTools);
+      toolResults = [...toolResults, ...extraResults];
+    }
+
     const findProduct = toolResults.find((result) => result.key === 'find_product');
     const products = Array.isArray(findProduct?.payload?.products)
       ? findProduct.payload.products
       : [];
-    if (products.length === 0 && thread?.payload) {
-      const lastInbound = extractLastInboundFromThreadPayload(thread.payload);
-      if (lastInbound) {
-        const enrichedContext = {
+    if (
+      products.length === 0 &&
+      lastInbound &&
+      isOrgFlagEnabled(orgFlags, 'commerce_inventory') &&
+      toolsUsed.includes('find_product')
+    ) {
+      const productOnly = await this.toolRegistry.executeTools(
+        {
           ...toolContext,
           question: `${params.reasoningQuestion}\n\nMensaje del cliente: ${lastInbound}`,
-        };
-        const productOnly = await this.toolRegistry.executeTools(enrichedContext, ['find_product']);
-        toolResults = [
-          ...toolResults.filter((result) => result.key !== 'find_product'),
-          ...productOnly,
-        ];
-      }
+        },
+        ['find_product'],
+      );
+      toolResults = [
+        ...toolResults.filter((result) => result.key !== 'find_product'),
+        ...productOnly,
+      ];
     }
 
     const drafted = await this.phraserService.phraseCustomerWhatsAppReply({
+      capabilitiesPrompt,
       enabled: params.useLlm,
       organizationId: params.organizationId,
       question: params.reasoningQuestion,
       tier: 'pro',
+      toolResults,
+    });
+
+    const body = await this.personalizeCustomerReplyBody({
+      draftedBody: drafted.body,
+      organizationId: params.organizationId,
+      timeZone: params.context.timezone,
       toolResults,
     });
 
@@ -685,7 +784,6 @@ export class CopiOrchestratorService {
       return null;
     }
 
-    const body = drafted.body.trim();
     if (body) {
       proposedAction = {
         ...proposedAction,
@@ -702,9 +800,7 @@ export class CopiOrchestratorService {
     const answer = body
       ? `Te propongo enviar este mensaje al cliente por WhatsApp:\n\n«${body}»\n\n¿Lo envío? Respondeme sí o no.`
       : `${proposedAction.summary}.\n\n¿Lo hago? Respondeme sí o no.`;
-    await this.persistAssistantMessage(params.organizationId, params.sessionId, answer, [
-      ...customerReplyTools,
-    ]);
+    await this.persistAssistantMessage(params.organizationId, params.sessionId, answer, toolsUsed);
     return {
       answer,
       policyDecision: 'allowed',
@@ -713,8 +809,78 @@ export class CopiOrchestratorService {
       sessionId: params.sessionId,
       tier: 'pro',
       tokenUsage: drafted.tokenUsage,
-      tools: [...customerReplyTools],
+      tools: toolsUsed,
     };
+  }
+
+  private async personalizeCustomerReplyBody(params: {
+    draftedBody: string;
+    organizationId: string;
+    timeZone: string;
+    toolResults: CopiToolResult[];
+  }): Promise<string> {
+    const thread = params.toolResults.find((result) => result.key === 'conversation_thread');
+    const conversationId =
+      typeof thread?.payload?.conversationId === 'string'
+        ? thread.payload.conversationId
+        : null;
+    const messages = Array.isArray(thread?.payload?.messages)
+      ? (thread?.payload?.messages as Array<{ createdAt?: string; direction?: string }>)
+      : [];
+    const outboundCreatedAts = messages
+      .filter((message) => message.direction === 'outbound')
+      .map((message) => message.createdAt ?? null);
+
+    let customerDisplayName: string | null =
+      typeof thread?.payload?.customerDisplayName === 'string'
+        ? thread.payload.customerDisplayName
+        : null;
+
+    if (conversationId && (!customerDisplayName || outboundCreatedAts.length === 0)) {
+      const client = this.supabaseService.getServiceRoleClient();
+      const [{ data: conversation }, { data: recentOutbound }] = await Promise.all([
+        customerDisplayName
+          ? Promise.resolve({ data: null })
+          : client
+              .from('conversations')
+              .select('customer_display_name, contacts(display_name)')
+              .eq('id', conversationId)
+              .eq('organization_id', params.organizationId)
+              .maybeSingle<{
+                contacts: { display_name: string | null } | { display_name: string | null }[] | null;
+                customer_display_name: string | null;
+              }>(),
+        client
+          .from('conversation_messages')
+          .select('created_at')
+          .eq('organization_id', params.organizationId)
+          .eq('conversation_id', conversationId)
+          .eq('direction', 'outbound')
+          .gte('created_at', new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString())
+          .order('created_at', { ascending: false })
+          .limit(20),
+      ]);
+
+      if (!customerDisplayName && conversation) {
+        const contact = Array.isArray(conversation.contacts)
+          ? conversation.contacts[0]
+          : conversation.contacts;
+        customerDisplayName =
+          contact?.display_name?.trim() || conversation.customer_display_name?.trim() || null;
+      }
+      if (Array.isArray(recentOutbound) && recentOutbound.length > 0) {
+        for (const row of recentOutbound) {
+          outboundCreatedAts.push((row as { created_at: string }).created_at);
+        }
+      }
+    }
+
+    return applyCustomerReplyGreeting({
+      body: params.draftedBody,
+      customerDisplayName,
+      outboundCreatedAts,
+      timeZone: params.timeZone,
+    });
   }
 
   private async persistAssistantMessage(

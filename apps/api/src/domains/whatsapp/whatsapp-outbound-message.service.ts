@@ -32,6 +32,11 @@ export interface SendWhatsAppTextMessageParams {
   recipientPhone: string;
   replyToExternalMessageId?: string | null;
   replyToMessageId?: string | null;
+  /** Owner-app only label (never sent to Meta/WhatsApp). */
+  uiSender?: {
+    kind: 'copi' | 'owner';
+    label?: string | null;
+  } | null;
 }
 
 export interface SendWhatsAppTextMessageResult {
@@ -47,6 +52,10 @@ export interface SendWhatsAppImageMessageParams {
   mimeType?: string | null;
   organizationId: string;
   recipientPhone: string;
+  uiSender?: {
+    kind: 'copi' | 'owner';
+    label?: string | null;
+  } | null;
 }
 
 export interface SendWhatsAppAudioMessageParams {
@@ -57,6 +66,10 @@ export interface SendWhatsAppAudioMessageParams {
   mimeType?: string | null;
   organizationId: string;
   recipientPhone: string;
+  uiSender?: {
+    kind: 'copi' | 'owner';
+    label?: string | null;
+  } | null;
 }
 
 export interface EditWhatsAppMessageParams {
@@ -136,6 +149,7 @@ export class WhatsAppOutboundMessageService {
         senderPhone: config.display_phone_number,
         sentAt,
         status: 'failed',
+        uiSender: params.uiSender ?? null,
         whatsappConfigId: config.id,
       });
 
@@ -164,6 +178,7 @@ export class WhatsAppOutboundMessageService {
       senderPhone: config.display_phone_number,
       sentAt,
       status: 'sent',
+      uiSender: params.uiSender ?? { kind: 'owner', label: null },
       whatsappConfigId: config.id,
     });
 
@@ -221,6 +236,7 @@ export class WhatsAppOutboundMessageService {
         senderPhone: config.display_phone_number,
         sentAt,
         status: 'failed',
+        uiSender: params.uiSender ?? { kind: 'owner', label: null },
         whatsappConfigId: config.id,
       });
       throw error instanceof Error ? error : new Error(errorMessage);
@@ -268,6 +284,7 @@ export class WhatsAppOutboundMessageService {
         senderPhone: config.display_phone_number,
         sentAt,
         status: 'failed',
+        uiSender: params.uiSender ?? { kind: 'owner', label: null },
         whatsappConfigId: config.id,
       });
 
@@ -288,6 +305,7 @@ export class WhatsAppOutboundMessageService {
       senderPhone: config.display_phone_number,
       sentAt,
       status: 'sent',
+      uiSender: params.uiSender ?? { kind: 'owner', label: null },
       whatsappConfigId: config.id,
     });
 
@@ -346,6 +364,7 @@ export class WhatsAppOutboundMessageService {
         senderPhone: config.display_phone_number,
         sentAt,
         status: 'failed',
+        uiSender: params.uiSender ?? { kind: 'owner', label: null },
         whatsappConfigId: config.id,
       });
       throw error instanceof Error ? error : new Error(errorMessage);
@@ -393,6 +412,7 @@ export class WhatsAppOutboundMessageService {
         senderPhone: config.display_phone_number,
         sentAt,
         status: 'failed',
+        uiSender: params.uiSender ?? { kind: 'owner', label: null },
         whatsappConfigId: config.id,
       });
 
@@ -414,6 +434,7 @@ export class WhatsAppOutboundMessageService {
       senderPhone: config.display_phone_number,
       sentAt,
       status: 'sent',
+      uiSender: params.uiSender ?? { kind: 'owner', label: null },
       whatsappConfigId: config.id,
     });
 

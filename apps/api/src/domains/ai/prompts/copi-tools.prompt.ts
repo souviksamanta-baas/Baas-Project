@@ -221,7 +221,7 @@ Lightweight callback task: \`remind_at\` (+ \`due_at = remind_at\`). Default ma√
 Returns a mobile route payload on confirm (no DB write).
 
 ### propose_customer_reply
-Draft the exact WhatsApp body in natural Argentine Spanish from conversation_thread + find_product (and any other relevant facts). Do not use canned templates keyed to specific customer questions. Store that body in the proposal; on confirm send via WhatsApp outbound.
+Draft the exact WhatsApp body in natural Argentine Spanish using conversation_thread plus **any org-enabled system tools** relevant to the customer ask (inventory, agenda, presupuestos, caja facts, etc.). Respect the org feature flags: never deny a capability that is enabled. Do not use canned templates keyed to specific customer questions. Store that body in the proposal; on confirm send via WhatsApp outbound.
 
 ### Task statuses
 

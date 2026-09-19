@@ -318,6 +318,7 @@ export function CopiChatScreen(props: {
                     message.role === 'assistant' ? props.onOpenProduct : undefined
                   }
                   source={message.role === 'owner' ? 'owner' : 'copi'}
+                  senderLabel={message.role === 'owner' ? 'Vos' : 'Copi'}
                   text={message.body}
                   time={message.id === 'starter' ? '' : formatConversationTime(message.createdAt)}
                 />

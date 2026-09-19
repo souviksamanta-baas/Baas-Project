@@ -17,6 +17,7 @@ interface ConversationMessageRow {
   media_url: string | null;
   message_status: string;
   message_type: string | null;
+  metadata?: Record<string, unknown> | null;
   owner_hidden_at?: string | null;
   recipient_phone: string | null;
   reply_to_message_id?: string | null;
@@ -153,7 +154,7 @@ async function getLatestMessagesForConversations(
 
   const { data, error } = await supabase
     .from('conversation_messages')
-    .select('id, conversation_id, direction, body, message_type, message_status, media_url, media_storage_path, media_mime_type, sender_phone, recipient_phone, created_at')
+    .select('id, conversation_id, direction, body, message_type, message_status, media_url, media_storage_path, media_mime_type, sender_phone, recipient_phone, created_at, metadata')
     .eq('organization_id', organizationId)
     .eq('business_center_id', businessCenterId)
     .in('conversation_id', conversationIds)
@@ -180,7 +181,7 @@ export async function getRecentConversationMessages(
 ): Promise<WhatsAppMessagePreview[]> {
   const { data, error } = await supabase
     .from('conversation_messages')
-    .select('id, conversation_id, direction, body, message_type, message_status, media_url, media_storage_path, media_mime_type, sender_phone, recipient_phone, created_at')
+    .select('id, conversation_id, direction, body, message_type, message_status, media_url, media_storage_path, media_mime_type, sender_phone, recipient_phone, created_at, metadata')
     .eq('organization_id', organizationId)
     .eq('business_center_id', businessCenterId)
     .order('created_at', { ascending: false })
@@ -200,7 +201,7 @@ export async function getConversationMessages(
   let query = supabase
     .from('conversation_messages')
     .select(
-      'id, conversation_id, direction, body, message_type, message_status, media_url, media_storage_path, media_mime_type, media_duration_ms, sender_phone, recipient_phone, created_at, edited_at, reply_to_message_id, link_preview, owner_hidden_at',
+      'id, conversation_id, direction, body, message_type, message_status, media_url, media_storage_path, media_mime_type, media_duration_ms, sender_phone, recipient_phone, created_at, edited_at, reply_to_message_id, link_preview, owner_hidden_at, metadata',
     )
     .eq('conversation_id', conversationId)
     .is('owner_hidden_at', null)
@@ -391,6 +392,18 @@ export function subscribeToInboxChanges(
 
 function toWhatsAppMessagePreview(row: ConversationMessageRow): WhatsAppMessagePreview {
   const preview = row.link_preview ?? null;
+  const metadata = row.metadata && typeof row.metadata === 'object' ? row.metadata : null;
+  const senderKind =
+    metadata && typeof metadata.nexolia_sender_kind === 'string'
+      ? metadata.nexolia_sender_kind
+      : null;
+  const senderLabel =
+    metadata && typeof metadata.nexolia_sender_label === 'string'
+      ? metadata.nexolia_sender_label.trim()
+      : null;
+  const source =
+    senderKind === 'copi' ? 'copi' : row.direction === 'outbound' ? 'owner' : null;
+
   return {
     conversationId: row.conversation_id,
     id: row.id,
@@ -417,7 +430,9 @@ function toWhatsAppMessagePreview(row: ConversationMessageRow): WhatsAppMessageP
     reactions: [],
     recipientPhone: row.recipient_phone,
     replyToMessageId: row.reply_to_message_id ?? null,
+    senderLabel: senderLabel || (source === 'copi' ? 'Copi' : source === 'owner' ? 'Tienda' : null),
     senderPhone: row.sender_phone,
+    source,
   };
 }
 

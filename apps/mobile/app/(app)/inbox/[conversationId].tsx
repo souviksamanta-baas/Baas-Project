@@ -335,28 +335,16 @@ export default function ConversationDetailRoute(): ReactElement {
         }
         await assignConversationToCopi({ conversationId, userId });
 
-        const dayStart = new Date();
-        dayStart.setHours(0, 0, 0, 0);
-        const sameDayMessages = thread.messages.filter((item) => {
-          const createdAt = Date.parse(item.createdAt);
-          return Number.isFinite(createdAt) && createdAt >= dayStart.getTime();
-        });
-        const transcriptSource =
-          sameDayMessages.length > 0 ? sameDayMessages : thread.messages.slice(-20);
-        const transcript = transcriptSource
-          .map((item) => {
-            const who = item.direction === 'inbound' ? 'Cliente' : 'Negocio';
-            const body = (item.body ?? '').trim() || '[media]';
-            return `${who}: ${body}`;
-          })
-          .join('\n');
-
+        const clientBody = (message.body ?? '').trim() || '(sin texto / media)';
+        // Keep this short and owner-readable in Copi chat. Thread context is loaded
+        // by conversation_thread via the chat UUID — no need to dump the transcript.
         const seedQuestion = [
           `Respondé al cliente por WhatsApp en este chat ${conversationId}.`,
           `Contacto: ${resolvedCustomerName}. Canal: ${conversation.channel}.`,
-          `Mensaje seleccionado: ${message.body ?? '(sin texto / media)'}`,
-          'Usá estos mensajes del mismo día (o los más recientes) como contexto del hilo:',
-          transcript || '(sin mensajes)',
+          '',
+          'Mensaje del cliente:',
+          `«${clientBody}»`,
+          '',
           'Proponé el texto exacto a enviar en español. No envíes nada hasta que confirme.',
         ].join('\n');
 
@@ -371,7 +359,7 @@ export default function ConversationDetailRoute(): ReactElement {
         );
       }
     },
-    [conversation, conversationId, resolvedCustomerName, router, thread.messages],
+    [conversation, conversationId, resolvedCustomerName, router],
   );
 
   const handleMenuAction = useCallback(

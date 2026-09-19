@@ -246,6 +246,10 @@ export class SalesAiService {
         businessCenterId: draft.business_center_id,
         organizationId: draft.organization_id,
         recipientPhone: conversation.external_contact_id,
+        uiSender: {
+          kind: 'copi',
+          label: 'Copi',
+        },
       });
       await this.updateDraft(params.draftId, {
         sent_at: new Date().toISOString(),
@@ -327,6 +331,10 @@ export class SalesAiService {
         businessCenterId: draft.business_center_id,
         organizationId: draft.organization_id,
         recipientPhone: conversation.external_contact_id,
+        uiSender: {
+          kind: 'copi',
+          label: 'Copi',
+        },
       });
       await this.updateDraft(draft.id, {
         sent_at: new Date().toISOString(),

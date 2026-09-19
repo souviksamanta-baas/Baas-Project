@@ -183,9 +183,10 @@ export class CopiLlmPhraserService {
 
   /**
    * Drafts the exact WhatsApp text to send to a customer (Argentine Spanish),
-   * using conversation + inventory tool facts. Returns only the message body.
+   * using conversation + org-enabled system tools/capabilities. Returns only the message body.
    */
   async phraseCustomerWhatsAppReply(params: {
+    capabilitiesPrompt: string;
     enabled: boolean;
     organizationId: string;
     question: string;
@@ -217,7 +218,9 @@ export class CopiLlmPhraserService {
       })),
     });
 
-    const estimatedInput = this.policyService.estimateTokens(inputText);
+    const estimatedInput = this.policyService.estimateTokens(
+      `${params.capabilitiesPrompt}\n${inputText}`,
+    );
     const budgetDecision = this.policyService.enforceTokenBudget({
       estimatedInputTokens: estimatedInput,
       estimatedOutputTokens: 400,
@@ -236,11 +239,15 @@ export class CopiLlmPhraserService {
               content: [
                 'Sos Copi. Redactás el mensaje EXACTO que el negocio enviará al cliente por WhatsApp.',
                 'Idioma: español rioplatense (Argentina). Natural, claro, breve.',
-                'Usá SOLO hechos de toolResults (hilo del chat + productos/stock/precios). No inventes stock ni precios.',
+                params.capabilitiesPrompt,
+                'Usá hechos de toolResults (hilo, productos, agenda, presupuestos, etc.). No inventes stock, precios ni disponibilidad.',
                 'Si hay productos relevantes, mencionalos con stock y precio cuando estén en toolResults.',
-                'Si no hay match de productos, pedí una aclaración amable sin inventar catálogo.',
+                'Si el cliente pide un turno/cita/degustación y la agenda está habilitada, ofrecé coordinarlo y pedí día/horario (nunca digas que no hay sistema de turnos).',
+                'Si pide presupuesto y está habilitado, ofrecé armarlo y pedí lo que falte.',
+                'Si no hay match de productos cuando corresponde, pedí una aclaración amable sin inventar catálogo.',
+                'NO empieces con saludo (Hola / Buenos días / Buenas tardes / Buenas noches): el sistema puede anteponer uno.',
                 'NO escribas para el dueño. NO digas “te propongo” ni “¿confirmo?” ni “¿lo envío?”.',
-                'NO ofrezcas crear tareas, presupuestos ni otras acciones internas.',
+                'NO digas al cliente que ya creaste turnos, tareas o presupuestos internos.',
                 'NO uses markdown de productos [[product:...]].',
                 'Devolvé ÚNICAMENTE el texto del mensaje al cliente, sin comillas envolventes ni prefijos.',
               ].join('\n'),
@@ -313,10 +320,24 @@ function fallbackCustomerWhatsAppReply(toolResults: CopiToolResult[]): string {
           : '';
       return `• ${name} — ${stock}${price ? ` — ${price}` : ''}`;
     });
-    return ['¡Hola! Según nuestro stock:', ...lines, '¿Te interesa alguno?'].join('\n');
+    return ['Según nuestro stock:', ...lines, '¿Te interesa alguno?'].join('\n');
   }
 
-  return '¡Hola! Gracias por tu mensaje. Enseguida te paso la información que pediste.';
+  const appointments = toolResults.find(
+    (result) => result.key === 'appointments_today' || result.key === 'appointments_upcoming',
+  );
+  if (appointments && appointments.payload.enabled !== false) {
+    return 'Claro, podemos coordinar un turno. ¿Qué día y horario te viene bien?';
+  }
+
+  const presupuestos = toolResults.find(
+    (result) => result.key === 'list_presupuestos' || result.key === 'analyze_presupuesto',
+  );
+  if (presupuestos) {
+    return 'Dale, te armo un presupuesto. Decime qué productos o cantidades necesitás.';
+  }
+
+  return 'Gracias por tu mensaje. Enseguida te paso la información que pediste.';
 }
 
 function sessionAlreadyGreeted(

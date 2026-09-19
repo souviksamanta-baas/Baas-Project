@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert } from 'react-native';
 
 import {
@@ -64,6 +64,7 @@ export function useOwnerCopilot(params: {
   const [messages, setMessages] = useState<CopilotMessage[]>([starterMessage]);
   const [policyMessage, setPolicyMessage] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const askInFlightRef = useRef(false);
 
   const applyHistory = useCallback(
     (nextSessionId: string | null, history: ReturnType<typeof mapHistoryMessages>) => {
@@ -90,6 +91,10 @@ export function useOwnerCopilot(params: {
         businessCenterId: params.businessCenterId,
         organizationId: params.organizationId,
       });
+      // Don't wipe an in-flight assign/ask — that hid the owner bubble in Copi chat.
+      if (askInFlightRef.current) {
+        return;
+      }
       applyHistory(active.sessionId, mapHistoryMessages(active.messages));
     } catch {
       // Keep local state if resume fails (offline / transient).
@@ -169,6 +174,7 @@ export function useOwnerCopilot(params: {
       }
 
       const askedAt = new Date().toISOString();
+      askInFlightRef.current = true;
       setMessages((currentMessages) => [
         ...currentMessages,
         {
@@ -209,15 +215,27 @@ export function useOwnerCopilot(params: {
             role: 'assistant',
           },
         ]);
+
+        // Sync from server so the owner↔Copi exchange persists with real ids.
+        try {
+          const active = await getActiveCopiSession({
+            businessCenterId: params.businessCenterId,
+            organizationId: params.organizationId,
+          });
+          applyHistory(active.sessionId, mapHistoryMessages(active.messages));
+        } catch {
+          // Keep optimistic bubbles if resume fails.
+        }
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Unknown error';
         setErrorMessage(message);
         Alert.alert('Copi no respondió', message);
       } finally {
+        askInFlightRef.current = false;
         setIsAsking(false);
       }
     },
-    [inputValue, params.businessCenterId, params.organizationId, sessionId],
+    [applyHistory, inputValue, params.businessCenterId, params.organizationId, sessionId],
   );
 
   const hasConversationHistory = messages.some((message) => message.id !== 'starter');

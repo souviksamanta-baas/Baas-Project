@@ -610,12 +610,13 @@ export function MessageBubble(props: {
   onPressProduct?: (productId: string) => void;
   onPressReactionChip?: () => void;
   reactions?: Array<{ actor: 'owner' | 'contact'; emoji: string }>;
+  senderLabel?: string | null;
   source?: MessageSource;
   text: string;
   time: string;
 }): ReactElement {
   const outbound = props.direction === 'outbound';
-  const showCopiTag = props.source === 'copi';
+  const showSenderLabel = Boolean(props.senderLabel || props.source);
   const parts = parseCopiRichText(props.text);
   const hasText = Boolean(props.text.trim());
   const isAudio =
@@ -633,7 +634,12 @@ export function MessageBubble(props: {
       style={[styles.messageWrap, outbound && styles.outboundMessageWrap]}
     >
       <View style={[styles.messageBubble, outbound && styles.outboundMessageBubble]}>
-        {showCopiTag ? <MessageSourceBadge source="copi" /> : null}
+        {showSenderLabel ? (
+          <MessageSourceBadge
+            label={props.senderLabel}
+            source={props.source ?? 'owner'}
+          />
+        ) : null}
         {isAudio ? (
           <MessageBubbleAudio
             mediaDurationMs={props.mediaDurationMs}
@@ -795,9 +801,13 @@ function MessageBubbleImage(props: {
   );
 }
 
-function MessageSourceBadge(props: { source: MessageSource }): ReactElement {
+function MessageSourceBadge(props: {
+  label?: string | null;
+  source: MessageSource;
+}): ReactElement {
   const source = messageSourceMeta(props.source);
   const channel = isChannelSource(props.source) ? props.source : null;
+  const label = props.label?.trim() || source.label;
 
   return (
     <View style={[styles.messageSourceBadge, { backgroundColor: source.background }]}>
@@ -806,7 +816,7 @@ function MessageSourceBadge(props: { source: MessageSource }): ReactElement {
       ) : (
         <Icon color={source.color} kind={props.source === 'copi' ? 'bot' : 'store'} size={12} strokeWidth={2} />
       )}
-      <Text style={[styles.messageSourceText, { color: source.color }]}>{source.label}</Text>
+      <Text style={[styles.messageSourceText, { color: source.color }]}>{label}</Text>
     </View>
   );
 }

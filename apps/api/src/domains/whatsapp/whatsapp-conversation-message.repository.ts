@@ -58,6 +58,11 @@ export interface RecordOutboundWhatsAppMessageParams {
   senderPhone: string | null;
   sentAt?: string;
   status: 'pending' | 'sent' | 'failed';
+  /** Owner-app only; never included in Meta Graph payloads. */
+  uiSender?: {
+    kind: 'copi' | 'owner';
+    label?: string | null;
+  } | null;
   whatsappConfigId: string;
 }
 
@@ -268,6 +273,13 @@ export class WhatsAppConversationMessageRepository {
       failed_at: params.status === 'failed' ? sentAt : null,
       error_message: params.errorMessage,
       metadata: {
+        nexolia_sender_kind: params.uiSender?.kind ?? 'owner',
+        nexolia_sender_label:
+          typeof params.uiSender?.label === 'string' && params.uiSender.label.trim()
+            ? params.uiSender.label.trim()
+            : params.uiSender?.kind === 'copi'
+              ? 'Copi'
+              : 'Tienda',
         source: 'whatsapp_cloud_api',
       },
     });

@@ -30,7 +30,10 @@ export interface WhatsAppMessagePreview {
   reactions?: Array<{ actor: 'owner' | 'contact'; emoji: string }>;
   recipientPhone: string | null;
   replyToMessageId?: string | null;
+  /** Owner-app only: who sent this outbound reply (never from WhatsApp). */
+  senderLabel?: string | null;
   senderPhone: string | null;
+  source?: 'copi' | 'owner' | null;
 }
 
 export interface ContactSummary {

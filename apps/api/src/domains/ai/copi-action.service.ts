@@ -21,6 +21,7 @@ import {
   mentionsAppointmentIntent,
   normalizeCopiQuestion,
 } from './copi-intent-router';
+import { applyCustomerReplyGreeting } from './copi-customer-greeting';
 import { SalesAiService } from './sales-ai.service';
 import {
   buildCreateAppointmentPayload,
@@ -1084,6 +1085,10 @@ export class CopiActionService {
           conversationId,
           organizationId: conversation.organization_id,
           recipientPhone: conversation.external_contact_id,
+          uiSender: {
+            kind: 'copi',
+            label: 'Copi',
+          },
         });
         return {
           body: replyBody,
@@ -1395,6 +1400,8 @@ export class CopiActionService {
       return null;
     }
 
+    let draftedBody: string | null = null;
+
     try {
       const draft = await this.salesAiService.generateDraft({
         businessCenterId: params.businessCenterId,
@@ -1403,40 +1410,87 @@ export class CopiActionService {
       });
       const matched = draft.catalogContext?.matchedProducts ?? [];
       if (matched.length > 0) {
-        return formatStockFactsReply(matched);
-      }
-      const drafted = typeof draft.body === 'string' ? draft.body.trim() : '';
-      if (drafted && !looksLikeEnglishCustomerReply(drafted)) {
-        return drafted;
+        draftedBody = formatStockFactsReply(matched);
+      } else {
+        const drafted = typeof draft.body === 'string' ? draft.body.trim() : '';
+        if (drafted && !looksLikeEnglishCustomerReply(drafted)) {
+          draftedBody = drafted;
+        }
       }
     } catch {
       // Fall through to inventory lookup.
     }
 
-    const productQuery = extractCustomerProductQuery(messageBody);
-    if (productQuery) {
-      try {
-        const lookedUp = await this.inventoryService.lookupProducts({
-          businessCenterId: params.businessCenterId,
-          limit: 8,
-          organizationId: params.organizationId,
-          query: productQuery,
-        });
-        if (lookedUp.length > 0) {
-          return formatStockFactsReply(
-            lookedUp.map((product) => ({
-              name: product.name,
-              stockQuantity: product.stockQuantity,
-              unitPriceCents: product.unitPriceCents,
-            })),
-          );
+    if (!draftedBody) {
+      const productQuery = extractCustomerProductQuery(messageBody);
+      if (productQuery) {
+        try {
+          const lookedUp = await this.inventoryService.lookupProducts({
+            businessCenterId: params.businessCenterId,
+            limit: 8,
+            organizationId: params.organizationId,
+            query: productQuery,
+          });
+          if (lookedUp.length > 0) {
+            draftedBody = formatStockFactsReply(
+              lookedUp.map((product) => ({
+                name: product.name,
+                stockQuantity: product.stockQuantity,
+                unitPriceCents: product.unitPriceCents,
+              })),
+            );
+          }
+        } catch {
+          // Fall through.
         }
-      } catch {
-        // Fall through.
       }
     }
 
-    return '¡Hola! Gracias por tu mensaje. Enseguida te paso la información que pediste.';
+    if (!draftedBody) {
+      draftedBody =
+        'Gracias por tu mensaje. Enseguida te paso la información que pediste.';
+    }
+
+    const [{ data: conversation }, { data: recentOutbound }, { data: center }] =
+      await Promise.all([
+        client
+          .from('conversations')
+          .select('customer_display_name, contacts(display_name)')
+          .eq('id', params.conversationId)
+          .eq('organization_id', params.organizationId)
+          .maybeSingle<{
+            contacts: { display_name: string | null } | { display_name: string | null }[] | null;
+            customer_display_name: string | null;
+          }>(),
+        client
+          .from('conversation_messages')
+          .select('created_at')
+          .eq('organization_id', params.organizationId)
+          .eq('conversation_id', params.conversationId)
+          .eq('direction', 'outbound')
+          .gte('created_at', new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString())
+          .limit(20),
+        client
+          .from('business_centers')
+          .select('timezone')
+          .eq('id', params.businessCenterId)
+          .maybeSingle<{ timezone: string | null }>(),
+      ]);
+
+    const contact = Array.isArray(conversation?.contacts)
+      ? conversation?.contacts[0]
+      : conversation?.contacts;
+    const customerDisplayName =
+      contact?.display_name?.trim() || conversation?.customer_display_name?.trim() || null;
+
+    return applyCustomerReplyGreeting({
+      body: draftedBody,
+      customerDisplayName,
+      outboundCreatedAts: (recentOutbound ?? []).map(
+        (row) => (row as { created_at: string }).created_at,
+      ),
+      timeZone: center?.timezone,
+    });
   }
 
   private async resolveProductByName(
@@ -1537,7 +1591,7 @@ function formatStockFactsReply(
     return `• ${product.name} — ${stock} — ${formatArsCents(product.unitPriceCents)}`;
   });
   return [
-    '¡Hola! Según nuestro stock:',
+    'Según nuestro stock:',
     ...lines,
     '¿Te interesa alguno?',
   ].join('\n');

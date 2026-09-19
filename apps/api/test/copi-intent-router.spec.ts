@@ -3,6 +3,9 @@ import { describe, expect, it } from 'vitest';
 import {
   buildGreetingReply,
   detectProActionIntent,
+  isCopiActionAffirmative,
+  isCustomerReplyFollowUp,
+  isInboxCustomerReplyDraftRequest,
   isUnclearCopiQuestion,
   selectCopiTools,
   wantsDetailedSalesList,
@@ -225,5 +228,26 @@ describe('buildGreetingReply', () => {
 
   it('includes the owner name in time-of-day greetings', () => {
     expect(buildGreetingReply('buenas tardes', new Date(), 'Ana')).toBe('¡Buenas tardes, Ana!');
+  });
+});
+
+describe('inbox customer-reply draft vs confirm', () => {
+  const inboxDraft = `Respondé al cliente por WhatsApp en este chat 86b20796-e151-4d19-80a1-7bd84590dcad.
+Contacto: Souvik. Canal: whatsapp.
+Mensaje seleccionado: Me podrías mandar un turno para degustación de ese café?`;
+
+  it('detects inbox draft requests', () => {
+    expect(isInboxCustomerReplyDraftRequest(inboxDraft)).toBe(true);
+    expect(isCustomerReplyFollowUp(inboxDraft)).toBe(true);
+  });
+
+  it('does not treat inbox draft requests as send confirmation', () => {
+    expect(isCopiActionAffirmative(inboxDraft)).toBe(false);
+  });
+
+  it('still treats explicit sí as confirmation', () => {
+    expect(isCopiActionAffirmative('sí')).toBe(true);
+    expect(isCopiActionAffirmative('envialo')).toBe(true);
+    expect(isCopiActionAffirmative('dale')).toBe(true);
   });
 });

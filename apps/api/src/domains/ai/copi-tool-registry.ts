@@ -909,18 +909,37 @@ export class CopiToolRegistry {
     }
 
     const client = this.supabaseService.getServiceRoleClient();
-    const { data, error } = await client
-      .from('conversation_messages')
-      .select('id, body, direction, created_at, sender_phone')
-      .eq('organization_id', context.organizationId)
-      .eq('business_center_id', context.businessCenterId)
-      .eq('conversation_id', conversationId)
-      .order('created_at', { ascending: false })
-      .limit(20);
+    const [{ data, error }, { data: conversationRow }] = await Promise.all([
+      client
+        .from('conversation_messages')
+        .select('id, body, direction, created_at, sender_phone')
+        .eq('organization_id', context.organizationId)
+        .eq('business_center_id', context.businessCenterId)
+        .eq('conversation_id', conversationId)
+        .order('created_at', { ascending: false })
+        .limit(20),
+      client
+        .from('conversations')
+        .select('customer_display_name, contacts(display_name)')
+        .eq('id', conversationId)
+        .eq('organization_id', context.organizationId)
+        .maybeSingle<{
+          contacts: { display_name: string | null } | { display_name: string | null }[] | null;
+          customer_display_name: string | null;
+        }>(),
+    ]);
 
     if (error) {
       throw new Error(`Failed to load conversation thread: ${error.message}`);
     }
+
+    const contact = Array.isArray(conversationRow?.contacts)
+      ? conversationRow?.contacts[0]
+      : conversationRow?.contacts;
+    const customerDisplayName =
+      contact?.display_name?.trim() ||
+      conversationRow?.customer_display_name?.trim() ||
+      null;
 
     const messages = (data ?? []).map((row) => ({
       body: (row as { body: string | null }).body,
@@ -931,7 +950,12 @@ export class CopiToolRegistry {
     }));
 
     return {
-      payload: { conversationId, count: messages.length, messages: messages.reverse() },
+      payload: {
+        conversationId,
+        count: messages.length,
+        customerDisplayName,
+        messages: messages.reverse(),
+      },
       summary:
         messages.length === 0
           ? `Conversación ${conversationId}: sin mensajes recientes.`
