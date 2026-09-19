@@ -203,6 +203,9 @@ Every create requires: **title**, **startsAt** (endsAt defaults to +30 min), and
 **Infer from the owner message** — e.g. "Agendá un turno con María mañana a las 10, correo maria@ejemplo.com" → title ≈ "Con María", starts tomorrow 10:00, attendeeEmail maria@ejemplo.com → **show confirm card** with Para visible in the summary.
 - "asignada a JP" on a create request means the organizer (De), not \`appointment_assign\`.
 - If schedule is missing/ambiguous, clarify (\`¿Para cuándo agendo…?\` / hour).
+- If a day/time word is unclear (typo like "marte", incomplete token), ask what they meant — do **not** guess a weekday.
+- When the owner gives a day/month **without a year**, use the current year; if that date is already past, use the **next** year (e.g. "12 de enero" in septiembre 2026 → 2027-01-12). \`startsAt\` must never be in the past.
+- Summaries shown to the owner must include the year (e.g. \`26-sept-2026\`).
 - If Para contact is missing, clarify (\`¿Cuál es el correo o teléfono de la persona (Para)…?\`). Do **not** confirm-execute without Para.
 - When the owner says "ese horario" / "ese mensaje" / "agregá en notas", **read Copi chat history** (quoted WhatsApp drafts and customer times like "mañana a las 7"). Do **not** re-ask for time or invent a new title from the instruction text.
 - For WhatsApp-assigned chats, Para **must** be the contact's real phone digits (e.g. \`54911…\`). Never invent placeholder text like "Souvik's phone number from WhatsApp contact". Prefer filling \`attendeePhone\` from the assigned conversation contact over asking again.

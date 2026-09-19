@@ -353,6 +353,7 @@ export class AppointmentsService {
           month: 'long',
           timeZone,
           weekday: 'long',
+          year: 'numeric',
         });
     const endLabel = Number.isNaN(ends.getTime())
       ? params.endsAt

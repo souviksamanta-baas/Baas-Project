@@ -2,10 +2,13 @@ import { describe, expect, it } from 'vitest';
 
 import {
   applyAppointmentContextFromHistory,
+  findAmbiguousScheduleWord,
   normalizeAttendeePhone,
   parseCreateAppointmentRequest,
   parseCreateTaskItems,
   reconcileAppointmentClarifications,
+  sanitizeAppointmentStartsAt,
+  summarizeCreateAppointmentPayload,
 } from '../src/domains/ai/copi-task-parse';
 
 describe('parseCreateTaskItems', () => {
@@ -179,6 +182,81 @@ describe('appointment history + clarifications', () => {
         title: 'Degustación de café con Souvik',
       }),
     ).toEqual([expect.stringMatching(/correo|Para|tel[eé]fono/i)]);
+  });
+
+  it('rolls past month/day to the next upcoming year when year was wrong/missing', () => {
+    expect(
+      sanitizeAppointmentStartsAt(
+        '2026-01-12T15:00:00.000Z',
+        'America/Argentina/Cordoba',
+        new Date('2026-09-19T12:00:00.000Z'),
+      ),
+    ).toEqual({
+      clarification: null,
+      startsAt: '2027-01-12T15:00:00.000Z',
+    });
+
+    expect(
+      sanitizeAppointmentStartsAt(
+        '2023-09-26T19:00:00.000Z',
+        'America/Argentina/Cordoba',
+        new Date('2026-09-19T12:00:00.000Z'),
+      ),
+    ).toEqual({
+      clarification: null,
+      startsAt: '2026-09-26T19:00:00.000Z',
+    });
+  });
+
+  it('parses 12 de enero without year as next January when current Jan is past', () => {
+    const parsed = parseCreateAppointmentRequest(
+      'Agendá un turno el 12 de enero a las 10, correo ana@ejemplo.com',
+      'America/Argentina/Cordoba',
+    );
+    // Freeze-free: if today is after Jan 12, expect next calendar year.
+    expect(parsed.startsAt).toBeTruthy();
+    const starts = new Date(String(parsed.startsAt));
+    const now = new Date();
+    if (now.getMonth() > 0 || (now.getMonth() === 0 && now.getDate() > 12)) {
+      expect(starts.getUTCFullYear()).toBeGreaterThanOrEqual(now.getFullYear() + 1);
+    } else {
+      expect(starts.getUTCFullYear()).toBeGreaterThanOrEqual(now.getFullYear());
+    }
+  });
+
+  it('includes the year in appointment confirmation summaries', () => {
+    expect(
+      summarizeCreateAppointmentPayload({
+        attendeePhone: '5491138617148',
+        startsAt: '2026-09-26T19:00:00.000Z',
+        title: 'Degustación de café con Souvik',
+      }),
+    ).toMatch(/26-sept?-2026/i);
+  });
+
+  it('asks when a near-miss weekday token is unclear (does not guess martes)', () => {
+    expect(findAmbiguousScheduleWord('Marte a la misma hora con Souvik')).toMatch(/marte/i);
+
+    const enriched = applyAppointmentContextFromHistory({
+      history: [
+        {
+          body: 'Crear turno: Degustación de café con Souvik · 21-sept, 07:00 p. m. · Para: 5491138617148',
+          role: 'assistant',
+        },
+      ],
+      payload: {
+        attendeePhone: '5491138617148',
+        startsAt: '2023-09-26T19:00:00.000Z',
+        title: 'Degustación de café con Souvik',
+      },
+      question: 'Marte a la misma hora con Souvik por favor',
+      timezone: 'America/Argentina/Cordoba',
+    });
+
+    expect(enriched.startsAt).toBeNull();
+    expect(enriched.clarificationQuestions).toEqual(
+      expect.arrayContaining([expect.stringMatching(/No entendí «marte»/i)]),
+    );
   });
 
   it('fills schedule and notes from Copi history for ese horario / ese mensaje', () => {

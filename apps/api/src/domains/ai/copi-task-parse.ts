@@ -256,25 +256,116 @@ export function applyAppointmentContextFromHistory(params: {
     typeof next.startsAt === 'string' && next.startsAt.trim() ? next.startsAt.trim() : null;
   const startsAtIsStale =
     existingStartsAt != null && isAppointmentStartsAtStale(existingStartsAt);
+  const wantsSameTime = /\b(misma\s+hora|mismo\s+horario|a\s+la\s+misma)\b/i.test(question);
+  const ambiguousScheduleWord = findAmbiguousScheduleWord(question);
+  const questionHasWeekday =
+    !ambiguousScheduleWord &&
+    nextWeekdayOffset(question, zonedParts(new Date(), params.timezone)) != null;
+  const questionHasRelativeDay =
+    /\b(hoy|mañana|pasado\s+mañana)\b/i.test(question) || questionHasWeekday;
+  // Drop stale planner clarifications; rebuild from forced + reconcile.
+  const forcedClarifications: string[] = [];
 
-  if ((wantsSchedule || !existingStartsAt || startsAtIsStale) && scheduleSource) {
-    const schedule = inferTaskSchedule(scheduleSource, params.timezone);
-    if (schedule.dueAt && !schedule.needsExactTime) {
+  // Ambiguous day-like tokens (e.g. "marte") → ask; never guess a weekday/year.
+  if (ambiguousScheduleWord) {
+    forcedClarifications.push(
+      `No entendí «${ambiguousScheduleWord}». ¿A qué día te referís?`,
+    );
+    next = {
+      ...next,
+      endsAt: null,
+      startsAt: null,
+    };
+  } else if (
+    wantsSchedule ||
+    !existingStartsAt ||
+    startsAtIsStale ||
+    questionHasRelativeDay ||
+    wantsSameTime
+  ) {
+    const questionSchedule = inferTaskSchedule(question, params.timezone);
+    const historySchedule = scheduleSource
+      ? inferTaskSchedule(scheduleSource, params.timezone)
+      : { dueAt: null as string | null, needsExactTime: false, remindAt: null };
+
+    let resolvedStartsAt: string | null = null;
+
+    if (wantsSameTime && questionSchedule.dueAt && historySchedule.dueAt) {
+      const dayWall = zonedParts(new Date(questionSchedule.dueAt), params.timezone);
+      const timeWall = zonedParts(new Date(historySchedule.dueAt), params.timezone);
+      resolvedStartsAt = wallTimeToUtcIso(
+        {
+          day: dayWall.day,
+          hour: timeWall.hour,
+          minute: timeWall.minute,
+          month: dayWall.month,
+          year: dayWall.year,
+        },
+        params.timezone,
+      );
+    } else if (
+      questionSchedule.dueAt &&
+      (questionHasRelativeDay || !existingStartsAt || startsAtIsStale) &&
+      (!questionSchedule.needsExactTime || wantsSchedule || startsAtIsStale || !existingStartsAt)
+    ) {
+      resolvedStartsAt = questionSchedule.dueAt;
+    } else if (
+      historySchedule.dueAt &&
+      (wantsSchedule || !existingStartsAt || startsAtIsStale) &&
+      (!historySchedule.needsExactTime || startsAtIsStale)
+    ) {
+      resolvedStartsAt = historySchedule.dueAt;
+    } else if (existingStartsAt) {
+      resolvedStartsAt = existingStartsAt;
+    }
+
+    const sanitized = sanitizeAppointmentStartsAt(
+      resolvedStartsAt,
+      params.timezone,
+    );
+    if (sanitized.startsAt) {
       next = {
         ...next,
         endsAt: new Date(
-          new Date(schedule.dueAt).getTime() + APPOINTMENT_DURATION_MS,
+          new Date(sanitized.startsAt).getTime() + APPOINTMENT_DURATION_MS,
         ).toISOString(),
-        startsAt: schedule.dueAt,
+        startsAt: sanitized.startsAt,
       };
-    } else if (schedule.dueAt && startsAtIsStale) {
+    } else {
       next = {
         ...next,
-        endsAt: new Date(
-          new Date(schedule.dueAt).getTime() + APPOINTMENT_DURATION_MS,
-        ).toISOString(),
-        startsAt: schedule.dueAt,
+        endsAt: null,
+        startsAt: null,
       };
+      if (sanitized.clarification) {
+        forcedClarifications.push(sanitized.clarification);
+      }
+    }
+  } else if (existingStartsAt) {
+    const sanitized = sanitizeAppointmentStartsAt(
+      existingStartsAt,
+      params.timezone,
+    );
+    if (sanitized.startsAt) {
+      next = {
+        ...next,
+        endsAt:
+          typeof next.endsAt === 'string' && next.endsAt.trim()
+            ? next.endsAt
+            : new Date(
+                new Date(sanitized.startsAt).getTime() + APPOINTMENT_DURATION_MS,
+              ).toISOString(),
+        startsAt: sanitized.startsAt,
+      };
+    } else {
+      next = {
+        ...next,
+        endsAt: null,
+        startsAt: null,
+      };
+      if (sanitized.clarification) {
+        forcedClarifications.push(sanitized.clarification);
+      }
     }
   }
 
@@ -291,9 +382,28 @@ export function applyAppointmentContextFromHistory(params: {
 
   next = {
     ...next,
-    clarificationQuestions: reconcileAppointmentClarifications(next),
+    clarificationQuestions: mergeClarificationQuestions(
+      forcedClarifications,
+      reconcileAppointmentClarifications(next),
+    ),
   };
   return next;
+}
+
+function mergeClarificationQuestions(
+  existing: unknown,
+  extra: string[],
+): string[] {
+  const prior = Array.isArray(existing)
+    ? existing.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
+    : [];
+  const merged: string[] = [];
+  for (const item of [...prior, ...extra]) {
+    if (!merged.some((seen) => seen.toLocaleLowerCase('es-AR') === item.toLocaleLowerCase('es-AR'))) {
+      merged.push(item);
+    }
+  }
+  return merged;
 }
 
 function extractRecentQuotedSnippets(
@@ -330,6 +440,178 @@ function isAppointmentStartsAtStale(startsAtIso: string): boolean {
   }
   // More than ~36h in the past → almost certainly a bad LLM year/date.
   return startsAt.getTime() < Date.now() - 36 * 60 * 60 * 1000;
+}
+
+/**
+ * When a date is in the past (missing/wrong year), keep month/day/time and
+ * advance year until the next upcoming occurrence.
+ */
+export function resolveUpcomingAppointmentStartsAt(
+  startsAtIso: string,
+  timezone: string,
+  now: Date = new Date(),
+): string | null {
+  const starts = new Date(startsAtIso);
+  if (Number.isNaN(starts.getTime())) {
+    return null;
+  }
+  if (starts.getTime() >= now.getTime() - 60 * 60 * 1000) {
+    return starts.toISOString();
+  }
+
+  const wall = zonedParts(starts, timezone);
+  let year = wall.year;
+  const nowWall = zonedParts(now, timezone);
+  if (year < nowWall.year) {
+    year = nowWall.year;
+  }
+  for (let guard = 0; guard < 6; guard += 1) {
+    const candidate = wallTimeToUtcIso({ ...wall, year }, timezone);
+    if (candidate && new Date(candidate).getTime() >= now.getTime() - 60 * 60 * 1000) {
+      return candidate;
+    }
+    year += 1;
+  }
+  return null;
+}
+
+/**
+ * Normalize appointment startsAt: invalid → clarify; past → next occurrence of
+ * the same month/day/time (current year, else next year, …).
+ */
+export function sanitizeAppointmentStartsAt(
+  startsAtIso: string | null | undefined,
+  timezone: string = 'America/Argentina/Cordoba',
+  now: Date = new Date(),
+): { clarification: string | null; startsAt: string | null } {
+  if (typeof startsAtIso !== 'string' || !startsAtIso.trim()) {
+    return { clarification: null, startsAt: null };
+  }
+  const starts = new Date(startsAtIso);
+  if (Number.isNaN(starts.getTime())) {
+    return {
+      clarification: 'No pude interpretar la fecha. ¿Para qué día y hora agendo el turno?',
+      startsAt: null,
+    };
+  }
+  if (starts.getTime() >= now.getTime() - 36 * 60 * 60 * 1000) {
+    return { clarification: null, startsAt: starts.toISOString() };
+  }
+
+  const upcoming = resolveUpcomingAppointmentStartsAt(startsAtIso, timezone, now);
+  if (upcoming) {
+    return { clarification: null, startsAt: upcoming };
+  }
+  return {
+    clarification:
+      'No pude interpretar bien la fecha. ¿Para qué día y hora agendo el turno?',
+    startsAt: null,
+  };
+}
+
+/**
+ * Near-miss weekday tokens (e.g. "marte" ≈ martes) — ask; do not guess.
+ */
+export function findAmbiguousScheduleWord(question: string): string | null {
+  const normalized = question
+    .toLocaleLowerCase('es-AR')
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '');
+  const tokens = normalized.match(/\b[a-záéíóúñü]{4,14}\b/gi) ?? [];
+  const weekdays = [
+    'lunes',
+    'martes',
+    'miercoles',
+    'jueves',
+    'viernes',
+    'sabado',
+    'sabados',
+    'domingo',
+    'domingos',
+  ];
+  const ignore = new Set([
+    'hora',
+    'horario',
+    'misma',
+    'mismo',
+    'turno',
+    'cita',
+    'agenda',
+    'agendar',
+    'crear',
+    'crea',
+    'por',
+    'favor',
+    'con',
+    'para',
+    'una',
+    'unos',
+    'este',
+    'esta',
+    'ese',
+    'esa',
+    'hoy',
+    'manana',
+    'tarde',
+    'noche',
+    'despues',
+  ]);
+
+  for (const raw of tokens) {
+    const token = raw
+      .toLocaleLowerCase('es-AR')
+      .normalize('NFD')
+      .replace(/\p{M}/gu, '');
+    if (ignore.has(token) || weekdays.includes(token)) {
+      continue;
+    }
+    for (const day of weekdays) {
+      if (editDistanceOne(token, day)) {
+        return raw;
+      }
+    }
+  }
+  return null;
+}
+
+function editDistanceOne(left: string, right: string): boolean {
+  if (left === right) {
+    return false;
+  }
+  const a = left.length >= right.length ? left : right;
+  const b = left.length >= right.length ? right : left;
+  if (a.length - b.length > 1) {
+    return false;
+  }
+  if (a.length === b.length) {
+    let diffs = 0;
+    for (let i = 0; i < a.length; i += 1) {
+      if (a[i] !== b[i]) {
+        diffs += 1;
+        if (diffs > 1) {
+          return false;
+        }
+      }
+    }
+    return diffs === 1;
+  }
+  // one insertion/deletion
+  let i = 0;
+  let j = 0;
+  let skipped = false;
+  while (i < a.length && j < b.length) {
+    if (a[i] === b[j]) {
+      i += 1;
+      j += 1;
+      continue;
+    }
+    if (skipped) {
+      return false;
+    }
+    skipped = true;
+    i += 1;
+  }
+  return true;
 }
 
 function looksLikeInstructionTitle(title: string): boolean {
@@ -986,12 +1268,15 @@ function inferTaskSchedule(
     return { dueAt: null, needsExactTime: false, remindAt: null };
   }
 
+  const dueAnchor = new Date(
+    Date.UTC(local.year, local.month - 1, local.day + dayOffset, 12, 0, 0),
+  );
   const dueLocal = {
-    day: local.day + dayOffset,
+    day: dueAnchor.getUTCDate(),
     hour,
     minute,
-    month: local.month,
-    year: local.year,
+    month: dueAnchor.getUTCMonth() + 1,
+    year: dueAnchor.getUTCFullYear(),
   };
 
   const dueAt = wallTimeToUtcIso(dueLocal, timezone);
@@ -1074,27 +1359,72 @@ function nextWeekdayOffset(
   return delta;
 }
 
+const SPANISH_MONTHS: Record<string, number> = {
+  enero: 1,
+  febrero: 2,
+  marzo: 3,
+  abril: 4,
+  mayo: 5,
+  junio: 6,
+  julio: 7,
+  agosto: 8,
+  septiembre: 9,
+  setiembre: 9,
+  octubre: 10,
+  noviembre: 11,
+  diciembre: 12,
+};
+
 function parseAbsoluteDateHint(
   segment: string,
   local: { day: number; month: number; year: number },
 ): { dayOffset: number } | null {
-  const match = segment.match(/\b(\d{1,2})[\/\-](\d{1,2})(?:[\/\-](\d{2,4}))?\b/);
-  if (!match) {
+  const normalized = segment
+    .toLocaleLowerCase('es-AR')
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '');
+
+  const numeric = segment.match(/\b(\d{1,2})[\/\-](\d{1,2})(?:[\/\-](\d{2,4}))?\b/);
+  const named = normalized.match(
+    /\b(\d{1,2})\s+de\s+(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre)(?:\s+de\s+(\d{2,4}))?\b/,
+  );
+
+  let day: number;
+  let month: number;
+  let yearRaw: string | undefined;
+  if (named) {
+    day = Number.parseInt(named[1]!, 10);
+    month = SPANISH_MONTHS[named[2]!] ?? 0;
+    yearRaw = named[3];
+  } else if (numeric) {
+    day = Number.parseInt(numeric[1]!, 10);
+    month = Number.parseInt(numeric[2]!, 10);
+    yearRaw = numeric[3];
+  } else {
     return null;
   }
-  const day = Number.parseInt(match[1]!, 10);
-  const month = Number.parseInt(match[2]!, 10);
-  let year = match[3] ? Number.parseInt(match[3]!, 10) : local.year;
+
+  const yearWasExplicit = Boolean(yearRaw);
+  let year = yearRaw ? Number.parseInt(yearRaw, 10) : local.year;
   if (year < 100) {
     year += 2000;
   }
   if (day < 1 || day > 31 || month < 1 || month > 12) {
     return null;
   }
-  const target = Date.UTC(year, month - 1, day, 12, 0, 0);
+
   const today = Date.UTC(local.year, local.month - 1, local.day, 12, 0, 0);
-  const dayOffset = Math.round((target - today) / (24 * 60 * 60 * 1000));
-  if (dayOffset < -1 || dayOffset > 366) {
+  let target = Date.UTC(year, month - 1, day, 12, 0, 0);
+  let dayOffset = Math.round((target - today) / (24 * 60 * 60 * 1000));
+
+  // No year given (or inferred as current year) and that date is already past → next year.
+  if (!yearWasExplicit && dayOffset < 0) {
+    year += 1;
+    target = Date.UTC(year, month - 1, day, 12, 0, 0);
+    dayOffset = Math.round((target - today) / (24 * 60 * 60 * 1000));
+  }
+
+  if (dayOffset < -1 || dayOffset > 400) {
     return null;
   }
   return { dayOffset };
@@ -1182,11 +1512,24 @@ function formatDueHint(iso: string): string {
     return iso;
   }
 
-  return date.toLocaleString('es-AR', {
+  const timeZone = 'America/Argentina/Cordoba';
+  const parts = new Intl.DateTimeFormat('es-AR', {
     day: '2-digit',
     hour: '2-digit',
     minute: '2-digit',
     month: 'short',
-    timeZone: 'America/Argentina/Cordoba',
-  });
+    timeZone,
+    year: 'numeric',
+  }).formatToParts(date);
+
+  const read = (type: Intl.DateTimeFormatPartTypes): string =>
+    parts.find((part) => part.type === type)?.value ?? '';
+  const day = read('day');
+  const month = read('month').replace(/\./g, '').toLocaleLowerCase('es-AR');
+  const year = read('year');
+  const hour = read('hour');
+  const minute = read('minute');
+  const dayPeriod = read('dayPeriod');
+  const time = dayPeriod ? `${hour}:${minute} ${dayPeriod}` : `${hour}:${minute}`;
+  return `${day}-${month}-${year}, ${time}`;
 }

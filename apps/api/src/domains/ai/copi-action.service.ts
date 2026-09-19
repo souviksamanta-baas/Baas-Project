@@ -32,6 +32,7 @@ import {
   parseCreateTaskItems,
   readTaskItems,
   reconcileAppointmentClarifications,
+  sanitizeAppointmentStartsAt,
   summarizeCreateAppointmentPayload,
   summarizeCreateTaskPayload,
   wantsCreatePresupuestoAction,
@@ -676,13 +677,29 @@ export class CopiActionService {
           typeof params.payload.title === 'string' && params.payload.title.trim()
             ? params.payload.title.trim()
             : 'Nuevo turno';
-        const startsAt =
+        const startsAtRaw =
           typeof params.payload.startsAt === 'string' && params.payload.startsAt.trim()
             ? readRequiredIsoDate(params.payload.startsAt, 'agendar')
-            : new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+            : null;
+        const timezone =
+          typeof params.payload.timezone === 'string' && params.payload.timezone.trim()
+            ? params.payload.timezone.trim()
+            : DEFAULT_TIMEZONE;
+        const sanitizedStarts = sanitizeAppointmentStartsAt(startsAtRaw, timezone);
+        if (!sanitizedStarts.startsAt) {
+          throw new Error(
+            sanitizedStarts.clarification ??
+              'Falta una fecha/hora válida (en el futuro) para agendar el turno.',
+          );
+        }
+        const startsAt = sanitizedStarts.startsAt;
         const endsAt =
           typeof params.payload.endsAt === 'string' && params.payload.endsAt.trim()
-            ? params.payload.endsAt
+            ? readRequiredIsoDate(params.payload.endsAt, 'agendar')
+            : new Date(new Date(startsAt).getTime() + 30 * 60 * 1000).toISOString();
+        const endsAtSafe =
+          new Date(endsAt).getTime() > new Date(startsAt).getTime()
+            ? endsAt
             : new Date(new Date(startsAt).getTime() + 30 * 60 * 1000).toISOString();
         let attendeeEmail =
           typeof params.payload.attendeeEmail === 'string' &&
@@ -742,7 +759,7 @@ export class CopiActionService {
           businessCenterId: params.businessCenterId,
           contactId,
           createdByUserId: params.userId,
-          endsAt,
+          endsAt: endsAtSafe,
           metadata: {
             attendeeEmail,
             attendeePhone,
@@ -1513,9 +1530,22 @@ export class CopiActionService {
       }
     }
 
+    const priorClarifications = Array.isArray(next.clarificationQuestions)
+      ? next.clarificationQuestions.filter(
+          (item): item is string => typeof item === 'string' && item.trim().length > 0,
+        )
+      : [];
     next = {
       ...next,
-      clarificationQuestions: reconcileAppointmentClarifications(next),
+      clarificationQuestions: [
+        ...priorClarifications,
+        ...reconcileAppointmentClarifications(next).filter(
+          (item) =>
+            !priorClarifications.some(
+              (seen) => seen.toLocaleLowerCase('es-AR') === item.toLocaleLowerCase('es-AR'),
+            ),
+        ),
+      ],
     };
 
     return next;
@@ -2540,6 +2570,7 @@ function buildAppointmentInviteWhatsAppBody(params: {
         month: 'long',
         timeZone,
         weekday: 'long',
+        year: 'numeric',
       });
   const endLabel = Number.isNaN(ends.getTime())
     ? params.endsAt
