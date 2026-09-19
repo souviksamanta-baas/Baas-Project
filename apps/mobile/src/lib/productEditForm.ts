@@ -62,7 +62,12 @@ export function productToEditFormValues(
     baseUnitCode: normalizeBaseUnitCode(product.baseUnitCode ?? product.unitCode),
     brand: typeof product.metadata.marca === 'string' ? product.metadata.marca : '',
     businessCenterId,
-    category: product.category ?? '',
+    categories: product.categories?.length
+      ? [...product.categories]
+      : product.category
+        ? [product.category]
+        : [],
+    category: product.categories?.[0] ?? product.category ?? '',
     cost: formatMoneyInput(cost),
     description: product.description ?? '',
     marginPercent: formatPercentInput(margin),
@@ -133,8 +138,10 @@ export function validateProductEditForm(values: ProductEditFormValues): string |
     return 'El nombre del producto es obligatorio.';
   }
 
-  if (values.category.trim().length === 0) {
-    return 'Selecciona una categoria.';
+  if (
+    resolveFormCategories(values).length === 0
+  ) {
+    return 'Seleccioná al menos una categoría.';
   }
 
   const cost = parseMoneyInput(values.cost);
@@ -158,6 +165,15 @@ export function validateProductEditForm(values: ProductEditFormValues): string |
   }
 
   return null;
+}
+
+function resolveFormCategories(values: Pick<ProductEditFormValues, 'category' | 'categories'>): string[] {
+  const fromList = (values.categories ?? []).map((item) => item.trim()).filter(Boolean);
+  if (fromList.length > 0) {
+    return fromList;
+  }
+  const single = values.category.trim();
+  return single ? [single] : [];
 }
 
 export function getStatusDisplayLabel(status: ProductStatusSlug): string {

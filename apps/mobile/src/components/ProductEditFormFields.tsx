@@ -29,6 +29,142 @@ export function InventoryTextField(props: {
   );
 }
 
+function normalizeCategoryList(values: string[]): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+
+  for (const value of values) {
+    const trimmed = value.trim();
+    if (!trimmed) continue;
+    const key = trimmed.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push(trimmed);
+  }
+
+  return result;
+}
+
+export function InventoryCategoryChipField(props: {
+  full?: boolean;
+  label?: string;
+  onChange: (values: string[]) => void;
+  suggestions: string[];
+  value: string[];
+}): ReactElement {
+  const [draft, setDraft] = useState('');
+  const label = props.label ?? 'Categorías';
+
+  const selected = useMemo(() => normalizeCategoryList(props.value), [props.value]);
+  const selectedKeys = useMemo(
+    () => new Set(selected.map((entry) => entry.toLowerCase())),
+    [selected],
+  );
+
+  const suggestions = useMemo(() => {
+    const normalizedDraft = draft.trim().toLowerCase();
+    return props.suggestions
+      .map((entry) => entry.trim())
+      .filter((entry) => entry.length > 0)
+      .filter((entry) => !selectedKeys.has(entry.toLowerCase()))
+      .filter(
+        (entry) =>
+          normalizedDraft.length === 0 || entry.toLowerCase().includes(normalizedDraft),
+      )
+      .slice(0, 8);
+  }, [draft, props.suggestions, selectedKeys]);
+
+  function commit(next: string[]): void {
+    props.onChange(normalizeCategoryList(next));
+  }
+
+  function addCategory(name: string): void {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    if (selectedKeys.has(trimmed.toLowerCase())) {
+      setDraft('');
+      return;
+    }
+    commit([...selected, trimmed]);
+    setDraft('');
+  }
+
+  function removeCategory(name: string): void {
+    commit(selected.filter((entry) => entry.toLowerCase() !== name.toLowerCase()));
+  }
+
+  const exactMatch = suggestions.some(
+    (entry) => entry.toLowerCase() === draft.trim().toLowerCase(),
+  );
+  const canCreateNew = draft.trim().length > 0 && !exactMatch && !selectedKeys.has(draft.trim().toLowerCase());
+
+  return (
+    <View style={[styles.field, props.full && styles.fieldFull]}>
+      <Text style={styles.label}>{label}</Text>
+      {selected.length > 0 ? (
+        <View style={styles.chipRow}>
+          {selected.map((entry) => (
+            <View key={entry} style={styles.categoryChip}>
+              <Text style={styles.categoryChipLabel}>{entry}</Text>
+              <Pressable
+                accessibilityLabel={`Quitar ${entry}`}
+                hitSlop={8}
+                onPress={() => removeCategory(entry)}
+                style={styles.categoryChipRemove}
+              >
+                <Text style={styles.categoryChipRemoveText}>×</Text>
+              </Pressable>
+            </View>
+          ))}
+        </View>
+      ) : null}
+      <View style={styles.categoryInputBox}>
+        <TextInput
+          onChangeText={setDraft}
+          onSubmitEditing={() => addCategory(draft)}
+          placeholder="Buscar o crear categoría"
+          placeholderTextColor={colors.placeholder}
+          returnKeyType="done"
+          style={[styles.categoryInput, Platform.OS === 'web' && styles.inputWeb]}
+          value={draft}
+        />
+        {canCreateNew ? (
+          <Pressable
+            accessibilityLabel="Agregar categoría"
+            hitSlop={8}
+            onPress={() => addCategory(draft)}
+            style={styles.categoryInputAction}
+          >
+            <Icon color={colors.primary} kind="plus" size={12} strokeWidth={2.2} />
+          </Pressable>
+        ) : null}
+      </View>
+      {suggestions.length > 0 ? (
+        <View style={styles.suggestionList}>
+          {suggestions.map((suggestion) => (
+            <Pressable
+              key={suggestion}
+              onPress={() => addCategory(suggestion)}
+              style={styles.suggestionItem}
+            >
+              <Text style={styles.suggestionText}>{suggestion}</Text>
+            </Pressable>
+          ))}
+        </View>
+      ) : null}
+      {canCreateNew ? (
+        <Pressable
+          onPress={() => addCategory(draft)}
+          style={styles.createCategoryHint}
+        >
+          <Icon color={colors.primary} kind="plus" size={11} strokeWidth={2.4} />
+          <Text style={styles.createCategoryHintText}>Crear «{draft.trim()}»</Text>
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}
+
 export function InventoryReadOnlyField(props: {
   full?: boolean;
   label: string;
@@ -820,5 +956,78 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     position: 'relative',
     width: 28,
+  },
+  chipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: 6,
+  },
+  categoryChip: {
+    alignItems: 'center',
+    backgroundColor: colors.primarySoft,
+    borderColor: colors.primary,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    flexDirection: 'row',
+    flexShrink: 1,
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  categoryChipLabel: {
+    color: colors.primary,
+    flexShrink: 1,
+    flexWrap: 'wrap',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  categoryChipRemove: {
+    alignItems: 'center',
+    height: 16,
+    justifyContent: 'center',
+    width: 16,
+  },
+  categoryChipRemoveText: {
+    color: colors.primary,
+    fontSize: 14,
+    fontWeight: '700',
+    lineHeight: 14,
+  },
+  categoryInputBox: {
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderColor: colors.borderInput,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 8,
+    minHeight: 40,
+    paddingHorizontal: 10,
+  },
+  categoryInput: {
+    color: colors.navy,
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '500',
+    minWidth: 0,
+    paddingVertical: 10,
+  },
+  categoryInputAction: {
+    alignItems: 'center',
+    height: 28,
+    justifyContent: 'center',
+    width: 28,
+  },
+  createCategoryHint: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 6,
+    marginTop: 8,
+  },
+  createCategoryHintText: {
+    color: colors.primary,
+    fontSize: 13,
+    fontWeight: '600',
   },
 });

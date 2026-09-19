@@ -1,10 +1,11 @@
 import type { ReactElement } from 'react';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
 import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Icon } from '../components/icons';
 import { InventoryScreenTitle } from '../components/inventoryUi';
+import { PurchaseTotalsBlock } from '../components/PurchaseTotalsBlock';
 import { Card, ScreenContent } from '../components/ui';
 import { useLoadPurchase } from '../context/LoadPurchaseProvider';
 import { useOwnerSessionContext } from '../context/OwnerSessionProvider';
@@ -12,12 +13,37 @@ import { useProductCatalog } from '../context/ProductCatalogProvider';
 import {
   getPurchaseById,
   purchaseStatusLabel,
+  updatePurchase,
   type PurchaseRecord,
 } from '../lib/purchases';
+import {
+  normalizeIvaRatePercent,
+  type AdjustmentKind,
+  type AdjustmentMode,
+  type IvaRatePercent,
+} from '../lib/purchaseTotals';
 import { confirmPurchaseStock, unconfirmPurchaseStock } from '../lib/purchaseStock';
 import { formatCurrency } from '../lib/sellCart';
 import { sharePurchasePdf } from '../lib/sharePurchasePdf';
 import { colors, radius } from '../theme';
+
+interface TotalsDraft {
+  adjustmentKind: AdjustmentKind | null;
+  adjustmentMode: AdjustmentMode | null;
+  adjustmentValue: number;
+  ivaEnabled: boolean;
+  ivaRatePercent: IvaRatePercent;
+}
+
+function purchaseToTotalsDraft(purchase: PurchaseRecord): TotalsDraft {
+  return {
+    adjustmentKind: purchase.adjustmentKind,
+    adjustmentMode: purchase.adjustmentMode,
+    adjustmentValue: purchase.adjustmentValue,
+    ivaEnabled: purchase.ivaEnabled,
+    ivaRatePercent: normalizeIvaRatePercent(purchase.ivaRatePercent),
+  };
+}
 
 export function PurchaseDetailScreen(props: {
   onBack: () => void;
@@ -32,6 +58,8 @@ export function PurchaseDetailScreen(props: {
   const [purchase, setPurchase] = useState<PurchaseRecord | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isBusy, setIsBusy] = useState(false);
+  const [totalsDraft, setTotalsDraft] = useState<TotalsDraft | null>(null);
+  const [isSavingTotals, setIsSavingTotals] = useState(false);
 
   const load = useCallback(async () => {
     if (!organizationId || !businessCenterId) {
@@ -60,6 +88,10 @@ export function PurchaseDetailScreen(props: {
       void load();
     }, [load]),
   );
+
+  useEffect(() => {
+    setTotalsDraft(purchase ? purchaseToTotalsDraft(purchase) : null);
+  }, [purchase]);
 
   async function handleToggleStatus(): Promise<void> {
     if (!purchase || !organizationId || !businessCenterId) {
@@ -123,6 +155,36 @@ export function PurchaseDetailScreen(props: {
     }
   }
 
+  async function handleSaveTotals(): Promise<void> {
+    if (!purchase || !organizationId || !businessCenterId || !totalsDraft) {
+      return;
+    }
+
+    setIsSavingTotals(true);
+    try {
+      const updated = await updatePurchase({
+        businessCenterId,
+        organizationId,
+        purchaseId: purchase.id,
+        patch: {
+          adjustmentKind: totalsDraft.adjustmentKind,
+          adjustmentMode: totalsDraft.adjustmentMode,
+          adjustmentValue: totalsDraft.adjustmentValue,
+          ivaEnabled: totalsDraft.ivaEnabled,
+          ivaRatePercent: totalsDraft.ivaRatePercent,
+        },
+      });
+      setPurchase(updated);
+    } catch (error) {
+      Alert.alert(
+        'No se pudo guardar',
+        error instanceof Error ? error.message : 'Error desconocido',
+      );
+    } finally {
+      setIsSavingTotals(false);
+    }
+  }
+
   if (isLoading) {
     return (
       <ScreenContent>
@@ -144,6 +206,14 @@ export function PurchaseDetailScreen(props: {
   }
 
   const isConfirmed = purchase.status === 'confirmed';
+  const totals = totalsDraft ?? purchaseToTotalsDraft(purchase);
+  const draftDiffers =
+    totalsDraft != null &&
+    (totalsDraft.adjustmentKind !== purchase.adjustmentKind ||
+      totalsDraft.adjustmentMode !== purchase.adjustmentMode ||
+      totalsDraft.adjustmentValue !== purchase.adjustmentValue ||
+      totalsDraft.ivaEnabled !== purchase.ivaEnabled ||
+      totalsDraft.ivaRatePercent !== purchase.ivaRatePercent);
 
   return (
     <ScreenContent>
@@ -186,8 +256,6 @@ export function PurchaseDetailScreen(props: {
         <Text style={styles.metaValue}>{purchase.supplier || '—'}</Text>
         <Text style={styles.metaLabel}>Fecha</Text>
         <Text style={styles.metaValue}>{purchase.date || '—'}</Text>
-        <Text style={styles.metaLabel}>Total</Text>
-        <Text style={styles.totalValue}>{formatCurrency(purchase.totalCostCents)}</Text>
       </Card>
 
       <Card>
@@ -216,6 +284,76 @@ export function PurchaseDetailScreen(props: {
         )}
       </Card>
 
+      <View style={styles.totalsWrap}>
+        <PurchaseTotalsBlock
+          adjustmentKind={totals.adjustmentKind}
+          adjustmentMode={totals.adjustmentMode}
+          adjustmentValue={totals.adjustmentValue}
+          ivaEnabled={totals.ivaEnabled}
+          ivaRatePercent={totals.ivaRatePercent}
+          lineSubtotalCents={purchase.subtotalCents}
+          onAdjustmentKindChange={(value) =>
+            setTotalsDraft((current) =>
+              current
+                ? {
+                    ...current,
+                    adjustmentKind: value,
+                    adjustmentMode:
+                      value == null ? null : (current.adjustmentMode ?? 'percent'),
+                    adjustmentValue: value == null ? 0 : current.adjustmentValue,
+                  }
+                : current,
+            )
+          }
+          onAdjustmentModeChange={(value) =>
+            setTotalsDraft((current) =>
+              current
+                ? {
+                    ...current,
+                    adjustmentMode: value,
+                    adjustmentKind: current.adjustmentKind ?? 'discount',
+                  }
+                : current,
+            )
+          }
+          onAdjustmentValueChange={(value) =>
+            setTotalsDraft((current) =>
+              current
+                ? {
+                    ...current,
+                    adjustmentValue: Number.isFinite(value) ? Math.max(0, value) : 0,
+                    adjustmentMode: current.adjustmentMode ?? 'percent',
+                    adjustmentKind: current.adjustmentKind ?? 'discount',
+                  }
+                : current,
+            )
+          }
+          onIvaEnabledChange={(value) =>
+            setTotalsDraft((current) => (current ? { ...current, ivaEnabled: value } : current))
+          }
+          onIvaRateChange={(value) =>
+            setTotalsDraft((current) =>
+              current ? { ...current, ivaRatePercent: value } : current,
+            )
+          }
+          readOnly={isConfirmed}
+        />
+      </View>
+
+      {!isConfirmed && draftDiffers ? (
+        <Pressable
+          disabled={isSavingTotals}
+          onPress={() => {
+            void handleSaveTotals();
+          }}
+          style={styles.primaryButton}
+        >
+          <Text style={styles.primaryButtonText}>
+            {isSavingTotals ? 'Guardando…' : 'Guardar cambios'}
+          </Text>
+        </Pressable>
+      ) : null}
+
       <Pressable
         disabled={isBusy}
         onPress={() => {
@@ -231,7 +369,7 @@ export function PurchaseDetailScreen(props: {
       </Pressable>
 
       <Pressable disabled={isBusy} onPress={handleEdit} style={styles.secondaryButton}>
-        <Text style={styles.secondaryButtonText}>Editar compra</Text>
+        <Text style={styles.secondaryButtonText}>Editar ítems</Text>
       </Pressable>
 
       <Pressable
@@ -293,7 +431,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: colors.primary,
     borderRadius: radius.md,
-    marginTop: 16,
+    marginTop: 12,
     paddingVertical: 14,
   },
   primaryButtonText: {
@@ -358,9 +496,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flexDirection: 'row',
   },
-  totalValue: {
-    color: colors.navy,
-    fontSize: 18,
-    fontWeight: '700',
+  totalsWrap: {
+    marginTop: 12,
   },
 });

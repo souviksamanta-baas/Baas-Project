@@ -6,7 +6,11 @@ import { Alert } from 'react-native';
 import { useSellCart } from '../../../src/context/SellCartProvider';
 import { useProductCatalog } from '../../../src/context/ProductCatalogProvider';
 import { mapProductsToSellRows } from '../../../src/lib/inventoryPresentation';
-import { inventoryScanRoute, presupuestoDetailRoute } from '../../../src/navigation/routes';
+import {
+  inventoryScanRoute,
+  productAddRoute,
+  presupuestoDetailRoute,
+} from '../../../src/navigation/routes';
 import { useSellNavigation } from '../../../src/navigation/useInventoryNavigation';
 import { SellProductsScreen } from '../../../src/screens/inventory/InventoryScreens';
 
@@ -70,6 +74,9 @@ export default function SellProductsRoute(): ReactElement {
       errorMessage={catalog.errorMessage}
       initialSearchQuery={initialSearchQuery}
       isLoading={catalog.isLoading}
+      onAddNewProduct={(initialName) =>
+        router.push(productAddRoute('sell', { initialName }))
+      }
       onAddToCart={handleAddToCart}
       onEditProduct={sellNav.onEditProduct}
       onOpenConfirmPayment={() => void handleOpenConfirmPayment()}

@@ -14,7 +14,7 @@ import { collectCategoryOptions } from '../../../src/lib/productCatalog';
 import {
   parseInventoryReturnTo,
   productDetailRoute,
-  routes,
+  resolveInventoryReturnRoute,
 } from '../../../src/navigation/routes';
 import { AddProductScreen } from '../../../src/screens/inventory/InventoryScreens';
 import type { AddProductFormValues } from '../../../src/types/products';
@@ -25,8 +25,14 @@ export default function AddProductRoute(): ReactElement {
   const organizationId = dashboard?.organization?.id ?? null;
   const businessCenterId = dashboard?.businessCenter?.id ?? null;
   const businessCenterName = dashboard?.businessCenter?.name ?? null;
-  const { returnTo: rawReturnTo } = useLocalSearchParams<{ returnTo?: string | string[] }>();
+  const { returnTo: rawReturnTo, initialName: rawInitialName } = useLocalSearchParams<{
+    initialName?: string | string[];
+    returnTo?: string | string[];
+  }>();
   const returnTo = parseInventoryReturnTo(rawReturnTo);
+  const initialName = Array.isArray(rawInitialName)
+    ? rawInitialName[0]
+    : rawInitialName;
   const catalog = useProductCatalog();
   const businessCenters = useBusinessCenters();
   const [isSaving, setIsSaving] = useState(false);
@@ -44,7 +50,7 @@ export default function AddProductRoute(): ReactElement {
       return;
     }
 
-    router.replace(routes.inventoryManageStock);
+    router.replace(resolveInventoryReturnRoute(returnTo, ''));
   };
 
   async function persistProduct(values: AddProductFormValues): Promise<string> {
@@ -86,6 +92,7 @@ export default function AddProductRoute(): ReactElement {
           : [{ id: businessCenterId, name: businessCenterName ?? 'Sucursal principal' }]
       }
       categories={categories}
+      initialName={initialName}
       isSaving={isSaving}
       onBack={goBack}
       suppliers={suppliers}
@@ -94,7 +101,7 @@ export default function AddProductRoute(): ReactElement {
 
         try {
           const productId = await persistProduct(values);
-          router.replace(productDetailRoute(productId, 'manage-stock'));
+          router.replace(productDetailRoute(productId, returnTo ?? 'manage-stock'));
         } catch (error) {
           Alert.alert(
             'No se pudo guardar',

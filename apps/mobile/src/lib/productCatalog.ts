@@ -25,6 +25,7 @@ export const BASE_UNIT_OPTIONS: CatalogOption[] = sortOptionsAlphabetically([
   { label: 'Botella', value: 'botella' },
   { label: 'Kilo', value: 'kg' },
   { label: 'Lata', value: 'lata' },
+  { label: 'Litro', value: 'litro' },
   { label: 'Paquete', value: 'paquete' },
 ]);
 
@@ -39,6 +40,7 @@ const UNIT_DISPLAY_LABELS: Record<string, { plural: string; singular: string }> 
   botella: { plural: 'botellas', singular: 'botella' },
   kg: { plural: 'kilos', singular: 'kilo' },
   lata: { plural: 'latas', singular: 'lata' },
+  litro: { plural: 'litros', singular: 'litro' },
   paquete: { plural: 'paquetes', singular: 'paquete' },
   unit: { plural: 'unidades', singular: 'unidad' },
 };
@@ -51,20 +53,34 @@ export function sortOptionsAlphabetically<T extends string>(
 
 export function collectCategoryOptions(
   products: Product[],
-  currentCategory?: string | null,
+  currentCategory?: string | string[] | null,
 ): string[] {
   const categories = new Set<string>();
 
   for (const product of products) {
-    const category = product.category?.trim();
-    if (category) {
-      categories.add(category);
+    for (const category of product.categories ?? []) {
+      const trimmed = category.trim();
+      if (trimmed) {
+        categories.add(trimmed);
+      }
+    }
+    const legacy = product.category?.trim();
+    if (legacy) {
+      categories.add(legacy);
     }
   }
 
-  const trimmedCurrent = currentCategory?.trim();
-  if (trimmedCurrent) {
-    categories.add(trimmedCurrent);
+  const currents = Array.isArray(currentCategory)
+    ? currentCategory
+    : currentCategory
+      ? [currentCategory]
+      : [];
+
+  for (const current of currents) {
+    const trimmedCurrent = current.trim();
+    if (trimmedCurrent) {
+      categories.add(trimmedCurrent);
+    }
   }
 
   return [...categories].sort((left, right) => left.localeCompare(right, 'es'));
@@ -109,11 +125,26 @@ export function filterSupplierSuggestions(suppliers: string[], query: string): s
     .slice(0, 8);
 }
 
-export function isGranelProduct(product: Pick<Product, 'description' | 'name'>): boolean {
-  const name = product.name.toLowerCase();
-  const notes = (product.description ?? '').toLowerCase();
+/** Subproducts are allowed when the base product has category Granel assigned. */
+export function canHaveSubproducts(
+  product: Pick<Product, 'categories' | 'parentProductId'> & {
+    parentProductId?: string | null;
+  },
+): boolean {
+  if (product.parentProductId != null) {
+    return false;
+  }
 
-  return name.includes('granel') || notes.includes('granel');
+  return (product.categories ?? []).some(
+    (category) => category.trim().toLowerCase() === 'granel',
+  );
+}
+
+/** @deprecated Use `canHaveSubproducts`. */
+export function isGranelProduct(
+  product: Pick<Product, 'categories' | 'parentProductId'>,
+): boolean {
+  return canHaveSubproducts(product);
 }
 
 export function getProductStatusLabelFromSlug(slug: ProductStatusSlug): string {

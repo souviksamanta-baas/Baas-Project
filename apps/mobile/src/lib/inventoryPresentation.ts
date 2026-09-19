@@ -17,11 +17,18 @@ export function mapProductToInventoryRow(
   product: Product,
   options?: { isBase?: boolean; indent?: boolean },
 ): InventoryProductMock {
-  const category = product.category ?? 'Sin categoría';
+  const categories =
+    product.categories && product.categories.length > 0
+      ? product.categories
+      : product.category
+        ? [product.category]
+        : [];
+  const category = categories[0] ?? 'Sin categoría';
   const codeValue = readProductCodeValue(product);
   const codeUnavailable = isProductCodeUnavailable(product);
 
   return {
+    categories,
     category,
     code: codeUnavailable ? 'No Disponible' : codeValue,
     codeTone: codeUnavailable ? 'red' : undefined,
@@ -32,7 +39,7 @@ export function mapProductToInventoryRow(
     isBase: options?.isBase ?? false,
     name: product.name,
     status: getProductStatusLabel(product),
-    statusTone: product.isLowStock ? 'orange' : 'green',
+    statusTone: product.stockQuantity <= 0 ? 'red' : product.isLowStock ? 'orange' : 'green',
     stock: formatProductStockLabel(product),
   };
 }
@@ -86,24 +93,105 @@ export function mapProductsToInventoryRows(products: Product[]): InventoryProduc
   return rows;
 }
 
+export type InventoryStockFilter = 'in_stock' | 'low_stock' | 'out_of_stock';
+
+export interface InventoryProductFilters {
+  categories?: string[];
+  /** Legacy shortcut for `stocks: ['low_stock']`. Combined by union. */
+  lowStockOnly?: boolean;
+  stocks?: InventoryStockFilter[];
+}
+
+function stockToneMatchesFilter(
+  tone: InventoryProductMock['statusTone'],
+  filter: InventoryStockFilter,
+): boolean {
+  if (filter === 'low_stock') {
+    return tone === 'orange';
+  }
+  if (filter === 'out_of_stock') {
+    return tone === 'red';
+  }
+  return tone !== 'orange' && tone !== 'red';
+}
+
+function normalizeCategoryFilter(values: string[] | undefined): string[] {
+  if (!values || values.length === 0) {
+    return [];
+  }
+
+  return [
+    ...new Set(
+      values.map((value) => value.trim().toLocaleLowerCase('es')).filter(Boolean),
+    ),
+  ];
+}
+
+function inventoryRowCategories(product: InventoryProductMock): string[] {
+  if (product.categories && product.categories.length > 0) {
+    return product.categories;
+  }
+
+  return product.category ? [product.category] : [];
+}
+
+function sellRowCategories(product: SellProductMock): string[] {
+  if (product.categories && product.categories.length > 0) {
+    return product.categories;
+  }
+
+  return product.category ? [product.category] : [];
+}
+
 export function filterInventoryProducts(
   products: InventoryProductMock[],
   query: string,
-  options?: { lowStockOnly?: boolean },
+  options?: InventoryProductFilters,
 ): InventoryProductMock[] {
   const normalizedQuery = query.trim().toLocaleLowerCase('es');
-  const lowStockOnly = options?.lowStockOnly === true;
+  const stockFilters = new Set<InventoryStockFilter>(options?.stocks ?? []);
+
+  if (options?.lowStockOnly) {
+    stockFilters.add('low_stock');
+  }
+
+  const categoryFilter = normalizeCategoryFilter(options?.categories);
 
   return products.filter((product) => {
-    if (lowStockOnly && product.statusTone !== 'orange' && product.statusTone !== 'red') {
-      return false;
+    if (stockFilters.size > 0) {
+      let matches = false;
+      for (const filter of stockFilters) {
+        if (stockToneMatchesFilter(product.statusTone, filter)) {
+          matches = true;
+          break;
+        }
+      }
+      if (!matches) {
+        return false;
+      }
+    }
+
+    if (categoryFilter.length > 0) {
+      const rowCategories = inventoryRowCategories(product).map((name) =>
+        name.trim().toLocaleLowerCase('es'),
+      );
+      const matches = categoryFilter.some((selected) => rowCategories.includes(selected));
+      if (!matches) {
+        return false;
+      }
     }
 
     if (normalizedQuery.length === 0) {
       return true;
     }
 
-    const haystack = [product.name, product.category, product.code].join(' ').toLocaleLowerCase('es');
+    const haystack = [
+      product.name,
+      ...inventoryRowCategories(product),
+      product.code,
+    ]
+      .join(' ')
+      .toLocaleLowerCase('es');
     return haystack.includes(normalizedQuery);
   });
 }
@@ -348,19 +436,31 @@ export function mapProductsToSellRows(products: Product[]): SellProductMock[] {
 
   const rows: SellProductMock[] = [];
 
-  const mapSellRow = (product: Product, indent: boolean): SellProductMock => ({
-    category: product.category ?? 'Sin categoria',
-    code: isProductCodeUnavailable(product) ? '' : readProductCodeValue(product),
-    id: product.id,
-    imageUrl: product.imageUrl,
-    indent,
-    linkedTo: product.parentProductId ? parentNames.get(product.parentProductId) : undefined,
-    name: product.name,
-    price: formatProductUnitPrice(product),
-    soldByWeight: isSoldByWeight(product),
-    stock: `Stock ${formatProductStockLabel(product)}`,
-    unitPriceCents: product.unitPriceCents,
-  });
+  const mapSellRow = (product: Product, indent: boolean): SellProductMock => {
+    const categories =
+      product.categories && product.categories.length > 0
+        ? product.categories
+        : product.category
+          ? [product.category]
+          : [];
+
+    return {
+      categories,
+      category: categories[0] ?? 'Sin categoria',
+      code: isProductCodeUnavailable(product) ? '' : readProductCodeValue(product),
+      id: product.id,
+      imageUrl: product.imageUrl,
+      indent,
+      linkedTo: product.parentProductId ? parentNames.get(product.parentProductId) : undefined,
+      name: product.name,
+      price: formatProductUnitPrice(product),
+      soldByWeight: isSoldByWeight(product),
+      statusTone:
+        product.stockQuantity <= 0 ? 'red' : product.isLowStock ? 'orange' : 'green',
+      stock: `Stock ${formatProductStockLabel(product)}`,
+      unitPriceCents: product.unitPriceCents,
+    };
+  };
 
   for (const root of roots) {
     rows.push(mapSellRow(root, false));
@@ -373,15 +473,57 @@ export function mapProductsToSellRows(products: Product[]): SellProductMock[] {
   return rows;
 }
 
-export function filterSellProducts(products: SellProductMock[], query: string): SellProductMock[] {
+export function filterSellProducts(
+  products: SellProductMock[],
+  query: string,
+  options?: InventoryProductFilters,
+): SellProductMock[] {
   const normalizedQuery = query.trim().toLocaleLowerCase('es');
+  const stockFilters = new Set<InventoryStockFilter>(options?.stocks ?? []);
 
-  if (normalizedQuery.length === 0) {
-    return products;
+  if (options?.lowStockOnly) {
+    stockFilters.add('low_stock');
   }
 
+  const categoryFilter = normalizeCategoryFilter(options?.categories);
+
   return products.filter((product) => {
-    const haystack = [product.name, product.linkedTo ?? '', product.price, product.stock, product.code ?? '']
+    if (stockFilters.size > 0) {
+      const tone = product.statusTone;
+      let matches = false;
+      for (const filter of stockFilters) {
+        if (stockToneMatchesFilter(tone, filter)) {
+          matches = true;
+          break;
+        }
+      }
+      if (!matches) {
+        return false;
+      }
+    }
+
+    if (categoryFilter.length > 0) {
+      const rowCategories = sellRowCategories(product).map((name) =>
+        name.trim().toLocaleLowerCase('es'),
+      );
+      const matches = categoryFilter.some((selected) => rowCategories.includes(selected));
+      if (!matches) {
+        return false;
+      }
+    }
+
+    if (normalizedQuery.length === 0) {
+      return true;
+    }
+
+    const haystack = [
+      product.name,
+      product.linkedTo ?? '',
+      product.price,
+      product.stock,
+      product.code ?? '',
+      ...sellRowCategories(product),
+    ]
       .join(' ')
       .toLocaleLowerCase('es');
     return haystack.includes(normalizedQuery);

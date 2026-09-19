@@ -33,7 +33,9 @@ export default function ManageStockRoute(): ReactElement {
       errorMessage={catalog.errorMessage}
       initialLowStockOnly={initialLowStockOnly}
       isLoading={catalog.isLoading}
-      onAddProduct={() => router.push(productAddRoute('manage-stock'))}
+      onAddProduct={(initialName) =>
+        router.push(productAddRoute('manage-stock', { initialName }))
+      }
       onAddStockProduct={(productId) => router.push(productAddStockRoute(productId, 'manage-stock'))}
       onDeleteProduct={(productId) => router.push(productDeleteRoute(productId, 'manage-stock'))}
       onEditProduct={(productId) => router.push(productEditRoute(productId, 'manage-stock'))}

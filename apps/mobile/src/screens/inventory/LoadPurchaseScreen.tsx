@@ -9,6 +9,7 @@ import {
 import { Icon } from '../../components/icons';
 import {
   InfoBanner,
+  InventoryFilterSheet,
   InventoryPagination,
   InventoryScreenTitle,
   PrimaryButton,
@@ -17,7 +18,13 @@ import {
   SearchFilterRow,
   SectionCard,
   StockBadge,
+  type InventoryFilterValue,
 } from '../../components/inventoryUi';
+import {
+  PurchaseTotalsBlock,
+  type PurchaseTotalsDraft,
+  type PurchaseTotalsHandlers,
+} from '../../components/PurchaseTotalsBlock';
 import { ScreenContent } from '../../components/ui';
 import { ListBox } from '../../design-system';
 import type { LoadPurchaseLine } from '../../context/LoadPurchaseProvider';
@@ -36,6 +43,7 @@ import {
 import { colors, radius } from '../../theme';
 
 const PAGE_SIZE = 10;
+const EMPTY_FILTER_VALUE: InventoryFilterValue = { categories: [], stocks: [] };
 
 function InventoryListRow(props: {
   isLast?: boolean;
@@ -54,7 +62,6 @@ function InventoryListRow(props: {
         <ProductThumb imageUrl={props.product.imageUrl} name={props.product.name} />
         <View style={styles.flex}>
           <Text style={styles.rowTitle}>{props.product.name}</Text>
-          <Text style={styles.rowMeta}>{props.product.category}</Text>
           <View style={styles.stockRow}>
             <Text style={styles.stockValueInline}>{props.product.stock}</Text>
             <StockBadge label={props.product.status} tone={props.product.statusTone} />
@@ -89,41 +96,61 @@ function PurchaseLineRow(props: {
   );
 }
 
-export function LoadPurchaseScreen(props: {
-  businessCenterId: string | null;
-  editingPurchaseId?: string | null;
-  errorMessage?: string | null;
-  isLoading?: boolean;
-  isSaving?: boolean;
-  lines: LoadPurchaseLine[];
-  onAddStockProduct: (productId: string) => void;
-  onBack: () => void;
-  onClearDraft?: () => void;
-  onDateChange: (value: string) => void;
-  onPurchaseNumberChange: (value: string) => void;
-  onRemoveLine?: (lineId: string) => void;
-  onSavePurchase: () => Promise<void>;
-  onScanCode?: () => void;
-  onSupplierChange: (value: string) => void;
-  organizationId: string | null;
-  products?: InventoryProductMock[];
-  purchaseDate: string;
-  purchaseNumber: string;
-  purchaseNumberLocked?: boolean;
-  supplier: string;
-  totalCostCents: number;
-  totalItems: number;
-}): ReactElement {
+export function LoadPurchaseScreen(
+  props: {
+    businessCenterId: string | null;
+    editingPurchaseId?: string | null;
+    errorMessage?: string | null;
+    isLoading?: boolean;
+    isSaving?: boolean;
+    lines: LoadPurchaseLine[];
+    onAddNewProduct?: (initialName: string) => void;
+    onAddStockProduct: (productId: string) => void;
+    onBack: () => void;
+    onClearDraft?: () => void;
+    onDateChange: (value: string) => void;
+    onPurchaseNumberChange: (value: string) => void;
+    onRemoveLine?: (lineId: string) => void;
+    onSavePurchase: () => Promise<void>;
+    onScanCode?: () => void;
+    onSupplierChange: (value: string) => void;
+    organizationId: string | null;
+    products?: InventoryProductMock[];
+    purchaseDate: string;
+    purchaseNumber: string;
+    purchaseNumberLocked?: boolean;
+    supplier: string;
+    totalCostCents: number;
+    totalItems: number;
+  } & PurchaseTotalsDraft &
+    PurchaseTotalsHandlers,
+): ReactElement {
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [supplierNames, setSupplierNames] = useState<string[]>([]);
   const [purchaseNumberStatus, setPurchaseNumberStatus] = useState<
     'idle' | 'checking' | 'available' | 'taken' | 'empty'
   >('empty');
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [filterValue, setFilterValue] = useState<InventoryFilterValue>(EMPTY_FILTER_VALUE);
   const products = props.products ?? inventoryProducts;
+  const availableCategories = useMemo(() => {
+    const set = new Set<string>();
+    for (const product of products) {
+      for (const category of product.categories ?? []) {
+        if (category?.trim()) set.add(category.trim());
+      }
+      if (product.category?.trim()) set.add(product.category.trim());
+    }
+    return [...set];
+  }, [products]);
   const filteredProducts = useMemo(
-    () => filterInventoryProducts(products, searchQuery),
-    [products, searchQuery],
+    () =>
+      filterInventoryProducts(products, searchQuery, {
+        categories: filterValue.categories,
+        stocks: filterValue.stocks,
+      }),
+    [filterValue.categories, filterValue.stocks, products, searchQuery],
   );
   const pagination = useMemo(
     () => paginateItems(filteredProducts, currentPage, PAGE_SIZE),
@@ -134,6 +161,7 @@ export function LoadPurchaseScreen(props: {
     [pagination.page, pagination.pageCount],
   );
   const productCountLabel = `${filteredProducts.length} producto${filteredProducts.length === 1 ? '' : 's'}`;
+  const activeFilterCount = filterValue.categories.length + filterValue.stocks.length;
   const supplierMatched = useMemo(() => {
     const trimmed = props.supplier.trim().toLowerCase();
 
@@ -156,7 +184,7 @@ export function LoadPurchaseScreen(props: {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery]);
+  }, [searchQuery, filterValue.categories, filterValue.stocks]);
 
   useEffect(() => {
     if (currentPage > pagination.pageCount) {
@@ -253,6 +281,13 @@ export function LoadPurchaseScreen(props: {
     }
   }
 
+  const showAddNewFallback =
+    !props.isLoading &&
+    products.length > 0 &&
+    filteredProducts.length === 0 &&
+    searchQuery.trim().length > 0 &&
+    props.onAddNewProduct != null;
+
   return (
     <ScreenContent title="Cargar compra">
       <InventoryScreenTitle onBack={props.onBack} title={props.editingPurchaseId ? 'Editar compra' : 'Cargar compra'} />
@@ -324,8 +359,10 @@ export function LoadPurchaseScreen(props: {
       {props.errorMessage ? <InfoBanner>{props.errorMessage}</InfoBanner> : null}
 
       <SearchFilterRow
+        activeFilterCount={activeFilterCount}
         onChangeText={setSearchQuery}
         onPressCamera={props.onScanCode}
+        onPressFilter={() => setFilterOpen(true)}
         searchValue={searchQuery}
       />
 
@@ -335,7 +372,20 @@ export function LoadPurchaseScreen(props: {
         ) : products.length === 0 ? (
           <Text style={styles.loadingText}>No hay productos cargados en esta sucursal.</Text>
         ) : filteredProducts.length === 0 ? (
-          <Text style={styles.loadingText}>No se encontraron productos para esta búsqueda.</Text>
+          <>
+            <Text style={styles.loadingText}>No se encontraron productos para esta búsqueda.</Text>
+            {showAddNewFallback ? (
+              <Pressable
+                onPress={() => props.onAddNewProduct?.(searchQuery.trim())}
+                style={styles.addNewFromSearchRow}
+              >
+                <Icon color={colors.primary} kind="plus" size={14} strokeWidth={2.2} />
+                <Text style={styles.addNewFromSearchText}>
+                  Agregar «{searchQuery.trim()}» como producto
+                </Text>
+              </Pressable>
+            ) : null}
+          </>
         ) : (
           <>
             {pagination.items.map((product, index) => (
@@ -398,6 +448,24 @@ export function LoadPurchaseScreen(props: {
       </ListBox>
 
       {props.lines.length > 0 ? (
+        <View style={styles.totalsWrap}>
+          <PurchaseTotalsBlock
+            adjustmentKind={props.adjustmentKind}
+            adjustmentMode={props.adjustmentMode}
+            adjustmentValue={props.adjustmentValue}
+            ivaEnabled={props.ivaEnabled}
+            ivaRatePercent={props.ivaRatePercent}
+            lineSubtotalCents={props.lineSubtotalCents}
+            onAdjustmentKindChange={props.onAdjustmentKindChange}
+            onAdjustmentModeChange={props.onAdjustmentModeChange}
+            onAdjustmentValueChange={props.onAdjustmentValueChange}
+            onIvaEnabledChange={props.onIvaEnabledChange}
+            onIvaRateChange={props.onIvaRateChange}
+          />
+        </View>
+      ) : null}
+
+      {props.lines.length > 0 ? (
         <PrimaryButton
           fullWidth
           label={props.isSaving ? 'Guardando...' : 'Guardar compra'}
@@ -431,6 +499,21 @@ export function LoadPurchaseScreen(props: {
           <Text style={styles.newPurchaseButtonText}>Empezar otra compra</Text>
         </Pressable>
       ) : null}
+
+      <InventoryFilterSheet
+        availableCategories={availableCategories}
+        onClear={() => {
+          setFilterValue(EMPTY_FILTER_VALUE);
+          setFilterOpen(false);
+        }}
+        onClose={() => setFilterOpen(false)}
+        onSubmit={(value) => {
+          setFilterValue(value);
+          setFilterOpen(false);
+        }}
+        value={filterValue}
+        visible={filterOpen}
+      />
     </ScreenContent>
   );
 }
@@ -474,6 +557,21 @@ const styles = StyleSheet.create({
     fontWeight: '300',
     paddingHorizontal: 14,
     paddingVertical: 12,
+  },
+  addNewFromSearchRow: {
+    alignItems: 'center',
+    borderTopColor: colors.divider,
+    borderTopWidth: 1,
+    flexDirection: 'row',
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  addNewFromSearchText: {
+    color: colors.primary,
+    flexShrink: 1,
+    fontSize: 14,
+    fontWeight: '600',
   },
   lockedField: {
     flex: 1,
@@ -608,5 +706,8 @@ const styles = StyleSheet.create({
     color: colors.navy,
     fontSize: 13,
     fontWeight: '500',
+  },
+  totalsWrap: {
+    marginTop: 12,
   },
 });

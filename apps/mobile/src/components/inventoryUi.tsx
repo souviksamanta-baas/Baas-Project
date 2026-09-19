@@ -1,5 +1,5 @@
-import { useEffect, useState, type ReactElement, type ReactNode } from 'react';
-import { Image, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useEffect, useMemo, useState, type ReactElement, type ReactNode } from 'react';
+import { Image, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import type { StockTone } from '../api/inventoryMockData';
 import {
@@ -21,6 +21,8 @@ import {
 } from '../design-system';
 import { useHeaderChromeOptional } from '../context/HeaderChromeProvider';
 import { splitProductThumbLabel } from '../lib/productPhoto';
+import type { InventoryStockFilter } from '../lib/inventoryPresentation';
+import { MobileContainedModal } from './MobileContainedModal';
 import { Icon } from './icons';
 import type { IconKind } from './icons';
 
@@ -63,19 +65,165 @@ export function InventoryScreenTitle(props: {
 }
 
 export function SearchFilterRow(props: {
+  activeFilterCount?: number;
   onChangeText?: (text: string) => void;
   onPressCamera?: () => void;
+  onPressFilter?: () => void;
+  placeholder?: string;
   searchValue?: string;
+  showFilter?: boolean;
 }): ReactElement {
+  const showFilter = props.showFilter !== false;
+  const activeCount = props.activeFilterCount ?? 0;
+
   return (
-    <SearchActionRow
-      onChangeText={props.onChangeText}
-      onPressCamera={props.onPressCamera}
-      placeholder="Buscar por producto, categoria o codigo"
-      searchValue={props.searchValue}
-      showCamera={props.onPressCamera != null}
-      showFilter
-    />
+    <View style={styles.searchFilterWrap}>
+      <SearchActionRow
+        onChangeText={props.onChangeText}
+        onPressCamera={props.onPressCamera}
+        onPressFilter={props.onPressFilter}
+        placeholder={props.placeholder ?? 'Buscar por producto, categoría o código'}
+        searchValue={props.searchValue}
+        showCamera={props.onPressCamera != null}
+        showFilter={showFilter}
+      />
+      {showFilter && activeCount > 0 ? (
+        <View pointerEvents="none" style={styles.filterCountBadge}>
+          <Text style={styles.filterCountBadgeText}>{activeCount}</Text>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+export interface InventoryFilterValue {
+  categories: string[];
+  stocks: InventoryStockFilter[];
+}
+
+const STOCK_FILTER_LABELS: Record<InventoryStockFilter, string> = {
+  in_stock: 'En stock',
+  low_stock: 'Bajo stock',
+  out_of_stock: 'Sin stock',
+};
+
+const STOCK_FILTER_ORDER: InventoryStockFilter[] = ['in_stock', 'low_stock', 'out_of_stock'];
+
+export function InventoryFilterSheet(props: {
+  availableCategories: string[];
+  onClear: () => void;
+  onClose: () => void;
+  onSubmit: (value: InventoryFilterValue) => void;
+  value: InventoryFilterValue;
+  visible: boolean;
+}): ReactElement {
+  const [draftCategories, setDraftCategories] = useState<string[]>(props.value.categories);
+  const [draftStocks, setDraftStocks] = useState<InventoryStockFilter[]>(props.value.stocks);
+
+  useEffect(() => {
+    if (props.visible) {
+      setDraftCategories(props.value.categories);
+      setDraftStocks(props.value.stocks);
+    }
+  }, [props.value.categories, props.value.stocks, props.visible]);
+
+  const sortedCategories = useMemo(
+    () =>
+      [...props.availableCategories]
+        .map((category) => category.trim())
+        .filter((category) => category.length > 0)
+        .sort((left, right) => left.localeCompare(right, 'es')),
+    [props.availableCategories],
+  );
+
+  function toggleCategory(name: string): void {
+    setDraftCategories((current) =>
+      current.some((entry) => entry.toLowerCase() === name.toLowerCase())
+        ? current.filter((entry) => entry.toLowerCase() !== name.toLowerCase())
+        : [...current, name],
+    );
+  }
+
+  function toggleStock(filter: InventoryStockFilter): void {
+    setDraftStocks((current) =>
+      current.includes(filter)
+        ? current.filter((entry) => entry !== filter)
+        : [...current, filter],
+    );
+  }
+
+  return (
+    <MobileContainedModal onClose={props.onClose} visible={props.visible}>
+      <Text style={styles.filterSheetTitle}>Filtrar productos</Text>
+      <ScrollView style={styles.filterSheetScroll}>
+        <Text style={styles.filterSheetSection}>Categorías</Text>
+        {sortedCategories.length === 0 ? (
+          <Text style={styles.filterSheetEmpty}>Todavía no hay categorías cargadas.</Text>
+        ) : (
+          <View style={styles.filterChipRow}>
+            {sortedCategories.map((category) => {
+              const active = draftCategories.some(
+                (entry) => entry.toLowerCase() === category.toLowerCase(),
+              );
+
+              return (
+                <Pressable
+                  key={category}
+                  onPress={() => toggleCategory(category)}
+                  style={[styles.filterChip, active && styles.filterChipActive]}
+                >
+                  <Text
+                    style={[styles.filterChipText, active && styles.filterChipTextActive]}
+                  >
+                    {category}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        )}
+
+        <Text style={[styles.filterSheetSection, styles.filterSheetSectionSpaced]}>Stock</Text>
+        <View style={styles.filterChipRow}>
+          {STOCK_FILTER_ORDER.map((filter) => {
+            const active = draftStocks.includes(filter);
+            return (
+              <Pressable
+                key={filter}
+                onPress={() => toggleStock(filter)}
+                style={[styles.filterChip, active && styles.filterChipActive]}
+              >
+                <Text
+                  style={[styles.filterChipText, active && styles.filterChipTextActive]}
+                >
+                  {STOCK_FILTER_LABELS[filter]}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      </ScrollView>
+      <View style={styles.filterSheetFooter}>
+        <Pressable
+          onPress={() => {
+            setDraftCategories([]);
+            setDraftStocks([]);
+            props.onClear();
+          }}
+          style={styles.filterSheetClearButton}
+        >
+          <Text style={styles.filterSheetClearText}>Limpiar</Text>
+        </Pressable>
+        <Pressable
+          onPress={() =>
+            props.onSubmit({ categories: draftCategories, stocks: draftStocks })
+          }
+          style={styles.filterSheetApplyButton}
+        >
+          <Text style={styles.filterSheetApplyText}>Aplicar filtros</Text>
+        </Pressable>
+      </View>
+    </MobileContainedModal>
   );
 }
 
@@ -126,7 +274,13 @@ export function StockBadge(props: { label: string; tone?: StockTone | 'neutral' 
 
 export function ProductSummaryCard(props: {
   badge?: string;
+  /** @deprecated Prefer `categories`. */
   category?: string;
+  /**
+   * Full list of category names to render in the details grid.
+   * When provided (and non-empty), replaces the subtitle under the title.
+   */
+  categories?: string[];
   changePhoto?: boolean;
   imageUrl?: string | null;
   linkedTo?: string;
@@ -171,6 +325,21 @@ export function ProductSummaryCard(props: {
   const barcodeColor = codeUnavailable ? colors.danger : colors.navy;
   const canChangePhoto = props.changePhoto === true && props.onChangePhoto != null;
 
+  const explicitCategories = props.categories?.filter(
+    (name) => name != null && name.trim().length > 0,
+  );
+  const hasCategoriesList = (explicitCategories?.length ?? 0) > 0;
+  const categoriesLabel = hasCategoriesList
+    ? (explicitCategories as string[]).join(', ')
+    : props.category?.trim()
+      ? props.category.trim()
+      : null;
+  const categoryNamesForMeta = hasCategoriesList
+    ? (explicitCategories as string[])
+    : props.category?.trim()
+      ? [props.category.trim()]
+      : [];
+
   const thumb = (
     <View>
       <ProductThumb imageUrl={props.imageUrl} name={props.title} />
@@ -198,7 +367,7 @@ export function ProductSummaryCard(props: {
         )}
         <View style={styles.flex}>
           <Text style={styles.summaryName}>{props.title}</Text>
-          <Text style={styles.summaryCategory}>{props.category ?? 'Almacen'}</Text>
+          {null}
           {props.linkedTo ? <Text style={styles.linkedText}>Vinculado a: {props.linkedTo}</Text> : null}
           {props.badge ? (
             <Badge icon="box" label={props.badge} tone="blue" />
@@ -220,6 +389,13 @@ export function ProductSummaryCard(props: {
       </View>
       {props.showMeta ? (
         <View style={styles.metaGrid}>
+          {categoriesLabel ? (
+            <MetaItem
+              full
+              label={categoryNamesForMeta.length > 1 ? 'Categorías' : 'Categoría'}
+              value={categoriesLabel}
+            />
+          ) : null}
           <MetaItem label="Marca" value={meta.brand ?? '—'} />
           <MetaItem label="Proveedor" value={meta.supplier ?? '—'} />
           <MetaItem label="Costo" value={meta.cost ?? '—'} />
@@ -237,11 +413,18 @@ export function ProductSummaryCard(props: {
   );
 }
 
-function MetaItem(props: { danger?: boolean; label: string; value: string }): ReactElement {
+function MetaItem(props: {
+  danger?: boolean;
+  full?: boolean;
+  label: string;
+  value: string;
+}): ReactElement {
   return (
-    <View style={styles.metaItem}>
+    <View style={[styles.metaItem, props.full && styles.metaItemFull]}>
       <Text style={styles.metaLabel}>{props.label}</Text>
-      <Text style={[styles.metaValue, props.danger && styles.metaValueDanger]}>{props.value}</Text>
+      <Text style={[styles.metaValue, props.danger && styles.metaValueDanger]}>
+        {props.value}
+      </Text>
     </View>
   );
 }
@@ -1247,17 +1430,26 @@ const styles = StyleSheet.create({
     paddingTop: 12,
   },
   metaItem: {
+    minWidth: 0,
     width: '47%',
+  },
+  metaItemFull: {
+    width: '100%',
   },
   metaLabel: {
     color: colors.slate,
+    flexShrink: 1,
+    flexWrap: 'wrap',
     fontSize: 12,
     fontWeight: '300',
   },
   metaValue: {
     color: colors.navy,
+    flexShrink: 1,
+    flexWrap: 'wrap',
     fontSize: 12,
     fontWeight: '600',
+    lineHeight: 16,
     marginTop: 2,
   },
   metaValueDanger: {
@@ -1676,5 +1868,105 @@ const styles = StyleSheet.create({
     color: colors.info,
     fontSize: 12,
     fontWeight: '300',
+  },
+  searchFilterWrap: {
+    position: 'relative',
+  },
+  filterCountBadge: {
+    alignItems: 'center',
+    backgroundColor: colors.primary,
+    borderRadius: radius.pill,
+    height: 16,
+    justifyContent: 'center',
+    minWidth: 16,
+    paddingHorizontal: 4,
+    position: 'absolute',
+    right: -4,
+    top: -6,
+  },
+  filterCountBadgeText: {
+    color: colors.surface,
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  filterSheetTitle: {
+    color: colors.navy,
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 12,
+  },
+  filterSheetScroll: {
+    maxHeight: 360,
+  },
+  filterSheetSection: {
+    color: colors.navy,
+    fontSize: 13,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  filterSheetSectionSpaced: {
+    marginTop: 16,
+  },
+  filterSheetEmpty: {
+    color: colors.slate,
+    fontSize: 13,
+    fontWeight: '300',
+  },
+  filterChipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  filterChip: {
+    alignItems: 'center',
+    borderColor: colors.borderInput,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    flexShrink: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  filterChipActive: {
+    backgroundColor: colors.primarySoft,
+    borderColor: colors.primary,
+  },
+  filterChipText: {
+    color: colors.slate,
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  filterChipTextActive: {
+    color: colors.primary,
+    fontWeight: '700',
+  },
+  filterSheetFooter: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 16,
+  },
+  filterSheetClearButton: {
+    alignItems: 'center',
+    borderColor: colors.borderInput,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    flex: 1,
+    paddingVertical: 12,
+  },
+  filterSheetClearText: {
+    color: colors.slate,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  filterSheetApplyButton: {
+    alignItems: 'center',
+    backgroundColor: colors.primary,
+    borderRadius: radius.md,
+    flex: 1,
+    paddingVertical: 12,
+  },
+  filterSheetApplyText: {
+    color: colors.surface,
+    fontSize: 14,
+    fontWeight: '700',
   },
 });

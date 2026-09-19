@@ -17,7 +17,7 @@ features expand the API surface.
 | `customers/` | Customer/contact identity, deduplication, and CRM profile use cases. |
 | `conversations/` | Conversation threads, message persistence, inbox state, and channel event normalization. |
 | `tasks/` | Follow-up tasks, reminders, and scheduled workflow state. |
-| `inventory/` | Product catalog lookup plus center-scoped measured stock, reorder thresholds, lots, movements, and transformations. |
+| `inventory/` | Product catalog lookup plus center-scoped measured stock, reorder thresholds, lots, movements, and transformations. Multi-category links are written from mobile (and Copi `createProduct`) against `product_categories` / `product_category_links`. **Proveedores and compras** (`suppliers`, `purchases`, `purchase_lines`) are mobile → Supabase only — **no Nest HTTP routes or webhooks** for compra lifecycle/IVA. |
 | `ai/` | AI orchestration, tool calls, prompt policy, and draft/auto-send decisions. |
 | `whatsapp/` | WhatsApp Business connection status, channel configuration reads, message persistence, outbound sends, and server-only channel metadata. |
 | `arca/` | ARCA (ex-AFIP) WSAA/WSFEv1 adapter, connection/representation state, QR + AFIP-style invoice PDF. SOAP stays server-only. |

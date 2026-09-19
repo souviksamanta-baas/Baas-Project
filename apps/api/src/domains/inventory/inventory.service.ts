@@ -390,6 +390,8 @@ export class InventoryService {
       );
     }
 
+    await this.syncProductCategory(client, params.organizationId, product.id, category);
+
     let lotId: string | null = null;
     if (stockQuantity > 0) {
       const receivedAt = new Date().toISOString();
@@ -486,6 +488,72 @@ export class InventoryService {
     }
 
     return `${prefix}-${Date.now().toString(36).toUpperCase()}`;
+  }
+
+  private async syncProductCategory(
+    client: ReturnType<SupabaseService['getServiceRoleClient']>,
+    organizationId: string,
+    productId: string,
+    categoryName: string,
+  ): Promise<void> {
+    const name = categoryName.trim();
+    if (!name) {
+      return;
+    }
+
+    const { data: existingCategory } = await client
+      .from('product_categories')
+      .select('id, name')
+      .eq('organization_id', organizationId)
+      .ilike('name', name)
+      .maybeSingle<{ id: string; name: string }>();
+
+    let categoryId = existingCategory?.id ?? null;
+
+    if (!categoryId) {
+      const { data: inserted, error: insertError } = await client
+        .from('product_categories')
+        .insert({ name, organization_id: organizationId })
+        .select('id')
+        .single<{ id: string }>();
+
+      if (insertError || !inserted) {
+        // Race or unique conflict — re-read.
+        const { data: raced } = await client
+          .from('product_categories')
+          .select('id')
+          .eq('organization_id', organizationId)
+          .ilike('name', name)
+          .maybeSingle<{ id: string }>();
+        categoryId = raced?.id ?? null;
+      } else {
+        categoryId = inserted.id;
+      }
+    }
+
+    if (!categoryId) {
+      return;
+    }
+
+    // Ensure Granel catalog row exists for the org (unassigned).
+    const { data: granel } = await client
+      .from('product_categories')
+      .select('id')
+      .eq('organization_id', organizationId)
+      .ilike('name', 'Granel')
+      .maybeSingle<{ id: string }>();
+
+    if (!granel) {
+      await client
+        .from('product_categories')
+        .insert({ name: 'Granel', organization_id: organizationId });
+    }
+
+    await client.from('product_category_links').delete().eq('product_id', productId);
+    await client.from('product_category_links').insert({
+      category_id: categoryId,
+      product_id: productId,
+    });
   }
 
   private async getDefaultBusinessCenterId(organizationId: string): Promise<string> {

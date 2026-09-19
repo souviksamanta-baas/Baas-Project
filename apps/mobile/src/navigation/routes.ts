@@ -376,14 +376,24 @@ export function productAddSubproductRoute(
   return `${path}?returnTo=${returnTo}`;
 }
 
-export function productAddRoute(returnTo?: InventoryReturnTo): string {
+export function productAddRoute(
+  returnTo?: InventoryReturnTo,
+  options?: { initialName?: string },
+): string {
   const path = '/(app)/inventory/add-product';
+  const params = new URLSearchParams();
 
-  if (!returnTo) {
-    return path;
+  if (returnTo) {
+    params.set('returnTo', returnTo);
   }
 
-  return `${path}?returnTo=${returnTo}`;
+  const initialName = options?.initialName?.trim();
+  if (initialName) {
+    params.set('initialName', initialName);
+  }
+
+  const query = params.toString();
+  return query ? `${path}?${query}` : path;
 }
 
 export function productEditRoute(

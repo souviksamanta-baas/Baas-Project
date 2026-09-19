@@ -8,6 +8,7 @@ import { useProducts } from '../../../src/hooks/useProducts';
 import { mapProductToInventoryRow } from '../../../src/lib/inventoryPresentation';
 import {
   inventoryScanRoute,
+  productAddRoute,
   productAddStockRoute,
   routes,
 } from '../../../src/navigation/routes';
@@ -31,15 +32,27 @@ export default function LoadPurchaseRoute(): ReactElement {
 
   return (
     <LoadPurchaseScreen
+      adjustmentKind={purchase.adjustmentKind}
+      adjustmentMode={purchase.adjustmentMode}
+      adjustmentValue={purchase.adjustmentValue}
       businessCenterId={businessCenterId}
       editingPurchaseId={purchase.editingPurchaseId}
       errorMessage={catalog.errorMessage}
       isLoading={catalog.isLoading}
       isSaving={purchase.isSaving}
+      ivaEnabled={purchase.ivaEnabled}
+      ivaRatePercent={purchase.ivaRatePercent}
       lines={purchase.lines}
+      lineSubtotalCents={purchase.totalCostCents}
+      onAddNewProduct={(initialName) =>
+        router.push(productAddRoute('load-purchase', { initialName }))
+      }
       onAddStockProduct={(productId) =>
         router.push(productAddStockRoute(productId, 'load-purchase'))
       }
+      onAdjustmentKindChange={purchase.setAdjustmentKind}
+      onAdjustmentModeChange={purchase.setAdjustmentMode}
+      onAdjustmentValueChange={purchase.setAdjustmentValue}
       onBack={() => {
         if (router.canGoBack()) {
           router.back();
@@ -50,6 +63,8 @@ export default function LoadPurchaseRoute(): ReactElement {
       }}
       onClearDraft={purchase.clearDraft}
       onDateChange={purchase.setDate}
+      onIvaEnabledChange={purchase.setIvaEnabled}
+      onIvaRateChange={purchase.setIvaRatePercent}
       onPurchaseNumberChange={purchase.setPurchaseNumber}
       onRemoveLine={purchase.removeLine}
       onSavePurchase={purchase.savePurchase}

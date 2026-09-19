@@ -23,6 +23,7 @@ import {
   useSellCart,
 } from '../../context/SellCartProvider';
 import {
+  InventoryCategoryChipField,
   InventoryDateField,
   InventoryDecimalField,
   InventoryIntegerField,
@@ -45,9 +46,9 @@ import {
   ConfirmEditButton,
   ConfirmPrimaryButton,
   DangerButton,
-  FormField,
   InfoBanner,
   InfoBlock,
+  InventoryFilterSheet,
   InventoryPagination,
   InventoryScreenTitle,
   LinkedDeleteRow,
@@ -62,6 +63,7 @@ import {
   SectionCard,
   SolidDangerButton,
   StockBadge,
+  type InventoryFilterValue,
 } from '../../components/inventoryUi';
 import { ScreenContent } from '../../components/ui';
 import { ListBox, TextField } from '../../design-system';
@@ -79,11 +81,11 @@ import {
   paginateItems,
 } from '../../lib/inventoryPresentation';
 import {
+  canHaveSubproducts,
   getProductCodeTypeLabel,
   readProductCodeType,
   readProductCodeValue,
   isProductCodeUnavailable,
-  isGranelProduct,
 } from '../../lib/productCatalog';
 import {
   BASE_UNIT_OPTIONS,
@@ -143,7 +145,7 @@ export function ManageStockScreen(
     initialLowStockOnly?: boolean;
     isLoading?: boolean;
     onAddStockProduct: (productId: string) => void;
-    onAddProduct?: () => void;
+    onAddProduct?: (initialName?: string) => void;
     onDeleteProduct: (productId: string) => void;
     onEditProduct: (productId: string) => void;
     onOpenProductDetail: (productId: string) => void;
@@ -152,12 +154,30 @@ export function ManageStockScreen(
   },
 ): ReactElement {
   const [searchQuery, setSearchQuery] = useState('');
-  const [lowStockOnly, setLowStockOnly] = useState(props.initialLowStockOnly === true);
   const [currentPage, setCurrentPage] = useState(1);
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [filterValue, setFilterValue] = useState<InventoryFilterValue>(() => ({
+    categories: [],
+    stocks: props.initialLowStockOnly ? ['low_stock'] : [],
+  }));
   const products = props.products ?? inventoryProducts;
+  const availableCategories = useMemo(() => {
+    const set = new Set<string>();
+    for (const product of products) {
+      for (const category of product.categories ?? []) {
+        if (category?.trim()) set.add(category.trim());
+      }
+      if (product.category?.trim()) set.add(product.category.trim());
+    }
+    return [...set];
+  }, [products]);
   const filteredProducts = useMemo(
-    () => filterInventoryProducts(products, searchQuery, { lowStockOnly }),
-    [lowStockOnly, products, searchQuery],
+    () =>
+      filterInventoryProducts(products, searchQuery, {
+        categories: filterValue.categories,
+        stocks: filterValue.stocks,
+      }),
+    [filterValue.categories, filterValue.stocks, products, searchQuery],
   );
   const pagination = useMemo(
     () => paginateItems(filteredProducts, currentPage, MANAGE_STOCK_PAGE_SIZE),
@@ -168,10 +188,17 @@ export function ManageStockScreen(
     [pagination.page, pagination.pageCount],
   );
   const productCountLabel = `${filteredProducts.length} producto${filteredProducts.length === 1 ? '' : 's'}`;
+  const activeFilterCount = filterValue.categories.length + filterValue.stocks.length;
+  const showAddNewFallback =
+    !props.isLoading &&
+    products.length > 0 &&
+    filteredProducts.length === 0 &&
+    searchQuery.trim().length > 0 &&
+    props.onAddProduct != null;
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [lowStockOnly, searchQuery]);
+  }, [filterValue.categories, filterValue.stocks, searchQuery]);
 
   useEffect(() => {
     if (currentPage > pagination.pageCount) {
@@ -183,18 +210,12 @@ export function ManageStockScreen(
     <ScreenContent title="Gestionar stock">
       <InventoryScreenTitle showBack={false} title="Gestionar stock" />
       <SearchFilterRow
+        activeFilterCount={activeFilterCount}
         onChangeText={setSearchQuery}
         onPressCamera={props.onScanCode}
+        onPressFilter={() => setFilterOpen(true)}
         searchValue={searchQuery}
       />
-      <Pressable
-        onPress={() => setLowStockOnly((current) => !current)}
-        style={[styles.filterChip, lowStockOnly && styles.filterChipActive]}
-      >
-        <Text style={[styles.filterChipText, lowStockOnly && styles.filterChipTextActive]}>
-          Bajo stock
-        </Text>
-      </Pressable>
       {props.errorMessage ? <InfoBanner>{props.errorMessage}</InfoBanner> : null}
       <ListBox headerMeta={productCountLabel} title="Productos en inventario">
         {props.isLoading ? (
@@ -202,11 +223,24 @@ export function ManageStockScreen(
         ) : products.length === 0 ? (
           <Text style={styles.loadingText}>No hay productos cargados en esta sucursal.</Text>
         ) : filteredProducts.length === 0 ? (
-          <Text style={styles.loadingText}>
-            {lowStockOnly
-              ? 'No hay productos con bajo stock.'
-              : 'No se encontraron productos para esta busqueda.'}
-          </Text>
+          <>
+            <Text style={styles.loadingText}>
+              {activeFilterCount > 0
+                ? 'No hay productos que coincidan con los filtros seleccionados.'
+                : 'No se encontraron productos para esta búsqueda.'}
+            </Text>
+            {showAddNewFallback ? (
+              <Pressable
+                onPress={() => props.onAddProduct?.(searchQuery.trim())}
+                style={styles.addFromSearchRow}
+              >
+                <Icon color={colors.primary} kind="plus" size={14} strokeWidth={2.2} />
+                <Text style={styles.addFromSearchText}>
+                  Agregar «{searchQuery.trim()}» como producto
+                </Text>
+              </Pressable>
+            ) : null}
+          </>
         ) : (
           <>
             {pagination.items.map((product, index) => (
@@ -232,7 +266,11 @@ export function ManageStockScreen(
           </>
         )}
       </ListBox>
-      <Pressable onPress={props.onAddProduct} style={styles.addProductCard} disabled={!props.onAddProduct}>
+      <Pressable
+        onPress={() => props.onAddProduct?.()}
+        style={styles.addProductCard}
+        disabled={!props.onAddProduct}
+      >
         <View style={styles.addProductIcon}>
           <Icon color={colors.primary} kind="plus" size={17} strokeWidth={2} />
         </View>
@@ -242,6 +280,21 @@ export function ManageStockScreen(
         </View>
         <Icon color={colors.primary} kind="chevron-right" size={14} strokeWidth={2.2} />
       </Pressable>
+
+      <InventoryFilterSheet
+        availableCategories={availableCategories}
+        onClear={() => {
+          setFilterValue({ categories: [], stocks: [] });
+          setFilterOpen(false);
+        }}
+        onClose={() => setFilterOpen(false)}
+        onSubmit={(value) => {
+          setFilterValue(value);
+          setFilterOpen(false);
+        }}
+        value={filterValue}
+        visible={filterOpen}
+      />
     </ScreenContent>
   );
 }
@@ -258,6 +311,7 @@ export function AddProductScreen(props: {
   businessCenterId: string;
   businessCenters: Array<{ id: string; name: string }>;
   categories: string[];
+  initialName?: string;
   isSaving?: boolean;
   onBack: () => void;
   onSave: (values: AddProductFormValues) => Promise<void>;
@@ -265,22 +319,16 @@ export function AddProductScreen(props: {
   suppliers: string[];
 }): ReactElement {
   const showSucursal = useHasMultipleSucursales();
-  const [formValues, setFormValues] = useState<AddProductFormValues>(() =>
-    createEmptyAddProductForm(props.businessCenterId),
-  );
+  const [formValues, setFormValues] = useState<AddProductFormValues>(() => {
+    const base = createEmptyAddProductForm(props.businessCenterId);
+    const initialName = props.initialName?.trim() ?? '';
+    return initialName.length > 0 ? { ...base, name: initialName } : base;
+  });
   const lotPreview = useMemo(
     () => previewLotCode(formValues.receivedDate, []),
     [formValues.receivedDate],
   );
   const [isScanningCode, setIsScanningCode] = useState(false);
-
-  const categoryOptions = useMemo(
-    () =>
-      sortOptionsAlphabetically(
-        props.categories.map((category) => ({ label: category, value: category })),
-      ),
-    [props.categories],
-  );
 
   const branchOptions = useMemo(
     () =>
@@ -291,7 +339,12 @@ export function AddProductScreen(props: {
   );
 
   async function handleSave(addAnother: boolean): Promise<void> {
-    const payload = { ...formValues, productType: 'producto' as const, parentProductId: '' };
+    const payload = {
+      ...formValues,
+      category: formValues.categories[0] ?? formValues.category,
+      productType: 'producto' as const,
+      parentProductId: '',
+    };
 
     try {
       if (addAnother) {
@@ -349,28 +402,26 @@ export function AddProductScreen(props: {
             options={PRODUCT_STATUS_OPTIONS}
             value={formValues.status}
           />
-          {categoryOptions.length > 0 ? (
-            <InventorySelectField
-              label="Categoria"
-              onChange={(category) => setFormValues((current) => ({ ...current, category }))}
-              options={categoryOptions}
-              value={formValues.category}
-            />
-          ) : (
-            <InventoryTextField
-              label="Categoria"
-              onChangeText={(category) => setFormValues((current) => ({ ...current, category }))}
-              value={formValues.category}
-            />
-          )}
-        </View>
-        <View style={styles.fieldRow}>
           <InventorySelectField
             label="Unidad"
             onChange={(baseUnitCode) => setFormValues((current) => ({ ...current, baseUnitCode }))}
             options={BASE_UNIT_OPTIONS}
             value={formValues.baseUnitCode}
           />
+        </View>
+        <InventoryCategoryChipField
+          full
+          onChange={(categories) =>
+            setFormValues((current) => ({
+              ...current,
+              categories,
+              category: categories[0] ?? '',
+            }))
+          }
+          suggestions={props.categories}
+          value={formValues.categories}
+        />
+        <View style={styles.fieldRow}>
           <InventoryReadOnlyField label="SKU" value="Se genera al guardar" />
         </View>
         <View style={styles.fieldRow}>
@@ -771,7 +822,7 @@ export function ProductDetailScreen(
   const batchRows = props.batchRows ?? (product ? [] : batches);
   const movementRows = props.movements ?? (product ? [] : movements);
   const isBaseProduct = product?.parentProductId == null;
-  const showSubproductsSection = Boolean(product && isBaseProduct && isGranelProduct(product));
+  const showSubproductsSection = Boolean(product && isBaseProduct && canHaveSubproducts(product));
 
   async function handleChangePhoto(): Promise<void> {
     if (!product || isUploadingPhoto) {
@@ -800,7 +851,13 @@ export function ProductDetailScreen(
     <ScreenContent title={productName}>
       <InventoryScreenTitle onBack={props.onBack} stickyTitle={productName} title="Producto" />
       <ProductSummaryCard
-        category={productCategory}
+        categories={
+          product?.categories?.length
+            ? product.categories
+            : productCategory
+              ? [productCategory]
+              : []
+        }
         changePhoto={Boolean(product)}
         imageUrl={product?.imageUrl}
         meta={summaryMeta}
@@ -976,14 +1033,6 @@ export function EditProductScreen(
     );
   }, [props.businessCenterId, props.product.id, readOnly]);
 
-  const categoryOptions = useMemo(
-    () =>
-      sortOptionsAlphabetically(
-        props.categories.map((category) => ({ label: category, value: category })),
-      ),
-    [props.categories],
-  );
-
   const branchOptions = useMemo(
     () =>
       sortOptionsAlphabetically(
@@ -1049,33 +1098,46 @@ export function EditProductScreen(
         )}
         <View style={styles.fieldRow}>
           {readOnly ? (
-            <>
-              <InventoryReadOnlyField
-                label="Estado"
-                value={getProductStatusLabel({ ...props.product, metadata: { ...props.product.metadata, estado: 'archivado' } })}
-              />
-              <InventoryReadOnlyField label="Categoria" value={formValues.category} />
-            </>
+            <InventoryReadOnlyField
+              label="Estado"
+              value={getProductStatusLabel({ ...props.product, metadata: { ...props.product.metadata, estado: 'archivado' } })}
+            />
           ) : (
-            <>
-              <InventorySelectField
-                highlight
-                label="Estado"
-                onChange={(status: ProductStatusSlug) =>
-                  setFormValues((current) => ({ ...current, status }))
-                }
-                options={PRODUCT_STATUS_OPTIONS}
-                value={formValues.status}
-              />
-              <InventorySelectField
-                label="Categoria"
-                onChange={(category) => setFormValues((current) => ({ ...current, category }))}
-                options={categoryOptions}
-                value={formValues.category}
-              />
-            </>
+            <InventorySelectField
+              highlight
+              label="Estado"
+              onChange={(status: ProductStatusSlug) =>
+                setFormValues((current) => ({ ...current, status }))
+              }
+              options={PRODUCT_STATUS_OPTIONS}
+              value={formValues.status}
+            />
           )}
         </View>
+        {readOnly || props.product.parentProductId != null ? (
+          <InventoryReadOnlyField
+            full
+            label={formValues.categories.length > 1 ? 'Categorías' : 'Categoría'}
+            value={
+              formValues.categories.length > 0
+                ? formValues.categories.join(', ')
+                : formValues.category || 'Sin categoría'
+            }
+          />
+        ) : (
+          <InventoryCategoryChipField
+            full
+            onChange={(categories) =>
+              setFormValues((current) => ({
+                ...current,
+                categories,
+                category: categories[0] ?? '',
+              }))
+            }
+            suggestions={props.categories}
+            value={formValues.categories}
+          />
+        )}
         <View style={styles.fieldRow}>
           <InventoryReadOnlyField label="SKU" value={props.product.sku ?? 'Generado por la app'} />
           {readOnly ? (
@@ -1180,7 +1242,7 @@ export function EditProductScreen(
           />
         )}
       </SectionCard>
-      {readOnly || props.product.parentProductId != null || !isGranelProduct(props.product) ? null : (
+      {readOnly || props.product.parentProductId != null || !canHaveSubproducts(props.product) ? null : (
         <View style={styles.subproductSection}>
           <View style={styles.subproductSectionHeader}>
             <View style={styles.flex}>
@@ -1752,6 +1814,7 @@ export function SellProductsScreen(
     errorMessage?: string | null;
     initialSearchQuery?: string;
     isLoading?: boolean;
+    onAddNewProduct?: (initialName: string) => void;
     onAddToCart: (productId: string) => void;
     onEditProduct: (productId: string) => void;
     onOpenConfirmPayment: () => void;
@@ -1764,10 +1827,29 @@ export function SellProductsScreen(
   const sellCart = useSellCart();
   const [searchQuery, setSearchQuery] = useState(props.initialSearchQuery ?? '');
   const [currentPage, setCurrentPage] = useState(1);
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [filterValue, setFilterValue] = useState<InventoryFilterValue>({
+    categories: [],
+    stocks: [],
+  });
   const products = props.products ?? sellProducts;
+  const availableCategories = useMemo(() => {
+    const set = new Set<string>();
+    for (const product of products) {
+      for (const category of product.categories ?? []) {
+        if (category?.trim()) set.add(category.trim());
+      }
+      if (product.category?.trim()) set.add(product.category.trim());
+    }
+    return [...set];
+  }, [products]);
   const filteredProducts = useMemo(
-    () => filterSellProducts(products, searchQuery),
-    [products, searchQuery],
+    () =>
+      filterSellProducts(products, searchQuery, {
+        categories: filterValue.categories,
+        stocks: filterValue.stocks,
+      }),
+    [filterValue.categories, filterValue.stocks, products, searchQuery],
   );
   const pagination = useMemo(
     () => paginateItems(filteredProducts, currentPage, SELL_PAGE_SIZE),
@@ -1778,6 +1860,13 @@ export function SellProductsScreen(
     [pagination.page, pagination.pageCount],
   );
   const productCountLabel = `${filteredProducts.length} producto${filteredProducts.length === 1 ? '' : 's'}`;
+  const activeFilterCount = filterValue.categories.length + filterValue.stocks.length;
+  const showAddNewFallback =
+    !props.isLoading &&
+    products.length > 0 &&
+    filteredProducts.length === 0 &&
+    searchQuery.trim().length > 0 &&
+    props.onAddNewProduct != null;
   const discountLabel = formatSaleDiscountLabel(sellCart.discountMode, Number.parseFloat(sellCart.discountInput.replace(',', '.')) || 0);
 
   useEffect(() => {
@@ -1789,7 +1878,7 @@ export function SellProductsScreen(
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery]);
+  }, [filterValue.categories, filterValue.stocks, searchQuery]);
 
   useEffect(() => {
     if (currentPage > pagination.pageCount) {
@@ -1842,8 +1931,10 @@ export function SellProductsScreen(
     <ScreenContent>
       <InventoryScreenTitle showBack={false} title="Vender" />
       <SearchFilterRow
+        activeFilterCount={activeFilterCount}
         onChangeText={setSearchQuery}
         onPressCamera={props.onScanCode}
+        onPressFilter={() => setFilterOpen(true)}
         searchValue={searchQuery}
       />
       {props.errorMessage ? <InfoBanner>{props.errorMessage}</InfoBanner> : null}
@@ -1854,7 +1945,24 @@ export function SellProductsScreen(
         {props.isLoading ? (
           <Text style={styles.loadingText}>Cargando productos...</Text>
         ) : filteredProducts.length === 0 ? (
-          <Text style={styles.loadingText}>No se encontraron productos para esta busqueda.</Text>
+          <>
+            <Text style={styles.loadingText}>
+              {activeFilterCount > 0
+                ? 'No hay productos que coincidan con los filtros seleccionados.'
+                : 'No se encontraron productos para esta búsqueda.'}
+            </Text>
+            {showAddNewFallback ? (
+              <Pressable
+                onPress={() => props.onAddNewProduct?.(searchQuery.trim())}
+                style={styles.addFromSearchRow}
+              >
+                <Icon color={colors.primary} kind="plus" size={14} strokeWidth={2.2} />
+                <Text style={styles.addFromSearchText}>
+                  Agregar «{searchQuery.trim()}» como producto
+                </Text>
+              </Pressable>
+            ) : null}
+          </>
         ) : (
           <>
             {pagination.items.map((product) => (
@@ -1926,6 +2034,21 @@ export function SellProductsScreen(
           <CobrarButton fullWidth onPress={props.onOpenConfirmPayment} />
         </View>
       </SectionCard>
+
+      <InventoryFilterSheet
+        availableCategories={availableCategories}
+        onClear={() => {
+          setFilterValue({ categories: [], stocks: [] });
+          setFilterOpen(false);
+        }}
+        onClose={() => setFilterOpen(false)}
+        onSubmit={(value) => {
+          setFilterValue(value);
+          setFilterOpen(false);
+        }}
+        value={filterValue}
+        visible={filterOpen}
+      />
     </ScreenContent>
   );
 }
@@ -2126,7 +2249,6 @@ function InventoryListRow(props: {
         <ProductThumb imageUrl={props.product.imageUrl} name={props.product.name} />
         <View style={styles.flex}>
           <Text style={styles.rowTitle}>{props.product.name}</Text>
-          <Text style={styles.rowMeta}>{props.product.category}</Text>
           <View style={styles.stockRow}>
             <Text style={styles.stockValueInline}>{props.product.stock}</Text>
             <StockBadge label={props.product.status} tone={props.product.statusTone} />
@@ -2169,7 +2291,6 @@ function SellProductRow(props: {
         <ProductThumb imageUrl={props.product.imageUrl} name={props.product.name} />
         <View style={styles.flex}>
           <Text style={styles.rowTitle}>{props.product.name}</Text>
-          <Text style={styles.rowMeta}>{props.product.category ?? 'Almacen'}</Text>
           {props.product.linkedTo ? (
             <Text style={styles.linkedToText}>Vinculado a: {props.product.linkedTo}</Text>
           ) : null}
@@ -2666,6 +2787,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 16,
     textAlign: 'center',
+  },
+  addFromSearchRow: {
+    alignItems: 'center',
+    borderTopColor: colors.divider,
+    borderTopWidth: 1,
+    flexDirection: 'row',
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  addFromSearchText: {
+    color: colors.primary,
+    flexShrink: 1,
+    fontSize: 14,
+    fontWeight: '600',
   },
   filterChip: {
     alignSelf: 'flex-start',

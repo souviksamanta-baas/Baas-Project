@@ -36,10 +36,18 @@ Delegate to the `copi-automated-testing` skill and cite its report. At minimum c
 ## Inventory
 
 - Product create and edit — A, B
+- Multi-category assign (chip autocomplete) and filter sheet (categories + stock badges) — B
+- Search with no matches offers “Agregar «query» como producto” — B
 - Add stock and stock import — A, B
 - Sell flow including payment confirmation — A, B
-- Subproduct edit — A
+- Subproduct edit; subproducts gated by category **Granel** on the base product — A, B
+- Unit option **litro** available independently of subproducts — B
 - Negative or oversized quantity rejected — A
+- Proveedores org-shared list (Supabase) — B
+- Cargar compra → pending → confirm applies stock; unconfirm reverses — B
+- Compra IVA checkbox + editable alícuota + ajuste; editable until confirmed — B
+- Compra detalle shows same totals breakdown; read-only when confirmed — B
+- Large-font / Dynamic Type readability on product detail and forms (advisory smoke) — B, M
 
 ## Cash
 

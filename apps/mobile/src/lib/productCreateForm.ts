@@ -20,6 +20,7 @@ export function createEmptyAddProductForm(businessCenterId: string): AddProductF
     baseUnitEquivalent: '',
     brand: '',
     businessCenterId,
+    categories: [],
     category: '',
     cost: '0.00',
     description: '',
@@ -45,11 +46,18 @@ export function createEmptyAddSubproductForm(
     typeof parentProduct.metadata.proveedor === 'string' ? parentProduct.metadata.proveedor : '';
   const brand =
     typeof parentProduct.metadata.marca === 'string' ? parentProduct.metadata.marca : '';
+  const categories =
+    parentProduct.categories?.length > 0
+      ? [...parentProduct.categories]
+      : parentProduct.category
+        ? [parentProduct.category]
+        : [];
 
   return {
     ...createEmptyAddProductForm(businessCenterId),
     brand,
-    category: parentProduct.category ?? '',
+    categories,
+    category: categories[0] ?? '',
     parentProductId: parentProduct.id,
     productType: 'subproducto',
     supplier,
@@ -123,8 +131,8 @@ export function validateAddProductForm(values: AddProductFormValues): string | n
     return 'El nombre del producto es obligatorio.';
   }
 
-  if (values.category.trim().length === 0) {
-    return 'Ingresa una categoria.';
+  if (resolveAddFormCategories(values).length === 0) {
+    return 'Ingresá al menos una categoría.';
   }
 
   const stockQuantity = Number.parseInt(values.stockQuantity.trim(), 10);
@@ -157,6 +165,17 @@ export function validateAddProductForm(values: AddProductFormValues): string | n
   }
 
   return null;
+}
+
+function resolveAddFormCategories(
+  values: Pick<AddProductFormValues, 'category' | 'categories'>,
+): string[] {
+  const fromList = (values.categories ?? []).map((item) => item.trim()).filter(Boolean);
+  if (fromList.length > 0) {
+    return fromList;
+  }
+  const single = values.category.trim();
+  return single ? [single] : [];
 }
 
 export function validateAddSubproductForm(values: AddProductFormValues): string | null {

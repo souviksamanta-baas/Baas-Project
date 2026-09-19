@@ -39,6 +39,8 @@ All layers, full matrix. Use before any store submission, OTA release, or produc
 
 Static gates plus Layer A in full, plus the Layer B flows touching changed areas. Use after a large merge or hotfix. Always include the critical set regardless of what changed: auth and tenant isolation, WhatsApp inbound and outbound, conversation actions, Copi propose-confirm, inventory sell, cash movement.
 
+When the change set includes products/categories/compras (multi-category, Granel subproducts, proveedores/purchases Supabase, IVA/ajuste), also include Layer B inventory/compras flows and related static/unit coverage in the critical changed-area set.
+
 ### Smoke
 
 Static gates plus the Layer A inbound/outbound matrix and the `auth-login`, `navigation-tabs`, and one Chats flow. Use to sanity-check a branch mid-development. Never accept a smoke run as release sign-off.

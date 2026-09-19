@@ -1,6 +1,7 @@
 export type StockTone = 'blue' | 'green' | 'orange' | 'red';
 
 export interface InventoryProductMock {
+  categories?: string[];
   category: string;
   code: string;
   codeTone?: 'red';
@@ -46,6 +47,7 @@ export interface MovementMock {
 }
 
 export interface SellProductMock {
+  categories?: string[];
   category?: string;
   code?: string;
   id: string;
@@ -55,6 +57,7 @@ export interface SellProductMock {
   name: string;
   price: string;
   soldByWeight?: boolean;
+  statusTone?: StockTone;
   stock: string;
   unitPriceCents: number;
 }

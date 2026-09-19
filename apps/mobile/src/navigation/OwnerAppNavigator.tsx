@@ -108,6 +108,7 @@ type OwnerRoute = AppTab | 'account' | 'copi-chat' | 'conversation' | 'notificat
 
 const legacyEditProduct: Product = {
   baseUnitCode: 'kg',
+  categories: baseProduct.category ? [baseProduct.category] : [],
   category: baseProduct.category,
   currency: 'USD',
   description: baseProduct.notes,

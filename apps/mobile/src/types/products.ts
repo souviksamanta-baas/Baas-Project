@@ -2,7 +2,9 @@ import type { ProductStatusSlug } from '../lib/productCatalog';
 
 export interface Product {
   baseUnitCode: string | null;
+  /** @deprecated Prefer `categories`. First category for legacy call sites. */
   category: string | null;
+  categories: string[];
   currency: string;
   description: string | null;
   id: string;
@@ -28,7 +30,9 @@ export interface ProductEditFormValues {
   baseUnitCode: string;
   brand: string;
   businessCenterId: string;
+  /** Comma-joined or primary; prefer categories when multi-select is wired. */
   category: string;
+  categories: string[];
   cost: string;
   description: string;
   marginPercent: string;
@@ -49,6 +53,7 @@ export interface AddProductFormValues {
   brand: string;
   businessCenterId: string;
   category: string;
+  categories: string[];
   cost: string;
   description: string;
   expiresDate: string;

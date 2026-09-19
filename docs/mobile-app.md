@@ -566,13 +566,16 @@ Owner flow for remitos / bulk stock intake:
 
 | Step | Behavior |
 | --- | --- |
-| **Cargar compra** | Header: unique número de compra, fecha (calendar picker), existing proveedor only. Parent products only (+ add stock). Lines stage into a draft resumen (cost totals). **Guardar compra** persists a local purchase entity as `pending_confirmation` — **no** stock/lots yet. |
+| **Cargar compra** | Header: unique número de compra, fecha (calendar picker), existing proveedor only. Parent products only (+ add stock). Lines stage into a draft resumen. Summary includes **subtotal → ajuste (descuento/recargo %/$) → checkbox Aplicar IVA + alícuota → total**. **Guardar compra** persists a purchase as `pending_confirmation` — **no** stock/lots yet. |
 | **Gestionar compras** | Purchases grouped by date (like Lotes y Movimientos). Status badge. ⋯ bottom sheet: **Marcar como confirmada** / **Marcar como pendiente de confirmación**, **Editar compra**. |
-| Confirm | Runs `addStock` per line (lots + movements + price updates). Stores `lotId` + prior price snapshots on the purchase. |
-| Unconfirm | Zeros lot `remaining_quantity`, reverses on-hand stock and parent conversion when needed, restores prior prices, clears lot links. |
+| **Detalle** | Same IVA/ajuste breakdown. Editable while pending; read-only once confirmed (stock applied). |
+| Confirm | Runs `addStock` per line (lots + movements + price updates). Stores `lotId` + prior price snapshots on the purchase. Locks IVA/ajuste edits. |
+| Unconfirm | Zeros lot `remaining_quantity`, reverses on-hand stock and parent conversion when needed, restores prior prices, clears lot links. Re-opens IVA/ajuste for edit. |
 | Edit | Pending only (confirmed must unconfirm first). Preloads draft into Cargar compra. |
 
-Persistence is device-local AsyncStorage (`baas_purchases_v2`) with unique purchase `id` + unique número per center. Stock writes use Supabase RLS (`inventory_lots` insert/update for members — see `docs/tenant-rls.md`). Not a Nest API / webhook surface.
+Persistence is org-shared Supabase (`suppliers`, `purchases`, `purchase_lines`) with RLS via `private.user_org_ids()`. One-time migrate from device AsyncStorage (`baas_purchases_v2` / `baas_suppliers_v2`). Stock writes still use Supabase RLS (`inventory_lots` insert/update — see `docs/tenant-rls.md`). **Not a Nest API / webhook surface** (no new webhook endpoints for compras).
+
+Multi-category products use `product_categories` + `product_category_links` (many-to-many). Subproductos require category **Granel** on the base product. Unit option **litro** is available independently.
 
 Review locally:
 
@@ -584,10 +587,10 @@ Static review uses mock data only. API wiring for catalog, stock, lots, and POS
 checkout remains future work under epic
 [KAN-201](https://souviksamanta.atlassian.net/browse/KAN-201).
 
-Compras lifecycle (local purchase entity + deferred stock on confirm) is
+Compras lifecycle (Supabase purchase entity + deferred stock on confirm + IVA/ajuste) is
 documented under **Compras** above and in Confluence
 [Compras — Cargar y gestionar](https://souviksamanta.atlassian.net/wiki/spaces/BaaS/pages/30769153/Compras+Cargar+y+gestionar+Owner+app).
-No Nest API or webhook changes.
+No Nest API or webhook changes for compras.
 
 ## Jul 2026 pilot UX batch (KAN-304)
 

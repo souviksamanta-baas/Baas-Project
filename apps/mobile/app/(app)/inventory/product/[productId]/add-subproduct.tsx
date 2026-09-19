@@ -9,7 +9,7 @@ import { InventoryScreenTitle } from '../../../../../src/components/inventoryUi'
 import { useOwnerSessionContext } from '../../../../../src/context/OwnerSessionProvider';
 import { useBusinessCenters } from '../../../../../src/hooks/useBusinessCenters';
 import { useInventoryProduct } from '../../../../../src/hooks/useInventoryProduct';
-import { collectCategoryOptions, isGranelProduct } from '../../../../../src/lib/productCatalog';
+import { collectCategoryOptions, canHaveSubproducts } from '../../../../../src/lib/productCatalog';
 import { navigateInventoryReturn } from '../../../../../src/navigation/inventoryNavigation';
 import {
   parseInventoryReturnTo,
@@ -36,8 +36,8 @@ export default function AddSubproductRoute(): ReactElement {
   const [isSaving, setIsSaving] = useState(false);
 
   const categories = useMemo(
-    () => collectCategoryOptions(products, product?.category),
-    [product?.category, products],
+    () => collectCategoryOptions(products, product?.categories ?? product?.category),
+    [product?.categories, product?.category, products],
   );
 
   const parentProductId = productId ?? routeProductId ?? '';
@@ -86,11 +86,13 @@ export default function AddSubproductRoute(): ReactElement {
     );
   }
 
-  if (!product || product.parentProductId != null || !isGranelProduct(product)) {
+  if (!product || product.parentProductId != null || !canHaveSubproducts(product)) {
     return (
       <ScreenContent>
         <InventoryScreenTitle onBack={goBack} title="Nuevo subproducto" />
-        <Text>Solo los productos granel pueden tener subproductos.</Text>
+        <Text>
+          Asigná la categoría Granel a este producto para poder agregar subproductos.
+        </Text>
       </ScreenContent>
     );
   }

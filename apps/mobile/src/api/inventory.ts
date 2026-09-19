@@ -4,6 +4,11 @@ import {
   normalizeBaseUnitCode,
 } from '../lib/productCatalog';
 import {
+  getCategoryNamesForProducts,
+  setProductCategoryLinks,
+  upsertProductCategoriesByName,
+} from '../lib/productCategories';
+import {
   buildLotCodeBase,
   buildNextLotCode,
   dateInputToIso,
@@ -88,7 +93,24 @@ export async function getProducts(
     throw new Error(error.message);
   }
 
-  return (data as InventoryProductRow[]).map(toProduct).sort((left, right) => left.name.localeCompare(right.name));
+  const rows = data as InventoryProductRow[];
+  const productIds = rows
+    .map((row) => {
+      const product = Array.isArray(row.products) ? row.products[0] : row.products;
+      return product?.id;
+    })
+    .filter((id): id is string => typeof id === 'string');
+
+  const categoriesByProduct = await getCategoryNamesForProducts(productIds);
+
+  return rows
+    .map((row) => {
+      const product = Array.isArray(row.products) ? row.products[0] : row.products;
+      const categories =
+        product != null ? (categoriesByProduct.get(product.id) ?? []) : [];
+      return toProduct(row, categories);
+    })
+    .sort((left, right) => left.name.localeCompare(right.name));
 }
 
 export function subscribeToProductCatalogChanges(
@@ -1153,12 +1175,24 @@ export async function updateProductDetails(
 
   const baseUnitCode = normalizeBaseUnitCode(values.baseUnitCode);
   let costCents = Math.round(cost * 100);
-  let category = values.category.trim();
+  let categoryNames = resolveCategoryNames(values);
   const brand = values.brand.trim();
   const supplier = values.supplier.trim();
   const reorderThreshold = Number.parseInt(values.reorderThreshold.trim(), 10);
 
   if (existingProduct.parentProductId != null) {
+    const parentCategories =
+      existingProduct.categories.length > 0
+        ? existingProduct.categories
+        : [];
+
+    if (parentCategories.length === 0) {
+      const parentMap = await getCategoryNamesForProducts([existingProduct.parentProductId]);
+      categoryNames = parentMap.get(existingProduct.parentProductId) ?? categoryNames;
+    } else {
+      categoryNames = parentCategories;
+    }
+
     const { data: parentProduct, error: parentError } = await supabase
       .from('products')
       .select('metadata')
@@ -1168,11 +1202,6 @@ export async function updateProductDetails(
 
     if (parentError) {
       throw new Error(parentError.message);
-    }
-
-    const parentCategory = readMetadataString(parentProduct?.metadata, 'categoria');
-    if (parentCategory) {
-      category = parentCategory;
     }
 
     const equivalent = existingProduct.baseUnitEquivalent;
@@ -1186,13 +1215,19 @@ export async function updateProductDetails(
     }
   }
 
+  const primaryCategory = categoryNames[0] ?? '';
   const metadata: Record<string, unknown> = {
     ...existingProduct.metadata,
-    categoria: category,
     estado: values.status,
     margen_pct: marginPercent,
     precio_costo_cents: costCents,
   };
+
+  if (primaryCategory) {
+    metadata.categoria = primaryCategory;
+  } else {
+    delete metadata.categoria;
+  }
 
   if (brand.length > 0) {
     metadata.marca = brand;
@@ -1256,7 +1291,13 @@ export async function updateProductDetails(
     movementNote,
   );
 
-  return toProduct({ ...inventoryItem, products: data });
+  const syncedCategories = await syncProductCategories(
+    organizationId,
+    productId,
+    categoryNames,
+  );
+
+  return toProduct({ ...inventoryItem, products: data }, syncedCategories);
 }
 
 export async function deleteProduct(organizationId: string, productId: string): Promise<void> {
@@ -1390,7 +1431,7 @@ export async function createProductDetails(
   }
 
   const metadata: Record<string, unknown> = {
-    categoria: values.category.trim(),
+    categoria: resolveCategoryNames(values)[0] ?? values.category.trim(),
     codigo: 'No Disponible',
     estado: values.status,
     import_source: 'mobile_create',
@@ -1447,7 +1488,15 @@ export async function createProductDetails(
     throw new Error(inventoryError.message);
   }
 
-  const createdProduct = toProduct({ ...inventoryItem, products: product });
+  const createdCategories = await syncProductCategories(
+    organizationId,
+    product.id,
+    resolveCategoryNames(values),
+  );
+  const createdProduct = toProduct(
+    { ...inventoryItem, products: product },
+    createdCategories,
+  );
   let createdLotId: string | null = null;
 
   const associatedCode = values.associatedCode.trim();
@@ -1626,7 +1675,7 @@ function toWriteRow(organizationId: string, values: ProductFormValues): ProductW
   };
 }
 
-function toProduct(row: InventoryProductRow): Product {
+function toProduct(row: InventoryProductRow, categories: string[] = []): Product {
   const product = Array.isArray(row.products) ? row.products[0] : row.products;
 
   if (!product) {
@@ -1635,10 +1684,18 @@ function toProduct(row: InventoryProductRow): Product {
 
   const stockQuantity = Number(row.quantity_on_hand);
   const reorderThreshold = Number(row.reorder_threshold);
+  const legacyCategory = readMetadataString(product.metadata, 'categoria');
+  const resolvedCategories =
+    categories.length > 0
+      ? categories
+      : legacyCategory
+        ? [legacyCategory]
+        : [];
 
   return {
     baseUnitCode: product.base_unit_code,
-    category: readMetadataString(product.metadata, 'categoria'),
+    categories: resolvedCategories,
+    category: resolvedCategories[0] ?? null,
     currency: product.currency,
     description: product.description,
     id: product.id,
@@ -1661,6 +1718,37 @@ function toProduct(row: InventoryProductRow): Product {
     unitCode: row.unit_code,
     unitPriceCents: product.unit_price_cents,
   };
+}
+
+function resolveCategoryNames(input: {
+  category?: string;
+  categories?: string[];
+}): string[] {
+  const fromList = (input.categories ?? [])
+    .map((name) => name.trim())
+    .filter((name) => name.length > 0);
+  if (fromList.length > 0) {
+    return [...new Set(fromList)];
+  }
+
+  const single = input.category?.trim() ?? '';
+  return single ? [single] : [];
+}
+
+async function syncProductCategories(
+  organizationId: string,
+  productId: string,
+  categoryNames: string[],
+): Promise<string[]> {
+  const rows = await upsertProductCategoriesByName(organizationId, categoryNames);
+  await setProductCategoryLinks(
+    productId,
+    rows.map((row) => row.id),
+  );
+  return rows
+    .map((row) => row.name.trim())
+    .filter(Boolean)
+    .sort((left, right) => left.localeCompare(right, 'es'));
 }
 
 function readMetadataString(

@@ -15,13 +15,13 @@ Abrila en Excel o Google Sheets. **No cambies los nombres de las columnas** (pri
 | Columna | Obligatoria | Descripción | Campo en base de datos |
 | --- | --- | --- | --- |
 | `nombre_producto` | Sí | Nombre visible del producto | `products.name` |
-| `categoria` | No | Rubro (ej. `Almacén`) | `products.metadata.categoria` |
+| `categoria` | No | Rubro (ej. `Almacén`). Import creates/links a catalog category; products support multiple categories in-app after import. | `product_categories` + `product_category_links` (legacy `products.metadata.categoria` kept as primary label) |
 | `tipo_producto` | No | `producto` (default) o `subproducto` | `products.metadata.tipo_producto` + `parent_product_id` |
 | `producto_base` | Condicional | Nombre del producto base | `products.parent_product_id` |
-| `proveedor` | No | Proveedor o marca | `products.metadata.proveedor`, `inventory_lots.supplier_reference` |
+| `proveedor` | No | Proveedor o marca (also syncs into org `suppliers` when used in-app) | `products.metadata.proveedor`, `inventory_lots.supplier_reference` |
 | `notas` | No | Observaciones internas del comercio | `products.description` |
 | `sucursal` | Sí* | Nombre de la sucursal en Nexolia | `inventory_items.business_center_id`, `inventory_lots.business_center_id` |
-| `unidad` | Sí | Unidad de stock (ej. `kg`, `paquete`) | `products.base_unit_code`, `inventory_items.unit_code` |
+| `unidad` | Sí | Unidad de stock (ej. `kg`, `paquete`, `litro`) | `products.base_unit_code`, `inventory_items.unit_code` |
 | `cantidad_stock` | Sí | Stock actual en esa sucursal | `inventory_items.quantity_on_hand` |
 | `umbral_reorden` | Sí | Alerta de bajo stock | `inventory_items.reorder_threshold` |
 | `equivalente_unidad_base` | Condicional | Cuántas unidades del **producto base** consume **cada unidad** de este subproducto | `products.metadata.equivalente_unidad_base` |

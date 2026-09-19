@@ -2,6 +2,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -12,11 +13,18 @@ import {
 import { formatDateInput } from '../lib/addStockForm';
 import { formatMoneyInput, parseMoneyInput } from '../lib/productEditForm';
 import {
+  getOrganizationDefaultIvaRate,
   registerPurchase,
   updatePurchase,
   type PurchaseLineRecord,
   type PurchaseRecord,
 } from '../lib/purchases';
+import {
+  normalizeIvaRatePercent,
+  type AdjustmentKind,
+  type AdjustmentMode,
+  type IvaRatePercent,
+} from '../lib/purchaseTotals';
 import type { AddStockFormValues } from '../types/inventoryLots';
 import type { Product } from '../types/products';
 import { useOwnerSessionContext } from './OwnerSessionProvider';
@@ -37,8 +45,13 @@ export type LoadPurchaseLine = {
 };
 
 type PurchaseDraft = {
+  adjustmentKind: AdjustmentKind | null;
+  adjustmentMode: AdjustmentMode | null;
+  adjustmentValue: number;
   date: string;
   editingPurchaseId: string | null;
+  ivaEnabled: boolean;
+  ivaRatePercent: IvaRatePercent;
   lines: LoadPurchaseLine[];
   purchaseNumber: string;
   supplier: string;
@@ -49,17 +62,27 @@ type LoadPurchaseContextValue = {
     product: Product;
     values: AddStockFormValues;
   }) => void;
+  adjustmentKind: AdjustmentKind | null;
+  adjustmentMode: AdjustmentMode | null;
+  adjustmentValue: number;
   clearDraft: () => void;
   date: string;
   editingPurchaseId: string | null;
   isHeaderLocked: boolean;
   isSaving: boolean;
+  ivaEnabled: boolean;
+  ivaRatePercent: IvaRatePercent;
   lines: LoadPurchaseLine[];
   loadDraftFromPurchase: (purchase: PurchaseRecord) => void;
   purchaseNumber: string;
   removeLine: (lineId: string) => void;
   savePurchase: () => Promise<void>;
+  setAdjustmentKind: (value: AdjustmentKind | null) => void;
+  setAdjustmentMode: (value: AdjustmentMode) => void;
+  setAdjustmentValue: (value: number) => void;
   setDate: (value: string) => void;
+  setIvaEnabled: (value: boolean) => void;
+  setIvaRatePercent: (value: IvaRatePercent) => void;
   setPurchaseNumber: (value: string) => void;
   setSupplier: (value: string) => void;
   supplier: string;
@@ -80,10 +103,15 @@ function createLineId(): string {
   return `PL-${purchaseLineSeq}-${random}`;
 }
 
-function createEmptyDraft(): PurchaseDraft {
+function createEmptyDraft(ivaRatePercent: IvaRatePercent = 21): PurchaseDraft {
   return {
+    adjustmentKind: null,
+    adjustmentMode: null,
+    adjustmentValue: 0,
     date: formatDateInput(new Date()),
     editingPurchaseId: null,
+    ivaEnabled: false,
+    ivaRatePercent,
     lines: [],
     purchaseNumber: '',
     supplier: '',
@@ -129,10 +157,46 @@ export function LoadPurchaseProvider(props: { children: ReactNode }): ReactEleme
   const { dashboard } = useOwnerSessionContext();
   const organizationId = dashboard?.organization?.id ?? null;
   const businessCenterId = dashboard?.businessCenter?.id ?? null;
-  const [draft, setDraft] = useState(createEmptyDraft);
+  const [defaultIvaRate, setDefaultIvaRate] = useState<IvaRatePercent>(21);
+  const [draft, setDraft] = useState<PurchaseDraft>(() => createEmptyDraft(21));
   const [isSaving, setIsSaving] = useState(false);
   const draftRef = useRef(draft);
   draftRef.current = draft;
+
+  useEffect(() => {
+    if (!organizationId) {
+      return;
+    }
+
+    let cancelled = false;
+
+    void getOrganizationDefaultIvaRate(organizationId).then((rate) => {
+      if (cancelled) {
+        return;
+      }
+
+      setDefaultIvaRate(rate);
+      setDraft((current) => {
+        // Only override the pre-populated rate while the draft is untouched.
+        if (
+          current.editingPurchaseId ||
+          current.lines.length > 0 ||
+          current.purchaseNumber.trim().length > 0 ||
+          current.supplier.trim().length > 0 ||
+          current.ivaEnabled ||
+          current.adjustmentKind != null
+        ) {
+          return current;
+        }
+
+        return { ...current, ivaRatePercent: rate };
+      });
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [organizationId]);
 
   const totalCostCents = useMemo(
     () => draft.lines.reduce((sum, line) => sum + line.lineTotalCents, 0),
@@ -144,13 +208,18 @@ export function LoadPurchaseProvider(props: { children: ReactNode }): ReactEleme
   );
 
   const clearDraft = useCallback(() => {
-    setDraft(createEmptyDraft());
-  }, []);
+    setDraft(createEmptyDraft(defaultIvaRate));
+  }, [defaultIvaRate]);
 
   const loadDraftFromPurchase = useCallback((purchase: PurchaseRecord) => {
     setDraft({
+      adjustmentKind: purchase.adjustmentKind,
+      adjustmentMode: purchase.adjustmentMode,
+      adjustmentValue: purchase.adjustmentValue,
       date: purchase.date,
       editingPurchaseId: purchase.id,
+      ivaEnabled: purchase.ivaEnabled,
+      ivaRatePercent: normalizeIvaRatePercent(purchase.ivaRatePercent),
       lines: fromPurchaseLines(purchase.lines),
       purchaseNumber: purchase.number,
       supplier: purchase.supplier,
@@ -185,6 +254,43 @@ export function LoadPurchaseProvider(props: { children: ReactNode }): ReactEleme
 
       return { ...current, supplier: value };
     });
+  }, []);
+
+  const setIvaEnabled = useCallback((value: boolean) => {
+    setDraft((current) => ({ ...current, ivaEnabled: value }));
+  }, []);
+
+  const setIvaRatePercent = useCallback((value: IvaRatePercent) => {
+    setDraft((current) => ({
+      ...current,
+      ivaRatePercent: normalizeIvaRatePercent(value),
+    }));
+  }, []);
+
+  const setAdjustmentKind = useCallback((value: AdjustmentKind | null) => {
+    setDraft((current) => ({
+      ...current,
+      adjustmentKind: value,
+      adjustmentMode: value == null ? null : (current.adjustmentMode ?? 'percent'),
+      adjustmentValue: value == null ? 0 : current.adjustmentValue,
+    }));
+  }, []);
+
+  const setAdjustmentMode = useCallback((value: AdjustmentMode) => {
+    setDraft((current) => ({
+      ...current,
+      adjustmentMode: value,
+      adjustmentKind: current.adjustmentKind ?? 'discount',
+    }));
+  }, []);
+
+  const setAdjustmentValue = useCallback((value: number) => {
+    setDraft((current) => ({
+      ...current,
+      adjustmentValue: Number.isFinite(value) ? Math.max(0, value) : 0,
+      adjustmentMode: current.adjustmentMode ?? 'percent',
+      adjustmentKind: current.adjustmentKind ?? 'discount',
+    }));
   }, []);
 
   const addLine = useCallback((input: { product: Product; values: AddStockFormValues }) => {
@@ -281,6 +387,7 @@ export function LoadPurchaseProvider(props: { children: ReactNode }): ReactEleme
       );
       const nextTotalItems = snapshot.lines.reduce((sum, line) => sum + line.quantity, 0);
       const lines = toPurchaseLines(snapshot.lines);
+      const nextIvaRate = normalizeIvaRatePercent(snapshot.ivaRatePercent);
 
       if (snapshot.editingPurchaseId) {
         await updatePurchase({
@@ -288,8 +395,13 @@ export function LoadPurchaseProvider(props: { children: ReactNode }): ReactEleme
           organizationId,
           purchaseId: snapshot.editingPurchaseId,
           patch: {
+            adjustmentKind: snapshot.adjustmentKind,
+            adjustmentMode: snapshot.adjustmentMode,
+            adjustmentValue: snapshot.adjustmentValue,
             date,
             itemCount: nextTotalItems,
+            ivaEnabled: snapshot.ivaEnabled,
+            ivaRatePercent: nextIvaRate,
             lines,
             number: purchaseNumber,
             status: 'pending_confirmation',
@@ -299,9 +411,14 @@ export function LoadPurchaseProvider(props: { children: ReactNode }): ReactEleme
         });
       } else {
         await registerPurchase({
+          adjustmentKind: snapshot.adjustmentKind,
+          adjustmentMode: snapshot.adjustmentMode,
+          adjustmentValue: snapshot.adjustmentValue,
           businessCenterId,
           date,
           itemCount: nextTotalItems,
+          ivaEnabled: snapshot.ivaEnabled,
+          ivaRatePercent: nextIvaRate,
           lines,
           number: purchaseNumber,
           organizationId,
@@ -311,26 +428,36 @@ export function LoadPurchaseProvider(props: { children: ReactNode }): ReactEleme
         });
       }
 
-      setDraft(createEmptyDraft());
+      setDraft(createEmptyDraft(defaultIvaRate));
     } finally {
       setIsSaving(false);
     }
-  }, [businessCenterId, organizationId]);
+  }, [businessCenterId, defaultIvaRate, organizationId]);
 
   const value = useMemo<LoadPurchaseContextValue>(
     () => ({
       addLine,
+      adjustmentKind: draft.adjustmentKind,
+      adjustmentMode: draft.adjustmentMode,
+      adjustmentValue: draft.adjustmentValue,
       clearDraft,
       date: draft.date,
       editingPurchaseId: draft.editingPurchaseId,
       isHeaderLocked: draft.lines.length > 0 && !draft.editingPurchaseId,
       isSaving,
+      ivaEnabled: draft.ivaEnabled,
+      ivaRatePercent: draft.ivaRatePercent,
       lines: draft.lines,
       loadDraftFromPurchase,
       purchaseNumber: draft.purchaseNumber,
       removeLine,
       savePurchase,
+      setAdjustmentKind,
+      setAdjustmentMode,
+      setAdjustmentValue,
       setDate,
+      setIvaEnabled,
+      setIvaRatePercent,
       setPurchaseNumber,
       setSupplier,
       supplier: draft.supplier,
@@ -340,8 +467,13 @@ export function LoadPurchaseProvider(props: { children: ReactNode }): ReactEleme
     [
       addLine,
       clearDraft,
+      draft.adjustmentKind,
+      draft.adjustmentMode,
+      draft.adjustmentValue,
       draft.date,
       draft.editingPurchaseId,
+      draft.ivaEnabled,
+      draft.ivaRatePercent,
       draft.lines,
       draft.purchaseNumber,
       draft.supplier,
@@ -349,7 +481,12 @@ export function LoadPurchaseProvider(props: { children: ReactNode }): ReactEleme
       loadDraftFromPurchase,
       removeLine,
       savePurchase,
+      setAdjustmentKind,
+      setAdjustmentMode,
+      setAdjustmentValue,
       setDate,
+      setIvaEnabled,
+      setIvaRatePercent,
       setPurchaseNumber,
       setSupplier,
       totalCostCents,
