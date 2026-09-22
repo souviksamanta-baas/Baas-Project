@@ -12,6 +12,7 @@ import {
 
 import { formatDateInput } from '../lib/addStockForm';
 import { formatMoneyInput, parseMoneyInput } from '../lib/productEditForm';
+import { createUuid } from '../lib/purchaseLineId';
 import {
   getOrganizationDefaultIvaRate,
   registerPurchase,
@@ -92,15 +93,8 @@ type LoadPurchaseContextValue = {
 
 const LoadPurchaseContext = createContext<LoadPurchaseContextValue | null>(null);
 
-let purchaseLineSeq = 0;
-
 function createLineId(): string {
-  purchaseLineSeq += 1;
-  const random =
-    typeof globalThis.crypto?.randomUUID === 'function'
-      ? globalThis.crypto.randomUUID()
-      : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
-  return `PL-${purchaseLineSeq}-${random}`;
+  return createUuid();
 }
 
 function createEmptyDraft(ivaRatePercent: IvaRatePercent = 21): PurchaseDraft {

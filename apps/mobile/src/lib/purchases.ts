@@ -1,6 +1,7 @@
 import { dateInputToIsoDate, isoDateToDateInput } from './addStockForm';
 import { getAppStorageItem, setAppStorageItem } from './appStorage';
 import { formatMoneyInput } from './productEditForm';
+import { purchaseLineId } from './purchaseLineId';
 import {
   computePurchaseTotals,
   normalizeIvaRatePercent,
@@ -311,11 +312,7 @@ function linesToRows(purchaseId: string, organizationId: string, lines: Purchase
   return lines.map((line, index) => ({
     cost: line.cost,
     expires_date: line.expiresDate || null,
-    id: line.id.match(
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
-    )
-      ? line.id
-      : undefined,
+    id: purchaseLineId(line.id),
     line_total_cents: line.lineTotalCents,
     lot_id: line.lotId ?? null,
     margin_percent: line.marginPercent,
@@ -539,6 +536,45 @@ export async function isPurchaseNumberTaken(options: {
     return false;
   }
 
+  const matches = await findPurchasesByNumber({
+    businessCenterId: options.businessCenterId,
+    excludePurchaseId: options.excludePurchaseId,
+    organizationId: options.organizationId,
+    purchaseNumber: normalized,
+  });
+
+  if (matches.length === 0) {
+    return false;
+  }
+
+  const { data: lines, error: linesError } = await supabase
+    .from('purchase_lines')
+    .select('purchase_id')
+    .in(
+      'purchase_id',
+      matches.map((row) => row.id),
+    )
+    .limit(1);
+
+  if (linesError) {
+    throw new Error(linesError.message);
+  }
+
+  return (lines ?? []).length > 0;
+}
+
+async function findPurchasesByNumber(options: {
+  businessCenterId: string;
+  excludePurchaseId?: string;
+  organizationId: string;
+  purchaseNumber: string;
+}): Promise<Array<{ id: string }>> {
+  const normalized = normalizePurchaseNumber(options.purchaseNumber);
+
+  if (!normalized) {
+    return [];
+  }
+
   const { data, error } = await supabase
     .from('purchases')
     .select('id, number')
@@ -549,12 +585,40 @@ export async function isPurchaseNumberTaken(options: {
     throw new Error(error.message);
   }
 
-  return (data ?? []).some((row) => {
+  return (data ?? []).filter((row) => {
     if (options.excludePurchaseId && row.id === options.excludePurchaseId) {
       return false;
     }
     return normalizePurchaseNumber(row.number) === normalized;
   });
+}
+
+async function deleteEmptyPurchases(purchaseIds: string[]): Promise<void> {
+  if (purchaseIds.length === 0) {
+    return;
+  }
+
+  const { data: lines, error: linesError } = await supabase
+    .from('purchase_lines')
+    .select('purchase_id')
+    .in('purchase_id', purchaseIds);
+
+  if (linesError) {
+    throw new Error(linesError.message);
+  }
+
+  const withLines = new Set((lines ?? []).map((line) => line.purchase_id));
+  const emptyIds = purchaseIds.filter((id) => !withLines.has(id));
+
+  if (emptyIds.length === 0) {
+    return;
+  }
+
+  const { error } = await supabase.from('purchases').delete().in('id', emptyIds);
+
+  if (error) {
+    throw new Error(error.message);
+  }
 }
 
 export async function registerPurchase(input: {
@@ -579,6 +643,11 @@ export async function registerPurchase(input: {
     throw new Error('Ingresá el número de compra.');
   }
 
+  const existing = await findPurchasesByNumber({
+    businessCenterId: input.businessCenterId,
+    organizationId: input.organizationId,
+    purchaseNumber: number,
+  });
   const taken = await isPurchaseNumberTaken({
     businessCenterId: input.businessCenterId,
     organizationId: input.organizationId,
@@ -588,6 +657,8 @@ export async function registerPurchase(input: {
   if (taken) {
     throw new Error('Ese número de compra ya existe.');
   }
+
+  await deleteEmptyPurchases(existing.map((row) => row.id));
 
   const record = normalizePurchase({
     adjustmentKind: input.adjustmentKind ?? null,
@@ -617,7 +688,13 @@ export async function registerPurchase(input: {
     throw new Error(error?.message ?? 'No se pudo guardar la compra.');
   }
 
-  await replacePurchaseLines(data.id, input.organizationId, record.lines);
+  try {
+    await replacePurchaseLines(data.id, input.organizationId, record.lines);
+  } catch (lineError) {
+    await supabase.from('purchases').delete().eq('id', data.id);
+    throw lineError;
+  }
+
   const linesMap = await fetchLinesForPurchases([data.id]);
   return rowToPurchase(data, linesMap.get(data.id) ?? []);
 }
