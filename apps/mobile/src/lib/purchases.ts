@@ -1,3 +1,4 @@
+import { dateInputToIsoDate, isoDateToDateInput } from './addStockForm';
 import { getAppStorageItem, setAppStorageItem } from './appStorage';
 import { formatMoneyInput } from './productEditForm';
 import {
@@ -257,7 +258,7 @@ function rowToPurchase(row: PurchaseRow, lines: PurchaseLineRecord[]): PurchaseR
     adjustmentValue: Number(row.adjustment_value) || 0,
     businessCenterId: row.business_center_id,
     createdAt: row.created_at,
-    date: row.purchase_date ?? '',
+    date: isoDateToDateInput(row.purchase_date ?? ''),
     id: row.id,
     itemCount: row.item_count,
     ivaEnabled: row.iva_enabled,
@@ -269,6 +270,20 @@ function rowToPurchase(row: PurchaseRow, lines: PurchaseLineRecord[]): PurchaseR
     supplier: row.supplier ?? '',
     updatedAt: row.updated_at,
   });
+}
+
+function toStoredPurchaseDate(value: string): string | null {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const isoDate = dateInputToIsoDate(trimmed);
+  if (!isoDate) {
+    throw new Error('Ingresá la fecha de compra en formato día/mes/año.');
+  }
+
+  return isoDate;
 }
 
 function purchaseToRow(purchase: PurchaseRecord) {
@@ -284,7 +299,7 @@ function purchaseToRow(purchase: PurchaseRecord) {
     iva_rate_percent: purchase.ivaRatePercent,
     number: purchase.number,
     organization_id: purchase.organizationId,
-    purchase_date: purchase.date.trim() || null,
+    purchase_date: toStoredPurchaseDate(purchase.date),
     status: purchase.status,
     subtotal_cents: purchase.subtotalCents,
     supplier: purchase.supplier,

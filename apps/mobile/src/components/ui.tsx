@@ -122,7 +122,12 @@ export function AppHeader(props: {
                 <NexoliaMark size={32} />
               )}
             </View>
-            <Text numberOfLines={1} style={styles.headerTitle}>
+            <Text
+              adjustsFontSizeToFit
+              minimumFontScale={0.75}
+              numberOfLines={1}
+              style={styles.headerTitle}
+            >
               {chrome.title ?? ''}
             </Text>
           </>
@@ -1615,14 +1620,14 @@ const styles = StyleSheet.create({
     minHeight: 40,
   },
   headerTitle: {
-    ...StyleSheet.absoluteFill,
     color: colors.navy,
+    flex: 1,
     fontSize: 17,
     fontWeight: '600',
     lineHeight: 40,
-    paddingHorizontal: 76,
+    marginHorizontal: 4,
+    minWidth: 0,
     textAlign: 'center',
-    zIndex: 1,
   },
   leadBadge: {
     alignSelf: 'flex-start',

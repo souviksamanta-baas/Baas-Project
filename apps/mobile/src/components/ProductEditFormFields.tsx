@@ -1,5 +1,14 @@
 import { useMemo, useState, type ReactElement } from 'react';
-import { Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  PixelRatio,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 
 import { MobileContainedModal } from './MobileContainedModal';
 import { TextField } from '../design-system';
@@ -7,7 +16,31 @@ import { colors, radius } from '../theme';
 import { formatDateInput, parseDateInput } from '../lib/addStockForm';
 import { filterSupplierSuggestions } from '../lib/productCatalog';
 import type { CatalogOption } from '../lib/productCatalog';
+import {
+  responsiveFieldMinWidth,
+  responsiveInputFontSize,
+} from '../lib/responsiveFieldWidth';
 import { Icon } from './icons';
+
+const INPUT_CHROME = 36;
+const MONEY_CHROME = 54;
+const PERCENT_CHROME = 52;
+const DATE_CHROME = 70;
+
+function useResponsiveField(text: string, chrome: number, label?: string): {
+  fieldStyle: { flexBasis: number; minWidth: number };
+  fontSize: number;
+} {
+  const { width } = useWindowDimensions();
+  const fontScale = PixelRatio.getFontScale();
+  const maxWidth = Math.max(120, width - 76);
+  const minWidth = responsiveFieldMinWidth({ chrome, fontScale, label, maxWidth, text });
+
+  return {
+    fieldStyle: { flexBasis: minWidth, minWidth },
+    fontSize: responsiveInputFontSize({ chrome, fontScale, maxWidth, text }),
+  };
+}
 
 export function InventoryTextField(props: {
   full?: boolean;
@@ -16,8 +49,17 @@ export function InventoryTextField(props: {
   onChangeText: (value: string) => void;
   value: string;
 }): ReactElement {
+  const layout = useResponsiveField(props.value, INPUT_CHROME, props.label);
+
   return (
-    <View style={[styles.field, props.full && styles.fieldFull, props.multiline && styles.multilineField]}>
+    <View
+      style={[
+        styles.field,
+        layout.fieldStyle,
+        props.full && styles.fieldFull,
+        props.multiline && styles.multilineField,
+      ]}
+    >
       <TextField
         label={props.label}
         multiline={props.multiline}
@@ -53,6 +95,7 @@ export function InventoryCategoryChipField(props: {
   value: string[];
 }): ReactElement {
   const [draft, setDraft] = useState('');
+  const [focused, setFocused] = useState(false);
   const label = props.label ?? 'Categorías';
 
   const selected = useMemo(() => normalizeCategoryList(props.value), [props.value]);
@@ -63,16 +106,17 @@ export function InventoryCategoryChipField(props: {
 
   const suggestions = useMemo(() => {
     const normalizedDraft = draft.trim().toLowerCase();
+    if (!focused || normalizedDraft.length === 0) {
+      return [];
+    }
+
     return props.suggestions
       .map((entry) => entry.trim())
       .filter((entry) => entry.length > 0)
       .filter((entry) => !selectedKeys.has(entry.toLowerCase()))
-      .filter(
-        (entry) =>
-          normalizedDraft.length === 0 || entry.toLowerCase().includes(normalizedDraft),
-      )
+      .filter((entry) => entry.toLowerCase().includes(normalizedDraft))
       .slice(0, 8);
-  }, [draft, props.suggestions, selectedKeys]);
+  }, [draft, focused, props.suggestions, selectedKeys]);
 
   function commit(next: string[]): void {
     props.onChange(normalizeCategoryList(next));
@@ -120,7 +164,11 @@ export function InventoryCategoryChipField(props: {
       ) : null}
       <View style={styles.categoryInputBox}>
         <TextInput
+          onBlur={() => {
+            setTimeout(() => setFocused(false), 120);
+          }}
           onChangeText={setDraft}
+          onFocus={() => setFocused(true)}
           onSubmitEditing={() => addCategory(draft)}
           placeholder="Buscar o crear categoría"
           placeholderTextColor={colors.placeholder}
@@ -170,11 +218,20 @@ export function InventoryReadOnlyField(props: {
   label: string;
   value: string;
 }): ReactElement {
+  const layout = useResponsiveField(props.value, INPUT_CHROME, props.label);
+
   return (
-    <View style={[styles.field, props.full && styles.fieldFull]}>
+    <View style={[styles.field, layout.fieldStyle, props.full && styles.fieldFull]}>
       <Text style={styles.label}>{props.label}</Text>
       <View style={styles.readOnlyBox}>
-        <Text style={styles.readOnlyValue}>{props.value}</Text>
+        <Text
+          adjustsFontSizeToFit
+          minimumFontScale={0.7}
+          numberOfLines={1}
+          style={styles.readOnlyValue}
+        >
+          {props.value}
+        </Text>
       </View>
     </View>
   );
@@ -192,10 +249,11 @@ export function InventorySelectField<T extends string>(props: {
   const [open, setOpen] = useState(false);
   const selectedLabel =
     props.options.find((option) => option.value === props.value)?.label ?? props.value;
+  const layout = useResponsiveField(selectedLabel, INPUT_CHROME, props.label);
 
   return (
     <>
-      <View style={[styles.field, props.full && styles.fieldFull]}>
+      <View style={[styles.field, layout.fieldStyle, props.full && styles.fieldFull]}>
         <Text style={styles.label}>{props.label}</Text>
         <Pressable
           disabled={props.disabled}
@@ -207,6 +265,9 @@ export function InventorySelectField<T extends string>(props: {
           ]}
         >
           <Text
+            adjustsFontSizeToFit
+            minimumFontScale={0.7}
+            numberOfLines={1}
             style={[
               styles.selectValue,
               props.highlight && styles.selectValueHighlight,
@@ -254,22 +315,21 @@ export function InventorySupplierField(props: {
   value: string;
 }): ReactElement {
   const [focused, setFocused] = useState(false);
+  const layout = useResponsiveField(
+    props.value.trim() || (props.existingOnly ? 'Buscar' : 'Proveedor'),
+    INPUT_CHROME,
+    props.label,
+  );
   const matches = useMemo(() => {
-    if (!focused) {
+    if (!focused || props.value.trim().length === 0) {
       return [];
     }
 
-    const filtered = filterSupplierSuggestions(props.suggestions, props.value);
-
-    if (filtered.length > 0 || props.value.trim().length > 0) {
-      return filtered;
-    }
-
-    return props.existingOnly ? props.suggestions.slice(0, 8) : [];
-  }, [focused, props.existingOnly, props.suggestions, props.value]);
+    return filterSupplierSuggestions(props.suggestions, props.value);
+  }, [focused, props.suggestions, props.value]);
 
   return (
-    <View style={[styles.field, props.full && styles.fieldFull]}>
+    <View style={[styles.field, layout.fieldStyle, props.full && styles.fieldFull]}>
       <Text style={styles.label}>{props.label}</Text>
       <TextInput
         onBlur={() => {
@@ -333,8 +393,11 @@ export function InventoryIntegerField(props: {
   onChangeText: (value: string) => void;
   value: string;
 }): ReactElement {
+  const sample = props.value.trim() || '0';
+  const layout = useResponsiveField(sample, INPUT_CHROME, props.label);
+
   return (
-    <View style={styles.field}>
+    <View style={[styles.field, layout.fieldStyle]}>
       <Text style={styles.label}>{props.label}</Text>
       <View style={styles.prefixInputBox}>
         <TextInput
@@ -342,7 +405,11 @@ export function InventoryIntegerField(props: {
           onChangeText={(value) => props.onChangeText(value.replace(/[^\d]/g, ''))}
           placeholder="0"
           placeholderTextColor={colors.placeholder}
-          style={[styles.prefixInput, Platform.OS === 'web' && styles.inputWeb]}
+          style={[
+            styles.prefixInput,
+            { fontSize: layout.fontSize },
+            Platform.OS === 'web' && styles.inputWeb,
+          ]}
           value={props.value}
         />
       </View>
@@ -356,8 +423,11 @@ export function InventoryDecimalField(props: {
   placeholder?: string;
   value: string;
 }): ReactElement {
+  const sample = props.value.trim() || props.placeholder || '0';
+  const layout = useResponsiveField(sample, INPUT_CHROME, props.label);
+
   return (
-    <View style={styles.field}>
+    <View style={[styles.field, layout.fieldStyle]}>
       <Text style={styles.label}>{props.label}</Text>
       <View style={styles.prefixInputBox}>
         <TextInput
@@ -365,7 +435,11 @@ export function InventoryDecimalField(props: {
           onChangeText={props.onChangeText}
           placeholder={props.placeholder ?? '0'}
           placeholderTextColor={colors.placeholder}
-          style={[styles.prefixInput, Platform.OS === 'web' && styles.inputWeb]}
+          style={[
+            styles.prefixInput,
+            { fontSize: layout.fontSize },
+            Platform.OS === 'web' && styles.inputWeb,
+          ]}
           value={props.value}
         />
       </View>
@@ -386,6 +460,8 @@ export function InventoryDateField(props: {
     () => new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1),
   );
   const label = props.label?.trim() ?? '';
+  const dateSample = props.value.trim().length >= 10 ? props.value.trim() : '00/00/0000';
+  const layout = useResponsiveField(dateSample, DATE_CHROME, label);
 
   function applyIsoDate(isoValue: string): void {
     const date = new Date(`${isoValue}T12:00:00`);
@@ -443,7 +519,7 @@ export function InventoryDateField(props: {
   const monthOptions = Array.from({ length: 12 }, (_, index) => index);
 
   return (
-    <View style={styles.field}>
+    <View style={[styles.field, layout.fieldStyle]}>
       {label ? <Text style={styles.label}>{label}</Text> : null}
       <View style={styles.dateInputBox}>
         <TextInput
@@ -455,6 +531,7 @@ export function InventoryDateField(props: {
           placeholderTextColor={colors.placeholder}
           style={[
             styles.dateInput,
+            { fontSize: layout.fontSize },
             Platform.OS === 'web' && styles.inputWeb,
             !props.value && !focused && styles.dateInputPlaceholder,
           ]}
@@ -629,8 +706,11 @@ export function InventoryMoneyField(props: {
   onChangeText: (value: string) => void;
   value: string;
 }): ReactElement {
+  const sample = props.value.trim() || '0.00';
+  const layout = useResponsiveField(sample, MONEY_CHROME, props.label);
+
   return (
-    <View style={styles.field}>
+    <View style={[styles.field, layout.fieldStyle]}>
       <Text style={styles.label}>{props.label}</Text>
       <View style={styles.prefixInputBox}>
         <Text style={styles.prefixText}>$</Text>
@@ -639,7 +719,11 @@ export function InventoryMoneyField(props: {
           onChangeText={props.onChangeText}
           placeholder="0.00"
           placeholderTextColor={colors.placeholder}
-          style={[styles.prefixInput, Platform.OS === 'web' && styles.inputWeb]}
+          style={[
+            styles.prefixInput,
+            { fontSize: layout.fontSize },
+            Platform.OS === 'web' && styles.inputWeb,
+          ]}
           value={props.value}
         />
       </View>
@@ -652,8 +736,11 @@ export function InventoryPercentField(props: {
   onChangeText: (value: string) => void;
   value: string;
 }): ReactElement {
+  const sample = props.value.trim() || '0';
+  const layout = useResponsiveField(sample, PERCENT_CHROME, props.label);
+
   return (
-    <View style={styles.field}>
+    <View style={[styles.field, layout.fieldStyle]}>
       <Text style={styles.label}>{props.label}</Text>
       <View style={styles.prefixInputBox}>
         <TextInput
@@ -661,7 +748,11 @@ export function InventoryPercentField(props: {
           onChangeText={props.onChangeText}
           placeholder="0"
           placeholderTextColor={colors.placeholder}
-          style={[styles.suffixInput, Platform.OS === 'web' && styles.inputWeb]}
+          style={[
+            styles.suffixInput,
+            { fontSize: layout.fontSize },
+            Platform.OS === 'web' && styles.inputWeb,
+          ]}
           value={props.value}
         />
         <Text style={styles.suffixText}>%</Text>
@@ -779,8 +870,9 @@ const styles = StyleSheet.create({
     fontWeight: '300',
   },
   field: {
-    flex: 1,
-    minWidth: 0,
+    flexGrow: 1,
+    flexShrink: 0,
+    maxWidth: '100%',
   },
   fieldFull: {
     flexBasis: '100%',

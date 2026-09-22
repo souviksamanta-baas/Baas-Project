@@ -554,8 +554,9 @@ export function AddProductScreen(props: {
         </Text>
       </Pressable>
       <View style={styles.buttonRow}>
-        <OutlineButton label="Cancelar" onPress={props.onBack} />
+        <OutlineButton flex label="Cancelar" onPress={props.onBack} />
         <PrimaryButton
+          flex
           label={props.isSaving ? 'Guardando...' : 'Guardar producto'}
           onPress={() => {
             void handleSave(false);
@@ -775,8 +776,9 @@ export function AddSubproductScreen(props: {
         </Text>
       </Pressable>
       <View style={styles.buttonRow}>
-        <OutlineButton label="Cancelar" onPress={props.onBack} />
+        <OutlineButton flex label="Cancelar" onPress={props.onBack} />
         <PrimaryButton
+          flex
           label={props.isSaving ? 'Guardando...' : 'Guardar subproducto'}
           onPress={() => {
             void handleSave(false);
@@ -916,26 +918,27 @@ export function ProductDetailScreen(
           <>
             <View style={styles.batchTable}>
               <View style={styles.batchHeader}>
-                <View style={styles.batchColMain} />
-                <Text style={styles.batchHeaderLabel}>Costo / Precio</Text>
+                <Text style={styles.batchHeaderLabel}>Lote</Text>
                 <Text style={styles.batchHeaderStatus}>Estado</Text>
               </View>
               {batchRows.map((batch) => (
                 <View key={batch.id} style={styles.batchRow}>
-                  <View style={styles.batchColMain}>
-                    <Text style={styles.rowTitle}>{batch.lot}</Text>
-                    <Text style={styles.rowMeta}>{batch.date}</Text>
-                    <Text style={styles.batchQty}>{batch.qty}</Text>
-                  </View>
-                  <Text style={styles.batchCostPrice}>
-                    {batch.cost} <Text style={styles.rowMeta}>/</Text> {batch.price}
-                  </Text>
-                  <View style={styles.batchStatusCol}>
+                  <View style={styles.batchTop}>
+                    <View style={styles.batchColMain}>
+                      <Text style={styles.rowTitle}>{batch.lot}</Text>
+                      <Text style={styles.rowMeta}>
+                        {batch.date}
+                        {batch.qty ? ` · ${batch.qty}` : ''}
+                      </Text>
+                    </View>
                     <StockBadge
                       label={batch.status}
                       tone={batch.statusTone === 'green' ? 'green' : 'neutral'}
                     />
                   </View>
+                  <Text style={styles.batchCostPrice}>
+                    {batch.cost} <Text style={styles.rowMeta}>/</Text> {batch.price}
+                  </Text>
                 </View>
               ))}
             </View>
@@ -1245,7 +1248,7 @@ export function EditProductScreen(
       {readOnly || props.product.parentProductId != null || !canHaveSubproducts(props.product) ? null : (
         <View style={styles.subproductSection}>
           <View style={styles.subproductSectionHeader}>
-            <View style={styles.flex}>
+            <View style={styles.subproductSectionHeaderText}>
               <Text style={styles.subproductSectionTitle}>Subproductos</Text>
               <Text style={styles.subproductSectionSubtitle}>
                 Estos productos usan el stock y el costo del producto base.
@@ -1271,8 +1274,9 @@ export function EditProductScreen(
         </View>
       )}
       <View style={styles.buttonRow}>
-        <OutlineButton label="Cancelar" onPress={props.onBack} />
+        <OutlineButton flex label="Cancelar" onPress={props.onBack} />
         <PrimaryButton
+          flex
           label={
             props.isSaving
               ? 'Guardando...'
@@ -1441,8 +1445,9 @@ export function EditSubproductScreen(
         </View>
       </SectionCard>
       <View style={styles.buttonRow}>
-        <OutlineButton label="Cancelar" onPress={props.onBack} />
+        <OutlineButton flex label="Cancelar" onPress={props.onBack} />
         <PrimaryButton
+          flex
           label={props.isSaving ? 'Guardando...' : 'Guardar cambios'}
           onPress={() => {
             void handleSave();
@@ -1714,8 +1719,9 @@ export function AddStockScreen(props: {
         </Text>
       </Pressable>
       <View style={styles.buttonRow}>
-        <OutlineButton label="Cancelar" onPress={props.onBack} />
+        <OutlineButton flex label="Cancelar" onPress={props.onBack} />
         <PrimaryButton
+          flex
           label={props.isSaving ? 'Guardando...' : 'Guardar ingreso'}
           onPress={() => {
             void handleSave(false);
@@ -1797,7 +1803,7 @@ export function DeleteProductScreen(props: {
         />
       </SectionCard>
       <View style={styles.buttonRow}>
-        <OutlineButton label="Cancelar" onPress={props.onBack} />
+        <OutlineButton flex label="Cancelar" onPress={props.onBack} />
         <SolidDangerButton
           disabled={!canDelete || props.isDeleting}
           label={props.isDeleting ? 'Eliminando...' : 'Eliminar producto'}
@@ -2339,6 +2345,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flex: 1,
     gap: 6,
+    minWidth: 0,
+    paddingHorizontal: 4,
     paddingVertical: 12,
   },
   actionLabel: {
@@ -2508,50 +2516,42 @@ const styles = StyleSheet.create({
   },
   batchCostPrice: {
     color: colors.navy,
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '600',
-    textAlign: 'left',
-    width: 88,
+    marginTop: 4,
   },
   batchHeader: {
     alignItems: 'center',
     backgroundColor: '#f8fafb',
     flexDirection: 'row',
     gap: 8,
+    justifyContent: 'space-between',
     paddingHorizontal: 10,
     paddingVertical: 8,
   },
   batchHeaderLabel: {
     color: colors.slate,
+    flex: 1,
     fontSize: 12,
     fontWeight: '600',
-    width: 88,
   },
   batchHeaderStatus: {
     color: colors.slate,
     fontSize: 12,
     fontWeight: '600',
-    textAlign: 'center',
-    width: 64,
+    textAlign: 'right',
   },
-  batchQty: {
-    color: colors.navy,
-    fontSize: 12,
-    fontWeight: '600',
-    marginTop: 2,
-  },
-  batchRow: {
-    alignItems: 'center',
-    borderTopColor: '#edf2f4',
-    borderTopWidth: 1,
+  batchTop: {
+    alignItems: 'flex-start',
     flexDirection: 'row',
     gap: 8,
+    justifyContent: 'space-between',
+  },
+  batchRow: {
+    borderTopColor: '#edf2f4',
+    borderTopWidth: 1,
     paddingHorizontal: 10,
     paddingVertical: 10,
-  },
-  batchStatusCol: {
-    alignItems: 'center',
-    width: 64,
   },
   batchTable: {
     borderColor: '#edf2f4',
@@ -2741,7 +2741,9 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   fieldRow: {
+    alignItems: 'flex-start',
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 10,
     marginTop: 10,
   },
@@ -3103,13 +3105,19 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   subproductSectionHeader: {
-    alignItems: 'center',
+    alignItems: 'flex-start',
     borderBottomColor: colors.divider,
     borderBottomWidth: 1,
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 10,
     paddingHorizontal: 14,
     paddingVertical: 10,
+  },
+  subproductSectionHeaderText: {
+    flexGrow: 1,
+    flexShrink: 1,
+    minWidth: 160,
   },
   subproductSectionSubtitle: {
     color: colors.slate,

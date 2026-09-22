@@ -1,15 +1,21 @@
 import type { BatchMock } from '../api/inventoryMockData';
+import { formatDateInput } from './addStockForm';
 import { formatLotQuantityLabel, formatProductSalePrice } from './inventoryPresentation';
 import type { InventoryLot } from '../types/inventoryLots';
 import type { Product } from '../types/products';
 
 function formatLotDate(receivedAt: string): string {
+  const dateOnly = /^(\d{4})-(\d{2})-(\d{2})/.exec(receivedAt.trim());
+  if (dateOnly) {
+    return `${dateOnly[3]}/${dateOnly[2]}/${dateOnly[1]}`;
+  }
+
   const date = new Date(receivedAt);
   if (Number.isNaN(date.getTime())) {
     return receivedAt;
   }
 
-  return date.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' });
+  return formatDateInput(date);
 }
 
 export function formatLotCost(

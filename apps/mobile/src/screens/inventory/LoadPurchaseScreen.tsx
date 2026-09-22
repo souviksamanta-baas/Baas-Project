@@ -530,6 +530,7 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   headerFieldRow: {
+    alignItems: 'flex-start',
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 10,
@@ -574,8 +575,10 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   lockedField: {
-    flex: 1,
-    minWidth: 140,
+    flexGrow: 1,
+    flexShrink: 0,
+    maxWidth: '100%',
+    minWidth: 160,
   },
   lockedFieldValue: {
     borderColor: '#dfe7ec',

@@ -43,7 +43,14 @@ export function Button(props: ButtonProps): ReactElement {
       ]}
     >
       {props.icon ? <Icon color={iconColor} kind={props.icon} size={14} strokeWidth={2} /> : null}
-      <Text style={[textStyle, size === 'compact' && textStyles.buttonCompact]}>{props.label}</Text>
+      <Text
+        adjustsFontSizeToFit
+        minimumFontScale={0.8}
+        numberOfLines={1}
+        style={[styles.label, textStyle, size === 'compact' && textStyles.buttonCompact]}
+      >
+        {props.label}
+      </Text>
     </Pressable>
   );
 }
@@ -100,6 +107,10 @@ const styles = StyleSheet.create({
   },
   flex: {
     flex: 1,
+    minWidth: 0,
+  },
+  label: {
+    flexShrink: 1,
   },
   fullWidth: {
     alignSelf: 'stretch',

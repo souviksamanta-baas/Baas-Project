@@ -104,16 +104,20 @@ const styles = StyleSheet.create({
     fontWeight: '300',
   },
   listBoxHeader: {
-    alignItems: 'center',
+    alignItems: 'flex-start',
     borderBottomColor: colors.divider,
     borderBottomWidth: 1,
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
     justifyContent: 'space-between',
     paddingHorizontal: 14,
     paddingVertical: 10,
   },
   listBoxHeaderMain: {
-    flex: 1,
+    flexGrow: 1,
+    flexShrink: 1,
+    minWidth: 160,
   },
   listBoxHeaderStacked: {
     alignItems: 'flex-start',

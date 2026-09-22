@@ -365,7 +365,7 @@ export function ProductSummaryCard(props: {
         ) : (
           thumb
         )}
-        <View style={styles.flex}>
+        <View style={styles.summaryNameWrap}>
           <Text style={styles.summaryName}>{props.title}</Text>
           {null}
           {props.linkedTo ? <Text style={styles.linkedText}>Vinculado a: {props.linkedTo}</Text> : null}
@@ -538,7 +538,14 @@ export function SolidDangerButton(props: {
       onPress={props.onPress}
       style={[styles.solidDangerButton, props.disabled && styles.solidDangerButtonDisabled]}
     >
-      <Text style={styles.solidDangerButtonText}>{props.label}</Text>
+      <Text
+        adjustsFontSizeToFit
+        minimumFontScale={0.8}
+        numberOfLines={1}
+        style={styles.solidDangerButtonText}
+      >
+        {props.label}
+      </Text>
     </Pressable>
   );
 }
@@ -1736,17 +1743,22 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 44,
     justifyContent: 'center',
+    minWidth: 0,
+    paddingHorizontal: 12,
   },
   solidDangerButtonDisabled: {
     opacity: 0.45,
   },
   solidDangerButtonText: {
     color: colors.surface,
+    flexShrink: 1,
     fontSize: 15,
     fontWeight: '600',
   },
   stockCol: {
     alignItems: 'flex-end',
+    flexShrink: 0,
+    maxWidth: '46%',
   },
   stockLabel: {
     color: colors.slate,
@@ -1757,6 +1769,7 @@ const styles = StyleSheet.create({
     color: colors.navy,
     fontSize: 16,
     fontWeight: '600',
+    textAlign: 'right',
   },
   summaryCard: {
     ...shadows.card,
@@ -1777,6 +1790,10 @@ const styles = StyleSheet.create({
     color: colors.navy,
     fontSize: 15,
     fontWeight: '600',
+  },
+  summaryNameWrap: {
+    flex: 1,
+    minWidth: 0,
   },
   summaryTop: {
     flexDirection: 'row',

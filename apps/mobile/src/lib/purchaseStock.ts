@@ -1,7 +1,8 @@
 import { addStock, reversePurchaseLotStock } from '../api/inventory';
 import type { Product } from '../types/products';
 import type { AddStockFormValues } from '../types/inventoryLots';
-import { postCashAutoQuietly, removeCashAutoQuietly } from './cashPostings';
+import { dateInputToIsoDate } from './addStockForm';
+import { postCashAutoQuietly, removeCashAutoQuietly, todayIsoDate } from './cashPostings';
 import {
   getPurchaseById,
   updatePurchase,
@@ -119,7 +120,7 @@ export async function confirmPurchaseStock(options: {
         amountCents: confirmed.totalCostCents,
         businessCenterId: options.businessCenterId,
         concept: `Compra ${confirmed.number}`,
-        entryDate: confirmed.date || new Date().toISOString().slice(0, 10),
+        entryDate: dateInputToIsoDate(confirmed.date) ?? todayIsoDate(),
         entryType: 'egreso',
         organizationId: options.organizationId,
         source: 'compra',
