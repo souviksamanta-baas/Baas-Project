@@ -228,6 +228,7 @@ export class AdminController {
       return {
         archivedAt: (row.archived_at as string | null) ?? null,
         billingCycle,
+        createdAt: (row.created_at as string | null) ?? null,
         deletedAt: null as string | null,
         id: row.id as string,
         licenseExpiresAt: row.licensed_until,
