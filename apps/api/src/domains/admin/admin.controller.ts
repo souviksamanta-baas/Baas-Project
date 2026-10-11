@@ -174,12 +174,18 @@ export class AdminController {
 
   @Get('organizations')
   @ApiBearerAuth('SupabaseAuth')
-  @ApiOperation({ summary: 'List organizations for staff' })
+  @ApiOperation({
+    summary: 'List organizations for staff (includes deleted tombstones from audit)',
+  })
   async listOrgs(
     @Headers('authorization') authorizationHeader: string | undefined,
   ) {
-    const rows = await this.orgsService.listOrganizations(authorizationHeader);
-    return rows.map((row: Record<string, unknown>) => {
+    const [rows, deletedRows] = await Promise.all([
+      this.orgsService.listOrganizations(authorizationHeader),
+      this.orgsService.listDeletedOrganizationTombstones(authorizationHeader),
+    ]);
+
+    const live = rows.map((row: Record<string, unknown>) => {
       const plansRaw = row.plans as
         | { display_name?: string; slug?: string }
         | Array<{ display_name?: string; slug?: string }>
@@ -190,17 +196,48 @@ export class AdminController {
       const ownerEmail = owners?.[0]?.email?.trim() || undefined;
       return {
         archivedAt: (row.archived_at as string | null) ?? null,
-        id: row.id,
+        deletedAt: null as string | null,
+        id: row.id as string,
         licenseExpiresAt: row.licensed_until,
         members: Array.isArray(members) ? members.length : owners?.length ?? 0,
-        name: row.name,
+        name: row.name as string,
         ownerEmail,
         ownerName: ownerEmail,
         plan: plans?.display_name ?? plans?.slug ?? '',
         planSlug: plans?.slug ?? '',
-        status: row.license_status,
+        status: row.license_status as string,
       };
     });
+
+    const liveIds = new Set(live.map((org) => org.id));
+    const deleted = deletedRows
+      .map((row: Record<string, unknown>) => {
+        const entityId = String(row.entity_id ?? '').trim();
+        if (!entityId || liveIds.has(entityId)) {
+          return null;
+        }
+        const payload = (row.payload ?? {}) as { name?: unknown };
+        const name =
+          typeof payload.name === 'string' && payload.name.trim()
+            ? payload.name.trim()
+            : 'Organización eliminada';
+        return {
+          archivedAt: null as string | null,
+          deletedAt: (row.created_at as string | null) ?? null,
+          id: entityId,
+          licenseExpiresAt: null as string | null,
+          members: 0,
+          name,
+          ownerEmail: undefined as string | undefined,
+          ownerName: undefined as string | undefined,
+          plan: '',
+          planSlug: '',
+          status: 'deleted',
+        };
+      })
+      .filter((row): row is NonNullable<typeof row> => row != null);
+
+    return [...live, ...deleted];
   }
 
   @Post('organizations')

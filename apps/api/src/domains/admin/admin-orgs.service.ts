@@ -52,6 +52,28 @@ export class AdminOrgsService {
     return data ?? [];
   }
 
+  /**
+   * Tombstones of hard-deleted orgs from admin_audit_log (Ley 25.326: keep
+   * minimal admin history, not the full tenant with personal data).
+   */
+  async listDeletedOrganizationTombstones(authorizationHeader: string | undefined) {
+    await assertNexoliaStaff(this.supabaseService, authorizationHeader);
+    const client = this.supabaseService.getServiceRoleClient();
+    const { data, error } = await client
+      .from('admin_audit_log')
+      .select('id, entity_id, payload, created_at')
+      .eq('action', 'org.delete')
+      .eq('entity_type', 'organization')
+      .order('created_at', { ascending: false })
+      .limit(200);
+
+    if (error) {
+      throw new Error(`Failed to list deleted organizations: ${error.message}`);
+    }
+
+    return data ?? [];
+  }
+
   async getOrganization(
     authorizationHeader: string | undefined,
     organizationId: string,
