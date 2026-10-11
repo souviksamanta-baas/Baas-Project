@@ -13,12 +13,15 @@ import {
 import { Throttle } from '@nestjs/throttler';
 import {
   ApiBearerAuth,
+  ApiHeader,
   ApiOkResponse,
   ApiOperation,
+  ApiSecurity,
   ApiTags,
 } from '@nestjs/swagger';
 
 import { Public, SkipOrgMembership } from '../../auth/auth.decorators';
+import { assertJobSecret } from '../../auth/job-secret.util';
 
 import { AdminGrokService } from './admin-grok.service';
 import { AdminLeadsService } from './admin-leads.service';
@@ -201,15 +204,30 @@ export class AdminController {
 
     const live = rows.map((row: Record<string, unknown>) => {
       const plansRaw = row.plans as
-        | { display_name?: string; slug?: string }
-        | Array<{ display_name?: string; slug?: string }>
+        | {
+            display_name?: string;
+            price_ars_annual?: number | null;
+            price_ars_monthly?: number | null;
+            slug?: string;
+          }
+        | Array<{
+            display_name?: string;
+            price_ars_annual?: number | null;
+            price_ars_monthly?: number | null;
+            slug?: string;
+          }>
         | null;
       const plans = Array.isArray(plansRaw) ? plansRaw[0] : plansRaw;
       const owners = row.registered_owners as Array<{ email?: string }> | null;
       const members = row.organization_members as Array<{ user_id?: string }> | null;
       const ownerEmail = owners?.[0]?.email?.trim() || undefined;
+      const billingCycle =
+        row.billing_cycle === 'annual' || row.billing_cycle === 'monthly'
+          ? row.billing_cycle
+          : 'monthly';
       return {
         archivedAt: (row.archived_at as string | null) ?? null,
+        billingCycle,
         deletedAt: null as string | null,
         id: row.id as string,
         licenseExpiresAt: row.licensed_until,
@@ -218,6 +236,8 @@ export class AdminController {
         ownerEmail,
         ownerName: ownerEmail,
         plan: plans?.display_name ?? plans?.slug ?? '',
+        planPriceAnnual: plans?.price_ars_annual ?? null,
+        planPriceMonthly: plans?.price_ars_monthly ?? null,
         planSlug: plans?.slug ?? '',
         status: row.license_status as string,
       };
@@ -365,6 +385,58 @@ export class AdminController {
       licenseStatus: body.licenseStatus ?? body.status,
       organizationId,
       planId: body.planId,
+    });
+  }
+
+  @Public()
+  @Post('jobs/expire-trials')
+  @HttpCode(200)
+  @ApiSecurity('BaasJobSecret')
+  @ApiOperation({
+    summary: 'Move ended trial orgs to pending_payment',
+  })
+  @ApiHeader({
+    description: 'Shared scheduler secret configured as BAAS_TASKS_JOB_SECRET.',
+    name: 'x-baas-job-secret',
+    required: true,
+  })
+  async expireTrialsJob(
+    @Headers('x-baas-job-secret') jobSecret: string | undefined,
+  ) {
+    assertJobSecret({
+      expectedSecret: process.env.BAAS_TASKS_JOB_SECRET,
+      invalidMessage: 'Invalid expire-trials job secret',
+      missingMessage: 'Expire-trials job secret is not configured',
+      providedSecret: jobSecret,
+    });
+    return this.orgsService.expireEndedTrials();
+  }
+
+  @Post('organizations/:id/confirm-payment')
+  @HttpCode(200)
+  @ApiBearerAuth('SupabaseAuth')
+  @ApiOperation({
+    summary: 'Confirm payment for an org and set license_status to active',
+  })
+  async confirmOrganizationPayment(
+    @Headers('authorization') authorizationHeader: string | undefined,
+    @Param('id') organizationId: string,
+    @Body()
+    body: {
+      amount?: number;
+      amountArs?: number;
+      method?: 'cash' | 'transfer';
+      notes?: string;
+      reference?: string;
+    },
+  ) {
+    return this.paymentsService.confirmOrganizationPayment({
+      amountArs: body.amountArs ?? body.amount,
+      authorizationHeader,
+      method: body.method,
+      notes: body.notes,
+      organizationId,
+      reference: body.reference,
     });
   }
 

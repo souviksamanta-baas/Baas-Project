@@ -27,29 +27,30 @@ if (!secret) {
   process.exit(1);
 }
 
-const url = `${apiBaseUrl}/tasks/run-maintenance`;
-console.log(`Calling ${url}`);
-
-const response = await fetch(url, {
-  headers: {
-    'content-type': 'application/json',
-    'x-baas-job-secret': secret,
-  },
-  method: 'POST',
-});
-
-const bodyText = await response.text();
-let parsed;
-try {
-  parsed = JSON.parse(bodyText);
-} catch {
-  parsed = bodyText;
+async function postJob(path) {
+  const url = `${apiBaseUrl}${path}`;
+  console.log(`Calling ${url}`);
+  const response = await fetch(url, {
+    headers: {
+      'content-type': 'application/json',
+      'x-baas-job-secret': secret,
+    },
+    method: 'POST',
+  });
+  const bodyText = await response.text();
+  let parsed;
+  try {
+    parsed = JSON.parse(bodyText);
+  } catch {
+    parsed = bodyText;
+  }
+  if (!response.ok) {
+    console.error(`Job ${path} failed`, response.status, parsed);
+    process.exit(1);
+  }
+  console.log(`Job ${path} ok`, JSON.stringify(parsed));
 }
 
-if (!response.ok) {
-  console.error('Maintenance job failed', response.status, parsed);
-  process.exit(1);
-}
-
-console.log('Maintenance job ok', JSON.stringify(parsed));
+await postJob('/admin/jobs/expire-trials');
+await postJob('/tasks/run-maintenance');
 process.exit(0);
