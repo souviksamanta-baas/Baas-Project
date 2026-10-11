@@ -84,8 +84,10 @@ export class AdminLeadsService {
 
     try {
       await this.sendLeadConfirmationEmail({
+        billingCycle: input.billingCycle ?? 'monthly',
         email,
         leadId: data.id,
+        notes: input.notes ?? null,
         orgName,
         planSlug: input.planSlug ?? null,
       });
@@ -101,8 +103,10 @@ export class AdminLeadsService {
   }
 
   private async sendLeadConfirmationEmail(params: {
+    billingCycle: 'monthly' | 'annual';
     email: string;
     leadId: string;
+    notes: string | null;
     orgName: string;
     planSlug: string | null;
   }): Promise<void> {
@@ -112,6 +116,9 @@ export class AdminLeadsService {
       'Nexolia <noreply@nexolia.com.ar>';
 
     const planLabel = planDisplayName(params.planSlug);
+    const cicloLabel = params.billingCycle === 'annual' ? 'anual' : 'mensual';
+    const pricing = planPricingSummary(params.planSlug, params.billingCycle);
+    const discountCode = extractDiscountCode(params.notes);
     const subject = `Recibimos tu solicitud — ${params.orgName}`;
 
     if (!apiKey) {
@@ -123,6 +130,38 @@ export class AdminLeadsService {
       }
       throw new Error('RESEND_API_KEY is not configured');
     }
+
+    const pricingHtml = pricing
+      ? [
+          '<table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:14px">',
+          rowHtml('Plan', planLabel || '—'),
+          rowHtml('Ciclo', cicloLabel === 'anual' ? 'Anual' : 'Mensual'),
+          rowHtml('Prueba', `${LEAD_TRIAL_DAYS} días desde la creación de la org`),
+          rowHtml('Precio de lista', pricing.listLabel),
+          ...(params.billingCycle === 'annual'
+            ? [rowHtml('Anual', '11 meses (1 mes gratis)')]
+            : []),
+          rowHtml(
+            `Descuento ${LAUNCH_DISCOUNT_PERCENT}% · primeros ${LAUNCH_DISCOUNT_MONTHS} meses`,
+            `−${formatArs(pricing.discountAmount)}`,
+            '#1f7a4d',
+          ),
+          ...(discountCode
+            ? [rowHtml('Código de descuento', discountCode)]
+            : []),
+          rowHtml(
+            'Primer cobro (después de la prueba)',
+            formatArs(pricing.firstCharge),
+            undefined,
+            true,
+          ),
+          '</table>',
+          `<p style="font-size:13px;color:#56627b;margin:0 0 12px">${escapeHtml(pricing.followUpNote)}</p>`,
+        ].join('')
+      : [
+          `<p>Plan: <strong>${escapeHtml(planLabel || 'A medida')}</strong> (${escapeHtml(cicloLabel)}).</p>`,
+          '<p>Enterprise se cotiza según tus requisitos. Nuestro equipo te va a contactar con la propuesta.</p>',
+        ].join('');
 
     const response = await fetch('https://api.resend.com/emails', {
       method: 'POST',
@@ -138,9 +177,13 @@ export class AdminLeadsService {
           '<div style="font-family:Arial,Helvetica,sans-serif;line-height:1.5;color:#101935;max-width:560px">',
           '<h2 style="margin:0 0 12px;color:#101935">¡Gracias por elegir Nexolia!</h2>',
           `<p>Recibimos el alta de <strong>${escapeHtml(params.orgName)}</strong>${
-            planLabel ? ` con el plan <strong>${escapeHtml(planLabel)}</strong>` : ''
+            planLabel
+              ? ` con el plan <strong>${escapeHtml(planLabel)}</strong> (${escapeHtml(cicloLabel)})`
+              : ''
           }.</p>`,
-          '<p>Nuestro equipo revisará tu solicitud y activará tu cuenta a la brevedad. Por ahora las suscripciones son <strong>gratuitas</strong>.</p>',
+          `<p>Tu organización tendrá <strong>${LEAD_TRIAL_DAYS} días de prueba</strong> desde que la activemos. Todavía no hay pago online: te contactamos para coordinar la facturación después de la prueba.</p>`,
+          pricingHtml,
+          '<p style="font-size:13px;color:#56627b">Si tu organización permanece inactiva durante 30 días, puede eliminarse automáticamente.</p>',
           `<p style="font-size:14px;color:#56627b">Referencia: <code>${escapeHtml(params.leadId)}</code></p>`,
           '<p style="font-size:14px;color:#56627b">Si no pediste este alta, podés ignorar este correo.</p>',
           '</div>',
@@ -148,8 +191,34 @@ export class AdminLeadsService {
         text: [
           '¡Gracias por elegir Nexolia!',
           '',
-          `Recibimos el alta de ${params.orgName}${planLabel ? ` con el plan ${planLabel}` : ''}.`,
-          'Nuestro equipo revisará tu solicitud y activará tu cuenta a la brevedad. Por ahora las suscripciones son gratuitas.',
+          `Recibimos el alta de ${params.orgName}${
+            planLabel ? ` con el plan ${planLabel} (${cicloLabel})` : ''
+          }.`,
+          `Tu organización tendrá ${LEAD_TRIAL_DAYS} días de prueba desde que la activemos. Todavía no hay pago online: te contactamos para coordinar la facturación después de la prueba.`,
+          '',
+          ...(pricing
+            ? [
+                `Plan: ${planLabel}`,
+                `Ciclo: ${cicloLabel === 'anual' ? 'Anual' : 'Mensual'}`,
+                `Prueba: ${LEAD_TRIAL_DAYS} días desde la creación de la org`,
+                `Precio de lista: ${pricing.listLabel}`,
+                ...(params.billingCycle === 'annual'
+                  ? ['Anual: 11 meses (1 mes gratis)']
+                  : []),
+                `Descuento ${LAUNCH_DISCOUNT_PERCENT}% · primeros ${LAUNCH_DISCOUNT_MONTHS} meses: -${formatArs(pricing.discountAmount)}`,
+                ...(discountCode
+                  ? [`Código de descuento: ${discountCode}`]
+                  : []),
+                `Primer cobro (después de la prueba): ${formatArs(pricing.firstCharge)}`,
+                pricing.followUpNote,
+                '',
+              ]
+            : [
+                `Plan: ${planLabel || 'A medida'} (${cicloLabel})`,
+                'Enterprise se cotiza según tus requisitos. Nuestro equipo te va a contactar con la propuesta.',
+                '',
+              ]),
+          'Si tu organización permanece inactiva durante 30 días, puede eliminarse automáticamente.',
           '',
           `Referencia: ${params.leadId}`,
         ].join('\n'),
@@ -432,13 +501,18 @@ export class AdminLeadsService {
       (input.orgName?.trim() || lead.org_name || '').trim() || 'Sin nombre';
     const timezone = input.orgTimezone ?? 'America/Argentina/Cordoba';
 
-    // Free/trial onboarding: provision immediately without waiting for payment.
+    // 15-day trial from org creation; billing starts after licensed_until.
+    const trialDays = 15;
+    const licensedUntil = new Date();
+    licensedUntil.setUTCDate(licensedUntil.getUTCDate() + trialDays);
+
     const { data: org, error: orgError } = await client
       .from('organizations')
       .insert({
         billing_cycle: lead.billing_cycle ?? 'monthly',
         feature_flags: mergedFlags,
         license_status: 'trial',
+        licensed_until: licensedUntil.toISOString(),
         name: orgName,
         plan_id: planId,
         timezone,
@@ -652,6 +726,15 @@ function buildFeatureFlagsFromSelection(
   return flags;
 }
 
+const LEAD_TRIAL_DAYS = 15;
+const LAUNCH_DISCOUNT_PERCENT = 50;
+const LAUNCH_DISCOUNT_MONTHS = 6;
+
+const PLAN_MONTHLY_ARS: Record<string, number> = {
+  basico: 65_000,
+  pro: 85_000,
+};
+
 function planDisplayName(slug: string | null): string {
   switch ((slug ?? '').trim().toLowerCase()) {
     case 'basico':
@@ -667,6 +750,75 @@ function planDisplayName(slug: string | null): string {
     default:
       return slug?.trim() ?? '';
   }
+}
+
+function planPricingSummary(
+  planSlug: string | null,
+  billingCycle: 'monthly' | 'annual',
+): {
+  discountAmount: number;
+  firstCharge: number;
+  followUpNote: string;
+  listLabel: string;
+} | null {
+  const monthly = PLAN_MONTHLY_ARS[(planSlug ?? '').trim().toLowerCase()];
+  if (monthly == null) return null;
+
+  if (billingCycle === 'monthly') {
+    const firstCharge = Math.round(
+      monthly * (1 - LAUNCH_DISCOUNT_PERCENT / 100),
+    );
+    return {
+      discountAmount: monthly - firstCharge,
+      firstCharge,
+      followUpNote: `Luego de ${LAUNCH_DISCOUNT_MONTHS} meses: ${formatArs(monthly)} / mes.`,
+      listLabel: `${formatArs(monthly)} / mes`,
+    };
+  }
+
+  const listAnnual = monthly * 11;
+  const discountedMonths =
+    LAUNCH_DISCOUNT_MONTHS * (1 - LAUNCH_DISCOUNT_PERCENT / 100);
+  const fullMonths = 11 - LAUNCH_DISCOUNT_MONTHS;
+  const firstCharge = Math.round(monthly * (discountedMonths + fullMonths));
+  return {
+    discountAmount: listAnnual - firstCharge,
+    firstCharge,
+    followUpNote: `El ${LAUNCH_DISCOUNT_PERCENT}% se aplica sobre el equivalente a los primeros ${LAUNCH_DISCOUNT_MONTHS} meses del anual.`,
+    listLabel: `${formatArs(listAnnual)} / año`,
+  };
+}
+
+function extractDiscountCode(notes: string | null): string | null {
+  if (!notes) return null;
+  const match = /(?:^|;\s*)discount_code=([^;]+)/i.exec(notes);
+  const code = match?.[1]?.trim();
+  return code || null;
+}
+
+function formatArs(amount: number): string {
+  return `$${Math.round(amount).toLocaleString('es-AR')}`;
+}
+
+function rowHtml(
+  label: string,
+  value: string,
+  valueColor?: string,
+  emphasize = false,
+): string {
+  const valueStyle = [
+    'text-align:right',
+    emphasize ? 'font-weight:700;color:#101935' : '',
+    valueColor ? `color:${valueColor};font-weight:600` : '',
+  ]
+    .filter(Boolean)
+    .join(';');
+  return [
+    '<tr>',
+    `<td style="padding:6px 0;color:#56627b">${escapeHtml(label)}</td>`,
+    `<td style="padding:6px 0;${valueStyle}">${escapeHtml(value)}</td>`,
+    '</tr>',
+  ].join('');
 }
 
 function escapeHtml(value: string): string {

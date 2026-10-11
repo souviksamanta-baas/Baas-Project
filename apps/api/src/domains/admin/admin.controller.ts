@@ -594,12 +594,18 @@ export class PublicLeadsController {
     const verticalSlug =
       body.verticalSlug ??
       (body.categoria ? CATEGORIA_TO_SLUG[body.categoria] ?? slugify(body.categoria) : undefined);
+    const noteParts = [
+      body.notes?.trim() || null,
+      body.source && !body.notes?.includes('source=')
+        ? `source=${body.source}`
+        : null,
+    ].filter(Boolean);
     const created = await this.leadsService.createPublicLead({
       billingCycle: body.billingCycle ?? body.ciclo ?? 'monthly',
       email: body.email,
       featureFlags: body.featureFlags,
       marketingOptIn: body.marketingOptIn ?? false,
-      notes: body.notes ?? (body.source ? `source=${body.source}` : undefined),
+      notes: noteParts.length > 0 ? noteParts.join('; ') : undefined,
       orgName: body.orgName,
       planSlug: body.planSlug ?? body.plan,
       selectedServices: body.selectedServices ?? body.servicios ?? [],
