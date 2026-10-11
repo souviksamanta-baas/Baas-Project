@@ -510,50 +510,73 @@ export class AdminController {
     @Headers('authorization') authorizationHeader: string | undefined,
   ) {
     const rows = await this.plansService.listPlans(authorizationHeader);
-    return rows.map((row: Record<string, unknown>) => ({
-      featured: row.slug === 'basico',
-      features: Object.keys((row.feature_flags as Record<string, boolean>) ?? {}).filter(
-        (k) => (row.feature_flags as Record<string, boolean>)[k],
-      ),
-      id: row.id,
-      name: row.display_name,
-      priceAnnual: row.price_ars_annual,
-      priceMonthly: row.price_ars_monthly,
-      slug: row.slug,
-    }));
+    return rows.map((row) => mapPlanRow(row as Record<string, unknown>));
   }
 
   @Patch('plans/:id')
   @ApiBearerAuth('SupabaseAuth')
-  @ApiOperation({ summary: 'Update a plan' })
+  @ApiOperation({ summary: 'Update a plan (prices + marketing copy)' })
   async updatePlan(
     @Headers('authorization') authorizationHeader: string | undefined,
     @Param('id') planId: string,
     @Body()
-    body: Record<string, unknown> & {
+    body: {
+      copi?: string[];
+      customPriceLabel?: string | null;
+      featured?: boolean;
       name?: string;
-      priceAnnual?: number;
-      priceMonthly?: number;
+      priceAnnual?: number | null;
+      priceMonthly?: number | null;
+      servicios?: string[];
+      tagline?: string;
     },
   ) {
-    const patch: Record<string, unknown> = { ...body };
+    const patch: Record<string, unknown> = {};
     if (body.name !== undefined) {
-      patch.display_name = body.name;
-      delete patch.name;
+      patch.display_name = String(body.name).trim();
     }
     if (body.priceMonthly !== undefined) {
-      patch.price_ars_monthly = body.priceMonthly;
-      delete patch.priceMonthly;
+      patch.price_ars_monthly = normalizePlanPrice(body.priceMonthly);
     }
     if (body.priceAnnual !== undefined) {
-      patch.price_ars_annual = body.priceAnnual;
-      delete patch.priceAnnual;
+      patch.price_ars_annual = normalizePlanPrice(body.priceAnnual);
     }
-    return this.plansService.updatePlan({
+
+    const marketingPatch: Record<string, unknown> = {};
+    if (body.tagline !== undefined) {
+      marketingPatch.tagline = String(body.tagline).trim();
+    }
+    if (body.featured !== undefined) {
+      marketingPatch.featured = Boolean(body.featured);
+    }
+    if (body.customPriceLabel !== undefined) {
+      const label = body.customPriceLabel?.trim() || null;
+      marketingPatch.customPriceLabel = label;
+    }
+    if (body.servicios !== undefined) {
+      marketingPatch.servicios = normalizeStringList(body.servicios);
+    }
+    if (body.copi !== undefined) {
+      marketingPatch.copi = normalizeStringList(body.copi);
+    }
+
+    if (Object.keys(marketingPatch).length > 0) {
+      const rows = await this.plansService.listPlans(authorizationHeader);
+      const current = rows.find((row) => row.id === planId) as
+        | { marketing?: Record<string, unknown> }
+        | undefined;
+      patch.marketing = {
+        ...(current?.marketing ?? {}),
+        ...marketingPatch,
+      };
+    }
+
+    const updated = await this.plansService.updatePlan({
       authorizationHeader,
       planId,
       patch,
     });
+    return mapPlanRow(updated as Record<string, unknown>);
   }
 
   @Get('payments/pending')
@@ -652,7 +675,17 @@ export class PublicLeadsController {
   constructor(
     private readonly leadsService: AdminLeadsService,
     private readonly passwordResetService: AdminPasswordResetService,
+    private readonly plansService: AdminPlansService,
   ) {}
+
+  @Get('plans')
+  @HttpCode(200)
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
+  @ApiOperation({ summary: 'Public plan catalog for /comenzar' })
+  async listPublicPlans() {
+    const rows = await this.plansService.listPublicPlans();
+    return rows.map((row) => mapPlanRow(row as Record<string, unknown>));
+  }
 
   @Post('leads')
   @HttpCode(200)
@@ -743,4 +776,49 @@ function slugify(value: string): string {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '_')
     .replace(/^_|_$/g, '');
+}
+
+function normalizePlanPrice(value: number | null | undefined): number {
+  if (value == null || !Number.isFinite(value)) return 0;
+  return Math.max(0, Math.round(value));
+}
+
+function normalizeStringList(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => String(item ?? '').trim())
+    .filter((item) => item.length > 0);
+}
+
+function mapPlanRow(row: Record<string, unknown>) {
+  const marketing = (row.marketing ?? {}) as {
+    copi?: unknown;
+    customPriceLabel?: unknown;
+    featured?: unknown;
+    servicios?: unknown;
+    tagline?: unknown;
+  };
+  const priceMonthly = Number(row.price_ars_monthly ?? 0);
+  const priceAnnual = Number(row.price_ars_annual ?? 0);
+  const customPriceLabel =
+    typeof marketing.customPriceLabel === 'string' &&
+    marketing.customPriceLabel.trim()
+      ? marketing.customPriceLabel.trim()
+      : null;
+  const servicios = normalizeStringList(marketing.servicios);
+  const copi = normalizeStringList(marketing.copi);
+  return {
+    copi,
+    customPriceLabel,
+    featured: Boolean(marketing.featured),
+    features: [...servicios, ...copi],
+    id: row.id,
+    name: row.display_name,
+    priceAnnual: customPriceLabel ? null : priceAnnual || null,
+    priceMonthly: customPriceLabel ? null : priceMonthly || null,
+    servicios,
+    slug: row.slug,
+    tagline:
+      typeof marketing.tagline === 'string' ? marketing.tagline.trim() : '',
+  };
 }

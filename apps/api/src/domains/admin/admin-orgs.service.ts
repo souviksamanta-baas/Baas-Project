@@ -575,6 +575,8 @@ export class AdminOrgsService {
   }
 }
 
+const COMMERCIAL_PLAN_SLUGS = ['basico', 'pro', 'enterprise'] as const;
+
 @Injectable()
 export class AdminPlansService {
   constructor(private readonly supabaseService: SupabaseService) {}
@@ -585,10 +587,30 @@ export class AdminPlansService {
     const { data, error } = await client
       .from('plans')
       .select('*')
+      .in('slug', [...COMMERCIAL_PLAN_SLUGS])
       .order('sort_order', { ascending: true });
 
     if (error) {
       throw new Error(`Failed to list plans: ${error.message}`);
+    }
+
+    return data ?? [];
+  }
+
+  /** Public catalog for /comenzar (no auth). */
+  async listPublicPlans() {
+    const client = this.supabaseService.getServiceRoleClient();
+    const { data, error } = await client
+      .from('plans')
+      .select(
+        'id, slug, display_name, price_ars_monthly, price_ars_annual, marketing, sort_order',
+      )
+      .in('slug', [...COMMERCIAL_PLAN_SLUGS])
+      .eq('is_active', true)
+      .order('sort_order', { ascending: true });
+
+    if (error) {
+      throw new Error(`Failed to list public plans: ${error.message}`);
     }
 
     return data ?? [];
