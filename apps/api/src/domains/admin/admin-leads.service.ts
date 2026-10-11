@@ -345,6 +345,7 @@ export class AdminLeadsService {
       .from('leads')
       .select('id, org_name')
       .is('organization_id', null)
+      .in('status', ['new', 'in_progress'])
       .order('created_at', { ascending: true })
       .limit(200);
 
@@ -424,6 +425,71 @@ export class AdminLeadsService {
     return { organizationId: result.organizationId };
   }
 
+  async rejectLead(input: {
+    authorizationHeader: string | undefined;
+    leadId: string;
+    via?: 'ui' | 'grok';
+  }): Promise<{ id: string; status: 'rejected' }> {
+    const staff = await assertNexoliaStaff(
+      this.supabaseService,
+      input.authorizationHeader,
+    );
+    const client = this.supabaseService.getServiceRoleClient();
+
+    const { data: lead, error: leadError } = await client
+      .from('leads')
+      .select('id, organization_id, status')
+      .eq('id', input.leadId)
+      .maybeSingle<{
+        id: string;
+        organization_id: string | null;
+        status: string;
+      }>();
+
+    if (leadError) {
+      throw new Error(`Failed to load lead: ${leadError.message}`);
+    }
+    if (!lead) {
+      throw new NotFoundException('Lead no encontrado');
+    }
+    if (lead.status === 'converted' || lead.organization_id) {
+      throw new BadRequestException(
+        'No se puede rechazar un lead ya convertido en organización.',
+      );
+    }
+    if (lead.status === 'rejected') {
+      return { id: lead.id, status: 'rejected' };
+    }
+
+    const { data: updated, error: updateError } = await client
+      .from('leads')
+      .update({
+        status: 'rejected',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', lead.id)
+      .select('id, status')
+      .single<{ id: string; status: string }>();
+
+    if (updateError || !updated) {
+      throw new Error(
+        `Failed to reject lead: ${updateError?.message ?? 'unknown'}`,
+      );
+    }
+
+    await writeAdminAudit({
+      action: 'lead.reject',
+      actorStaffId: staff.userId,
+      entityId: lead.id,
+      entityType: 'lead',
+      payload: { previousStatus: lead.status },
+      supabaseService: this.supabaseService,
+      via: input.via ?? 'ui',
+    });
+
+    return { id: updated.id, status: 'rejected' };
+  }
+
   /**
    * Create org + default business center + registered owner from a lead.
    * Idempotent when the lead is already converted.
@@ -459,6 +525,11 @@ export class AdminLeadsService {
     }
     if (lead.status === 'converted' && lead.organization_id) {
       return { organizationId: lead.organization_id, created: false };
+    }
+    if (lead.status === 'rejected' || lead.status === 'closed') {
+      throw new BadRequestException(
+        'Este lead está rechazado o cerrado y no se puede convertir.',
+      );
     }
 
     let verticalId: string | null = null;

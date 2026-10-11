@@ -172,6 +172,20 @@ export class AdminController {
     });
   }
 
+  @Post('leads/:id/reject')
+  @HttpCode(200)
+  @ApiBearerAuth('SupabaseAuth')
+  @ApiOperation({ summary: 'Reject a pending lead (keeps row with rejected status)' })
+  async rejectLead(
+    @Headers('authorization') authorizationHeader: string | undefined,
+    @Param('id') leadId: string,
+  ) {
+    return this.leadsService.rejectLead({
+      authorizationHeader,
+      leadId,
+    });
+  }
+
   @Get('organizations')
   @ApiBearerAuth('SupabaseAuth')
   @ApiOperation({
