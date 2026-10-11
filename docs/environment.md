@@ -49,6 +49,8 @@ These values must never be bundled into mobile/client code.
 | `BAAS_OTP_PEPPER` | HMAC pepper for WhatsApp/email login OTP hashes. **Required in production.** Local/dev may fall back to the service role key. | API server, deployment secret store |
 | `RESEND_API_KEY` | Resend API key for platform email login OTP | API server, deployment secret store |
 | `NEXOLIA_AUTH_EMAIL_FROM` | From header for login OTP email (default `Nexolia <noreply@nexolia.com.ar>`) | API server, deployment config |
+| `APP_REVIEW_DEMO_EMAIL` | Single App Store review login. When set with `APP_REVIEW_DEMO_OTP`, that 6-digit code is accepted for this email only and does not expire. | API server, deployment secret store |
+| `APP_REVIEW_DEMO_OTP` | Fixed 6-digit code for `APP_REVIEW_DEMO_EMAIL` | API server, deployment secret store |
 | `BAAS_ENABLE_OPENAPI_DOCS` | Set `true` to expose `/docs` (default off in production) | API server, deployment config |
 | `SUPABASE_URL` | Supabase API URL for server processes | API server, jobs, CI |
 | `SUPABASE_PROJECT_REF` | Project reference for Supabase CLI workflows | Local dev, CI |

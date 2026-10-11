@@ -3,6 +3,7 @@ import { createHmac, randomInt, timingSafeEqual } from 'node:crypto';
 
 import { resolveOtpPepper } from '../../auth/otp-pepper.util';
 import { SupabaseService } from '../../supabase/supabase.service';
+import { isAppReviewDemoCode, isAppReviewDemoEmail } from './app-review-login';
 
 interface ResendSendResponse {
   id?: string;
@@ -26,6 +27,9 @@ export class PlatformEmailAuthService {
     purpose: AuthOtpPurpose = 'login',
   ): Promise<void> {
     const normalizedEmail = normalizeLoginEmail(email);
+    if (purpose === 'login' && isAppReviewDemoEmail(normalizedEmail)) {
+      return;
+    }
     await this.assertResendAllowed(normalizedEmail, purpose);
 
     const code = String(randomInt(100_000, 1_000_000));
@@ -58,6 +62,9 @@ export class PlatformEmailAuthService {
   }): Promise<boolean> {
     const purpose = params.purpose ?? 'login';
     const normalizedEmail = normalizeLoginEmail(params.email);
+    if (purpose === 'login' && isAppReviewDemoEmail(normalizedEmail)) {
+      return isAppReviewDemoCode(normalizedEmail, params.code);
+    }
     const client = this.supabaseService.getServiceRoleClient();
     const { data, error } = await client
       .from('auth_otp_challenges')

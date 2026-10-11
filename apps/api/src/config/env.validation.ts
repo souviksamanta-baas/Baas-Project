@@ -74,6 +74,12 @@ export const envValidationSchema = Joi.object({
   NEXOLIA_AUTH_OTP_TEMPLATE_LANGUAGE: Joi.string().trim().optional().allow(''),
   NEXOLIA_AUTH_OTP_TEMPLATE_NAME: Joi.string().trim().optional().allow(''),
   RESEND_API_KEY: Joi.string().trim().optional().allow(''),
+  APP_REVIEW_DEMO_EMAIL: Joi.string().trim().email().optional().allow(''),
+  APP_REVIEW_DEMO_OTP: Joi.string()
+    .trim()
+    .pattern(/^\d{6}$/)
+    .optional()
+    .allow(''),
   OPENAI_API_KEY: Joi.string().trim().optional().allow(''),
   OPENAI_ADMIN_KEY: Joi.string().trim().optional().allow(''),
   ARCA_ENV: Joi.string().trim().valid('homologacion', 'production').optional().allow(''),
