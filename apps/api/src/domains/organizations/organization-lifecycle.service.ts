@@ -127,13 +127,39 @@ export class OrganizationLifecycleService {
   }): Promise<{ archivedAt: string }> {
     this.assertConfirmation(params.confirmation, 'ARCHIVAR');
     const user = await this.assertOwner(params);
+    return this.archiveOrganizationAsActor({
+      actorUserId: user.id,
+      organizationId: params.organizationId,
+    });
+  }
 
+  /** Soft-deactivate without founding-owner auth (staff / internal). */
+  async archiveOrganizationAsActor(params: {
+    actorUserId: string;
+    organizationId: string;
+  }): Promise<{ archivedAt: string }> {
     const client = this.supabaseService.getServiceRoleClient();
     const archivedAt = new Date().toISOString();
 
+    const { data: existing, error: lookupError } = await client
+      .from('organizations')
+      .select('id, archived_at')
+      .eq('id', params.organizationId)
+      .maybeSingle<{ archived_at: string | null; id: string }>();
+
+    if (lookupError) {
+      throw new Error(`Failed to load organization: ${lookupError.message}`);
+    }
+    if (!existing) {
+      throw new NotFoundException('Negocio no encontrado.');
+    }
+    if (existing.archived_at) {
+      return { archivedAt: existing.archived_at };
+    }
+
     const { error } = await client
       .from('organizations')
-      .update({ archived_at: archivedAt, archived_by: user.id })
+      .update({ archived_at: archivedAt, archived_by: params.actorUserId })
       .eq('id', params.organizationId)
       .is('archived_at', null);
 
@@ -190,7 +216,13 @@ export class OrganizationLifecycleService {
   }): Promise<{ deleted: true }> {
     this.assertConfirmation(params.confirmation, 'ELIMINAR');
     await this.assertOwner(params);
+    return this.deleteOrganizationAsActor({ organizationId: params.organizationId });
+  }
 
+  /** Hard-delete without founding-owner auth (staff / internal). */
+  async deleteOrganizationAsActor(params: {
+    organizationId: string;
+  }): Promise<{ deleted: true }> {
     const client = this.supabaseService.getServiceRoleClient();
     const { data: members, error: membersError } = await client
       .from('organization_members')

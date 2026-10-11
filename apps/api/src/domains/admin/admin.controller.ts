@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
   Headers,
   HttpCode,
@@ -188,6 +189,7 @@ export class AdminController {
       const members = row.organization_members as Array<{ user_id?: string }> | null;
       const ownerEmail = owners?.[0]?.email?.trim() || undefined;
       return {
+        archivedAt: (row.archived_at as string | null) ?? null,
         id: row.id,
         licenseExpiresAt: row.licensed_until,
         members: Array.isArray(members) ? members.length : owners?.length ?? 0,
@@ -312,6 +314,68 @@ export class AdminController {
       licenseStatus: body.licenseStatus ?? body.status,
       organizationId,
       planId: body.planId,
+    });
+  }
+
+  @Post('organizations/:id/pause')
+  @HttpCode(200)
+  @ApiBearerAuth('SupabaseAuth')
+  @ApiOperation({ summary: 'Pause an organization license (blocks owner app + Copi)' })
+  async pauseOrganization(
+    @Headers('authorization') authorizationHeader: string | undefined,
+    @Param('id') organizationId: string,
+  ) {
+    return this.orgsService.pauseOrganization({
+      authorizationHeader,
+      organizationId,
+    });
+  }
+
+  @Post('organizations/:id/resume')
+  @HttpCode(200)
+  @ApiBearerAuth('SupabaseAuth')
+  @ApiOperation({ summary: 'Resume a paused organization license' })
+  async resumeOrganization(
+    @Headers('authorization') authorizationHeader: string | undefined,
+    @Param('id') organizationId: string,
+  ) {
+    return this.orgsService.resumeOrganization({
+      authorizationHeader,
+      organizationId,
+    });
+  }
+
+  @Post('organizations/:id/archive')
+  @HttpCode(200)
+  @ApiBearerAuth('SupabaseAuth')
+  @ApiOperation({ summary: 'Archive (soft-deactivate) an organization as staff' })
+  async archiveOrganization(
+    @Headers('authorization') authorizationHeader: string | undefined,
+    @Param('id') organizationId: string,
+    @Body() body: { confirmation?: string },
+  ) {
+    return this.orgsService.archiveOrganization({
+      authorizationHeader,
+      confirmation: body.confirmation ?? '',
+      organizationId,
+    });
+  }
+
+  @Delete('organizations/:id')
+  @HttpCode(200)
+  @ApiBearerAuth('SupabaseAuth')
+  @ApiOperation({
+    summary: 'Hard-delete an organization (super-admin; confirm with org name)',
+  })
+  async deleteOrganization(
+    @Headers('authorization') authorizationHeader: string | undefined,
+    @Param('id') organizationId: string,
+    @Body() body: { confirmation?: string },
+  ) {
+    return this.orgsService.deleteOrganization({
+      authorizationHeader,
+      confirmation: body.confirmation ?? '',
+      organizationId,
     });
   }
 

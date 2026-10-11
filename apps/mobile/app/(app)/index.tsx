@@ -46,11 +46,14 @@ export default function HomeRoute(): ReactElement {
     return `Hola ${greetingName}!`;
   }, [greetingName]);
 
+  const licensePaused = Boolean(dashboard?.licensePaused) && !dashboard?.organization;
+
   return (
     <View style={styles.root}>
       <HomeScreen
         appointments={appointmentsState.appointments}
         conversations={inbox.conversations}
+        licensePaused={licensePaused}
         metrics={dashboard?.metrics ?? null}
         notifications={tasksState.notifications}
         onOpenAlertProduct={(productId) => router.push(productDetailRoute(productId, 'home'))}
@@ -61,6 +64,7 @@ export default function HomeRoute(): ReactElement {
         onOpenConversation={(conversationId) => router.push(conversationRoute(conversationId))}
         onOpenLowStock={() => router.push(manageStockRoute({ lowStock: true }))}
         onOpenManageStock={() => router.push(routes.inventoryManageStock)}
+        onOpenNegocios={() => router.push(routes.negocios)}
         onOpenNotifications={() => router.push(routes.notifications)}
         onOpenTaskDetail={(taskId) => router.push(taskDetailRoute(taskId, 'home'))}
         onOpenTasks={() => router.push(tasksRoute())}

@@ -66,6 +66,13 @@ export class CopiOrchestratorService {
       authorizationHeader: params.authorizationHeader,
       organizationId: params.organizationId,
     });
+    const orgGate = await this.loadOrganizationAccessGate(params.organizationId);
+    if (orgGate === 'archived') {
+      return this.buildDeniedResponse(startedAt, 'Copi no está disponible: la organización está archivada.');
+    }
+    if (orgGate === 'paused') {
+      return this.buildDeniedResponse(startedAt, 'Copi no está disponible: la organización está pausada.');
+    }
     const flags = await this.policyService.loadFeatureFlags(params.organizationId);
     const enabledDecision = this.policyService.assertCopiEnabled(flags);
     if (enabledDecision === 'policy_denied') {
@@ -947,6 +954,31 @@ export class CopiOrchestratorService {
       id: data.id,
       timezone: data.timezone?.trim() || 'America/Argentina/Buenos_Aires',
     };
+  }
+
+  private async loadOrganizationAccessGate(
+    organizationId: string,
+  ): Promise<'ok' | 'paused' | 'archived'> {
+    const client = this.supabaseService.getServiceRoleClient();
+    const { data, error } = await client
+      .from('organizations')
+      .select('archived_at, license_status')
+      .eq('id', organizationId)
+      .maybeSingle<{ archived_at: string | null; license_status: string | null }>();
+
+    if (error) {
+      throw new Error(`Failed to load organization status for Copi: ${error.message}`);
+    }
+    if (!data) {
+      return 'archived';
+    }
+    if (data.archived_at) {
+      return 'archived';
+    }
+    if (data.license_status === 'paused') {
+      return 'paused';
+    }
+    return 'ok';
   }
 
   private async assertMember(params: {

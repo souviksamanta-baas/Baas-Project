@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 
 import { SupabaseService } from '../../supabase/supabase.service';
 import { AiModule } from '../ai/ai.module';
+import { OrganizationsModule } from '../organizations/organizations.module';
 import { AdminController, PublicLeadsController } from './admin.controller';
 import { AdminGrokService } from './admin-grok.service';
 import { AdminLeadsService } from './admin-leads.service';
@@ -15,7 +16,7 @@ import {
 import { RegisteredOwnerClaimService } from './registered-owner-claim.service';
 
 @Module({
-  imports: [AiModule],
+  imports: [AiModule, OrganizationsModule],
   controllers: [AdminController, PublicLeadsController],
   providers: [
     SupabaseService,

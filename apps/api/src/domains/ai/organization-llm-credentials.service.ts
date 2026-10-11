@@ -54,8 +54,14 @@ export class OrganizationLlmCredentialsService {
 
   /**
    * Dedicated encrypted key when active; otherwise shared OPENAI_API_KEY (may be empty).
+   * Paused / archived orgs get no key (including shared fallback).
    */
   async getApiKeyForOrganization(organizationId: string): Promise<string | null> {
+    if (await this.isOrganizationBlockedFromLlm(organizationId)) {
+      this.keyCache.delete(organizationId);
+      return null;
+    }
+
     const cached = this.keyCache.get(organizationId);
     if (cached && cached.expiresAt > Date.now()) {
       return cached.value;
@@ -228,6 +234,26 @@ export class OrganizationLlmCredentialsService {
 
     this.keyCache.delete(params.organizationId);
     return this.getStatus(params.organizationId);
+  }
+
+  private async isOrganizationBlockedFromLlm(organizationId: string): Promise<boolean> {
+    const client = this.supabaseService.getServiceRoleClient();
+    const { data, error } = await client
+      .from('organizations')
+      .select('archived_at, license_status')
+      .eq('id', organizationId)
+      .maybeSingle<{ archived_at: string | null; license_status: string | null }>();
+
+    if (error) {
+      this.logger.error(
+        `Failed to load org status for LLM gate ${organizationId}: ${error.message}`,
+      );
+      return true;
+    }
+    if (!data) {
+      return true;
+    }
+    return Boolean(data.archived_at) || data.license_status === 'paused';
   }
 
   private async findRow(

@@ -2,6 +2,7 @@ import {
   BadRequestException,
   CanActivate,
   ExecutionContext,
+  ForbiddenException,
   Injectable,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
@@ -46,7 +47,33 @@ export class OrgMembershipGuard implements CanActivate {
       supabaseService: this.supabaseService,
       userId: user.id,
     });
+    await assertOrganizationUsable(this.supabaseService, organizationId);
     return true;
+  }
+}
+
+async function assertOrganizationUsable(
+  supabaseService: SupabaseService,
+  organizationId: string,
+): Promise<void> {
+  const client = supabaseService.getServiceRoleClient();
+  const { data, error } = await client
+    .from('organizations')
+    .select('archived_at, license_status')
+    .eq('id', organizationId)
+    .maybeSingle<{ archived_at: string | null; license_status: string | null }>();
+
+  if (error) {
+    throw new Error(`Failed to load organization status: ${error.message}`);
+  }
+  if (!data) {
+    throw new ForbiddenException('Organización no encontrada.');
+  }
+  if (data.archived_at) {
+    throw new ForbiddenException('Organización archivada.');
+  }
+  if (data.license_status === 'paused') {
+    throw new ForbiddenException('Organización pausada.');
   }
 }
 

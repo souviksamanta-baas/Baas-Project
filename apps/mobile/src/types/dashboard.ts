@@ -3,6 +3,8 @@ import type { OrganizationFeatureFlags } from './features';
 
 export interface OwnerDashboard {
   shouldOnboard: boolean;
+  /** True when the user has memberships but every usable org is paused. */
+  licensePaused?: boolean;
   features?: OrganizationFeatureFlags;
   organization: {
     aiAutoSend: boolean;

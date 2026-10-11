@@ -1,5 +1,9 @@
 import { supabase } from '../lib/supabase';
-import { getPreferredOrganizationId } from '../lib/activeOrganization';
+import {
+  clearPreferredOrganizationId,
+  getPreferredOrganizationId,
+  setPreferredOrganizationId,
+} from '../lib/activeOrganization';
 import { normalizeNavShortcutId } from '../lib/navShortcut';
 import type { OwnerDashboard } from '../types/dashboard';
 import type { OrganizationFeatureFlags } from '../types/features';
@@ -15,6 +19,7 @@ export type OrganizationVertical = {
 
 export type MyOrganization = {
   createdAt: string;
+  licenseStatus: string | null;
   name: string;
   organizationId: string;
   role: string;
@@ -42,6 +47,14 @@ export async function getOwnerDashboard(
     dashboard.organization.navShortcut = normalizeNavShortcutId(dashboard.organization.navShortcut);
   }
 
+  // Preferred org was paused/invalid — clear so the next launch does not keep it.
+  if (preferred && dashboard.organization?.id !== preferred) {
+    await clearPreferredOrganizationId();
+    if (dashboard.organization?.id) {
+      await setPreferredOrganizationId(dashboard.organization.id);
+    }
+  }
+
   return dashboard;
 }
 
@@ -56,11 +69,13 @@ export async function listMyOrganizations(): Promise<MyOrganization[]> {
 
   return ((data ?? []) as Array<{
     created_at: string;
+    license_status?: string | null;
     name: string;
     organization_id: string;
     role: string;
   }>).map((row) => ({
     createdAt: row.created_at,
+    licenseStatus: row.license_status ?? null,
     name: row.name,
     organizationId: row.organization_id,
     role: row.role,

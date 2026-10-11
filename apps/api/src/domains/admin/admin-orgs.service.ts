@@ -5,19 +5,34 @@ import {
 } from '@nestjs/common';
 
 import { SupabaseService } from '../../supabase/supabase.service';
+import { OrganizationLlmCredentialsService } from '../ai/organization-llm-credentials.service';
 import {
   applyPlanEntitlements,
   mergeLeadAndPlanFeatureFlags,
 } from '../organizations/organization-feature-flags.util';
+import { OrganizationLifecycleService } from '../organizations/organization-lifecycle.service';
 import {
   assertNexoliaStaff,
+  requireSuperAdmin,
   writeAdminAudit,
 } from './admin-auth.helper';
 import { notifyOwnerOrgConfirmed } from './admin-mail.util';
 
+const LICENSE_STATUSES = new Set([
+  'pending_payment',
+  'trial',
+  'active',
+  'paused',
+  'expired',
+]);
+
 @Injectable()
 export class AdminOrgsService {
-  constructor(private readonly supabaseService: SupabaseService) {}
+  constructor(
+    private readonly supabaseService: SupabaseService,
+    private readonly lifecycleService: OrganizationLifecycleService,
+    private readonly llmCredentialsService: OrganizationLlmCredentialsService,
+  ) {}
 
   async listOrganizations(authorizationHeader: string | undefined) {
     await assertNexoliaStaff(this.supabaseService, authorizationHeader);
@@ -25,7 +40,7 @@ export class AdminOrgsService {
     const { data, error } = await client
       .from('organizations')
       .select(
-        'id, name, license_status, licensed_until, billing_cycle, plan_id, created_at, plans(slug, display_name), registered_owners(email, claimed_at, user_id), organization_members(user_id)',
+        'id, name, license_status, licensed_until, billing_cycle, plan_id, archived_at, created_at, plans(slug, display_name), registered_owners(email, claimed_at, user_id), organization_members(user_id)',
       )
       .order('created_at', { ascending: false })
       .limit(200);
@@ -248,6 +263,246 @@ export class AdminOrgsService {
     }
 
     return { organizationId: data.id };
+  }
+
+  async pauseOrganization(params: {
+    authorizationHeader: string | undefined;
+    organizationId: string;
+  }) {
+    const staff = await assertNexoliaStaff(
+      this.supabaseService,
+      params.authorizationHeader,
+    );
+    const client = this.supabaseService.getServiceRoleClient();
+    const { data: org, error } = await client
+      .from('organizations')
+      .select('id, name, license_status, license_status_before_pause, archived_at')
+      .eq('id', params.organizationId)
+      .maybeSingle<{
+        archived_at: string | null;
+        id: string;
+        license_status: string;
+        license_status_before_pause: string | null;
+        name: string;
+      }>();
+
+    if (error) {
+      throw new Error(`Failed to load organization: ${error.message}`);
+    }
+    if (!org) {
+      throw new NotFoundException('Organización no encontrada');
+    }
+    if (org.archived_at) {
+      throw new BadRequestException('La organización está archivada.');
+    }
+
+    if (org.license_status === 'paused') {
+      return {
+        archivedAt: org.archived_at,
+        id: org.id,
+        name: org.name,
+        status: org.license_status,
+      };
+    }
+
+    const { error: updateError } = await client
+      .from('organizations')
+      .update({
+        license_status: 'paused',
+        license_status_before_pause: LICENSE_STATUSES.has(org.license_status)
+          ? org.license_status
+          : 'active',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', params.organizationId);
+
+    if (updateError) {
+      throw new Error(`Failed to pause organization: ${updateError.message}`);
+    }
+
+    await writeAdminAudit({
+      action: 'org.pause',
+      actorStaffId: staff.userId,
+      entityId: params.organizationId,
+      entityType: 'organization',
+      payload: { previousStatus: org.license_status },
+      supabaseService: this.supabaseService,
+    });
+
+    return {
+      archivedAt: null as string | null,
+      id: org.id,
+      name: org.name,
+      status: 'paused',
+    };
+  }
+
+  async resumeOrganization(params: {
+    authorizationHeader: string | undefined;
+    organizationId: string;
+  }) {
+    const staff = await assertNexoliaStaff(
+      this.supabaseService,
+      params.authorizationHeader,
+    );
+    const client = this.supabaseService.getServiceRoleClient();
+    const { data: org, error } = await client
+      .from('organizations')
+      .select('id, name, license_status, license_status_before_pause, archived_at')
+      .eq('id', params.organizationId)
+      .maybeSingle<{
+        archived_at: string | null;
+        id: string;
+        license_status: string;
+        license_status_before_pause: string | null;
+        name: string;
+      }>();
+
+    if (error) {
+      throw new Error(`Failed to load organization: ${error.message}`);
+    }
+    if (!org) {
+      throw new NotFoundException('Organización no encontrada');
+    }
+    if (org.archived_at) {
+      throw new BadRequestException('La organización está archivada.');
+    }
+    if (org.license_status !== 'paused') {
+      return {
+        archivedAt: org.archived_at,
+        id: org.id,
+        name: org.name,
+        status: org.license_status,
+      };
+    }
+
+    const restored =
+      org.license_status_before_pause &&
+      LICENSE_STATUSES.has(org.license_status_before_pause) &&
+      org.license_status_before_pause !== 'paused'
+        ? org.license_status_before_pause
+        : 'active';
+
+    const { error: updateError } = await client
+      .from('organizations')
+      .update({
+        license_status: restored,
+        license_status_before_pause: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', params.organizationId);
+
+    if (updateError) {
+      throw new Error(`Failed to resume organization: ${updateError.message}`);
+    }
+
+    await writeAdminAudit({
+      action: 'org.resume',
+      actorStaffId: staff.userId,
+      entityId: params.organizationId,
+      entityType: 'organization',
+      payload: { restoredStatus: restored },
+      supabaseService: this.supabaseService,
+    });
+
+    return {
+      archivedAt: null as string | null,
+      id: org.id,
+      name: org.name,
+      status: restored,
+    };
+  }
+
+  async archiveOrganization(params: {
+    authorizationHeader: string | undefined;
+    confirmation: string;
+    organizationId: string;
+  }) {
+    const staff = await assertNexoliaStaff(
+      this.supabaseService,
+      params.authorizationHeader,
+    );
+    if (params.confirmation.trim().toUpperCase() !== 'ARCHIVAR') {
+      throw new BadRequestException('Escribí ARCHIVAR para confirmar.');
+    }
+
+    const result = await this.lifecycleService.archiveOrganizationAsActor({
+      actorUserId: staff.userId,
+      organizationId: params.organizationId,
+    });
+
+    await writeAdminAudit({
+      action: 'org.archive',
+      actorStaffId: staff.userId,
+      entityId: params.organizationId,
+      entityType: 'organization',
+      payload: { archivedAt: result.archivedAt },
+      supabaseService: this.supabaseService,
+    });
+
+    return result;
+  }
+
+  async deleteOrganization(params: {
+    authorizationHeader: string | undefined;
+    confirmation: string;
+    organizationId: string;
+  }) {
+    const staff = await assertNexoliaStaff(
+      this.supabaseService,
+      params.authorizationHeader,
+    );
+    requireSuperAdmin(staff);
+
+    const client = this.supabaseService.getServiceRoleClient();
+    const { data: org, error } = await client
+      .from('organizations')
+      .select('id, name')
+      .eq('id', params.organizationId)
+      .maybeSingle<{ id: string; name: string }>();
+
+    if (error) {
+      throw new Error(`Failed to load organization: ${error.message}`);
+    }
+    if (!org) {
+      throw new NotFoundException('Organización no encontrada');
+    }
+
+    const expected = org.name.trim().toLowerCase();
+    if (!expected || params.confirmation.trim().toLowerCase() !== expected) {
+      throw new BadRequestException(
+        `Escribí el nombre exacto de la organización (${org.name}) para confirmar.`,
+      );
+    }
+
+    try {
+      await this.llmCredentialsService.revoke({
+        actorUserId: staff.userId,
+        organizationId: params.organizationId,
+      });
+    } catch (revokeError) {
+      // Best-effort: hard delete still proceeds if OpenAI revoke fails.
+      console.error(
+        `[admin-orgs] Failed to revoke LLM credentials before delete: ${
+          revokeError instanceof Error ? revokeError.message : String(revokeError)
+        }`,
+      );
+    }
+
+    await this.lifecycleService.deleteOrganizationAsActor({
+      organizationId: params.organizationId,
+    });
+
+    await writeAdminAudit({
+      action: 'org.delete',
+      actorStaffId: staff.userId,
+      entityId: params.organizationId,
+      entityType: 'organization',
+      payload: { name: org.name },
+      supabaseService: this.supabaseService,
+    });
+
+    return { deleted: true as const };
   }
 }
 

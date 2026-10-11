@@ -132,6 +132,7 @@ export function NegociosScreen(props: {
         ? [
             {
               createdAt: '',
+              licenseStatus: null,
               name: props.businessName,
               organizationId: props.organizationId,
               role: String(props.role ?? 'owner'),
@@ -151,21 +152,27 @@ export function NegociosScreen(props: {
         {orgRows.map((org) => {
           const selected = org.organizationId === props.organizationId;
           const switching = switchingOrgId === org.organizationId;
+          const paused = org.licenseStatus === 'paused';
           return (
             <ActionRow
-              disabled={switchingOrgId != null && !switching}
+              disabled={paused || (switchingOrgId != null && !switching)}
               icon="store"
               key={org.organizationId}
               onPress={() => {
+                if (paused) {
+                  return;
+                }
                 void handleSwitchOrganization(org.organizationId);
               }}
               showDivider
               subtitle={
-                switching
-                  ? 'Activando…'
-                  : selected
-                    ? 'Activo ahora'
-                    : memberRoleLabel(org.role)
+                paused
+                  ? 'Pausada'
+                  : switching
+                    ? 'Activando…'
+                    : selected
+                      ? 'Activo ahora'
+                      : memberRoleLabel(org.role)
               }
               title={org.name}
             />

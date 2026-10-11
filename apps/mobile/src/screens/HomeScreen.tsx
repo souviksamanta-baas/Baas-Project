@@ -26,6 +26,7 @@ import { colors, shadows } from '../theme';
 export function HomeScreen(props: {
   appointments?: Appointment[];
   conversations: InboxConversationSummary[];
+  licensePaused?: boolean;
   metrics: OwnerDashboard['metrics'] | null;
   notifications: OwnerNotification[];
   onOpenAlertProduct: (productId: string) => void;
@@ -34,6 +35,7 @@ export function HomeScreen(props: {
   onOpenConversation: (conversationId: string) => void;
   onOpenLowStock: () => void;
   onOpenManageStock: () => void;
+  onOpenNegocios?: () => void;
   onOpenNotifications: () => void;
   onOpenTaskDetail: (taskId: string) => void;
   onOpenTasks: () => void;
@@ -45,6 +47,25 @@ export function HomeScreen(props: {
 }): ReactElement {
   const flags = useOrganizationFlags();
   const deviceContacts = useDeviceContactNames();
+
+  if (props.licensePaused) {
+    return (
+      <ScreenContent collapseHeaderOnScroll={false}>
+        <View>
+          <Text style={styles.greeting}>{props.ownerGreeting}</Text>
+          <Text style={styles.subtitle}>Tu negocio está pausado</Text>
+        </View>
+        <InfoBanner>
+          Licencia pausada. Por ahora no podés ver productos, chats ni Copi. Si tenés otro negocio
+          activo, cambialo desde Negocios. Si necesitás reactivar este, contactá a Nexolia.
+        </InfoBanner>
+        {props.onOpenNegocios ? (
+          <PrimaryButton label="Ir a Negocios" onPress={props.onOpenNegocios} />
+        ) : null}
+      </ScreenContent>
+    );
+  }
+
   const connection = props.whatsappConnection ?? {
     status: 'not_configured' as const,
     phoneNumberId: null,
