@@ -79,35 +79,44 @@ export class AdminController {
   async dashboard(
     @Headers('authorization') authorizationHeader: string | undefined,
   ) {
-    const kpis = await this.dashboardService.getKpis(authorizationHeader);
+    const data = await this.dashboardService.getDashboard(authorizationHeader);
     return {
-      activity: [],
+      activity: data.activity,
       kpis: [
         {
           label: 'Clientes activos',
           tone: 'positive',
-          value: kpis.activeLicenses,
+          value: data.kpis.activeLicenses,
         },
         {
-          label: 'En prueba',
-          tone: 'positive',
-          value: kpis.trialLicenses,
-        },
-        {
-          label: 'Pagos por confirmar',
+          label: 'Pendiente de pago',
           tone: 'warning',
-          value: kpis.pendingPayments,
+          value: data.kpis.pendingPaymentOrgs,
+        },
+        {
+          label: 'Leads nuevos',
+          tone: 'warning',
+          value: data.kpis.newLeads,
         },
         {
           label: 'Licencias por vencer',
           tone: 'warning',
-          value: kpis.expiringSoon,
+          value: data.kpis.expiringSoon,
         },
       ],
-      paymentsByDay: [],
-      recentClients: [],
-      raw: kpis,
+      paymentsByDay: data.paymentsByDay,
+      recentClients: data.recentClients,
+      raw: data.kpis,
     };
+  }
+
+  @Get('users')
+  @ApiBearerAuth('SupabaseAuth')
+  @ApiOperation({ summary: 'List organization users (email and phone logins)' })
+  async listUsers(
+    @Headers('authorization') authorizationHeader: string | undefined,
+  ) {
+    return this.orgsService.listOrganizationUsers(authorizationHeader);
   }
 
   @Get('leads')

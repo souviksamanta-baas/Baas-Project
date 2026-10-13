@@ -42,7 +42,7 @@ export class AdminOrgsService {
     const { data, error } = await client
       .from('organizations')
       .select(
-        'id, name, license_status, licensed_until, billing_cycle, plan_id, archived_at, created_at, plans(slug, display_name, price_ars_monthly, price_ars_annual), registered_owners(email, claimed_at, user_id), organization_members(user_id)',
+        'id, name, license_status, licensed_until, billing_cycle, plan_id, archived_at, created_at, plans(slug, display_name, price_ars_monthly, price_ars_annual), registered_owners(email, claimed_at, user_id), organization_members(user_id, role)',
       )
       .order('created_at', { ascending: false })
       .limit(200);
@@ -52,6 +52,108 @@ export class AdminOrgsService {
     }
 
     return data ?? [];
+  }
+
+  /**
+   * All org members with auth identity (email and/or phone login).
+   * Also includes unclaimed registered owners (email invite pending).
+   */
+  async listOrganizationUsers(authorizationHeader: string | undefined) {
+    await assertNexoliaStaff(this.supabaseService, authorizationHeader);
+    const client = this.supabaseService.getServiceRoleClient();
+
+    const [{ data: members, error: membersError }, { data: owners, error: ownersError }] =
+      await Promise.all([
+        client
+          .from('organization_members')
+          .select(
+            'id, role, user_id, created_at, organizations!inner(id, name, archived_at)',
+          )
+          .order('created_at', { ascending: false })
+          .limit(500),
+        client
+          .from('registered_owners')
+          .select(
+            'id, email, user_id, claimed_at, created_at, organizations!inner(id, name, archived_at)',
+          )
+          .limit(200),
+      ]);
+
+    if (membersError) {
+      throw new Error(`Failed to list organization users: ${membersError.message}`);
+    }
+    if (ownersError) {
+      throw new Error(`Failed to list registered owners: ${ownersError.message}`);
+    }
+
+    const memberRows = (members ?? []).filter((row) => {
+      const org = unwrapOrg(row.organizations);
+      return org != null && !org.archived_at;
+    });
+    const ownerRows = (owners ?? []).filter((row) => {
+      const org = unwrapOrg(row.organizations);
+      return org != null && !org.archived_at;
+    });
+    const userIds = [
+      ...new Set(
+        [
+          ...memberRows.map((row) => row.user_id as string | null),
+          ...ownerRows.map((row) => row.user_id as string | null),
+        ].filter((id): id is string => Boolean(id)),
+      ),
+    ];
+
+    const identities = await resolveAuthIdentities(client, userIds);
+    const memberKeys = new Set(
+      memberRows.map((row) => {
+        const org = unwrapOrg(row.organizations);
+        return `${org?.id ?? ''}:${row.user_id}`;
+      }),
+    );
+
+    const fromMembers = memberRows.map((row) => {
+      const org = unwrapOrg(row.organizations);
+      const identity = identities.get(row.user_id as string);
+      return buildUserRow({
+        id: row.id as string,
+        identity,
+        orgId: org?.id ?? '',
+        orgName: org?.name ?? '—',
+        role: String(row.role ?? 'staff'),
+        status: 'active',
+      });
+    });
+
+    const fromPendingOwners = ownerRows
+      .filter((row) => {
+        const org = unwrapOrg(row.organizations);
+        const orgId = org?.id ?? '';
+        const userId = (row.user_id as string | null) ?? null;
+        if (userId && memberKeys.has(`${orgId}:${userId}`)) {
+          return false;
+        }
+        // Already claimed into members, or still pending invite.
+        return !userId || !row.claimed_at;
+      })
+      .map((row) => {
+        const org = unwrapOrg(row.organizations);
+        const email = String(row.email ?? '').trim().toLowerCase() || null;
+        const identity = row.user_id
+          ? identities.get(row.user_id as string)
+          : email
+            ? { email, name: null, phone: null }
+            : undefined;
+        return buildUserRow({
+          id: `owner-${row.id}`,
+          identity: identity ?? (email ? { email, name: null, phone: null } : undefined),
+          orgId: org?.id ?? '',
+          orgName: org?.name ?? '—',
+          role: 'owner',
+          status: 'pending',
+        });
+      });
+
+    return [...fromMembers, ...fromPendingOwners];
   }
 
   /**
@@ -979,18 +1081,26 @@ export class AdminDashboardService {
     const [
       { count: activeCount },
       { count: trialCount },
-      { count: pendingPayments },
+      { count: pendingPaymentOrgs },
+      { count: awaitingPayments },
       { count: expiringSoon },
       { count: newLeads },
     ] = await Promise.all([
       client
         .from('organizations')
         .select('id', { count: 'exact', head: true })
-        .eq('license_status', 'active'),
+        .eq('license_status', 'active')
+        .is('archived_at', null),
       client
         .from('organizations')
         .select('id', { count: 'exact', head: true })
-        .eq('license_status', 'trial'),
+        .eq('license_status', 'trial')
+        .is('archived_at', null),
+      client
+        .from('organizations')
+        .select('id', { count: 'exact', head: true })
+        .eq('license_status', 'pending_payment')
+        .is('archived_at', null),
       client
         .from('license_payments')
         .select('id', { count: 'exact', head: true })
@@ -999,6 +1109,7 @@ export class AdminDashboardService {
         .from('organizations')
         .select('id', { count: 'exact', head: true })
         .eq('license_status', 'active')
+        .is('archived_at', null)
         .lte(
           'licensed_until',
           new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
@@ -1013,8 +1124,430 @@ export class AdminDashboardService {
       activeLicenses: activeCount ?? 0,
       expiringSoon: expiringSoon ?? 0,
       newLeads: newLeads ?? 0,
-      pendingPayments: pendingPayments ?? 0,
+      pendingPaymentOrgs: pendingPaymentOrgs ?? 0,
+      pendingPayments: awaitingPayments ?? 0,
       trialLicenses: trialCount ?? 0,
     };
+  }
+
+  async getDashboard(authorizationHeader: string | undefined) {
+    const kpis = await this.getKpis(authorizationHeader);
+    const client = this.supabaseService.getServiceRoleClient();
+    const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+
+    const [
+      { data: orgs },
+      { data: payments },
+      { data: recentOrgPayments },
+      { data: auditRows },
+      { data: recentLeads },
+    ] = await Promise.all([
+      client
+        .from('organizations')
+        .select(
+          'id, name, license_status, created_at, licensed_until, plans(display_name, slug)',
+        )
+        .is('archived_at', null)
+        .order('created_at', { ascending: false })
+        .limit(8),
+      client
+        .from('license_payments')
+        .select('amount_ars, status, received_at, created_at, organization_id')
+        .eq('status', 'confirmed')
+        .gte('received_at', since)
+        .order('received_at', { ascending: true })
+        .limit(200),
+      client
+        .from('license_payments')
+        .select('organization_id, received_at, created_at')
+        .eq('status', 'confirmed')
+        .order('received_at', { ascending: false })
+        .limit(100),
+      client
+        .from('admin_audit_log')
+        .select('id, action, entity_type, entity_id, payload, created_at')
+        .order('created_at', { ascending: false })
+        .limit(40),
+      client
+        .from('leads')
+        .select('id, email, org_name, status, created_at, plan_slug')
+        .order('created_at', { ascending: false })
+        .limit(10),
+    ]);
+
+    const paymentsByDay = buildPaymentsByDay(payments ?? []);
+    const latestPaymentByOrg = new Map<string, string>();
+    for (const payment of recentOrgPayments ?? []) {
+      const orgId = payment.organization_id as string | null;
+      if (!orgId || latestPaymentByOrg.has(orgId)) continue;
+      const at = payment.received_at || payment.created_at;
+      if (at) latestPaymentByOrg.set(orgId, String(at));
+    }
+    const orgNameById = new Map(
+      (orgs ?? []).map((org) => [org.id as string, org.name as string]),
+    );
+
+    // Resolve org names referenced in audit that may not be in recent orgs.
+    const auditOrgIds = [
+      ...new Set(
+        (auditRows ?? [])
+          .map((row) => {
+            const payload = (row.payload ?? {}) as Record<string, unknown>;
+            if (typeof payload.organizationId === 'string') {
+              return payload.organizationId;
+            }
+            if (row.entity_type === 'organization' && row.entity_id) {
+              return String(row.entity_id);
+            }
+            return null;
+          })
+          .filter(
+            (id): id is string =>
+              typeof id === 'string' && id.length > 0 && !orgNameById.has(id),
+          ),
+      ),
+    ];
+    if (auditOrgIds.length > 0) {
+      const { data: namedOrgs } = await client
+        .from('organizations')
+        .select('id, name')
+        .in('id', auditOrgIds);
+      for (const org of namedOrgs ?? []) {
+        orgNameById.set(org.id as string, org.name as string);
+      }
+    }
+
+    const activity = buildActivityFeed({
+      auditRows: auditRows ?? [],
+      leads: recentLeads ?? [],
+      orgNameById,
+    });
+
+    const recentClients = (orgs ?? []).map((org) => {
+      const plansRaw = org.plans as
+        | { display_name?: string; slug?: string }
+        | Array<{ display_name?: string; slug?: string }>
+        | null;
+      const plan = Array.isArray(plansRaw) ? plansRaw[0] : plansRaw;
+      const lastPaymentAt = latestPaymentByOrg.get(org.id as string);
+      return {
+        id: org.id as string,
+        lastPayment: lastPaymentAt
+          ? formatDashboardDate(lastPaymentAt)
+          : undefined,
+        name: org.name as string,
+        plan: plan?.display_name ?? plan?.slug ?? '—',
+        status: licenseStatusLabel(String(org.license_status ?? '')),
+      };
+    });
+
+    return {
+      activity,
+      kpis,
+      paymentsByDay,
+      recentClients,
+    };
+  }
+}
+
+type AuthIdentity = {
+  email: string | null;
+  name: string | null;
+  phone: string | null;
+};
+
+type OrgEmbed = {
+  archived_at?: string | null;
+  id: string;
+  name: string;
+};
+
+function unwrapOrg(raw: unknown): OrgEmbed | null {
+  if (!raw) return null;
+  if (Array.isArray(raw)) {
+    return (raw[0] as OrgEmbed | undefined) ?? null;
+  }
+  return raw as OrgEmbed;
+}
+
+async function resolveAuthIdentities(
+  client: ReturnType<SupabaseService['getServiceRoleClient']>,
+  userIds: string[],
+): Promise<Map<string, AuthIdentity>> {
+  const map = new Map<string, AuthIdentity>();
+  await Promise.all(
+    userIds.map(async (userId) => {
+      try {
+        const { data } = await client.auth.admin.getUserById(userId);
+        const user = data.user;
+        if (!user) return;
+        const meta = (user.user_metadata ?? {}) as Record<string, unknown>;
+        const fullName =
+          (typeof meta.full_name === 'string' && meta.full_name.trim()) ||
+          (typeof meta.name === 'string' && meta.name.trim()) ||
+          null;
+        map.set(userId, {
+          email: user.email?.trim() || null,
+          name: fullName,
+          phone: user.phone?.trim() || null,
+        });
+      } catch {
+        // Skip unresolved identities; row still renders with placeholders.
+      }
+    }),
+  );
+  return map;
+}
+
+function formatPhoneDisplay(phone: string | null | undefined): string | null {
+  if (!phone) return null;
+  const digits = phone.replace(/\D/g, '');
+  if (!digits) return phone;
+  return phone.startsWith('+') ? phone : `+${digits}`;
+}
+
+function buildUserRow(params: {
+  id: string;
+  identity?: AuthIdentity;
+  orgId: string;
+  orgName: string;
+  role: string;
+  status: 'active' | 'pending';
+}) {
+  const email = params.identity?.email?.trim() || null;
+  const phone = formatPhoneDisplay(params.identity?.phone);
+  const contact = email || phone || '—';
+  const loginMethod = email ? 'email' : phone ? 'phone' : 'unknown';
+  const nameFromEmail = email ? email.split('@')[0] : null;
+  const name =
+    params.identity?.name?.trim() ||
+    nameFromEmail ||
+    phone ||
+    'Usuario';
+
+  return {
+    contact,
+    email,
+    id: params.id,
+    loginMethod,
+    name,
+    org: params.orgName,
+    orgId: params.orgId,
+    phone,
+    role: params.role,
+    status: params.status,
+  };
+}
+
+function licenseStatusLabel(status: string): string {
+  switch (status) {
+    case 'active':
+      return 'Activo';
+    case 'trial':
+      return 'En prueba';
+    case 'pending_payment':
+      return 'Pendiente de pago';
+    case 'paused':
+      return 'Pausada';
+    case 'expired':
+      return 'Vencida';
+    default:
+      return status || '—';
+  }
+}
+
+function formatDashboardDate(input: string): string {
+  const d = new Date(input);
+  if (Number.isNaN(d.getTime())) return input;
+  return d.toLocaleString('es-AR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function buildPaymentsByDay(
+  payments: Array<{
+    amount_ars?: number | null;
+    received_at?: string | null;
+    created_at?: string | null;
+  }>,
+): Array<{ day: string; total: number }> {
+  const byDay = new Map<string, number>();
+  for (let i = 29; i >= 0; i -= 1) {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    d.setDate(d.getDate() - i);
+    byDay.set(d.toISOString().slice(0, 10), 0);
+  }
+  for (const payment of payments) {
+    const raw = payment.received_at || payment.created_at;
+    if (!raw) continue;
+    const day = new Date(raw).toISOString().slice(0, 10);
+    if (!byDay.has(day)) continue;
+    byDay.set(day, (byDay.get(day) ?? 0) + Number(payment.amount_ars ?? 0));
+  }
+  return [...byDay.entries()].map(([day, total]) => ({ day, total }));
+}
+
+function buildActivityFeed(params: {
+  auditRows: Array<{
+    id: string;
+    action: string;
+    entity_type: string;
+    entity_id?: string | null;
+    payload?: unknown;
+    created_at: string;
+  }>;
+  leads: Array<{
+    id: string;
+    email?: string | null;
+    org_name?: string | null;
+    status?: string | null;
+    created_at: string;
+  }>;
+  orgNameById: Map<string, string>;
+}): Array<{
+  id: string;
+  kind: string;
+  title: string;
+  detail: string;
+  at: string;
+  tone?: 'positive' | 'warning' | 'danger';
+}> {
+  const items: Array<{
+    id: string;
+    kind: string;
+    title: string;
+    detail: string;
+    at: string;
+    sortAt: number;
+    tone?: 'positive' | 'warning' | 'danger';
+  }> = [];
+
+  for (const row of params.auditRows) {
+    const payload = (row.payload ?? {}) as Record<string, unknown>;
+    const orgId =
+      (typeof payload.organizationId === 'string' && payload.organizationId) ||
+      (row.entity_type === 'organization' ? String(row.entity_id ?? '') : '');
+    const orgName =
+      (typeof payload.name === 'string' && payload.name) ||
+      (orgId ? params.orgNameById.get(orgId) : null) ||
+      null;
+    const mapped = mapAuditActivity(row.action, orgName, payload);
+    if (!mapped) continue;
+    const sortAt = new Date(row.created_at).getTime();
+    items.push({
+      at: formatDashboardDate(row.created_at),
+      detail: mapped.detail,
+      id: row.id,
+      kind: mapped.kind,
+      sortAt: Number.isNaN(sortAt) ? 0 : sortAt,
+      title: mapped.title,
+      tone: mapped.tone,
+    });
+  }
+
+  for (const lead of params.leads) {
+    if (lead.status !== 'new') continue;
+    const sortAt = new Date(lead.created_at).getTime();
+    items.push({
+      at: formatDashboardDate(lead.created_at),
+      detail: lead.org_name || lead.email || 'Lead nuevo',
+      id: `lead-${lead.id}`,
+      kind: 'lead',
+      sortAt: Number.isNaN(sortAt) ? 0 : sortAt,
+      title: 'Lead nuevo',
+      tone: 'warning',
+    });
+  }
+
+  return items
+    .sort((a, b) => b.sortAt - a.sortAt)
+    .slice(0, 12)
+    .map(({ sortAt: _sortAt, ...item }) => item);
+}
+
+function mapAuditActivity(
+  action: string,
+  orgName: string | null,
+  payload: Record<string, unknown>,
+): {
+  kind: string;
+  title: string;
+  detail: string;
+  tone?: 'positive' | 'warning' | 'danger';
+} | null {
+  const name = orgName || 'Organización';
+  switch (action) {
+    case 'lead.convert':
+      return {
+        detail: name,
+        kind: 'lead',
+        title: 'Lead convertido',
+        tone: 'positive',
+      };
+    case 'lead.reject':
+      return {
+        detail: name,
+        kind: 'lead',
+        title: 'Lead rechazado',
+        tone: 'danger',
+      };
+    case 'payment.confirm':
+    case 'payment.confirm_organization':
+      return {
+        detail: name,
+        kind: 'payment',
+        title: 'Pago confirmado',
+        tone: 'positive',
+      };
+    case 'payment.create':
+      return {
+        detail: name,
+        kind: 'payment',
+        title: 'Pago registrado',
+        tone: 'warning',
+      };
+    case 'org.pause':
+      return {
+        detail: name,
+        kind: 'org',
+        title: 'Organización pausada',
+        tone: 'warning',
+      };
+    case 'org.resume':
+      return {
+        detail: name,
+        kind: 'org',
+        title: 'Organización reactivada',
+        tone: 'positive',
+      };
+    case 'org.archive':
+      return {
+        detail: name,
+        kind: 'org',
+        title: 'Organización archivada',
+        tone: 'danger',
+      };
+    case 'org.delete':
+      return {
+        detail:
+          (typeof payload.name === 'string' && payload.name) || name,
+        kind: 'org',
+        title: 'Organización eliminada',
+        tone: 'danger',
+      };
+    case 'org.create':
+      return {
+        detail: name,
+        kind: 'org',
+        title: 'Organización creada',
+        tone: 'positive',
+      };
+    default:
+      return null;
   }
 }
