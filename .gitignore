@@ -21,3 +21,7 @@ secrets/
 
 # Local Expo prebuild / Xcode (do not commit)
 apps/mobile/ios/
+
+# Local caches, screenshots, and test logs
+tmp/
+test-results/
