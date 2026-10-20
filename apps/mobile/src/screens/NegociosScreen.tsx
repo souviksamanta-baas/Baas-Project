@@ -35,7 +35,6 @@ async function phoneFromCurrentUser(): Promise<string | null> {
 export function NegociosScreen(props: {
   businessName: string | null;
   onBack: () => void;
-  onOpenCreateOrganization: () => void;
   /** Called after a successful org switch / join (e.g. navigate home). */
   onSwitchComplete?: () => void;
   onOrganizationSwitched?: (organizationId: string) => Promise<void> | void;
@@ -144,9 +143,7 @@ export function NegociosScreen(props: {
     <ScreenContent title="Negocios">
       <ScreenTitle onBack={props.onBack} title="Negocios" />
 
-      <Text style={styles.hint}>
-        Cambiá de negocio, creá uno nuevo o uníte con el QR de una invitación.
-      </Text>
+      <Text style={styles.hint}>Cambiá de negocio o uníte con el QR de una invitación.</Text>
 
       <Card flush>
         {orgRows.map((org) => {
@@ -178,13 +175,6 @@ export function NegociosScreen(props: {
             />
           );
         })}
-        <ActionRow
-          icon="plus"
-          onPress={props.onOpenCreateOrganization}
-          showDivider
-          subtitle="Completá el alta en nexolia.com.ar/comenzar"
-          title="Registrar otro negocio"
-        />
         <ActionRow
           icon="qr"
           onPress={() => setJoinScannerOpen(true)}

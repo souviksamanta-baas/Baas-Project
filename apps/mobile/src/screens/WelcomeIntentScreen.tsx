@@ -1,17 +1,14 @@
 import type { ReactElement } from 'react';
 import { useState } from 'react';
-import { Alert, Linking, Modal, Pressable, StyleSheet, Text } from 'react-native';
+import { Alert, Modal, Pressable, StyleSheet, Text } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AuthScreenShell } from '../components/AuthScreenShell';
-import { PrimaryButton, SecondaryButton, colors, spacing, textStyles } from '../design-system';
+import { PrimaryButton, colors, spacing, textStyles } from '../design-system';
 import { parseStaffInviteToken } from '../lib/staffInviteToken';
 import { BarcodeScannerScreen } from './BarcodeScannerScreen';
 
-const COMENZAR_URL = 'https://nexolia.com.ar/comenzar';
-
 export function WelcomeIntentScreen(props: {
-  onCreateBusiness?: () => void;
   onJoinWithInviteToken: (inviteToken: string) => void;
   /** When set, user already has a session without a business — show sign-out instead of sign-in. */
   onSignOut?: () => void;
@@ -25,7 +22,7 @@ export function WelcomeIntentScreen(props: {
       <AuthScreenShell
         subtitle={
           signedInWithoutBusiness
-            ? 'Tu sesión está activa, pero todavía no tenés un negocio. Escaneá una invitación o completá el alta en la web.'
+            ? 'Tu sesión está activa, pero todavía no tenés un negocio. Escaneá una invitación para unirte.'
             : 'Elegí cómo querés empezar. Después te pedimos un código para verificar tu identidad.'
         }
         title="Bienvenido a Nexolia"
@@ -35,26 +32,6 @@ export function WelcomeIntentScreen(props: {
           label="Unirme con invitación (QR)"
           onPress={() => setScanning(true)}
         />
-        <SecondaryButton
-          fullWidth
-          label="Quiero registrar mi negocio"
-          onPress={() => {
-            if (props.onCreateBusiness) {
-              props.onCreateBusiness();
-              return;
-            }
-            void Linking.openURL(COMENZAR_URL).catch(() => {
-              Alert.alert(
-                'No se pudo abrir el navegador',
-                'Abrí nexolia.com.ar/comenzar desde el navegador para registrar tu negocio.',
-              );
-            });
-          }}
-        />
-        <Text style={styles.hint}>
-          El alta del negocio se hace en nexolia.com.ar. En la app solo ingresás si ya estás
-          registrado o tenés una invitación.
-        </Text>
         {signedInWithoutBusiness ? (
           <Pressable onPress={props.onSignOut} style={styles.signIn}>
             <Text style={styles.signInText}>Cerrar sesión</Text>
@@ -90,12 +67,6 @@ export function WelcomeIntentScreen(props: {
 }
 
 const styles = StyleSheet.create({
-  hint: {
-    ...textStyles.bodySm,
-    color: colors.textSecondary,
-    marginTop: spacing.sm,
-    textAlign: 'center',
-  },
   scanModal: {
     backgroundColor: colors.background,
     flex: 1,

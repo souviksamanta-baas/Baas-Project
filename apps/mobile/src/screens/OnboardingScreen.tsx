@@ -1,17 +1,15 @@
 import type { ReactElement } from 'react';
 import { useState } from 'react';
-import { Alert, Linking, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { PrimaryButton, SecondaryButton } from '../components/Buttons';
+import { PrimaryButton } from '../components/Buttons';
 import { parseStaffInviteToken } from '../lib/staffInviteToken';
 import { colors } from '../theme';
 import { styles as baseStyles } from '../styles';
 import { BarcodeScannerScreen } from './BarcodeScannerScreen';
 
-const COMENZAR_URL = 'https://nexolia.com.ar/comenzar';
-
-type OnboardingStep = 'choice' | 'scan' | 'create';
+type OnboardingStep = 'choice' | 'scan';
 
 export function OnboardingScreen(props: {
   /** Kept for call-site compatibility; in-app create is retired. */
@@ -32,7 +30,7 @@ export function OnboardingScreen(props: {
   verticalId?: string | null;
 }): ReactElement {
   const [step, setStep] = useState<OnboardingStep>(
-    props.initialStep === 'scan' ? 'scan' : props.initialStep === 'create' ? 'create' : 'choice',
+    props.initialStep === 'scan' ? 'scan' : 'choice',
   );
 
   if (step === 'scan') {
@@ -59,28 +57,12 @@ export function OnboardingScreen(props: {
     );
   }
 
-  const heading =
-    step === 'create' || props.initialStep === 'create'
-      ? 'Registro en la web'
-      : '¿Cómo querés continuar?';
-  const body =
-    step === 'create' || props.initialStep === 'create'
-      ? 'Ya no se crea el negocio desde la app. Completá el alta en nexolia.com.ar/comenzar y esperá la confirmación de Nexolia. Después iniciá sesión acá con el mismo email.'
-      : 'Si te invitaron a un negocio, escaneá el QR. Si todavía no estás registrado como propietario, completá el alta en la web.';
-
   return (
     <View style={baseStyles.card}>
-      <Text style={baseStyles.heading}>{heading}</Text>
-      <Text style={baseStyles.bodyText}>{body}</Text>
+      <Text style={baseStyles.heading}>¿Cómo querés continuar?</Text>
+      <Text style={baseStyles.bodyText}>Si te invitaron a un negocio, escaneá el QR.</Text>
 
-      <PrimaryButton
-        label="Abrir nexolia.com.ar/comenzar"
-        onPress={() => {
-          void Linking.openURL(COMENZAR_URL);
-        }}
-      />
-      <View style={styles.spacer} />
-      <SecondaryButton label="Unirme con invitación (QR)" onPress={() => setStep('scan')} />
+      <PrimaryButton label="Unirme con invitación (QR)" onPress={() => setStep('scan')} />
 
       {props.onBack ? (
         <Pressable onPress={props.onBack} style={styles.signOut}>
@@ -109,8 +91,5 @@ const styles = StyleSheet.create({
     color: colors.primary,
     fontSize: 14,
     fontWeight: '600',
-  },
-  spacer: {
-    height: 10,
   },
 });
