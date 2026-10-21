@@ -119,7 +119,12 @@ export class AdminLeadsService {
     const cicloLabel = params.billingCycle === 'annual' ? 'anual' : 'mensual';
     const pricing = planPricingSummary(params.planSlug, params.billingCycle);
     const discountCode = extractDiscountCode(params.notes);
-    const subject = `Recibimos tu solicitud — ${params.orgName}`;
+    const isDemoContact = /origen:demo|source=nexolia-web\/contacto/i.test(
+      params.notes ?? '',
+    );
+    const subject = isDemoContact
+      ? `Recibimos tu mensaje — ${params.orgName}`
+      : `Recibimos tu solicitud — ${params.orgName}`;
 
     if (!apiKey) {
       if (process.env.NODE_ENV !== 'production') {
@@ -129,6 +134,48 @@ export class AdminLeadsService {
         return;
       }
       throw new Error('RESEND_API_KEY is not configured');
+    }
+
+    if (isDemoContact) {
+      const contactName = extractLeadNoteValue(params.notes, 'nombre');
+      const response = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          from,
+          to: [params.email],
+          subject,
+          html: [
+            '<div style="font-family:Arial,Helvetica,sans-serif;line-height:1.5;color:#101935;max-width:560px">',
+            '<h2 style="margin:0 0 12px;color:#101935">¡Gracias por escribirnos!</h2>',
+            `<p>Hola${contactName ? ` ${escapeHtml(contactName)}` : ''},</p>`,
+            `<p>Recibimos tu mensaje sobre <strong>${escapeHtml(params.orgName)}</strong>. Te vamos a responder a este correo a la brevedad para coordinar una demo o aclarar tus dudas.</p>`,
+            '<p>Si preferís, también podés escribirnos por WhatsApp al <a href="https://wa.me/543546517096">03546-51-7096</a>.</p>',
+            `<p style="font-size:14px;color:#56627b">Referencia: <code>${escapeHtml(params.leadId)}</code></p>`,
+            '<p style="font-size:14px;color:#56627b">Si no enviaste este mensaje, podés ignorar este correo.</p>',
+            '</div>',
+          ].join(''),
+          text: [
+            '¡Gracias por escribirnos!',
+            '',
+            `Hola${contactName ? ` ${contactName}` : ''},`,
+            `Recibimos tu mensaje sobre ${params.orgName}. Te vamos a responder a este correo a la brevedad para coordinar una demo o aclarar tus dudas.`,
+            '',
+            'WhatsApp: https://wa.me/543546517096',
+            `Referencia: ${params.leadId}`,
+          ].join('\n'),
+        }),
+      });
+      if (!response.ok) {
+        const body = await response.text();
+        throw new Error(
+          `Resend contact confirmation failed (${response.status}): ${body}`,
+        );
+      }
+      return;
     }
 
     const pricingHtml = pricing
@@ -861,10 +908,18 @@ function planPricingSummary(
 }
 
 function extractDiscountCode(notes: string | null): string | null {
+  return extractLeadNoteValue(notes, 'discount_code');
+}
+
+function extractLeadNoteValue(
+  notes: string | null,
+  key: string,
+): string | null {
   if (!notes) return null;
-  const match = /(?:^|;\s*)discount_code=([^;]+)/i.exec(notes);
-  const code = match?.[1]?.trim();
-  return code || null;
+  const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const match = new RegExp(`(?:^|;\\s*)${escaped}=([^;]+)`, 'i').exec(notes);
+  const value = match?.[1]?.trim();
+  return value || null;
 }
 
 function formatArs(amount: number): string {
