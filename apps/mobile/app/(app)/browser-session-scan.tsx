@@ -2,7 +2,8 @@ import { useRouter } from 'expo-router';
 import type { ReactElement } from 'react';
 import { Alert, Linking, StyleSheet, Text, View } from 'react-native';
 
-import { apiFetchAuthJson } from '../../src/api/client';
+import { useOwnerSessionContext } from '../../src/context/OwnerSessionProvider';
+import { approveBrowserSession, challengeIdFromUrl } from '../../src/lib/approveBrowserSession';
 import { BarcodeScannerScreen } from '../../src/screens/BarcodeScannerScreen';
 import { colors } from '../../src/theme';
 
@@ -45,41 +46,22 @@ function safeUrl(value: string): URL | null {
 
 export default function BrowserSessionScanRoute(): ReactElement {
   const router = useRouter();
+  const { dashboard } = useOwnerSessionContext();
 
   async function handleScanned(payload: {
     unlock: () => void;
     value: string;
   }): Promise<void> {
     const url = resolveBrowserSessionUrl(payload.value);
+    const challengeId = challengeIdFromUrl(url) ?? challengeIdFromUrl(payload.value);
 
-    const parsed = url ? safeUrl(url) : null;
-    const challengeId = parsed?.searchParams.get('c') ?? '';
-    const isDesktopPair =
-      parsed?.hostname === BROWSER_SESSION_WEB_HOST &&
-      parsed.pathname.replace(/\/$/, '') === '/pair' &&
-      challengeId.length > 0;
-
-    if (isDesktopPair) {
-      try {
-        await apiFetchAuthJson('/auth/browser-sessions/approve', {
-          body: JSON.stringify({ challengeId }),
-          method: 'POST',
-        });
-        Alert.alert('Listo', 'La computadora ya puede usar tu sesión.', [
-          { onPress: () => router.back(), text: 'Cerrar' },
-        ]);
-      } catch (error) {
-        const message =
-          error instanceof Error
-            ? error.message
-            : 'No pudimos vincular esta computadora.';
-        Alert.alert('No se pudo vincular', message, [
-          { onPress: payload.unlock, text: 'Reintentar' },
-          { onPress: () => router.back(), style: 'cancel', text: 'Cerrar' },
-        ]);
-      }
+    if (challengeId) {
+      await approveBrowserSession(challengeId, dashboard?.organization?.id, dashboard?.organization?.name);
+      router.back();
       return;
     }
+
+    const parsed = url ? safeUrl(url) : null;
 
     if (parsed?.hostname === BROWSER_SESSION_WEB_HOST) {
       Alert.alert(

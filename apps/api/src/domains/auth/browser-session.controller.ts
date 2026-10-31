@@ -5,12 +5,13 @@ import {
   Headers,
   HttpCode,
   Post,
+  Query,
   Req,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
-import { IsString, IsUUID, MinLength } from 'class-validator';
+import { IsOptional, IsString, IsUUID, MinLength } from 'class-validator';
 
 import { Public, SkipOrgMembership } from '../../auth/auth.decorators';
 import type { AuthenticatedRequest } from '../../auth/jwt-auth.guard';
@@ -33,6 +34,10 @@ class PollBrowserSessionDto {
 class ApproveBrowserSessionDto {
   @IsUUID()
   challengeId!: string;
+
+  @IsOptional()
+  @IsUUID()
+  organizationId?: string;
 }
 
 class RefreshBrowserSessionDto {
@@ -79,16 +84,25 @@ export class BrowserSessionController {
   @HttpCode(200)
   approve(@Req() request: AuthenticatedRequest, @Body() body: ApproveBrowserSessionDto) {
     const userId = request.user?.id;
-    if (!userId) {
+    const accessToken = request.headers.authorization?.replace(/^Bearer\s+/i, '').trim();
+    if (!userId || !accessToken) {
       throw new UnauthorizedException('Iniciá sesión en el celular para confirmar.');
     }
-    return this.browserSessions.approve(body.challengeId, userId);
+    return this.browserSessions.approve(
+      body.challengeId,
+      userId,
+      accessToken,
+      body.organizationId ?? null,
+    );
   }
 
   @SkipOrgMembership()
   @ApiBearerAuth('SupabaseAuth')
   @Get('workspace')
-  workspaceFor(@Headers('authorization') authorizationHeader: string | undefined) {
-    return this.workspace.load(authorizationHeader);
+  workspaceFor(
+    @Headers('authorization') authorizationHeader: string | undefined,
+    @Query('organizationId') organizationId?: string,
+  ) {
+    return this.workspace.load(authorizationHeader, organizationId);
   }
 }

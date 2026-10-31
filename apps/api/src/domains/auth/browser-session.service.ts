@@ -19,6 +19,7 @@ type ChallengeRow = {
   access_token: string | null;
   expires_at: string;
   id: string;
+  organization_id: string | null;
   poll_secret_hash: string;
   refresh_token: string | null;
   status: 'pending' | 'approved' | 'consumed' | 'expired';
@@ -36,7 +37,7 @@ export type BrowserSessionCreateResult = {
 export type BrowserSessionPollResult =
   | { expiresAt: string; status: 'pending' }
   | { status: 'expired' }
-  | { accessToken: string; refreshToken: string; status: 'approved' };
+  | { accessToken: string; organizationId: string | null; refreshToken: string; status: 'approved' };
 
 @Injectable()
 export class BrowserSessionService {
@@ -78,9 +79,17 @@ export class BrowserSessionService {
     };
   }
 
-  async approve(challengeId: string, userId: string): Promise<{ status: 'approved' }> {
+  async approve(
+    challengeId: string,
+    userId: string,
+    accessToken: string,
+    organizationId: string | null,
+  ): Promise<{ status: 'approved' }> {
     const client = this.supabaseService.getServiceRoleClient();
     const row = await this.loadChallenge(challengeId);
+    if (organizationId) {
+      await this.assertActiveOrganization(accessToken, organizationId);
+    }
 
     if (row.status === 'approved' || row.status === 'consumed') {
       throw new ConflictException('Este código ya fue usado.');
@@ -104,6 +113,7 @@ export class BrowserSessionService {
       .from('browser_session_challenges')
       .update({
         access_token: session.accessToken,
+        organization_id: organizationId,
         refresh_token: session.refreshToken,
         status: 'approved',
         user_id: userId,
@@ -160,7 +170,7 @@ export class BrowserSessionService {
       .eq('id', challengeId)
       .eq('status', 'approved');
 
-    return { accessToken, refreshToken, status: 'approved' };
+    return { accessToken, organizationId: row.organization_id, refreshToken, status: 'approved' };
   }
 
   async refresh(refreshToken: string): Promise<{ accessToken: string; refreshToken: string }> {
@@ -176,11 +186,22 @@ export class BrowserSessionService {
     };
   }
 
+  private async assertActiveOrganization(accessToken: string, organizationId: string): Promise<void> {
+    const client = this.supabaseService.createUserClient(accessToken);
+    const { data, error } = await client.rpc('get_owner_dashboard', {
+      p_organization_id: organizationId,
+    });
+    const resolved = (data as { organization?: { id?: string } | null } | null)?.organization?.id;
+    if (error || resolved !== organizationId) {
+      throw new BadRequestException('Ese negocio no está activo en tu celular.');
+    }
+  }
+
   private async loadChallenge(challengeId: string): Promise<ChallengeRow> {
     const client = this.supabaseService.getServiceRoleClient();
     const { data, error } = await client
       .from('browser_session_challenges')
-      .select('id, poll_secret_hash, status, expires_at, user_id, access_token, refresh_token')
+      .select('id, poll_secret_hash, status, expires_at, user_id, organization_id, access_token, refresh_token')
       .eq('id', challengeId)
       .maybeSingle();
 

@@ -1,14 +1,41 @@
 import 'react-native-gesture-handler';
 
 import { Stack } from 'expo-router';
-import { useEffect, type ReactElement } from 'react';
+import * as Linking from 'expo-linking';
+import { useEffect, useState, type ReactElement } from 'react';
 import { StatusBar } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-import { OwnerSessionProvider } from '../src/context/OwnerSessionProvider';
+import { OwnerSessionProvider, useOwnerSessionContext } from '../src/context/OwnerSessionProvider';
 import { ProfileChromeProvider } from '../src/context/ProfileChromeProvider';
 import { ensureAndroidNotificationChannels } from '../src/lib/androidNotificationChannels';
+import { approveBrowserSession, challengeIdFromUrl } from '../src/lib/approveBrowserSession';
+
+function BrowserSessionLinkHandler(): null {
+  const { authPhase, dashboard } = useOwnerSessionContext();
+  const [challengeId, setChallengeId] = useState<string | null>(null);
+
+  useEffect(() => {
+    function remember(url: string | null) {
+      const id = challengeIdFromUrl(url);
+      if (id) setChallengeId(id);
+    }
+
+    void Linking.getInitialURL().then(remember);
+    const subscription = Linking.addEventListener('url', (event) => {
+      remember(event.url);
+    });
+    return () => subscription.remove();
+  }, []);
+
+  useEffect(() => {
+    if (authPhase !== 'authenticated' || !challengeId) return;
+    void approveBrowserSession(challengeId, dashboard?.organization?.id, dashboard?.organization?.name);
+  }, [authPhase, challengeId, dashboard?.organization?.id, dashboard?.organization?.name]);
+
+  return null;
+}
 
 export default function RootLayout(): ReactElement {
   useEffect(() => {
@@ -25,6 +52,7 @@ export default function RootLayout(): ReactElement {
         */}
         <StatusBar barStyle="dark-content" />
         <OwnerSessionProvider>
+          <BrowserSessionLinkHandler />
           <ProfileChromeProvider>
             <Stack screenOptions={{ headerShown: false }} />
           </ProfileChromeProvider>

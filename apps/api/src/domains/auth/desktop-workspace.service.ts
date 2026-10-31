@@ -30,7 +30,7 @@ type DashboardPayload = {
 export class DesktopWorkspaceService {
   constructor(private readonly supabaseService: SupabaseService) {}
 
-  async load(authorizationHeader: string | undefined) {
+  async load(authorizationHeader: string | undefined, requestedOrganizationId?: string | null) {
     const accessToken = authorizationHeader?.replace(/^Bearer\s+/i, '').trim();
     if (!accessToken) {
       throw new UnauthorizedException('Iniciá sesión para continuar.');
@@ -50,7 +50,10 @@ export class DesktopWorkspaceService {
       user.email ||
       'Tu cuenta';
 
-    const { data: dashboardData, error: dashboardError } = await client.rpc('get_owner_dashboard');
+    const requestedId = isUuid(requestedOrganizationId) ? requestedOrganizationId : null;
+    const { data: dashboardData, error: dashboardError } = await client.rpc('get_owner_dashboard', {
+      p_organization_id: requestedId,
+    });
     if (dashboardError || !dashboardData) {
       throw new UnauthorizedException('No pudimos abrir tu negocio.');
     }
@@ -60,6 +63,9 @@ export class DesktopWorkspaceService {
     const businessCenterId = dashboard.businessCenter?.id;
     if (!organizationId || !businessCenterId) {
       throw new UnauthorizedException('Tu cuenta todavía no tiene un negocio activo.');
+    }
+    if (requestedId && organizationId !== requestedId) {
+      throw new UnauthorizedException('No pudimos abrir el negocio que tenés en el celular.');
     }
 
     const timeZone = dashboard.organization?.timezone || 'America/Argentina/Cordoba';
@@ -277,6 +283,10 @@ export class DesktopWorkspaceService {
 
 function stringValue(value: unknown): string {
   return typeof value === 'string' ? value : '';
+}
+
+function isUuid(value: string | null | undefined): value is string {
+  return typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
 function signedCents(row: Record<string, unknown>): number {
