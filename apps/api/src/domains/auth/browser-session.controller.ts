@@ -102,7 +102,8 @@ export class BrowserSessionController {
   workspaceFor(
     @Headers('authorization') authorizationHeader: string | undefined,
     @Query('organizationId') organizationId?: string,
+    @Query('businessCenterId') businessCenterId?: string,
   ) {
-    return this.workspace.load(authorizationHeader, organizationId);
+    return this.workspace.load(authorizationHeader, organizationId, businessCenterId);
   }
 }

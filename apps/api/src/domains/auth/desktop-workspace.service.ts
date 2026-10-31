@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 import { SupabaseService } from '../../supabase/supabase.service';
@@ -30,7 +30,11 @@ type DashboardPayload = {
 export class DesktopWorkspaceService {
   constructor(private readonly supabaseService: SupabaseService) {}
 
-  async load(authorizationHeader: string | undefined, requestedOrganizationId?: string | null) {
+  async load(
+    authorizationHeader: string | undefined,
+    requestedOrganizationId?: string | null,
+    requestedBusinessCenterId?: string | null,
+  ) {
     const accessToken = authorizationHeader?.replace(/^Bearer\s+/i, '').trim();
     if (!accessToken) {
       throw new UnauthorizedException('Iniciá sesión para continuar.');
@@ -60,13 +64,34 @@ export class DesktopWorkspaceService {
 
     const dashboard = dashboardData as DashboardPayload;
     const organizationId = dashboard.organization?.id;
-    const businessCenterId = dashboard.businessCenter?.id;
+    let businessCenterId = dashboard.businessCenter?.id;
     if (!organizationId || !businessCenterId) {
       throw new UnauthorizedException('Tu cuenta todavía no tiene un negocio activo.');
     }
     if (requestedId && organizationId !== requestedId) {
       throw new UnauthorizedException('No pudimos abrir el negocio que tenés en el celular.');
     }
+
+    const businessCenters = await this.many(
+      client
+        .from('business_centers')
+        .select('id, name, timezone, is_default')
+        .eq('organization_id', organizationId)
+        .eq('is_active', true)
+        .order('is_default', { ascending: false })
+        .order('name', { ascending: true }),
+    );
+    const requestedCenter = isUuid(requestedBusinessCenterId) ? requestedBusinessCenterId : null;
+    const chosenCenter = requestedCenter
+      ? businessCenters.find((row) => String(row.id) === requestedCenter)
+      : null;
+    if (requestedCenter && !chosenCenter) {
+      throw new BadRequestException('Esa sucursal no pertenece a este negocio.');
+    }
+    if (chosenCenter) businessCenterId = String(chosenCenter.id);
+    const businessCenterName = chosenCenter
+      ? String(chosenCenter.name || '')
+      : dashboard.businessCenter?.name || '';
 
     const timeZone = dashboard.organization?.timezone || 'America/Argentina/Cordoba';
     const today = todayIso(timeZone);
@@ -86,7 +111,6 @@ export class DesktopWorkspaceService {
       suppliers,
       arca,
       members,
-      businessCenters,
       categoryLinks,
       lots,
       movements,
@@ -97,7 +121,7 @@ export class DesktopWorkspaceService {
         client
           .from('inventory_items')
           .select(
-            'id, quantity_on_hand, reorder_threshold, unit_code, products!inner(id, name, sku, description, unit_price_cents, is_active, metadata)',
+            'id, quantity_on_hand, reorder_threshold, unit_code, products!inner(id, name, sku, description, unit_price_cents, is_active, metadata, base_unit_code)',
           )
           .eq('organization_id', organizationId)
           .eq('business_center_id', businessCenterId)
@@ -123,7 +147,7 @@ export class DesktopWorkspaceService {
           .eq('organization_id', organizationId)
           .eq('business_center_id', businessCenterId)
           .order('created_at', { ascending: false })
-          .limit(200),
+          .limit(800),
       ),
       this.many(
         client
@@ -209,15 +233,6 @@ export class DesktopWorkspaceService {
       ),
       this.many(
         client
-          .from('business_centers')
-          .select('id, name, timezone, is_default')
-          .eq('organization_id', organizationId)
-          .eq('is_active', true)
-          .order('is_default', { ascending: false })
-          .order('name', { ascending: true }),
-      ),
-      this.many(
-        client
           .from('product_category_links')
           .select('product_id, product_categories!inner(name, organization_id)')
           .eq('product_categories.organization_id', organizationId)
@@ -275,7 +290,7 @@ export class DesktopWorkspaceService {
       },
       businessCenter: {
         id: businessCenterId,
-        name: dashboard.businessCenter?.name || '',
+        name: businessCenterName,
       },
       metrics: dashboard.metrics,
       channels: {
