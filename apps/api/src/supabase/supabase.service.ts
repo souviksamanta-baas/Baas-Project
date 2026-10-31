@@ -28,6 +28,31 @@ export class SupabaseService {
     return this.createServiceRoleClient(this.requireConfig());
   }
 
+  /**
+   * Reads run as the signed-in user, so RLS applies. The key is the public
+   * anon/publishable key, never the service role.
+   */
+  createUserClient(accessToken: string): SupabaseClient {
+    const url = process.env.SUPABASE_URL;
+    const anonKey =
+      process.env.SUPABASE_ANON_KEY ||
+      'sb_publishable_KeduwgiMJ8hL2iQeHNi5Nw_mJrQw3eD';
+    if (!url) {
+      throw new Error('Missing server-only Supabase service role configuration');
+    }
+    return createClient(url, anonKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+      global: {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      },
+    });
+  }
+
   hasServiceRoleConfig(): boolean {
     const config = this.getConfig();
     return Boolean(config.url && config.serviceRoleKey);

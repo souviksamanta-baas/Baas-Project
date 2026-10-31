@@ -2,6 +2,7 @@ import { useRouter } from 'expo-router';
 import type { ReactElement } from 'react';
 import { Alert, Linking, StyleSheet, Text, View } from 'react-native';
 
+import { apiFetchAuthJson } from '../../src/api/client';
 import { BarcodeScannerScreen } from '../../src/screens/BarcodeScannerScreen';
 import { colors } from '../../src/theme';
 
@@ -34,6 +35,14 @@ function resolveBrowserSessionUrl(raw: string): string | null {
   return null;
 }
 
+function safeUrl(value: string): URL | null {
+  try {
+    return new URL(value);
+  } catch {
+    return null;
+  }
+}
+
 export default function BrowserSessionScanRoute(): ReactElement {
   const router = useRouter();
 
@@ -43,10 +52,51 @@ export default function BrowserSessionScanRoute(): ReactElement {
   }): Promise<void> {
     const url = resolveBrowserSessionUrl(payload.value);
 
+    const parsed = url ? safeUrl(url) : null;
+    const challengeId = parsed?.searchParams.get('c') ?? '';
+    const isDesktopPair =
+      parsed?.hostname === BROWSER_SESSION_WEB_HOST &&
+      parsed.pathname.replace(/\/$/, '') === '/pair' &&
+      challengeId.length > 0;
+
+    if (isDesktopPair) {
+      try {
+        await apiFetchAuthJson('/auth/browser-sessions/approve', {
+          body: JSON.stringify({ challengeId }),
+          method: 'POST',
+        });
+        Alert.alert('Listo', 'La computadora ya puede usar tu sesión.', [
+          { onPress: () => router.back(), text: 'Cerrar' },
+        ]);
+      } catch (error) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : 'No pudimos vincular esta computadora.';
+        Alert.alert('No se pudo vincular', message, [
+          { onPress: payload.unlock, text: 'Reintentar' },
+          { onPress: () => router.back(), style: 'cancel', text: 'Cerrar' },
+        ]);
+      }
+      return;
+    }
+
+    if (parsed?.hostname === BROWSER_SESSION_WEB_HOST) {
+      Alert.alert(
+        'Código no válido',
+        `Abrí ${BROWSER_SESSION_WEB_URL} en la computadora y escaneá el código QR que aparece en pantalla.`,
+        [
+          { onPress: payload.unlock, text: 'Reintentar' },
+          { onPress: () => router.back(), style: 'cancel', text: 'Cerrar' },
+        ],
+      );
+      return;
+    }
+
     if (!url) {
       Alert.alert(
         'Código no válido',
-        `Abrí ${BROWSER_SESSION_WEB_URL} en la computadora, iniciá sesión y escaneá el código QR que aparece en pantalla.`,
+        `Abrí ${BROWSER_SESSION_WEB_URL} en la computadora y escaneá el código QR que aparece en pantalla.`,
         [
           { onPress: payload.unlock, text: 'Reintentar' },
           { onPress: () => router.back(), style: 'cancel', text: 'Cerrar' },
@@ -88,7 +138,7 @@ export default function BrowserSessionScanRoute(): ReactElement {
           >
             {BROWSER_SESSION_WEB_HOST}
           </Text>
-          , iniciá sesión y escaneá el código QR que aparece en pantalla.
+          y escaneá el código QR que aparece en pantalla.
         </Text>
       </View>
       <View style={styles.scannerWrap}>

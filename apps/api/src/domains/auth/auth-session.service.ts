@@ -172,6 +172,17 @@ export class AuthSessionService {
     };
   }
 
+  async mintDesktopSessionForUser(userId: string): Promise<{ accessToken: string; refreshToken: string }> {
+    const adminClient = this.supabaseService.getServiceRoleClient();
+    const { data, error } = await adminClient.auth.admin.getUserById(userId);
+    const email = data.user?.email;
+    if (error || !email) {
+      throw new Error('No se pudo abrir la sesión de escritorio.');
+    }
+    const minted = await this.mintSessionForEmail(email);
+    return { accessToken: minted.accessToken, refreshToken: minted.refreshToken };
+  }
+
   async getUserIdFromBearerToken(authorizationHeader: string | undefined): Promise<string> {
     const token = authorizationHeader?.replace(/^Bearer\s+/i, '').trim();
 
