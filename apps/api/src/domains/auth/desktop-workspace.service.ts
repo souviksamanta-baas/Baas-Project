@@ -86,6 +86,11 @@ export class DesktopWorkspaceService {
       suppliers,
       arca,
       members,
+      businessCenters,
+      categoryLinks,
+      lots,
+      movements,
+      license,
     ] = await Promise.all([
       this.one(client, 'organizations', organizationId, 'id, name, timezone, contact_email, contact_phone, address_line1, address_line2, city, province, postal_code, country, nav_shortcut'),
       this.many(
@@ -123,9 +128,8 @@ export class DesktopWorkspaceService {
       this.many(
         client
           .from('appointments')
-          .select('id, title, starts_at, ends_at, status, notes, contacts(display_name, phone_number)')
+          .select('id, title, starts_at, ends_at, status, notes, business_center_id, contacts(display_name, phone_number)')
           .eq('organization_id', organizationId)
-          .eq('business_center_id', businessCenterId)
           .order('starts_at', { ascending: true })
           .limit(200),
       ),
@@ -203,11 +207,53 @@ export class DesktopWorkspaceService {
           .eq('organization_id', organizationId)
           .limit(50),
       ),
+      this.many(
+        client
+          .from('business_centers')
+          .select('id, name, timezone, is_default')
+          .eq('organization_id', organizationId)
+          .eq('is_active', true)
+          .order('is_default', { ascending: false })
+          .order('name', { ascending: true }),
+      ),
+      this.many(
+        client
+          .from('product_category_links')
+          .select('product_id, product_categories!inner(name, organization_id)')
+          .eq('product_categories.organization_id', organizationId)
+          .limit(500),
+      ),
+      this.many(
+        client
+          .from('inventory_lots')
+          .select('product_id, lot_code, remaining_quantity, unit_code, unit_cost_cents, received_at, products(name)')
+          .eq('organization_id', organizationId)
+          .eq('business_center_id', businessCenterId)
+          .order('received_at', { ascending: false })
+          .limit(80),
+      ),
+      this.many(
+        client
+          .from('inventory_movements')
+          .select('product_id, movement_type, quantity_delta, unit_code, note, created_at, products(name)')
+          .eq('organization_id', organizationId)
+          .eq('business_center_id', businessCenterId)
+          .order('created_at', { ascending: false })
+          .limit(80),
+      ),
+      this.maybe(
+        client
+          .from('organizations')
+          .select('license_status, licensed_until, billing_cycle, plans(display_name, slug)')
+          .eq('id', organizationId)
+          .maybeSingle(),
+      ),
     ]);
 
     const openingCents = cash
       .filter((row) => String(row.entry_date) < today)
       .reduce((sum, row) => sum + signedCents(row), 0);
+    const plan = embeddedRecord(license, 'plans');
 
     return {
       today,
@@ -254,6 +300,19 @@ export class DesktopWorkspaceService {
       purchaseLines,
       suppliers,
       arca,
+      businessCenters,
+      categoryLinks,
+      lots,
+      movements,
+      license: license
+        ? {
+            cycle: stringValue(license.billing_cycle),
+            plan: stringValue(plan?.display_name),
+            slug: stringValue(plan?.slug),
+            status: stringValue(license.license_status),
+            until: stringValue(license.licensed_until),
+          }
+        : null,
     };
   }
 
@@ -283,6 +342,16 @@ export class DesktopWorkspaceService {
 
 function stringValue(value: unknown): string {
   return typeof value === 'string' ? value : '';
+}
+
+function embeddedRecord(row: Record<string, unknown> | null, key: string): Record<string, unknown> | null {
+  if (!row) return null;
+  const value = row[key];
+  if (Array.isArray(value)) {
+    const first = value[0];
+    return first && typeof first === 'object' ? (first as Record<string, unknown>) : null;
+  }
+  return value && typeof value === 'object' ? (value as Record<string, unknown>) : null;
 }
 
 function isUuid(value: string | null | undefined): value is string {
