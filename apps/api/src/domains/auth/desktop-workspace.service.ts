@@ -14,6 +14,7 @@ type DashboardPayload = {
     products: number;
     weeklySalesCents: number;
   };
+  features?: Record<string, unknown> | null;
   organization: {
     id: string;
     name: string;
@@ -72,15 +73,18 @@ export class DesktopWorkspaceService {
       throw new UnauthorizedException('No pudimos abrir el negocio que tenés en el celular.');
     }
 
-    const businessCenters = await this.many(
-      client
-        .from('business_centers')
-        .select('id, name, timezone, is_default')
-        .eq('organization_id', organizationId)
-        .eq('is_active', true)
-        .order('is_default', { ascending: false })
-        .order('name', { ascending: true }),
-    );
+    const [businessCenters, memberships] = await Promise.all([
+      this.many(
+        client
+          .from('business_centers')
+          .select('id, name, timezone, is_default')
+          .eq('organization_id', organizationId)
+          .eq('is_active', true)
+          .order('is_default', { ascending: false })
+          .order('name', { ascending: true }),
+      ),
+      this.many(client.rpc('get_my_organizations')),
+    ]);
     const requestedCenter = isUuid(requestedBusinessCenterId) ? requestedBusinessCenterId : null;
     const chosenCenter = requestedCenter
       ? businessCenters.find((row) => String(row.id) === requestedCenter)
@@ -286,6 +290,7 @@ export class DesktopWorkspaceService {
         navShortcut: dashboard.organization?.navShortcut ?? null,
         phone: stringValue(profile?.contact_phone) || dashboard.whatsappConnection?.displayPhoneNumber || '',
         role: dashboard.organization?.role || 'owner',
+        services: dashboard.features?.services === true,
         timezone: timeZone,
       },
       businessCenter: {
@@ -316,6 +321,11 @@ export class DesktopWorkspaceService {
       suppliers,
       arca,
       businessCenters,
+      organizations: memberOrganizations(memberships, {
+        id: organizationId,
+        name: dashboard.organization?.name || stringValue(profile?.name) || 'Tu negocio',
+        role: dashboard.organization?.role || 'owner',
+      }),
       categoryLinks,
       lots,
       movements,
@@ -353,6 +363,24 @@ export class DesktopWorkspaceService {
     if (error || !data || Array.isArray(data) || typeof data !== 'object') return null;
     return data as unknown as Record<string, unknown>;
   }
+}
+
+function memberOrganizations(
+  rows: Array<Record<string, unknown>>,
+  current: { id: string; name: string; role: string },
+) {
+  const organizations = rows
+    .map((row) => ({
+      id: String(row.organization_id ?? ''),
+      name: String(row.name || 'Tu negocio'),
+      role: String(row.role ?? ''),
+      status: String(row.license_status ?? ''),
+    }))
+    .filter((row) => row.id);
+  if (!organizations.some((row) => row.id === current.id)) {
+    organizations.unshift({ id: current.id, name: current.name, role: current.role, status: '' });
+  }
+  return organizations;
 }
 
 function stringValue(value: unknown): string {
