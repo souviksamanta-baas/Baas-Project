@@ -32,6 +32,8 @@ export interface ProductCatalogState {
   isSaving: boolean;
   products: Product[];
   reloadProducts: () => Promise<void>;
+  /** Starts the catalog fetch. Inventory screens call this; Inicio does not. */
+  ensureCatalogLoaded: () => void;
   resetForm: () => void;
   saveProduct: () => Promise<void>;
   setFormValue: (field: keyof ProductFormValues, value: string) => void;
@@ -58,6 +60,17 @@ export function ProductCatalogProvider(props: { children: ReactNode }): ReactEle
 
   const suppressRealtimeUntilRef = useRef(0);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const catalogRequestedRef = useRef(false);
+  const [catalogRequested, setCatalogRequested] = useState(false);
+
+  const ensureCatalogLoaded = useCallback(() => {
+    if (catalogRequestedRef.current) {
+      return;
+    }
+    catalogRequestedRef.current = true;
+    setCatalogRequested(true);
+    setIsLoading(true);
+  }, []);
 
   const loadProductsImmediate = useCallback(async (): Promise<void> => {
     if (!organizationId || !businessCenterId) {
@@ -98,6 +111,11 @@ export function ProductCatalogProvider(props: { children: ReactNode }): ReactEle
       setProducts([]);
       setEditingProductId(null);
       setFormValues(createEmptyProductForm());
+      setIsLoading(false);
+      return undefined;
+    }
+
+    if (!catalogRequested) {
       return undefined;
     }
 
@@ -131,7 +149,13 @@ export function ProductCatalogProvider(props: { children: ReactNode }): ReactEle
 
       unsubscribe();
     };
-  }, [businessCenterId, loadProductsImmediate, organizationId, scheduleLoadProducts]);
+  }, [
+    businessCenterId,
+    catalogRequested,
+    loadProductsImmediate,
+    organizationId,
+    scheduleLoadProducts,
+  ]);
 
   const resetForm = useCallback(() => {
     setEditingProductId(null);
@@ -212,6 +236,7 @@ export function ProductCatalogProvider(props: { children: ReactNode }): ReactEle
     (): ProductCatalogState => ({
       deleteProductById,
       editingProductId,
+      ensureCatalogLoaded,
       errorMessage,
       formValues,
       isLoading,
@@ -228,6 +253,7 @@ export function ProductCatalogProvider(props: { children: ReactNode }): ReactEle
     [
       deleteProductById,
       editingProductId,
+      ensureCatalogLoaded,
       errorMessage,
       formValues,
       isLoading,
@@ -251,6 +277,11 @@ export function useProductCatalog(): ProductCatalogState {
   if (!context) {
     throw new Error('useProductCatalog must be used within ProductCatalogProvider');
   }
+
+  const { ensureCatalogLoaded } = context;
+  useEffect(() => {
+    ensureCatalogLoaded();
+  }, [ensureCatalogLoaded]);
 
   return context;
 }

@@ -4,6 +4,7 @@ import { Alert } from 'react-native';
 
 import { ensureAndroidNotificationChannels } from '../lib/androidNotificationChannels';
 import { getEasProjectId } from '../lib/easProject';
+import { STARTUP_YIELD_MS } from '../lib/startupProbe';
 
 import {
   cancelOwnerTask,
@@ -695,11 +696,18 @@ export function useOwnerTasksState(
 
   useEffect(() => {
     if (!authReady || !organizationId || !businessCenterId) {
-      return;
+      return undefined;
     }
-    void enablePushNotifications().catch(() => {
-      // Permission denied / simulator — non-blocking.
-    });
+
+    const timer = setTimeout(() => {
+      void enablePushNotifications().catch(() => {
+        // Permission denied / simulator — non-blocking.
+      });
+    }, STARTUP_YIELD_MS);
+
+    return () => {
+      clearTimeout(timer);
+    };
   }, [authReady, businessCenterId, enablePushNotifications, organizationId]);
 
   return {

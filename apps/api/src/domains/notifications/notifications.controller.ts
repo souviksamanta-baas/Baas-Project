@@ -150,4 +150,73 @@ export class NotificationsController {
 
     return this.notificationsService.runScheduled();
   }
+
+  @Post('startup-sample')
+  @ApiOperation({ summary: 'Record one app-open responsiveness sample' })
+  async recordStartupSample(
+    @Headers('authorization') authorizationHeader: string | undefined,
+    @Body()
+    body: {
+      appVersion?: string | null;
+      deviceModel?: string | null;
+      maxStallMs?: number;
+      organizationId?: string;
+      osVersion?: string | null;
+      platform?: string;
+      timeToFirstTapMs?: number | null;
+    },
+  ): Promise<{ ok: true }> {
+    const organizationId = requireOrganizationId(body.organizationId);
+    const userId = await resolveUserId(this.supabaseService, authorizationHeader);
+    await assertOrgMembership({
+      organizationId,
+      supabaseService: this.supabaseService,
+      userId,
+    });
+
+    const maxStallMs = clampSampleMs(body.maxStallMs);
+    if (maxStallMs == null) {
+      throw new BadRequestException('maxStallMs is required');
+    }
+
+    const platform = (body.platform ?? '').trim().slice(0, 20);
+    if (!platform) {
+      throw new BadRequestException('platform is required');
+    }
+
+    const timeToFirstTapMs =
+      body.timeToFirstTapMs == null ? null : clampSampleMs(body.timeToFirstTapMs);
+
+    const { error } = await this.supabaseService.getServiceRoleClient().from('app_startup_samples').insert({
+      app_version: clipText(body.appVersion, 40),
+      device_model: clipText(body.deviceModel, 80),
+      max_stall_ms: maxStallMs,
+      organization_id: organizationId,
+      os_version: clipText(body.osVersion, 40),
+      platform,
+      time_to_first_tap_ms: timeToFirstTapMs,
+      user_id: userId,
+    });
+
+    if (error) {
+      throw new BadRequestException(error.message);
+    }
+
+    return { ok: true };
+  }
+}
+
+function clipText(value: string | null | undefined, max: number): string | null {
+  if (typeof value !== 'string') {
+    return null;
+  }
+  const trimmed = value.trim();
+  return trimmed ? trimmed.slice(0, max) : null;
+}
+
+function clampSampleMs(value: unknown): number | null {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return null;
+  }
+  return Math.max(0, Math.min(60_000, Math.round(value)));
 }

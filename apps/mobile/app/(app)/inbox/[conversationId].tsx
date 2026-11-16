@@ -1,8 +1,4 @@
-import {
-  Contact,
-  ContactField,
-  requestPermissionsAsync,
-} from 'expo-contacts';
+import { Contact, requestPermissionsAsync } from 'expo-contacts';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import type { ReactElement } from 'react';
 import { useCallback, useEffect, useState } from 'react';
@@ -16,6 +12,7 @@ import {
   type ManualLeadStatus,
 } from '../../../src/api/conversationActions';
 import { getInboxConversations } from '../../../src/api/conversations';
+import { loadDeviceContacts } from '../../../src/api/customers';
 import {
   editConversationMessage,
   forwardConversationMessage,
@@ -50,23 +47,19 @@ const LABEL_OPTIONS: Array<{ label: string; value: ManualLeadStatus }> = [
 ];
 
 async function isPhoneInDeviceContacts(phone: string): Promise<boolean> {
-  const permission = await requestPermissionsAsync();
-  if (permission.status !== 'granted') {
-    return false;
-  }
-
   const digits = phone.replace(/\D/g, '');
   if (!digits) {
     return false;
   }
 
-  const contacts = await Contact.getAllDetails([ContactField.PHONES]);
-  return contacts.some((contact) =>
-    (contact.phones ?? []).some((entry) => {
-      const candidate = (entry.number ?? '').replace(/\D/g, '');
-      return candidate.includes(digits) || digits.includes(candidate);
-    }),
-  );
+  const contacts = await loadDeviceContacts({ silentPermissionDenied: true });
+  return contacts.some((contact) => {
+    const candidates = [contact.rawPhone, contact.phoneE164 ?? ''];
+    return candidates.some((entry) => {
+      const candidate = entry.replace(/\D/g, '');
+      return candidate.length > 0 && (candidate.includes(digits) || digits.includes(candidate));
+    });
+  });
 }
 
 export default function ConversationDetailRoute(): ReactElement {

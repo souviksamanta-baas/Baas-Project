@@ -1,7 +1,33 @@
 import type { InboxConversationSummary, WhatsAppMessagePreview } from '../types/messages';
 
+let timeFormatter: Intl.DateTimeFormat | null = null;
+let weekdayFormatter: Intl.DateTimeFormat | null = null;
+let shortDateFormatter: Intl.DateTimeFormat | null = null;
+
 function startOfLocalDay(date: Date): Date {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+function formatEsArTime(date: Date): string {
+  timeFormatter ??= new Intl.DateTimeFormat('es-AR', {
+    hour: 'numeric',
+    hour12: true,
+    minute: '2-digit',
+  });
+  return timeFormatter.format(date);
+}
+
+function formatEsArWeekday(date: Date): string {
+  weekdayFormatter ??= new Intl.DateTimeFormat('es-AR', { weekday: 'short' });
+  return weekdayFormatter.format(date);
+}
+
+function formatEsArShortDate(date: Date): string {
+  shortDateFormatter ??= new Intl.DateTimeFormat('es-AR', {
+    day: 'numeric',
+    month: 'short',
+  });
+  return shortDateFormatter.format(date);
 }
 
 export function formatConversationTime(value: string | null): string {
@@ -19,11 +45,7 @@ export function formatConversationTime(value: string | null): string {
     (startOfLocalDay(now).getTime() - startOfLocalDay(date).getTime()) / (24 * 60 * 60 * 1000);
 
   if (dayDiff === 0) {
-    return date.toLocaleTimeString('es-AR', {
-      hour: 'numeric',
-      hour12: true,
-      minute: '2-digit',
-    });
+    return formatEsArTime(date);
   }
 
   if (dayDiff === 1) {
@@ -31,13 +53,10 @@ export function formatConversationTime(value: string | null): string {
   }
 
   if (dayDiff < 7) {
-    return date.toLocaleDateString('es-AR', { weekday: 'short' });
+    return formatEsArWeekday(date);
   }
 
-  return date.toLocaleDateString('es-AR', {
-    day: 'numeric',
-    month: 'short',
-  });
+  return formatEsArShortDate(date);
 }
 
 export function conversationDisplayName(

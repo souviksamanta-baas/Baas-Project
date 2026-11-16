@@ -102,7 +102,10 @@ const STATUS_OPTIONS: Array<{ id: InboxStatusFilter; label: string }> = [
 export function InboxScreen(props: {
   conversations: InboxConversationSummary[];
   errorMessage: string | null;
+  hasMore?: boolean;
   isLoading: boolean;
+  isLoadingMore?: boolean;
+  onLoadMore?: () => void;
   onOpenConversation: (conversationId: string) => void;
   onOpenWhatsAppSetup: () => void;
   onReload?: () => Promise<void> | void;
@@ -285,6 +288,19 @@ export function InboxScreen(props: {
         data={props.isLoading ? [] : filteredConversations}
         keyExtractor={(item) => item.id}
         keyboardShouldPersistTaps="handled"
+        ListFooterComponent={
+          props.isLoadingMore ? (
+            <View style={styles.centered}>
+              <ActivityIndicator color={colors.primary} />
+            </View>
+          ) : null
+        }
+        onEndReached={() => {
+          if (props.hasMore && !props.isLoadingMore && !props.isLoading) {
+            props.onLoadMore?.();
+          }
+        }}
+        onEndReachedThreshold={0.4}
         ListEmptyComponent={
           props.isLoading ? (
             <View style={styles.centered}>

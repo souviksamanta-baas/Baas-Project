@@ -7,6 +7,7 @@ import {
   getAppointments,
   updateAppointment,
 } from '../api/appointments';
+import { STARTUP_YIELD_MS } from '../lib/startupProbe';
 import { supabase } from '../lib/supabase';
 import type {
   Appointment,
@@ -56,40 +57,50 @@ export function useAppointments(
     }
 
     let mounted = true;
+    let channel: ReturnType<typeof supabase.channel> | null = null;
     setIsLoading(true);
     setErrorMessage(null);
 
-    load()
-      .catch((error) => {
-        const message = error instanceof Error ? error.message : 'Error desconocido';
-        setErrorMessage(message);
-        Alert.alert('No se pudo cargar la agenda', message);
-      })
-      .finally(() => {
-        if (mounted) {
-          setIsLoading(false);
-        }
-      });
+    const timer = setTimeout(() => {
+      if (!mounted) {
+        return;
+      }
 
-    const channel = supabase
-      .channel(`appointments:${organizationId}:${businessCenterId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'appointments',
-          filter: `business_center_id=eq.${businessCenterId}`,
-        },
-        () => {
-          void load();
-        },
-      )
-      .subscribe();
+      void load()
+        .catch((error) => {
+          const message = error instanceof Error ? error.message : 'Error desconocido';
+          setErrorMessage(message);
+          Alert.alert('No se pudo cargar la agenda', message);
+        })
+        .finally(() => {
+          if (mounted) {
+            setIsLoading(false);
+          }
+        });
+
+      channel = supabase
+        .channel(`appointments:${organizationId}:${businessCenterId}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'appointments',
+            filter: `business_center_id=eq.${businessCenterId}`,
+          },
+          () => {
+            void load();
+          },
+        )
+        .subscribe();
+    }, STARTUP_YIELD_MS);
 
     return () => {
       mounted = false;
-      void supabase.removeChannel(channel);
+      clearTimeout(timer);
+      if (channel) {
+        void supabase.removeChannel(channel);
+      }
     };
   }, [businessCenterId, load, organizationId]);
 

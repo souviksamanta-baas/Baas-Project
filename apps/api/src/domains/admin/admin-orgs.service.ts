@@ -1248,6 +1248,38 @@ export class AdminDashboardService {
       recentClients,
     };
   }
+
+  async listStartupSamples(authorizationHeader: string | undefined) {
+    await assertNexoliaStaff(this.supabaseService, authorizationHeader);
+    const client = this.supabaseService.getServiceRoleClient();
+    const { data, error } = await client
+      .from('app_startup_samples')
+      .select(
+        'id, platform, device_model, os_version, app_version, max_stall_ms, time_to_first_tap_ms, created_at, organizations(name)',
+      )
+      .order('created_at', { ascending: false })
+      .limit(100);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return (data ?? []).map((row) => {
+      const org = row.organizations as { name?: string } | Array<{ name?: string }> | null;
+      const organization = Array.isArray(org) ? org[0] : org;
+      return {
+        appVersion: (row.app_version as string | null) ?? null,
+        createdAt: row.created_at as string,
+        deviceModel: (row.device_model as string | null) ?? null,
+        id: row.id as string,
+        maxStallMs: row.max_stall_ms as number,
+        organizationName: organization?.name ?? '—',
+        osVersion: (row.os_version as string | null) ?? null,
+        platform: row.platform as string,
+        timeToFirstTapMs: (row.time_to_first_tap_ms as number | null) ?? null,
+      };
+    });
+  }
 }
 
 type AuthIdentity = {

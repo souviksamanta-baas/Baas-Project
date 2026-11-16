@@ -57,6 +57,7 @@ interface ConversationRow {
 
 export interface GetInboxConversationsOptions {
   limit?: number;
+  offset?: number;
 }
 
 export async function getInboxConversations(
@@ -75,8 +76,9 @@ export async function getInboxConversations(
     .order('pinned_at', { ascending: false, nullsFirst: false })
     .order('last_message_at', { ascending: false, nullsFirst: false });
 
-  if (options?.limit) {
-    query = query.limit(options.limit);
+  if (typeof options?.limit === 'number') {
+    const from = options.offset ?? 0;
+    query = query.range(from, from + options.limit - 1);
   }
 
   const { data, error } = await query;

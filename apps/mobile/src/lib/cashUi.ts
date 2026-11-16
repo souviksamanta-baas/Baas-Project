@@ -1,3 +1,5 @@
+import { formatEsArDecimal } from './formatCurrency';
+
 /** Shared cash UI helpers (Caja + Informe · Movimientos). */
 
 export function shiftIsoDate(isoDate: string, deltaDays: number): string {
@@ -84,10 +86,7 @@ export function buildMonthCells(
 
 /** Matches bank-style amounts: `$ 12.500,00` / `$ -10.300,00`. */
 export function formatCashMovementAmount(signedCents: number): string {
-  const formatted = Math.abs(signedCents / 100).toLocaleString('es-AR', {
-    maximumFractionDigits: 2,
-    minimumFractionDigits: 2,
-  });
+  const formatted = formatEsArDecimal(Math.abs(signedCents / 100));
   if (signedCents < 0) {
     return `$ -${formatted}`;
   }

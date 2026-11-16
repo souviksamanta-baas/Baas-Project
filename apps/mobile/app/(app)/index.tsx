@@ -9,6 +9,7 @@ import { useAppointments } from '../../src/hooks/useAppointments';
 import { useInbox } from '../../src/hooks/useInbox';
 import { useOwnerTasks } from '../../src/hooks/useOwnerTasks';
 import { resolveOwnerGreetingName } from '../../src/lib/ownerGreeting';
+import { markStartupFirstTap, startStartupProbe } from '../../src/lib/startupProbe';
 import { supabase } from '../../src/lib/supabase';
 import {
   appointmentDetailRoute,
@@ -38,6 +39,12 @@ export default function HomeRoute(): ReactElement {
     });
   }, []);
 
+  useEffect(() => {
+    if (organizationId) {
+      startStartupProbe(organizationId);
+    }
+  }, [organizationId]);
+
   const ownerName = useMemo(() => {
     if (!greetingName) {
       return 'Hola!';
@@ -56,7 +63,10 @@ export default function HomeRoute(): ReactElement {
         licensePaused={licensePaused}
         metrics={dashboard?.metrics ?? null}
         notifications={tasksState.notifications}
-        onOpenAlertProduct={(productId) => router.push(productDetailRoute(productId, 'home'))}
+        onOpenAlertProduct={(productId) => {
+          markStartupFirstTap();
+          router.push(productDetailRoute(productId, 'home'));
+        }}
         onOpenAppointment={(appointmentId) =>
           router.push(appointmentDetailRoute(appointmentId, 'home'))
         }
@@ -69,7 +79,10 @@ export default function HomeRoute(): ReactElement {
         onOpenTaskDetail={(taskId) => router.push(taskDetailRoute(taskId, 'home'))}
         onOpenTasks={() => router.push(tasksRoute())}
         onOpenWhatsAppSetup={() => router.push(routes.whatsappConnect)}
-        onSelectTab={(tab: AppTab) => router.replace(tabRoute(tab))}
+        onSelectTab={(tab: AppTab) => {
+          markStartupFirstTap();
+          router.replace(tabRoute(tab));
+        }}
         ownerGreeting={ownerName}
         tasks={tasksState.tasks}
         whatsappConnection={dashboard?.whatsappConnection ?? null}

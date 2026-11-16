@@ -110,6 +110,15 @@ export class AdminController {
     };
   }
 
+  @Get('startup-samples')
+  @ApiBearerAuth('SupabaseAuth')
+  @ApiOperation({ summary: 'Latest app-open responsiveness samples' })
+  async startupSamples(
+    @Headers('authorization') authorizationHeader: string | undefined,
+  ) {
+    return this.dashboardService.listStartupSamples(authorizationHeader);
+  }
+
   @Get('users')
   @ApiBearerAuth('SupabaseAuth')
   @ApiOperation({ summary: 'List organization users (email and phone logins)' })

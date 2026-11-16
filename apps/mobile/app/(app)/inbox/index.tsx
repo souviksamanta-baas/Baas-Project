@@ -17,7 +17,12 @@ export default function InboxRoute(): ReactElement {
     <InboxScreen
       conversations={inbox.conversations}
       errorMessage={inbox.errorMessage}
+      hasMore={inbox.hasMore}
       isLoading={inbox.isLoading}
+      isLoadingMore={inbox.isLoadingMore}
+      onLoadMore={() => {
+        void inbox.loadMore();
+      }}
       onOpenConversation={(conversationId) => router.push(conversationRoute(conversationId))}
       onOpenWhatsAppSetup={() => router.push(routes.whatsappConnect)}
       onReload={inbox.reloadConversations}

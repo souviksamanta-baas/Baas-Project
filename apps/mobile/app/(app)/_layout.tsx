@@ -15,6 +15,7 @@ import { SellCartProvider } from '../../src/context/SellCartProvider';
 import { useAndroidKeyboardVisible } from '../../src/hooks/useAndroidKeyboard';
 import { useAndroidRootExitBack } from '../../src/hooks/useAndroidUnsavedBack';
 import { usePushNotificationRouting } from '../../src/hooks/usePushNotificationRouting';
+import { markStartupFirstTap } from '../../src/lib/startupProbe';
 import { hasSupabaseConfig } from '../../src/lib/supabase';
 import {
   getNavShortcutOption,
@@ -105,10 +106,12 @@ function AuthenticatedAppShell(): ReactElement {
   const shortcutActive = isNavShortcutActive(pathname, shortcut.id);
 
   function selectTab(tab: AppTab): void {
+    markStartupFirstTap();
     router.replace(tabRoute(tab));
   }
 
   function openShortcut(): void {
+    markStartupFirstTap();
     const route = resolveNavShortcutRoute(shortcut.id);
     if (!route) {
       return;
@@ -123,9 +126,11 @@ function AuthenticatedAppShell(): ReactElement {
         activeBusinessCenterName={dashboard?.businessCenter?.name ?? null}
         businessCenters={businessCenters}
         onOpenAccount={() => {
+          markStartupFirstTap();
           router.push(routes.account);
         }}
         onOpenNotifications={() => {
+          markStartupFirstTap();
           router.push(routes.notifications);
         }}
         onSelectBusinessCenter={showBusinessCenterPicker ? selectBusinessCenter : null}

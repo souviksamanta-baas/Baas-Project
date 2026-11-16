@@ -13,11 +13,10 @@ import {
   formatConversationTime,
   leadStatusLabel,
 } from '../lib/inboxPresentation';
-import { useDeviceContactNames } from '../lib/deviceContactNames';
 import type { Appointment } from '../types/appointments';
 import type { OwnerDashboard } from '../types/dashboard';
 import type { InboxConversationSummary } from '../types/messages';
-import { formatWeeklySales } from '../lib/formatCurrency';
+import { formatEsArShortDateTime, formatWeeklySales } from '../lib/formatCurrency';
 import { buildWorkQueue, formatWorkQueueTime } from '../lib/workQueue';
 import { whatsappConnectionLabel } from '../lib/whatsappPresentation';
 import type { OwnerNotification, OwnerTask } from '../types/tasks';
@@ -46,7 +45,6 @@ export function HomeScreen(props: {
   whatsappConnection: OwnerDashboard['whatsappConnection'] | null;
 }): ReactElement {
   const flags = useOrganizationFlags();
-  const deviceContacts = useDeviceContactNames();
 
   if (props.licensePaused) {
     return (
@@ -178,15 +176,12 @@ export function HomeScreen(props: {
             <Text style={styles.emptyBody}>Todavía no hay conversaciones de WhatsApp.</Text>
           ) : null}
           {props.conversations.slice(0, 4).map((conversation, index, rows) => {
-            const deviceName = deviceContacts.resolveName(
-              conversation.contact.phoneNumber ?? conversation.externalContactId,
-            );
             return (
             <ConversationRow
-              avatar={conversationAvatarLabel(conversation, deviceName)}
+              avatar={conversationAvatarLabel(conversation)}
               channel={conversation.channel}
               key={conversation.id}
-              name={conversationDisplayName(conversation, deviceName)}
+              name={conversationDisplayName(conversation)}
               onPress={() => props.onOpenConversation(conversation.id)}
               preview={conversationPreview(conversation)}
               showDivider={index < rows.length - 1}
@@ -229,12 +224,7 @@ export function HomeScreen(props: {
               notification={{
                 id: appointment.id,
                 subtitle: appointment.contactLabel,
-                time: new Date(appointment.startsAt).toLocaleString('es-AR', {
-                  day: '2-digit',
-                  hour: '2-digit',
-                  minute: '2-digit',
-                  month: '2-digit',
-                }),
+                time: formatEsArShortDateTime(new Date(appointment.startsAt)),
                 title: appointment.title,
                 tone: 'blue',
                 unread: false,

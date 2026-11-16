@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 
 import { loadDeviceContacts } from '../api/customers';
+import { STARTUP_YIELD_MS } from './startupProbe';
 import { normalizePhoneNumber } from '../services/phone';
 
 function phoneDigits(value: string | null | undefined): string {
@@ -72,26 +73,29 @@ export function useDeviceContactNames(): {
 
   useEffect(() => {
     let mounted = true;
-    void loadDeviceContacts({ silentPermissionDenied: true })
-      .then((contacts) => {
-        if (!mounted) {
-          return;
-        }
-        setNameByPhone(buildDeviceContactNameMap(contacts));
-      })
-      .catch(() => {
-        if (mounted) {
-          setNameByPhone(new Map());
-        }
-      })
-      .finally(() => {
-        if (mounted) {
-          setIsLoading(false);
-        }
-      });
+    const timer = setTimeout(() => {
+      void loadDeviceContacts({ silentPermissionDenied: true })
+        .then((contacts) => {
+          if (!mounted) {
+            return;
+          }
+          setNameByPhone(buildDeviceContactNameMap(contacts));
+        })
+        .catch(() => {
+          if (mounted) {
+            setNameByPhone(new Map());
+          }
+        })
+        .finally(() => {
+          if (mounted) {
+            setIsLoading(false);
+          }
+        });
+    }, STARTUP_YIELD_MS);
 
     return () => {
       mounted = false;
+      clearTimeout(timer);
     };
   }, []);
 
