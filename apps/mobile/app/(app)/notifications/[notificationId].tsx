@@ -42,7 +42,6 @@ export default function NotificationDetailRoute(): ReactElement {
     }
     void tasksState.markNotificationRead(notificationId);
     // Intentionally only when opening an unread notification.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [notificationId, notification?.isUnread]);
 
   if (!notificationId || !notification) {

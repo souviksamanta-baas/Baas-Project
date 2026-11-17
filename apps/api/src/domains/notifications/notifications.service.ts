@@ -12,7 +12,6 @@ import {
 } from './notification.catalog';
 
 const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
-const CONCURRENCY = 5;
 const INBOX_THROTTLE_MINUTES = 10;
 const INVOICE_OVERDUE_DAYS = 30;
 const DIGEST_HOUR = 8;
@@ -204,7 +203,7 @@ export class NotificationsService {
     const orgs = await this.listOrganizations(params.organizationId);
     let created = 0;
     let pushSent = 0;
-    let pushFailed = 0;
+    const pushFailed = 0;
 
     const copiReminders = await this.notifyStaleCopiActionProposals({
       now,

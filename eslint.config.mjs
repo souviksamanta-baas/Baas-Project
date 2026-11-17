@@ -10,12 +10,17 @@ export default tseslint.config(
       'node_modules/**',
       'supabase/.branches/**',
       'supabase/.temp/**',
+      // Expo / Metro tooling uses CommonJS require by design.
+      'apps/mobile/app.config.js',
+      'apps/mobile/metro.config.js',
+      'apps/mobile/babel.config.js',
+      'apps/mobile/plugins/**',
     ],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
-    files: ['**/*.{js,mjs,ts,tsx}'],
+    files: ['**/*.{js,mjs,cjs,ts,tsx}'],
     languageOptions: {
       ecmaVersion: 'latest',
       globals: {
@@ -29,8 +34,10 @@ export default tseslint.config(
         {
           argsIgnorePattern: '^_',
           caughtErrorsIgnorePattern: '^_',
+          varsIgnorePattern: '^_',
         },
       ],
+      '@typescript-eslint/no-require-imports': 'off',
     },
   },
   {

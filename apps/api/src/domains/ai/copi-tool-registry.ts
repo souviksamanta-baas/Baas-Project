@@ -22,15 +22,6 @@ interface MessageRow {
   sender_phone: string | null;
 }
 
-interface TaskRow {
-  assigned_to_user_id: string | null;
-  contact_id: string | null;
-  due_at: string | null;
-  id: string;
-  status: string;
-  title: string;
-}
-
 interface ConversationRow {
   customer_display_name: string | null;
   external_contact_id: string;

@@ -16,7 +16,7 @@ export async function resolveUniqueProductSku(
   organizationId: string,
   productName: string,
 ): Promise<string> {
-  let base = slugifyProductSku(productName);
+  const base = slugifyProductSku(productName);
   let candidate = base;
   let suffix = 2;
 

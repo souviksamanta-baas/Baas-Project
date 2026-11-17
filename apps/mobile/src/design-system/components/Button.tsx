@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react';
-import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
+import { Pressable, StyleSheet, Text, type StyleProp, type ViewStyle } from 'react-native';
 
 import type { IconKind } from '../../components/icons';
 import { Icon } from '../../components/icons';

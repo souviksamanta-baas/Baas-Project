@@ -747,7 +747,7 @@ export class CopiActionService {
           new Date(endsAt).getTime() > new Date(startsAt).getTime()
             ? endsAt
             : new Date(new Date(startsAt).getTime() + 30 * 60 * 1000).toISOString();
-        let attendeeEmail =
+        const attendeeEmail =
           typeof params.payload.attendeeEmail === 'string' &&
           params.payload.attendeeEmail.trim()
             ? params.payload.attendeeEmail.trim().toLowerCase()
@@ -1834,7 +1834,7 @@ export class CopiActionService {
         continue;
       }
 
-      let score = 0;
+      let score: number;
       if (normalizedName === needle) {
         score = 100;
       } else if (normalizedName.includes(needle) || needle.includes(normalizedName)) {

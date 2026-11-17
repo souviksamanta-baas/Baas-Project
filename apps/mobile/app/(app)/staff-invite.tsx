@@ -3,7 +3,6 @@ import type { ReactElement } from 'react';
 import { Text, View } from 'react-native';
 
 import { useOwnerSessionContext } from '../../src/context/OwnerSessionProvider';
-import { routes } from '../../src/navigation/routes';
 import { StaffInviteScreen } from '../../src/screens/StaffInviteScreen';
 import { styles } from '../../src/styles';
 

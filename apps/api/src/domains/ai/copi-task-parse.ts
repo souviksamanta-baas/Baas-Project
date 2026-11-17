@@ -985,8 +985,8 @@ function splitTaskSegments(question: string): string[] {
   }
 
   const numberedParts = trimmed
-    .split(/(?=\b\d+[\.\):-]\s+)/)
-    .map((part) => part.replace(/^\d+[\.\):-]\s+/, '').trim())
+    .split(/(?=\b\d+[.):-]\s+)/)
+    .map((part) => part.replace(/^\d+[.):-]\s+/, '').trim())
     .map(stripIntroNoise)
     .map((part) => part.replace(/^[.\-,\s]+/, '').trim())
     .filter((part) => part.length > 0 && !isIntroOnly(part));
@@ -1052,7 +1052,7 @@ function stripIntroNoise(text: string): string {
 
   cleaned = cleaned
     .replace(
-      /^(necesito\s+que\s+)?(creas?|creá|crear|recordá|recordar)\s+(dos|2|tres|3|varias|\d+)?\s*tareas?\s*[:.\-]?\s*/i,
+      /^(necesito\s+que\s+)?(creas?|creá|crear|recordá|recordar)\s+(dos|2|tres|3|varias|\d+)?\s*tareas?\s*[:.-]?\s*/i,
       '',
     )
     .replace(
@@ -1071,7 +1071,7 @@ function cleanTaskTitle(segment: string): string {
   let cleaned = stripIntroNoise(segment);
 
   cleaned = cleaned
-    .replace(/^\d+[\.\):-]\s*/g, '')
+    .replace(/^\d+[.):-]\s*/g, '')
     .replace(/^(una\s+)?tarea\s+para\s+/i, '')
     .replace(/^tarea\s+/i, '')
     .replace(/^(para\s+)/i, '')
@@ -1113,7 +1113,7 @@ function cleanTaskTitle(segment: string): string {
 
 /** Subject line for the task body — intent text, not the raw owner utterance. */
 function buildTaskDescription(segment: string, title: string): string {
-  let cleaned = stripIntroNoise(segment)
+  const cleaned = stripIntroNoise(segment)
     .replace(/^(una\s+)?tarea\s+para\s+/i, '')
     .replace(/^tarea\s+/i, '')
     .replace(/^(para\s+)/i, '')
@@ -1384,7 +1384,7 @@ function parseAbsoluteDateHint(
     .normalize('NFD')
     .replace(/\p{M}/gu, '');
 
-  const numeric = segment.match(/\b(\d{1,2})[\/\-](\d{1,2})(?:[\/\-](\d{2,4}))?\b/);
+  const numeric = segment.match(/\b(\d{1,2})[/-](\d{1,2})(?:[/-](\d{2,4}))?\b/);
   const named = normalized.match(
     /\b(\d{1,2})\s+de\s+(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre)(?:\s+de\s+(\d{2,4}))?\b/,
   );

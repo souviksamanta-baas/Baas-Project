@@ -1,7 +1,6 @@
 import { useRouter } from 'expo-router';
 import type { ReactElement } from 'react';
 import { useCallback, useMemo, useState } from 'react';
-import { Alert } from 'react-native';
 
 import { useOwnerSessionContext } from '../../../src/context/OwnerSessionProvider';
 import { useOwnerCopilotContext } from '../../../src/context/OwnerCopilotProvider';

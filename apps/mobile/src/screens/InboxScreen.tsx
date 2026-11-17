@@ -49,7 +49,6 @@ import {
   unpinConversation,
 } from '../api/conversationActions';
 import {
-  Card,
   ConversationRow,
   MessageBubble,
   ReplyComposer,

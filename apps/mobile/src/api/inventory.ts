@@ -944,12 +944,6 @@ async function applyParentStockDeduction(
   });
 }
 
-interface SaleLineTotals {
-  name: string;
-  note: string;
-  quantity: number;
-}
-
 export async function confirmSale(
   businessCenterId: string,
   organizationId: string,
@@ -1497,8 +1491,6 @@ export async function createProductDetails(
     { ...inventoryItem, products: product },
     createdCategories,
   );
-  let createdLotId: string | null = null;
-
   const associatedCode = values.associatedCode.trim();
   if (associatedCode.length > 0) {
     await updateProductAssociatedCode(organizationId, product.id, {
@@ -1548,7 +1540,7 @@ export async function createProductDetails(
       throw new Error(lotError.message);
     }
 
-    createdLotId = lot.id;
+    const createdLotId = lot.id;
 
     const movementNote = `Alta de producto • lote ${lotCode}${supplier ? ` • ${supplier}` : ''}`;
 
@@ -1579,7 +1571,7 @@ export async function createProductDetails(
       unitCode: baseUnitCode,
     });
 
-    if (isSubproduct && parentProductId && baseUnitEquivalent != null && createdLotId) {
+    if (isSubproduct && parentProductId && baseUnitEquivalent != null) {
       const parentStockDeduction = await resolveParentStockDeduction({
         businessCenterId,
         organizationId,

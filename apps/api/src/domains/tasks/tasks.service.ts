@@ -683,8 +683,8 @@ export class TasksService {
     recurrenceFreq: RecurrenceFreq | null;
     recurrenceWeekday: number | null;
   } {
-    let recurrenceFreq: RecurrenceFreq | null | undefined = params.recurrenceFreq;
-    let recurrenceWeekday: number | null | undefined = params.recurrenceWeekday;
+    const recurrenceFreq: RecurrenceFreq | null | undefined = params.recurrenceFreq;
+    const recurrenceWeekday: number | null | undefined = params.recurrenceWeekday;
 
     if (recurrenceFreq !== undefined && recurrenceFreq !== null) {
       if (!RECURRENCE_FREQS.has(recurrenceFreq)) {

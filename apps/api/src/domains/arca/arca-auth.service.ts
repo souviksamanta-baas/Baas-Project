@@ -182,7 +182,7 @@ export class ArcaAuthService {
     }
 
     try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
+       
       const forge = require('node-forge') as typeof import('node-forge');
       const p7 = forge.pkcs7.createSignedData();
       p7.content = forge.util.createBuffer(traXml, 'utf8');

@@ -6,7 +6,7 @@
 import { useMemo, useState, type ReactElement } from 'react';
 import { Platform, ScrollView, StyleSheet, View } from 'react-native';
 
-import { branches, conversations, ownerProfile } from '../api/mockData';
+import { conversations, ownerProfile } from '../api/mockData';
 import { baseProduct } from '../api/inventoryMockData';
 import { AppHeader, BottomNavigation } from '../components/ui';
 import type { AppTab } from '../components/ui';
@@ -139,10 +139,10 @@ export function OwnerAppNavigator(props: { onSignOut: () => void }): ReactElemen
   const [route, setRoute] = useState<OwnerRoute>('home');
   const [activeTab, setActiveTab] = useState<AppTab>('home');
   const [selectedConversationId, setSelectedConversationId] = useState(conversations[0].id);
-  const [showBranches, setShowBranches] = useState(false);
+  const [, setShowBranches] = useState(false);
   const [copiDraft, setCopiDraft] = useState('');
   const [selectedProductId, setSelectedProductId] = useState(DEFAULT_BASE_PRODUCT_ID);
-  const [selectedSubproductId, setSelectedSubproductId] = useState('s1');
+  const [, setSelectedSubproductId] = useState('s1');
   const legacyCopilot = useOwnerCopilot({ businessCenterId: null, organizationId: null });
 
   const selectedConversation = useMemo(

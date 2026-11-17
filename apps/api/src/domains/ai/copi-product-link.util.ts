@@ -4,7 +4,7 @@
  */
 export function formatCopiProductLink(productId: string, name: string): string {
   const safeId = productId.trim();
-  const safeName = name.replace(/[\[\]|]/g, ' ').replace(/\s+/g, ' ').trim() || 'Producto';
+  const safeName = name.replace(/[[\]|]/g, ' ').replace(/\s+/g, ' ').trim() || 'Producto';
   if (!safeId) {
     return safeName;
   }
@@ -16,7 +16,7 @@ export function formatCopiProductLink(productId: string, name: string): string {
 export function formatCopiPresupuestoLink(quoteId: string, label?: string): string {
   const safeId = quoteId.trim();
   const safeLabel =
-    (label ?? `Presupuesto ${safeId}`).replace(/[\[\]|]/g, ' ').replace(/\s+/g, ' ').trim() ||
+    (label ?? `Presupuesto ${safeId}`).replace(/[[\]|]/g, ' ').replace(/\s+/g, ' ').trim() ||
     `Presupuesto ${safeId}`;
   if (!safeId) {
     return safeLabel;

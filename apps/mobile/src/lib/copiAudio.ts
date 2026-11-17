@@ -81,7 +81,7 @@ export async function readAudioAsBase64(uri: string): Promise<{ base64: string; 
   return readNativeAudioAsBase64(uri);
 }
 
-export async function readAudioBlobAsBase64(blob: Blob, mimeType: string): Promise<{ base64: string; size: number }> {
+export async function readAudioBlobAsBase64(blob: Blob, _mimeType: string): Promise<{ base64: string; size: number }> {
   if (blob.size === 0) {
     throw new Error('La grabación de voz quedó vacía.');
   }

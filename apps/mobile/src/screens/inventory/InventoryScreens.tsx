@@ -71,13 +71,10 @@ import {
   buildProductSummaryMeta,
   filterInventoryProducts,
   filterSellProducts,
-  formatProductCost,
   formatProductStockLabel,
-  formatProductUnitPrice,
   getProductStatusLabel,
   getVisiblePageNumbers,
   mapProductToInventoryRow,
-  mapProductsToSellRows,
   paginateItems,
 } from '../../lib/inventoryPresentation';
 import {
@@ -116,7 +113,6 @@ import {
   applyAddStockMargin,
   applyAddStockUnitPrice,
 } from '../../lib/addStockForm';
-import { mapLotsToBatchRows } from '../../lib/inventoryLotsPresentation';
 import type { AddStockFormValues } from '../../types/inventoryLots';
 import { colors, radius, shadows } from '../../theme';
 import type { AddProductFormValues, Product, ProductEditFormValues } from '../../types/products';
@@ -1458,14 +1454,6 @@ export function EditSubproductScreen(
   );
 }
 
-function linkedProductStockLabel(item: Product | SubproductMock): string {
-  if ('stockQuantity' in item) {
-    return formatProductStockLabel(item);
-  }
-
-  return item.stock;
-}
-
 export function AddStockScreen(props: {
   catalogProducts: Product[];
   defaultSelectedProductId: string;
@@ -2072,7 +2060,7 @@ export function ConfirmPaymentScreen(props: {
     Number.parseFloat(sellCart.discountInput.replace(',', '.')) || 0,
   );
 
-  function renderCartLine(line: SellCartLine, index: number): ReactElement {
+  function renderCartLine(line: SellCartLine, _index: number): ReactElement {
     const view = mapCartLineToView(line);
 
     return (

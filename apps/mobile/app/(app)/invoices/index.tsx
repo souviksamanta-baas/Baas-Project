@@ -2,7 +2,7 @@ import { useRouter } from 'expo-router';
 import type { ReactElement } from 'react';
 
 import { useOwnerSessionContext } from '../../../src/context/OwnerSessionProvider';
-import { invoiceDetailRoute, routes } from '../../../src/navigation/routes';
+import { invoiceDetailRoute } from '../../../src/navigation/routes';
 import { InvoicesListScreen } from '../../../src/screens/InvoicesListScreen';
 import { LoadingScreen } from '../../../src/screens/LoadingScreen';
 

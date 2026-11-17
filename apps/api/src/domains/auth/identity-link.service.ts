@@ -69,12 +69,8 @@ export class IdentityLinkService {
     const normalized = normalizeLoginEmail(email);
     this.assertCanAddEmail(user, normalized);
 
-    try {
-      await this.emailAuthService.requestOtp(normalized, 'link');
-    } catch (error) {
-      // Avoid enumeration: cooldown/errors that reveal nothing about existence stay as-is.
-      throw error;
-    }
+    // Avoid enumeration: cooldown/errors that reveal nothing about existence stay as-is.
+    await this.emailAuthService.requestOtp(normalized, 'link');
 
     return { ok: true };
   }

@@ -283,7 +283,6 @@ export function CashScreen(props: {
       cancelled = true;
     };
     // Intentionally only when org/center/today change — date changes use selectDate path.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [props.businessCenterId, props.organizationId, today]);
 
   // Selected date changes after bootstrap (arrows / calendar).

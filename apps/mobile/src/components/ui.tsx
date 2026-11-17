@@ -1219,13 +1219,6 @@ function isChannelSource(source: MessageSource): source is Channel {
   return source === 'email' || source === 'facebook' || source === 'instagram' || source === 'whatsapp';
 }
 
-function sourceAccent(source: MessageSource): object {
-  return {
-    borderLeftColor: messageSourceMeta(source).color,
-    borderLeftWidth: 3,
-  };
-}
-
 function messageSourceMeta(source: MessageSource): { background: string; color: string; label: string } {
   if (source === 'instagram') return { background: '#fff0f7', color: '#e13b8d', label: 'Instagram' };
   if (source === 'facebook') return { background: '#eef5ff', color: '#1877f2', label: 'Facebook' };
