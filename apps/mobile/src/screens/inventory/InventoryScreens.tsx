@@ -1917,6 +1917,7 @@ export function SellProductsScreen(
         inListCard={inListCard}
         isFirst={index === 0 && !inListCard}
         item={{
+          cost: view.lineCost,
           id: line.id,
           name: line.name,
           price: view.lineTotal,
@@ -2080,6 +2081,7 @@ export function ConfirmPaymentScreen(props: {
         gramsValue={view.gramsValue}
         inListCard
         item={{
+          cost: view.lineCost,
           id: line.id,
           name: line.name,
           price: view.lineTotal,

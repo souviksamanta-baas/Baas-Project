@@ -875,6 +875,7 @@ export function InfoBlock(props: { label: string; value: string }): ReactElement
 }
 
 export interface CartLineItemMock {
+  cost?: string;
   id: string;
   name: string;
   price: string;
@@ -912,6 +913,7 @@ export function CartLineRow(props: {
             </View>
           ) : null}
         </View>
+        {props.item.cost ? <Text style={styles.cartCost}>Costo {props.item.cost}</Text> : null}
         {props.item.weight ? (
           props.onGramsChange ? (
             <View style={styles.cartWeightInputBox}>
@@ -1082,6 +1084,12 @@ const styles = StyleSheet.create({
     borderTopWidth: 0,
     paddingHorizontal: 14,
     paddingVertical: 10,
+  },
+  cartCost: {
+    color: colors.slate,
+    fontSize: 11,
+    fontWeight: '500',
+    marginTop: 2,
   },
   cartName: {
     color: colors.navy,

@@ -186,6 +186,7 @@ export function PresupuestoDetailScreen(props: {
                 inListCard
                 isFirst={index === 0}
                 item={{
+                  cost: view.lineCost,
                   id: line.id,
                   name: line.name,
                   price: formatCurrency(getCartLineSubtotalCents(line)),

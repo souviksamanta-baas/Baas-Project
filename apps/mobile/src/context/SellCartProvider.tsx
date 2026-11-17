@@ -21,6 +21,7 @@ import {
   formatCurrency,
   formatSignedCurrency,
   formatUnitQuantity,
+  getCartLineCostCents,
   getCartLineSubtotalCents,
   getEffectiveGrams,
   mergeCartLine,
@@ -407,11 +408,13 @@ export function useSellCart(): SellCartContextValue {
 
 export function mapCartLineToView(line: SellCartLine) {
   const grams = getEffectiveGrams(line);
+  const lineCostCents = getCartLineCostCents(line);
 
   return {
     gramsShowPlaceholder: line.soldByWeight && line.weightGramsInput === null,
     gramsValue: line.soldByWeight ? (line.weightGramsInput ?? '') : undefined,
     id: line.id,
+    lineCost: lineCostCents > 0 ? formatCurrency(lineCostCents) : undefined,
     lineTotal: formatCurrency(getCartLineSubtotalCents(line)),
     name: line.name,
     quantityLabel: line.soldByWeight ? `${grams} g` : formatUnitQuantity(line.quantity),

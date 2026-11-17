@@ -143,6 +143,19 @@ export function getCartLineSubtotalCents(line: SellCartLine): number {
   return line.unitPriceCents * line.quantity;
 }
 
+export function getCartLineCostCents(line: SellCartLine): number {
+  if (line.unitCostCents <= 0) {
+    return 0;
+  }
+
+  if (line.soldByWeight) {
+    const grams = getEffectiveGrams(line);
+    return Math.round((line.unitCostCents * grams) / 1000);
+  }
+
+  return line.unitCostCents * line.quantity;
+}
+
 export function computeCartSubtotalCents(cart: SellCartLine[]): number {
   return cart.reduce((sum, line) => sum + getCartLineSubtotalCents(line), 0);
 }
