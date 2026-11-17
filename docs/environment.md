@@ -49,8 +49,8 @@ These values must never be bundled into mobile/client code.
 | `BAAS_OTP_PEPPER` | HMAC pepper for WhatsApp/email login OTP hashes. **Required in production.** Local/dev may fall back to the service role key. | API server, deployment secret store |
 | `RESEND_API_KEY` | Resend API key for platform email login OTP | API server, deployment secret store |
 | `NEXOLIA_AUTH_EMAIL_FROM` | From header for login OTP email (default `Nexolia <noreply@nexolia.com.ar>`) | API server, deployment config |
-| `APP_REVIEW_DEMO_EMAIL` | Single App Store review login for **non-production** only. Ignored when `NODE_ENV=production` (demo path refuse). Prefer unset in production. | Local/dev/test secret store only |
-| `APP_REVIEW_DEMO_OTP` | Fixed 6-digit code for `APP_REVIEW_DEMO_EMAIL` (non-production only; ignored in production) | Local/dev/test secret store only |
+| `APP_REVIEW_DEMO_EMAIL` | Single App Store review login email. When set with `APP_REVIEW_DEMO_OTP`, that email accepts the fixed code (including production — App Store builds hit the production API). Unset both outside an active review window. | API server, deployment secret store |
+| `APP_REVIEW_DEMO_OTP` | Fixed 6-digit code for `APP_REVIEW_DEMO_EMAIL`. Unset with the email when review is done. | API server, deployment secret store |
 | `BAAS_ENABLE_OPENAPI_DOCS` | Set `true` to expose `/docs` (default off in production; leave unset/false on Railway) | API server, deployment config |
 | `SUPABASE_URL` | Supabase API URL for server processes | API server, jobs, CI |
 | `SUPABASE_ANON_KEY` | Public anon/publishable key for user-scoped API clients (RLS). Required when the API builds a user client; no hardcoded fallback. | API server, deployment config |
@@ -219,7 +219,7 @@ Confirm these on the NestJS API Railway service before treating an environment a
 | `WHATSAPP_APP_SECRET` / `WHATSAPP_VERIFY_TOKEN` | Set (unsigned WhatsApp webhooks are rejected when secret is missing in production) |
 | `BAAS_OTP_PEPPER` / `BAAS_TASKS_JOB_SECRET` / `BAAS_TOKEN_ENCRYPTION_KEY` | Set |
 | `BAAS_ENABLE_OPENAPI_DOCS` | Unset or `false` (do not expose `/docs` publicly) |
-| `APP_REVIEW_DEMO_EMAIL` / `APP_REVIEW_DEMO_OTP` | Prefer **unset**. If left set, Nest still boots; demo login stays disabled in production. |
+| `APP_REVIEW_DEMO_EMAIL` / `APP_REVIEW_DEMO_OTP` | Set both during App Store review so `app-review@…` can sign in with the fixed OTP. Unset both when review ends. Nest boots either way. |
 
 Per-org Copi API keys are **not** Railway env vars. Staff click **Provisionar clave OpenAI** in admin; Nest creates an OpenAI Project via Admin API and stores the encrypted key in Supabase `organization_llm_credentials`.
 

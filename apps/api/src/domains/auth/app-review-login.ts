@@ -1,13 +1,12 @@
 import { timingSafeEqual } from 'node:crypto';
 
 /**
- * App Store review sign-in. Enabled only when both env vars are set and the
- * process is not production. Production must unset APP_REVIEW_DEMO_* (fail closed).
+ * App Store review sign-in. Enabled only when both env vars are set
+ * (including production — App Store builds hit the production API).
+ * Unset APP_REVIEW_DEMO_* to fail closed. Do not leave these set longer
+ * than an active review window.
  */
 export function isAppReviewDemoEmail(email: string): boolean {
-  if (process.env.NODE_ENV === 'production') {
-    return false;
-  }
   const configured = process.env.APP_REVIEW_DEMO_EMAIL?.trim().toLowerCase();
   if (!configured) {
     return false;

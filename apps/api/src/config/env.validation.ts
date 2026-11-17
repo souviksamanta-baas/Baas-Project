@@ -74,9 +74,9 @@ export const envValidationSchema = Joi.object({
   NEXOLIA_AUTH_OTP_TEMPLATE_LANGUAGE: Joi.string().trim().optional().allow(''),
   NEXOLIA_AUTH_OTP_TEMPLATE_NAME: Joi.string().trim().optional().allow(''),
   RESEND_API_KEY: Joi.string().trim().optional().allow(''),
-  // Allowed in env for App Store review staging, but app-review-login.ts
-  // refuses the demo path when NODE_ENV=production (fail closed at use site).
-  // Do not hard-fail boot here — leftover Railway vars would brick deploys.
+  // Optional App Store review login. When both are set (including production),
+  // that one email accepts the fixed OTP. Unset both to fail closed. Boot must
+  // not hard-fail if leftover Railway vars are present.
   APP_REVIEW_DEMO_EMAIL: Joi.string().trim().email().optional().allow(''),
   APP_REVIEW_DEMO_OTP: Joi.string()
     .trim()

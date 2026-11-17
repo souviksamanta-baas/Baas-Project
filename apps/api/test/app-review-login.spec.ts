@@ -44,11 +44,19 @@ describe('app review login', () => {
     expect(isAppReviewDemoCode('app-review@nexolia.com.ar', '12345')).toBe(false);
   });
 
-  it('fails closed in production even when demo env vars are set', () => {
+  it('stays off in production when demo env vars are unset', () => {
+    process.env.NODE_ENV = 'production';
+    delete process.env.APP_REVIEW_DEMO_EMAIL;
+    delete process.env.APP_REVIEW_DEMO_OTP;
+    expect(isAppReviewDemoEmail('app-review@nexolia.com.ar')).toBe(false);
+    expect(isAppReviewDemoCode('app-review@nexolia.com.ar', '481926')).toBe(false);
+  });
+
+  it('allows the configured demo login in production for App Store review', () => {
     process.env.NODE_ENV = 'production';
     process.env.APP_REVIEW_DEMO_EMAIL = 'app-review@nexolia.com.ar';
     process.env.APP_REVIEW_DEMO_OTP = '481926';
-    expect(isAppReviewDemoEmail('app-review@nexolia.com.ar')).toBe(false);
-    expect(isAppReviewDemoCode('app-review@nexolia.com.ar', '481926')).toBe(false);
+    expect(isAppReviewDemoEmail('app-review@nexolia.com.ar')).toBe(true);
+    expect(isAppReviewDemoCode('app-review@nexolia.com.ar', '481926')).toBe(true);
   });
 });
