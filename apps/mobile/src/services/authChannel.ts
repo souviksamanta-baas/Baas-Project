@@ -33,7 +33,9 @@ export function getStaffPhoneAuthChannels(): AuthOtpChannel[] {
     const parsed = raw
       .split(',')
       .map((part) => part.trim().toLowerCase())
-      .filter(isPhoneAuthChannel);
+      .filter((channel): channel is AuthOtpChannel =>
+        isAuthOtpChannel(channel) && isPhoneAuthChannel(channel),
+      );
     if (parsed.length > 0) {
       return parsed;
     }

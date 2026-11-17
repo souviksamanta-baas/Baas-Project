@@ -550,9 +550,8 @@ export function AddProductScreen(props: {
         </Text>
       </Pressable>
       <View style={styles.buttonRow}>
-        <OutlineButton flex label="Cancelar" onPress={props.onBack} />
+        <OutlineButton label="Cancelar" onPress={props.onBack} />
         <PrimaryButton
-          flex
           label={props.isSaving ? 'Guardando...' : 'Guardar producto'}
           onPress={() => {
             void handleSave(false);
@@ -772,9 +771,8 @@ export function AddSubproductScreen(props: {
         </Text>
       </Pressable>
       <View style={styles.buttonRow}>
-        <OutlineButton flex label="Cancelar" onPress={props.onBack} />
+        <OutlineButton label="Cancelar" onPress={props.onBack} />
         <PrimaryButton
-          flex
           label={props.isSaving ? 'Guardando...' : 'Guardar subproducto'}
           onPress={() => {
             void handleSave(false);
@@ -1270,9 +1268,8 @@ export function EditProductScreen(
         </View>
       )}
       <View style={styles.buttonRow}>
-        <OutlineButton flex label="Cancelar" onPress={props.onBack} />
+        <OutlineButton label="Cancelar" onPress={props.onBack} />
         <PrimaryButton
-          flex
           label={
             props.isSaving
               ? 'Guardando...'
@@ -1441,9 +1438,8 @@ export function EditSubproductScreen(
         </View>
       </SectionCard>
       <View style={styles.buttonRow}>
-        <OutlineButton flex label="Cancelar" onPress={props.onBack} />
+        <OutlineButton label="Cancelar" onPress={props.onBack} />
         <PrimaryButton
-          flex
           label={props.isSaving ? 'Guardando...' : 'Guardar cambios'}
           onPress={() => {
             void handleSave();
@@ -1707,9 +1703,8 @@ export function AddStockScreen(props: {
         </Text>
       </Pressable>
       <View style={styles.buttonRow}>
-        <OutlineButton flex label="Cancelar" onPress={props.onBack} />
+        <OutlineButton label="Cancelar" onPress={props.onBack} />
         <PrimaryButton
-          flex
           label={props.isSaving ? 'Guardando...' : 'Guardar ingreso'}
           onPress={() => {
             void handleSave(false);
@@ -1791,7 +1786,7 @@ export function DeleteProductScreen(props: {
         />
       </SectionCard>
       <View style={styles.buttonRow}>
-        <OutlineButton flex label="Cancelar" onPress={props.onBack} />
+        <OutlineButton label="Cancelar" onPress={props.onBack} />
         <SolidDangerButton
           disabled={!canDelete || props.isDeleting}
           label={props.isDeleting ? 'Eliminando...' : 'Eliminar producto'}

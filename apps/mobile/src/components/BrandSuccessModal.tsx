@@ -34,7 +34,7 @@ export function BrandSuccessModal(props: {
 
 const styles = StyleSheet.create({
   backdrop: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(16, 25, 53, 0.42)',
   },
   body: {

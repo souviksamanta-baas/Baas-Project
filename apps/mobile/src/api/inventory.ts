@@ -255,7 +255,7 @@ export async function getProductMovements(
     throw new Error(error.message);
   }
 
-  return ((data ?? []) as InventoryMovementRow[]).map(mapInventoryMovementRow);
+  return ((data ?? []) as InventoryMovementRow[]).map((row) => mapInventoryMovementRow(row));
 }
 
 interface InventoryLotRow {

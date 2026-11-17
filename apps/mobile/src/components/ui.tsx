@@ -305,7 +305,9 @@ export function ScreenContent(props: {
       // Scroll the focused field above the keyboard after padding applies.
       requestAnimationFrame(() => {
         const focused = TextInput.State.currentlyFocusedInput?.();
-        const node = focused ? findNodeHandle(focused) : null;
+        const node = focused
+          ? findNodeHandle(focused as unknown as Parameters<typeof findNodeHandle>[0])
+          : null;
         const responder = scrollRef.current?.getScrollResponder?.() as
           | {
               scrollResponderScrollNativeHandleToKeyboard?: (
