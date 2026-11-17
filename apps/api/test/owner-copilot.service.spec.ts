@@ -163,7 +163,16 @@ function createQuery(table: string): Record<string, unknown> {
     in: vi.fn(() => query),
     insert: vi.fn(() => query),
     limit: vi.fn(() => query),
-    maybeSingle: vi.fn(async () => ({ data: null, error: null })),
+    maybeSingle: vi.fn(async () => {
+      if (table === 'organizations') {
+        return {
+          data: { archived_at: null, feature_flags: {}, license_status: 'active' },
+          error: null,
+        };
+      }
+
+      return { data: null, error: null };
+    }),
     order: vi.fn(() => query),
     select: vi.fn(() => query),
     single: vi.fn(async () => {
@@ -176,7 +185,10 @@ function createQuery(table: string): Record<string, unknown> {
       }
 
       if (table === 'organizations') {
-        return { data: { feature_flags: {} }, error: null };
+        return {
+          data: { archived_at: null, feature_flags: {}, license_status: 'active' },
+          error: null,
+        };
       }
 
       return { data: null, error: null };
