@@ -241,13 +241,15 @@ export class CopiActionService {
     userId: string;
   }): Promise<{ result: Record<string, unknown>; status: 'executed' }> {
     const client = this.supabaseService.getServiceRoleClient();
-    const { data, error } = await client
+
+    // Expire first when already past TTL so we do not claim a stale pending row.
+    const { data: existing, error: existingError } = await client
       .from('copi_action_proposals')
       .select('id, action_type, payload, status, expires_at')
       .eq('id', params.actionId)
       .eq('organization_id', params.organizationId)
       .eq('user_id', params.userId)
-      .single<{
+      .maybeSingle<{
         action_type: CopiActionType;
         expires_at: string;
         id: string;
@@ -255,30 +257,73 @@ export class CopiActionService {
         status: string;
       }>();
 
-    if (error || !data) {
+    if (existingError || !existing) {
       throw new Error('Copi action proposal not found');
     }
 
-    if (data.status !== 'pending') {
-      throw new Error(`Copi action is already ${data.status}`);
+    if (existing.status !== 'pending') {
+      throw new Error(`Copi action is already ${existing.status}`);
     }
 
-    if (new Date(data.expires_at).getTime() < Date.now()) {
-      await client.from('copi_action_proposals').update({ status: 'expired' }).eq('id', data.id);
+    if (new Date(existing.expires_at).getTime() < Date.now()) {
+      await client
+        .from('copi_action_proposals')
+        .update({ status: 'expired' })
+        .eq('id', existing.id)
+        .eq('status', 'pending');
       throw new Error('Copi action proposal expired');
+    }
+
+    // Atomic claim: only one confirm wins pending → executing.
+    const { data, error } = await client
+      .from('copi_action_proposals')
+      .update({ status: 'executing' })
+      .eq('id', params.actionId)
+      .eq('organization_id', params.organizationId)
+      .eq('user_id', params.userId)
+      .eq('status', 'pending')
+      .select('id, action_type, payload, status, expires_at')
+      .maybeSingle<{
+        action_type: CopiActionType;
+        expires_at: string;
+        id: string;
+        payload: Record<string, unknown>;
+        status: string;
+      }>();
+
+    if (error) {
+      throw new Error(`Failed to claim Copi action: ${error.message}`);
+    }
+
+    if (!data) {
+      throw new Error('Copi action is already executing or completed');
     }
 
     // Recover proposals misclassified as snooze/complete/etc. when the owner
     // clearly asked to create tasks (e.g. "mañana" falsely matching snooze).
     const { actionType, payload } = recoverCreateTaskProposal(data.action_type, data.payload);
 
-    const result = await this.executeAction({
-      actionType,
-      businessCenterId: params.businessCenterId,
-      organizationId: params.organizationId,
-      payload,
-      userId: params.userId,
-    });
+    let result: Record<string, unknown>;
+    try {
+      result = await this.executeAction({
+        actionType,
+        businessCenterId: params.businessCenterId,
+        organizationId: params.organizationId,
+        payload,
+        userId: params.userId,
+      });
+    } catch (executeError) {
+      await client
+        .from('copi_action_proposals')
+        .update({
+          error_message:
+            executeError instanceof Error ? executeError.message : 'Copi action failed',
+          status: 'failed',
+        })
+        .eq('id', data.id)
+        .eq('status', 'executing');
+      throw executeError;
+    }
 
     const { error: updateError } = await client
       .from('copi_action_proposals')
@@ -289,7 +334,8 @@ export class CopiActionService {
         result,
         status: 'executed',
       })
-      .eq('id', data.id);
+      .eq('id', data.id)
+      .eq('status', 'executing');
 
     if (updateError) {
       throw new Error(`Failed to mark Copi action as executed: ${updateError.message}`);
@@ -2023,11 +2069,11 @@ export function inferCopiActionType(question: string): CopiActionType | null {
     return 'create_product';
   }
 
-  if (/\b(ingreso|egreso)\b/.test(normalized) && /\b(caja|efectivo|plata)\b/.test(normalized)) {
-    return /\begreso\b/.test(normalized) ? 'cash_egreso' : 'cash_ingreso';
+  if (/\b(ingreso|egreso|gasto)\b/.test(normalized) && /\b(caja|efectivo|plata)\b/.test(normalized)) {
+    return /\b(egreso|gasto)\b/.test(normalized) ? 'cash_egreso' : 'cash_ingreso';
   }
   if (/\b(anot[aá]|registrar|registra)\b/.test(normalized) && /\bcaja\b/.test(normalized)) {
-    return /\begreso|gaste|pague|pagué\b/.test(normalized) ? 'cash_egreso' : 'cash_ingreso';
+    return /\begreso|gasto|gaste|pague|pagué\b/.test(normalized) ? 'cash_egreso' : 'cash_ingreso';
   }
 
   const mentionsAppointment = mentionsAppointmentIntent(question);
@@ -2211,7 +2257,7 @@ function buildActionPayload(
   if (actionType === 'cash_ingreso' || actionType === 'cash_egreso') {
     return {
       amountCents: extractAmountCents(question),
-      concept: truncateLabel(question, 80) || (actionType === 'cash_ingreso' ? 'Ingreso' : 'Egreso'),
+      concept: truncateLabel(question, 80) || (actionType === 'cash_ingreso' ? 'Ingreso' : 'Gasto'),
       entryDate: todayYmd(new Date(), timezone),
       question,
       timezone,
@@ -2538,7 +2584,7 @@ function summarizeProposal(actionType: CopiActionType, payload: Record<string, u
     case 'cash_ingreso':
       return `Registrar ingreso de caja`;
     case 'cash_egreso':
-      return `Registrar egreso de caja`;
+      return `Registrar gasto de caja`;
     case 'propose_customer_reply':
       return typeof payload.body === 'string' && payload.body.trim()
         ? `Enviar respuesta al cliente: «${truncateLabel(payload.body, 72)}»`

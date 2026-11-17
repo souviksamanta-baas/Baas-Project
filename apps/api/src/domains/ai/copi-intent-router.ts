@@ -520,7 +520,7 @@ export function detectProActionIntent(question: string): boolean {
     /\bnecesito\s+que\s+creas?\b/.test(normalized) ||
     /\b(haceme|haga|hagan)\s+(una\s+)?tarea\b/.test(normalized) ||
     /\b(agenda(r|me)?|programa(r|me)?)\s+(un|una)?\s*(turno|cita)\b/.test(normalized) ||
-    /\b(ingreso|egreso)\b/.test(normalized) ||
+    /\b(ingreso|egreso|gasto)\b/.test(normalized) ||
     /\b(ticket|soporte)\b/.test(normalized)
   );
 }

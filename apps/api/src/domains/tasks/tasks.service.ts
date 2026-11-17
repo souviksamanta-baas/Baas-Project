@@ -7,6 +7,8 @@ import {
   forwardRef,
 } from '@nestjs/common';
 
+import { assertUsersAreOrgMembers } from '../../auth/request-auth.helper';
+import { SupabaseService } from '../../supabase/supabase.service';
 import {
   advanceByRecurrence,
   buildRecurrenceInstanceSourceKey,
@@ -14,7 +16,6 @@ import {
 } from '../ai/copi-defaults';
 import { InventoryService, type InventoryProduct } from '../inventory/inventory.service';
 import { NotificationsService } from '../notifications/notifications.service';
-import { SupabaseService } from '../../supabase/supabase.service';
 
 export interface TaskMaintenanceResult {
   followUpTasksCreated: number;
@@ -294,6 +295,21 @@ export class TasksService {
       dueAt: params.dueAt ?? null,
       title: params.title,
     });
+    if (params.assignedToUserId) {
+      await assertUsersAreOrgMembers({
+        organizationId: params.organizationId,
+        supabaseService: this.supabaseService,
+        userIds: [params.assignedToUserId],
+      });
+    }
+    await this.assertContactInOrganization({
+      contactId: params.contactId,
+      organizationId: params.organizationId,
+    });
+    await this.assertConversationInOrganization({
+      conversationId: params.conversationId,
+      organizationId: params.organizationId,
+    });
     const recurrence = this.normalizeRecurrenceFields({
       recurrenceFreq: params.recurrenceFreq,
       recurrenceWeekday: params.recurrenceWeekday,
@@ -377,6 +393,10 @@ export class TasksService {
       updates.priority = params.priority;
     }
     if (params.contactId !== undefined) {
+      await this.assertContactInOrganization({
+        contactId: params.contactId,
+        organizationId: params.organizationId,
+      });
       updates.contact_id = params.contactId;
     }
     if (params.templateKey !== undefined) {
@@ -559,6 +579,11 @@ export class TasksService {
     if (!params.assignedToUserId?.trim()) {
       throw new BadRequestException('assignedToUserId es obligatorio.');
     }
+    await assertUsersAreOrgMembers({
+      organizationId: params.organizationId,
+      supabaseService: this.supabaseService,
+      userIds: [params.assignedToUserId],
+    });
     const client = this.supabaseService.getServiceRoleClient();
     const { data, error } = await client
       .from('owner_tasks')
@@ -766,6 +791,56 @@ export class TasksService {
     }
 
     return parent;
+  }
+
+  private async assertContactInOrganization(params: {
+    contactId?: string | null;
+    organizationId: string;
+  }): Promise<void> {
+    const contactId = params.contactId?.trim();
+    if (!contactId) {
+      return;
+    }
+
+    const client = this.supabaseService.getServiceRoleClient();
+    const { data, error } = await client
+      .from('contacts')
+      .select('id')
+      .eq('id', contactId)
+      .eq('organization_id', params.organizationId)
+      .maybeSingle<{ id: string }>();
+
+    if (error) {
+      throw new Error(`Failed to verify contact ownership: ${error.message}`);
+    }
+    if (!data) {
+      throw new BadRequestException('El contacto no pertenece a esta organización.');
+    }
+  }
+
+  private async assertConversationInOrganization(params: {
+    conversationId?: string | null;
+    organizationId: string;
+  }): Promise<void> {
+    const conversationId = params.conversationId?.trim();
+    if (!conversationId) {
+      return;
+    }
+
+    const client = this.supabaseService.getServiceRoleClient();
+    const { data, error } = await client
+      .from('conversations')
+      .select('id')
+      .eq('id', conversationId)
+      .eq('organization_id', params.organizationId)
+      .maybeSingle<{ id: string }>();
+
+    if (error) {
+      throw new Error(`Failed to verify conversation ownership: ${error.message}`);
+    }
+    if (!data) {
+      throw new BadRequestException('La conversación no pertenece a esta organización.');
+    }
   }
 
   private assertCreateMandatoryFields(params: {

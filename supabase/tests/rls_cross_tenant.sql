@@ -1099,9 +1099,16 @@ select pg_temp.assert_whatsapp_message_events_select_denied('user A cannot read 
 select pg_temp.assert_instagram_message_events_select_denied('user A cannot read instagram_message_events');
 select pg_temp.assert_facebook_message_events_select_denied('user A cannot read facebook_message_events');
 -- Service-only: public.instagram_config public.arca_accounts public.organization_llm_credentials
+-- public.auth_otp_challenges public.auth_identity_merge_challenges public.browser_session_challenges
+-- public.invoice_issuance_locks public.app_startup_samples
 select pg_temp.assert_service_table_select_denied('instagram_config', 'user A cannot read instagram_config');
 select pg_temp.assert_service_table_select_denied('arca_accounts', 'user A cannot read arca_accounts');
 select pg_temp.assert_service_table_select_denied('organization_llm_credentials', 'user A cannot read organization_llm_credentials');
+select pg_temp.assert_service_table_select_denied('auth_otp_challenges', 'user A cannot read auth_otp_challenges');
+select pg_temp.assert_service_table_select_denied('auth_identity_merge_challenges', 'user A cannot read auth_identity_merge_challenges');
+select pg_temp.assert_service_table_select_denied('browser_session_challenges', 'user A cannot read browser_session_challenges');
+select pg_temp.assert_service_table_select_denied('invoice_issuance_locks', 'user A cannot read invoice_issuance_locks');
+select pg_temp.assert_service_table_select_denied('app_startup_samples', 'user A cannot read app_startup_samples');
 select pg_temp.assert_membership_insert_denied('22222222-2222-4222-8222-222222222222', 'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa', 'user A cannot write membership rows for Tenant B');
 
 set local request.jwt.claim.sub = 'bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb';
@@ -1164,5 +1171,10 @@ select pg_temp.assert_facebook_message_events_select_denied('user B cannot read 
 select pg_temp.assert_service_table_select_denied('instagram_config', 'user B cannot read instagram_config');
 select pg_temp.assert_service_table_select_denied('arca_accounts', 'user B cannot read arca_accounts');
 select pg_temp.assert_service_table_select_denied('organization_llm_credentials', 'user B cannot read organization_llm_credentials');
+select pg_temp.assert_service_table_select_denied('auth_otp_challenges', 'user B cannot read auth_otp_challenges');
+select pg_temp.assert_service_table_select_denied('auth_identity_merge_challenges', 'user B cannot read auth_identity_merge_challenges');
+select pg_temp.assert_service_table_select_denied('browser_session_challenges', 'user B cannot read browser_session_challenges');
+select pg_temp.assert_service_table_select_denied('invoice_issuance_locks', 'user B cannot read invoice_issuance_locks');
+select pg_temp.assert_service_table_select_denied('app_startup_samples', 'user B cannot read app_startup_samples');
 
 rollback;

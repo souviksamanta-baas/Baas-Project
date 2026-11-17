@@ -62,8 +62,12 @@ export function setupOpenApiDocs(app: INestApplication, configService?: ConfigSe
   const explicit = (configService?.get<string>('BAAS_ENABLE_OPENAPI_DOCS') ?? process.env.BAAS_ENABLE_OPENAPI_DOCS ?? '')
     .trim()
     .toLowerCase();
+  // Fail closed in production: /docs only when BAAS_ENABLE_OPENAPI_DOCS is explicitly true.
+  // Local/dev still gets docs by default when the flag is unset.
   const enabled =
-    explicit === 'true' || explicit === '1' || (explicit === '' && nodeEnv !== 'production');
+    explicit === 'true' ||
+    explicit === '1' ||
+    (explicit === '' && nodeEnv !== 'production' && nodeEnv !== 'test');
 
   if (!enabled) {
     return;

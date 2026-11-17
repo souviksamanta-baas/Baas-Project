@@ -2,9 +2,11 @@ import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import { describe, expect, it } from 'vitest';
 
 import {
+  assertManagerOrAboveRole,
   assertOrgMembership,
   assertUsersAreOrgMembers,
   extractBearerToken,
+  isManagerOrAbove,
 } from '../src/auth/request-auth.helper';
 import type { SupabaseService } from '../src/supabase/supabase.service';
 
@@ -58,6 +60,20 @@ describe('assertOrgMembership', () => {
         userId: 'user-2',
       }),
     ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+});
+
+describe('manager-or-above role matrix', () => {
+  it('treats owner, co_owner, and manager as writers', () => {
+    expect(isManagerOrAbove('owner')).toBe(true);
+    expect(isManagerOrAbove('co_owner')).toBe(true);
+    expect(isManagerOrAbove('manager')).toBe(true);
+    expect(isManagerOrAbove('staff')).toBe(false);
+  });
+
+  it('rejects staff writes', () => {
+    expect(() => assertManagerOrAboveRole('staff')).toThrow(ForbiddenException);
+    expect(() => assertManagerOrAboveRole('manager')).not.toThrow();
   });
 });
 

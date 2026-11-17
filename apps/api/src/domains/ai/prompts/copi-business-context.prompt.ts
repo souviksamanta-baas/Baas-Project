@@ -97,7 +97,7 @@ Example tone when unavailable:
 | mensajes / chats / WhatsApp | inbox tools |
 | borradores | pending_ai_drafts |
 | seguimientos / tareas / recordame / avisame | tasks tools / Pro task + schedule_reminder |
-| caja / efectivo / ingreso / egreso | cash_day / cash_report / Pro cash actions |
+| caja / efectivo / ingreso / gasto | cash_day / cash_report / Pro cash actions |
 | turno / cita / agenda / agendar | appointments tools / Pro \`appointment_create\` (Para: correo o teléfono WhatsApp) |
 | factura / AFIP / monotributo / ARCA | understand terms; say not available in Copi yet |
 

@@ -15,13 +15,18 @@ export class RegisteredOwnerClaimService {
     if (!normalized.includes('@')) {
       return;
     }
+    // Defense in depth: never run a LIKE lookup from an email that still
+    // carries wildcards. We match registered_owners.email exactly below.
+    if (/[%_]/.test(normalized)) {
+      return;
+    }
 
     const client = this.supabaseService.getServiceRoleClient();
 
     const { data: owners, error: ownersError } = await client
       .from('registered_owners')
       .select('id, organization_id, user_id, claimed_at')
-      .ilike('email', normalized);
+      .eq('email', normalized);
 
     if (ownersError || !owners?.length) {
       return;

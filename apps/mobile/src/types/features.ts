@@ -43,6 +43,9 @@ export interface OrganizationFeatureFlags extends CopiFeatureFlags {
   /** Appointments */
   appointments?: boolean;
 
+  /** Professional services desk. Off unless the org turns it on. */
+  services?: boolean;
+
   /** Ops */
   multi_sucursales?: boolean;
 }
@@ -95,6 +98,7 @@ export const DEFAULT_ORGANIZATION_FEATURE_FLAGS: Required<OrganizationFeatureFla
   integrations_whatsapp: true,
   multi_sucursales: false,
   notifications: true,
+  services: false,
   tasks: true,
 };
 

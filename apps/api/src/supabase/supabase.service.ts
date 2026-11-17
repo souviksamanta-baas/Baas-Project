@@ -34,11 +34,11 @@ export class SupabaseService {
    */
   createUserClient(accessToken: string): SupabaseClient {
     const url = process.env.SUPABASE_URL;
-    const anonKey =
-      process.env.SUPABASE_ANON_KEY ||
-      'sb_publishable_KeduwgiMJ8hL2iQeHNi5Nw_mJrQw3eD';
-    if (!url) {
-      throw new Error('Missing server-only Supabase service role configuration');
+    const anonKey = process.env.SUPABASE_ANON_KEY?.trim();
+    if (!url || !anonKey) {
+      throw new Error(
+        'Missing SUPABASE_URL or SUPABASE_ANON_KEY for user-scoped Supabase client',
+      );
     }
     return createClient(url, anonKey, {
       auth: {

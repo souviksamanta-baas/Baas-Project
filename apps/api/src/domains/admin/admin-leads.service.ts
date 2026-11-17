@@ -52,9 +52,10 @@ export class AdminLeadsService {
     }
 
     const selectedServices = input.selectedServices ?? [];
+    const whitelistedFlags = whitelistFeatureFlags(input.featureFlags);
     const featureFlags =
-      input.featureFlags && Object.keys(input.featureFlags).length > 0
-        ? input.featureFlags
+      whitelistedFlags && Object.keys(whitelistedFlags).length > 0
+        ? whitelistedFlags
         : buildFeatureFlagsFromSelection(selectedServices);
 
     const client = this.supabaseService.getServiceRoleClient();
@@ -298,6 +299,13 @@ export class AdminLeadsService {
     if (!orgName) {
       throw new BadRequestException('Ingresá el nombre del negocio');
     }
+    if (orgName.length > 120) {
+      throw new BadRequestException('El nombre del negocio es demasiado largo');
+    }
+    // Reject SQL LIKE wildcards so the availability probe cannot enumerate via `%`/`_`.
+    if (/[%_]/.test(orgName)) {
+      throw new BadRequestException('Ingresá un nombre de negocio válido');
+    }
 
     const email = (input.email ?? '').trim().toLowerCase();
     const client = this.supabaseService.getServiceRoleClient();
@@ -305,7 +313,7 @@ export class AdminLeadsService {
     const { data: orgs, error } = await client
       .from('organizations')
       .select('id, name')
-      .ilike('name', orgName)
+      .ilike('name', escapeIlikePattern(orgName))
       .limit(20);
 
     if (error) {
@@ -320,17 +328,20 @@ export class AdminLeadsService {
       return { available: true, ownedByRequester: false, orgName };
     }
 
-    if (!email || !email.includes('@')) {
+    if (!email || !email.includes('@') || /[%_]/.test(email)) {
       return { available: true, ownedByRequester: false, orgName };
     }
 
     const orgIds = matches.map((m) => m.id);
 
+    // registered_owners.email is stored lowercase at insert time, so an exact
+    // match on the normalized lookup email is both correct and safe (a
+    // wildcard mailbox like `%@example.com` cannot own somebody else's org).
     const { data: owners } = await client
       .from('registered_owners')
       .select('organization_id, email')
       .in('organization_id', orgIds)
-      .ilike('email', email);
+      .eq('email', email);
 
     const ownerHit = (owners ?? []).some(
       (row) => row.email.trim().toLowerCase() === email,
@@ -709,6 +720,12 @@ export class AdminLeadsService {
     }
 
     const now = new Date().toISOString();
+    // Match the registered owner by exact lowercased email so a wildcard
+    // mailbox cannot claim ownership of somebody else's org.
+    const normalizedEmail = email.trim().toLowerCase();
+    if (/[%_]/.test(normalizedEmail)) {
+      return;
+    }
     await client
       .from('registered_owners')
       .update({
@@ -717,7 +734,7 @@ export class AdminLeadsService {
         user_id: user.id,
       })
       .eq('organization_id', organizationId)
-      .ilike('email', email);
+      .eq('email', normalizedEmail);
 
     const { data: existing } = await client
       .from('organization_members')
@@ -792,6 +809,7 @@ const SELECTABLE_FEATURE_KEYS = [
   'billing_arca',
   'billing_cash',
   'appointments',
+  'services',
   'copi_pro_agent',
   'copi_voice',
   'copi_vision',
@@ -818,6 +836,32 @@ const BASELINE_FEATURE_FLAGS: Record<string, true> = {
   integrations_email: true,
   integrations_sms: true,
 };
+
+function whitelistFeatureFlags(
+  input: Record<string, boolean> | undefined,
+): Record<string, boolean> | undefined {
+  if (!input || typeof input !== 'object') {
+    return undefined;
+  }
+
+  const allowed = new Set<string>([
+    ...SELECTABLE_FEATURE_KEYS,
+    ...Object.keys(BASELINE_FEATURE_FLAGS),
+  ]);
+  const out: Record<string, boolean> = {};
+  for (const [key, value] of Object.entries(input)) {
+    if (!allowed.has(key) || typeof value !== 'boolean') {
+      continue;
+    }
+    out[key] = value;
+  }
+  return out;
+}
+
+/** Escape `\`, `%`, and `_` so PostgREST `ilike` treats them literally. */
+export function escapeIlikePattern(value: string): string {
+  return value.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
+}
 
 function buildFeatureFlagsFromSelection(
   selected: string[],

@@ -27,6 +27,7 @@
   "scripts": {
     "build": "npm run build -w @baas/api",
     "audit:archive": "node scripts/create-audit-archive.mjs",
+    "audit:ci": "npm audit --omit=dev --workspace @baas/api",
     "audit:clean": "node scripts/clean-generated-artifacts.mjs --yes",
     "audit:clean:dry-run": "node scripts/clean-generated-artifacts.mjs --dry-run",
     "ci:verify": "npm run lint && npm run validate:migrations && npm run validate:rls && npm run typecheck && npm test && npm run build && npm run validate:mobile",
@@ -55,7 +56,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "eslint": "^10.4.1",
+    "eslint": "^10.15.0",
     "globals": "^17.6.0",
     "railway": "^3.11.0",
     "typescript-eslint": "^8.60.1"

@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 
 import {
+  assertManagerOrAboveRole,
   assertOrgMembership,
   resolveAuthUser,
 } from '../../auth/request-auth.helper';
@@ -22,6 +23,49 @@ import {
 } from './cash.types';
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const SALE_COST_SOURCE_SUFFIX = ':costo';
+
+type SaleCostLine = Record<string, unknown>;
+
+function saleCostSourceId(sourceId: string): string {
+  return sourceId.endsWith(SALE_COST_SOURCE_SUFFIX)
+    ? sourceId
+    : `${sourceId}${SALE_COST_SOURCE_SUFFIX}`;
+}
+
+function soldUnits(line: SaleCostLine): number {
+  if (line.soldByWeight === true) {
+    const gramsRaw = line.weightGramsInput;
+    if (gramsRaw != null && String(gramsRaw).trim() !== '') {
+      const grams = Number(String(gramsRaw).replace(',', '.'));
+      if (Number.isFinite(grams) && grams > 0) {
+        return grams / 1000;
+      }
+    }
+    const quantity = Number(line.quantity);
+    if (Number.isFinite(quantity) && quantity > 0) {
+      return quantity;
+    }
+    return 1;
+  }
+
+  const quantity = Number(line.quantity);
+  return Number.isFinite(quantity) && quantity > 0 ? quantity : 0;
+}
+
+function metadataNumber(metadata: unknown, key: string): number {
+  if (!metadata || typeof metadata !== 'object') {
+    return 0;
+  }
+  const value = (metadata as Record<string, unknown>)[key];
+  const parsed = typeof value === 'number' ? value : Number(String(value).replace(',', '.'));
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+}
+
+function metadataCents(metadata: unknown, key: string): number {
+  const parsed = metadataNumber(metadata, key);
+  return parsed > 0 ? Math.round(parsed) : 0;
+}
 
 @Injectable()
 export class CashService {
@@ -219,9 +263,8 @@ export class CashService {
     organizationId: string;
     userId: string;
   }): Promise<CashLedgerEntryDto> {
-    await assertOrgMembership({
+    await this.assertCashWriter({
       organizationId: params.organizationId,
-      supabaseService: this.supabaseService,
       userId: params.userId,
     });
     await this.assertBusinessCenter(params.organizationId, params.businessCenterId);
@@ -273,9 +316,8 @@ export class CashService {
       this.supabaseService,
       params.authorizationHeader,
     );
-    await assertOrgMembership({
+    await this.assertCashWriter({
       organizationId: params.organizationId,
-      supabaseService: this.supabaseService,
       userId: user.id,
     });
 
@@ -334,9 +376,8 @@ export class CashService {
       this.supabaseService,
       params.authorizationHeader,
     );
-    await assertOrgMembership({
+    await this.assertCashWriter({
       organizationId: params.organizationId,
-      supabaseService: this.supabaseService,
       userId: user.id,
     });
 
@@ -374,9 +415,8 @@ export class CashService {
       this.supabaseService,
       params.authorizationHeader,
     );
-    await assertOrgMembership({
+    await this.assertCashWriter({
       organizationId: params.organizationId,
-      supabaseService: this.supabaseService,
       userId: user.id,
     });
     await this.assertBusinessCenter(params.organizationId, params.businessCenterId);
@@ -425,7 +465,17 @@ export class CashService {
         throw new BadRequestException(error?.message ?? 'No se pudo actualizar el asiento.');
       }
 
-      return mapCashLedgerEntry(data as CashLedgerEntryRow);
+      const mapped = mapCashLedgerEntry(data as CashLedgerEntryRow);
+      await this.syncSaleCostEntry({
+        businessCenterId: params.businessCenterId,
+        createdBy: user.id,
+        entryDate,
+        entryType: params.entryType,
+        organizationId: params.organizationId,
+        source: params.source,
+        sourceId,
+      });
+      return mapped;
     }
 
     const { data, error } = await client
@@ -448,7 +498,17 @@ export class CashService {
       throw new BadRequestException(error?.message ?? 'No se pudo crear el asiento.');
     }
 
-    return mapCashLedgerEntry(data as CashLedgerEntryRow);
+    const mapped = mapCashLedgerEntry(data as CashLedgerEntryRow);
+    await this.syncSaleCostEntry({
+      businessCenterId: params.businessCenterId,
+      createdBy: user.id,
+      entryDate,
+      entryType: params.entryType,
+      organizationId: params.organizationId,
+      source: params.source,
+      sourceId,
+    });
+    return mapped;
   }
 
   async deleteAutoEntry(params: {
@@ -462,20 +522,24 @@ export class CashService {
       this.supabaseService,
       params.authorizationHeader,
     );
-    await assertOrgMembership({
+    await this.assertCashWriter({
       organizationId: params.organizationId,
-      supabaseService: this.supabaseService,
       userId: user.id,
     });
 
     const client = this.supabaseService.getServiceRoleClient();
+    const sourceId = params.sourceId.trim();
+    const sourceIds =
+      params.source === 'venta' && !sourceId.endsWith(SALE_COST_SOURCE_SUFFIX)
+        ? [sourceId, saleCostSourceId(sourceId)]
+        : [sourceId];
     const { error } = await client
       .from('cash_ledger_entries')
       .delete()
       .eq('organization_id', params.organizationId)
       .eq('business_center_id', params.businessCenterId)
       .eq('source', params.source)
-      .eq('source_id', params.sourceId);
+      .in('source_id', sourceIds);
 
     if (error) {
       throw new BadRequestException(error.message);
@@ -497,6 +561,19 @@ export class CashService {
       supabaseService: this.supabaseService,
       userId,
     });
+  }
+
+  /** Staff may read cash; only owner/co_owner/manager may mutate the ledger. */
+  private async assertCashWriter(params: {
+    organizationId: string;
+    userId: string;
+  }): Promise<void> {
+    const role = await assertOrgMembership({
+      organizationId: params.organizationId,
+      supabaseService: this.supabaseService,
+      userId: params.userId,
+    });
+    assertManagerOrAboveRole(role);
   }
 
   private async computeOpeningBalance(params: {
@@ -599,6 +676,245 @@ export class CashService {
       throw new BadRequestException('El monto debe ser un entero positivo en centavos.');
     }
     return value;
+  }
+
+  private async syncSaleCostEntry(params: {
+    businessCenterId: string;
+    createdBy: string;
+    entryDate: string;
+    entryType: CashEntryType;
+    organizationId: string;
+    source: Exclude<CashEntrySource, 'manual'>;
+    sourceId: string;
+  }): Promise<void> {
+    if (
+      params.source !== 'venta' ||
+      params.entryType !== 'ingreso' ||
+      params.sourceId.endsWith(SALE_COST_SOURCE_SUFFIX)
+    ) {
+      return;
+    }
+
+    const client = this.supabaseService.getServiceRoleClient();
+    const costSourceId = saleCostSourceId(params.sourceId);
+    const amountCents = await this.quoteProductCostCents(
+      params.organizationId,
+      params.sourceId,
+    );
+    const { data: existing, error: existingError } = await client
+      .from('cash_ledger_entries')
+      .select('id')
+      .eq('organization_id', params.organizationId)
+      .eq('business_center_id', params.businessCenterId)
+      .eq('source', 'venta')
+      .eq('source_id', costSourceId)
+      .maybeSingle();
+
+    if (existingError) {
+      throw new BadRequestException(existingError.message);
+    }
+
+    if (amountCents <= 0) {
+      if (!existing) {
+        return;
+      }
+      const { error } = await client
+        .from('cash_ledger_entries')
+        .delete()
+        .eq('id', (existing as { id: string }).id);
+      if (error) {
+        throw new BadRequestException(error.message);
+      }
+      return;
+    }
+
+    const concept = `Venta #${params.sourceId}`;
+    if (existing) {
+      const { error } = await client
+        .from('cash_ledger_entries')
+        .update({
+          amount_cents: amountCents,
+          concept,
+          entry_date: params.entryDate,
+          entry_type: 'egreso',
+        })
+        .eq('id', (existing as { id: string }).id);
+      if (error) {
+        throw new BadRequestException(error.message);
+      }
+      return;
+    }
+
+    const { error } = await client.from('cash_ledger_entries').insert({
+      amount_cents: amountCents,
+      business_center_id: params.businessCenterId,
+      concept,
+      created_by: params.createdBy,
+      entry_date: params.entryDate,
+      entry_type: 'egreso',
+      organization_id: params.organizationId,
+      source: 'venta',
+      source_id: costSourceId,
+    });
+    if (error) {
+      throw new BadRequestException(error.message);
+    }
+  }
+
+  private async quoteProductCostCents(
+    organizationId: string,
+    quoteId: string,
+  ): Promise<number> {
+    const client = this.supabaseService.getServiceRoleClient();
+    const { data, error } = await client
+      .from('sell_quotes')
+      .select('draft')
+      .eq('organization_id', organizationId)
+      .eq('id', quoteId)
+      .maybeSingle();
+
+    if (error || !data) {
+      return 0;
+    }
+
+    const draft = (data as { draft?: { cart?: unknown } }).draft;
+    const cart = Array.isArray(draft?.cart) ? draft.cart : [];
+    const lines = cart.filter(
+      (line): line is SaleCostLine => Boolean(line) && typeof line === 'object',
+    );
+    if (!lines.length) {
+      return 0;
+    }
+
+    const costs = await this.productUnitCosts(organizationId, lines);
+    return lines.reduce((sum, line) => {
+      const units = soldUnits(line);
+      const direct = Math.round(Number(line.unitCostCents) || 0);
+      const unit = direct > 0 ? direct : costs(line);
+      if (units <= 0 || unit <= 0) {
+        return sum;
+      }
+      return sum + Math.round(unit * units);
+    }, 0);
+  }
+
+  private async productUnitCosts(
+    organizationId: string,
+    lines: SaleCostLine[],
+  ): Promise<(line: SaleCostLine) => number> {
+    const client = this.supabaseService.getServiceRoleClient();
+    const ids = [
+      ...new Set(lines.map((line) => String(line.productId || '').trim()).filter(Boolean)),
+    ];
+    const names = [
+      ...new Set(lines.map((line) => String(line.name || '').trim()).filter(Boolean)),
+    ];
+    const products: Array<{
+      id: string;
+      metadata: unknown;
+      name: string;
+      parent_product_id: string | null;
+    }> = [];
+
+    if (ids.length) {
+      const { data } = await client
+        .from('products')
+        .select('id, name, metadata, parent_product_id')
+        .eq('organization_id', organizationId)
+        .in('id', ids);
+      products.push(...((data || []) as typeof products));
+    }
+    if (names.length) {
+      const { data } = await client
+        .from('products')
+        .select('id, name, metadata, parent_product_id')
+        .eq('organization_id', organizationId)
+        .in('name', names);
+      for (const row of (data || []) as typeof products) {
+        if (!products.some((product) => product.id === row.id)) {
+          products.push(row);
+        }
+      }
+    }
+
+    const parentIds = [
+      ...new Set(
+        products
+          .filter((product) => metadataCents(product.metadata, 'precio_costo_cents') <= 0)
+          .map((product) => product.parent_product_id)
+          .filter((id): id is string => Boolean(id)),
+      ),
+    ];
+    const parents = new Map<string, unknown>();
+    if (parentIds.length) {
+      const { data } = await client
+        .from('products')
+        .select('id, metadata')
+        .eq('organization_id', organizationId)
+        .in('id', parentIds);
+      for (const row of (data || []) as Array<{ id: string; metadata: unknown }>) {
+        parents.set(row.id, row.metadata);
+      }
+    }
+
+    const missingIds = products
+      .filter((product) => this.unitCostForProduct(product, parents) <= 0)
+      .map((product) => product.id);
+    const lotCosts = new Map<string, number>();
+    if (missingIds.length) {
+      const { data } = await client
+        .from('inventory_lots')
+        .select('product_id, unit_cost_cents, received_at')
+        .eq('organization_id', organizationId)
+        .in('product_id', missingIds)
+        .order('received_at', { ascending: false });
+      for (const row of (data || []) as Array<{
+        product_id: string;
+        unit_cost_cents: number | null;
+      }>) {
+        const cents = Math.round(Number(row.unit_cost_cents) || 0);
+        if (cents > 0 && !lotCosts.has(row.product_id)) {
+          lotCosts.set(row.product_id, cents);
+        }
+      }
+    }
+
+    return (line) => {
+      const productId = String(line.productId || '').trim();
+      const name = String(line.name || '').trim().toLocaleLowerCase('es');
+      const product =
+        products.find((item) => productId && item.id === productId) ||
+        products.find((item) => item.name.trim().toLocaleLowerCase('es') === name);
+      if (!product) {
+        return 0;
+      }
+      return this.unitCostForProduct(product, parents) || lotCosts.get(product.id) || 0;
+    };
+  }
+
+  private unitCostForProduct(
+    product: {
+      metadata: unknown;
+      parent_product_id: string | null;
+    },
+    parents: Map<string, unknown>,
+  ): number {
+    const direct = metadataCents(product.metadata, 'precio_costo_cents');
+    if (direct > 0) {
+      return direct;
+    }
+    if (!product.parent_product_id) {
+      return 0;
+    }
+    const parentCost = metadataCents(
+      parents.get(product.parent_product_id),
+      'precio_costo_cents',
+    );
+    const equivalent = metadataNumber(product.metadata, 'equivalente_unidad_base');
+    if (parentCost <= 0 || equivalent <= 0) {
+      return 0;
+    }
+    return Math.round(parentCost * equivalent);
   }
 }
 

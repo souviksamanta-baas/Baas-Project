@@ -17,7 +17,13 @@ export interface NexoliaStaffContext {
 }
 
 function normalizeEmail(email: string | undefined | null): string {
-  return (email ?? '').trim().toLowerCase();
+  const normalized = (email ?? '').trim().toLowerCase();
+  // Defense in depth: strip wildcards so a crafted address can never leak into
+  // a SQL LIKE lookup. Real staff emails never contain `%` or `_`.
+  if (/[%_]/.test(normalized)) {
+    return '';
+  }
+  return normalized;
 }
 
 function asStaffRole(role: string | undefined | null): NexoliaStaffRole {
@@ -60,11 +66,13 @@ export async function assertNexoliaStaff(
   }
 
   // Claim pending invite (invitation-only onboarding for additional staff).
+  // Invite emails are stored lowercase, so match exactly to prevent wildcard
+  // mailboxes from claiming a pending staff invite.
   const { data: invite, error: inviteError } = await client
     .from('nexolia_staff_invites')
     .select('id, role, email')
     .is('accepted_at', null)
-    .ilike('email', email)
+    .eq('email', email)
     .maybeSingle<{ email: string; id: string; role: string }>();
 
   if (inviteError) {

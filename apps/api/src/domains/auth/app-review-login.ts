@@ -1,10 +1,13 @@
 import { timingSafeEqual } from 'node:crypto';
 
 /**
- * App Store review sign-in. Enabled only when both env vars are set.
- * The code does not expire and is accepted only for this one email.
+ * App Store review sign-in. Enabled only when both env vars are set and the
+ * process is not production. Production must unset APP_REVIEW_DEMO_* (fail closed).
  */
 export function isAppReviewDemoEmail(email: string): boolean {
+  if (process.env.NODE_ENV === 'production') {
+    return false;
+  }
   const configured = process.env.APP_REVIEW_DEMO_EMAIL?.trim().toLowerCase();
   if (!configured) {
     return false;

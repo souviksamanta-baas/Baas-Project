@@ -855,7 +855,7 @@ export class CopiToolRegistry {
         saldoFinalCents: day.saldoFinalCents,
         saldoInicialCents: day.saldoInicialCents,
       },
-      summary: `Caja del ${entryDate}: ingresos $${this.formatCents(day.ingresosCents)}, egresos $${this.formatCents(day.egresosCents)}, saldo final $${this.formatCents(day.saldoFinalCents)}.`,
+      summary: `Caja del ${entryDate}: ingresos $${this.formatCents(day.ingresosCents)}, gastos $${this.formatCents(day.egresosCents)}, saldo final $${this.formatCents(day.saldoFinalCents)}.`,
     };
   }
 
@@ -879,7 +879,7 @@ export class CopiToolRegistry {
         openingCents: report.openingCents,
         toDate: report.toDate,
       },
-      summary: `Caja ${report.fromDate} → ${report.toDate}: ingresos $${this.formatCents(report.ingresosCents)}, egresos $${this.formatCents(report.egresosCents)}, cierre $${this.formatCents(report.closingCents)}.`,
+      summary: `Caja ${report.fromDate} → ${report.toDate}: ingresos $${this.formatCents(report.ingresosCents)}, gastos $${this.formatCents(report.egresosCents)}, cierre $${this.formatCents(report.closingCents)}.`,
     };
   }
 

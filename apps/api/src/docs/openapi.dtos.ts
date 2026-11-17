@@ -2,15 +2,22 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
   IsArray,
+  IsBoolean,
+  IsEmail,
+  IsIn,
   IsInt,
   IsNumber,
   IsObject,
   IsOptional,
   IsString,
+  IsUUID,
+  MaxLength,
   Min,
   MinLength,
   ValidateNested,
 } from 'class-validator';
+
+export const ALLOWED_INVOICE_IVA_RATES = [0, 10.5, 21, 27] as const;
 
 export class HealthResponseDto {
   @ApiProperty({ enum: ['ok'], example: 'ok' })
@@ -659,11 +666,13 @@ export class ArcaMarkConnectedDto {
 export class IssueInvoiceLineDto {
   @ApiProperty()
   @IsString()
+  @MaxLength(500)
   description!: string;
 
-  @ApiPropertyOptional({ example: 21 })
+  @ApiPropertyOptional({ example: 21, enum: ALLOWED_INVOICE_IVA_RATES })
   @IsOptional()
   @IsNumber()
+  @IsIn([...ALLOWED_INVOICE_IVA_RATES])
   ivaRate?: number;
 
   @ApiProperty({ example: 1 })
@@ -673,33 +682,38 @@ export class IssueInvoiceLineDto {
 
   @ApiProperty({ example: 150000, description: 'Unit price in cents (tax-included)' })
   @IsInt()
+  @Min(0)
   unitPriceCents!: number;
 }
 
 export class IssueInvoiceDto {
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ format: 'uuid' })
   @IsOptional()
-  @IsString()
+  @IsUUID()
   contactId?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
+  @MaxLength(32)
   customerDocumentNumber?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
+  @MaxLength(16)
   customerDocumentType?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
+  @MaxLength(200)
   customerName?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
+  @MaxLength(64)
   customerTaxCondition?: string;
 
   @ApiProperty({ type: [IssueInvoiceLineDto] })
@@ -709,17 +723,20 @@ export class IssueInvoiceDto {
   lines!: IssueInvoiceLineDto[];
 
   @ApiProperty({ format: 'uuid' })
-  @IsString()
+  @IsUUID()
   organizationId!: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ format: 'uuid' })
   @IsOptional()
-  @IsString()
+  @IsUUID()
   relatedInvoiceId?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({
+    description: 'Sell quote id (text primary key on sell_quotes)',
+  })
   @IsOptional()
   @IsString()
+  @MaxLength(128)
   sellQuoteId?: string;
 
   @ApiPropertyOptional({
@@ -727,8 +744,109 @@ export class IssueInvoiceDto {
     example: 'FC',
   })
   @IsOptional()
-  @IsString()
+  @IsIn(['FA', 'FB', 'FC', 'NCA', 'NCB', 'NCC', 'NDA', 'NDB', 'NDC'])
   voucherType?: 'FA' | 'FB' | 'FC' | 'NCA' | 'NCB' | 'NCC' | 'NDA' | 'NDB' | 'NDC';
+}
+
+export class CreatePublicLeadDto {
+  @ApiPropertyOptional({ enum: ['monthly', 'annual'] })
+  @IsOptional()
+  @IsIn(['monthly', 'annual'])
+  billingCycle?: 'monthly' | 'annual';
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  categoria?: string;
+
+  @ApiPropertyOptional({ enum: ['monthly', 'annual'] })
+  @IsOptional()
+  @IsIn(['monthly', 'annual'])
+  ciclo?: 'monthly' | 'annual';
+
+  @ApiProperty()
+  @IsEmail()
+  @MaxLength(320)
+  email!: string;
+
+  @ApiPropertyOptional({
+    description: 'Optional feature flag overrides; unknown keys are dropped server-side.',
+    type: 'object',
+    additionalProperties: { type: 'boolean' },
+  })
+  @IsOptional()
+  @IsObject()
+  featureFlags?: Record<string, boolean>;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  marketingOptIn?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  notes?: string;
+
+  @ApiProperty()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(120)
+  orgName!: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  plan?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  planSlug?: string;
+
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  @MaxLength(64, { each: true })
+  selectedServices?: string[];
+
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  @MaxLength(64, { each: true })
+  servicios?: string[];
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  source?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  verticalSlug?: string;
+}
+
+export class PublicOrgNameCheckDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsEmail()
+  @MaxLength(320)
+  email?: string;
+
+  @ApiProperty()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(120)
+  name!: string;
 }
 
 export class IssuedInvoiceResponseDto {

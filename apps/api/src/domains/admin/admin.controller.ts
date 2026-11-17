@@ -22,6 +22,10 @@ import {
 
 import { Public, SkipOrgMembership } from '../../auth/auth.decorators';
 import { assertJobSecret } from '../../auth/job-secret.util';
+import {
+  CreatePublicLeadDto,
+  PublicOrgNameCheckDto,
+} from '../../docs/openapi.dtos';
 
 import { AdminGrokService } from './admin-grok.service';
 import { AdminLeadsService } from './admin-leads.service';
@@ -710,25 +714,7 @@ export class PublicLeadsController {
   @Throttle({ default: { limit: 8, ttl: 60_000 } })
   @ApiOperation({ summary: 'Submit public onboarding lead (no auth)' })
   @ApiOkResponse({ description: 'Lead created.' })
-  async createLead(
-    @Body()
-    body: {
-      billingCycle?: 'monthly' | 'annual';
-      categoria?: string;
-      ciclo?: 'monthly' | 'annual';
-      email: string;
-      featureFlags?: Record<string, boolean>;
-      marketingOptIn?: boolean;
-      notes?: string;
-      orgName?: string;
-      plan?: string;
-      planSlug?: string;
-      selectedServices?: string[];
-      servicios?: string[];
-      source?: string;
-      verticalSlug?: string;
-    },
-  ) {
+  async createLead(@Body() body: CreatePublicLeadDto) {
     const verticalSlug =
       body.verticalSlug ??
       (body.categoria ? CATEGORIA_TO_SLUG[body.categoria] ?? slugify(body.categoria) : undefined);
@@ -762,10 +748,10 @@ export class PublicLeadsController {
   @HttpCode(200)
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @ApiOperation({ summary: 'Check if organization name is already registered' })
-  async checkOrgName(@Body() body: { email?: string; name?: string }) {
+  async checkOrgName(@Body() body: PublicOrgNameCheckDto) {
     return this.leadsService.checkOrgName({
       email: body.email,
-      name: body.name ?? '',
+      name: body.name,
     });
   }
 

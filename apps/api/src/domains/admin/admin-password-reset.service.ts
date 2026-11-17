@@ -24,17 +24,19 @@ export class AdminPasswordResetService {
     const email = normalizeEmail(emailRaw);
     const client = this.supabaseService.getServiceRoleClient();
 
+    // Match exactly on the lowercased email so a wildcard address like
+    // `%@staff-domain` cannot claim another staff account's reset link.
     const [{ data: staff }, { data: invite }] = await Promise.all([
       client
         .from('nexolia_staff')
         .select('user_id')
-        .ilike('email', email)
+        .eq('email', email)
         .maybeSingle<{ user_id: string }>(),
       client
         .from('nexolia_staff_invites')
         .select('id')
         .is('accepted_at', null)
-        .ilike('email', email)
+        .eq('email', email)
         .maybeSingle<{ id: string }>(),
     ]);
 
@@ -140,6 +142,12 @@ export class AdminPasswordResetService {
 function normalizeEmail(email: string): string {
   const normalized = email.trim().toLowerCase();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) {
+    throw new Error('Ingresá un correo válido.');
+  }
+  // Defense in depth: reject SQL LIKE wildcards. Real Nexolia staff emails
+  // never contain `%` or `_` and the lookup below runs as `eq` on a lowercased
+  // email, so any wildcard here is always an attack signal.
+  if (/[%_]/.test(normalized)) {
     throw new Error('Ingresá un correo válido.');
   }
   return normalized;

@@ -736,7 +736,7 @@ export function CashScreen(props: {
               <Text style={styles.actionButtonText}>+</Text>
             </Pressable>
             <Pressable
-              accessibilityLabel="Nuevo egreso"
+              accessibilityLabel="Nuevo gasto"
               onPress={() => openCreate('egreso')}
               style={styles.egresoButton}
             >
@@ -819,7 +819,7 @@ export function CashScreen(props: {
                 ? 'Editar movimiento'
                 : draftType === 'ingreso'
                   ? 'Nuevo ingreso'
-                  : 'Nuevo egreso'}
+                  : 'Nuevo gasto'}
             </Text>
             <View style={styles.typeRow}>
               <Pressable
@@ -832,7 +832,7 @@ export function CashScreen(props: {
                 onPress={() => setDraftType('egreso')}
                 style={[styles.typeChip, draftType === 'egreso' && styles.typeChipActiveEgreso]}
               >
-                <Text style={styles.typeChipText}>Egreso</Text>
+                <Text style={styles.typeChipText}>Gasto</Text>
               </Pressable>
             </View>
             <Text style={styles.fieldLabel}>Concepto</Text>

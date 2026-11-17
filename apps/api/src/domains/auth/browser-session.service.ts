@@ -17,6 +17,8 @@ const BROWSER_ORIGIN = process.env.BROWSER_SESSION_ORIGIN || 'https://web.nexoli
 
 type ChallengeRow = {
   access_token: string | null;
+  device_ip: string | null;
+  device_user_agent: string | null;
   expires_at: string;
   id: string;
   organization_id: string | null;
@@ -24,6 +26,11 @@ type ChallengeRow = {
   refresh_token: string | null;
   status: 'pending' | 'approved' | 'consumed' | 'expired';
   user_id: string | null;
+};
+
+export type BrowserSessionDeviceContext = {
+  ip?: string | null;
+  userAgent?: string | null;
 };
 
 export type BrowserSessionCreateResult = {
@@ -46,7 +53,7 @@ export class BrowserSessionService {
     private readonly authSessionService: AuthSessionService,
   ) {}
 
-  async create(): Promise<BrowserSessionCreateResult> {
+  async create(device?: BrowserSessionDeviceContext): Promise<BrowserSessionCreateResult> {
     const challengeId = randomUUID();
     const pollSecret = randomBytes(32).toString('base64url');
     const expiresAt = new Date(Date.now() + CHALLENGE_TTL_MS).toISOString();
@@ -54,6 +61,8 @@ export class BrowserSessionService {
     const client = this.supabaseService.getServiceRoleClient();
 
     const { error } = await client.from('browser_session_challenges').insert({
+      device_ip: truncateDeviceField(device?.ip),
+      device_user_agent: truncateDeviceField(device?.userAgent, 512),
       expires_at: expiresAt,
       id: challengeId,
       poll_secret_hash: hashSecret(pollSecret),
@@ -96,10 +105,7 @@ export class BrowserSessionService {
     }
 
     if (row.status === 'expired' || new Date(row.expires_at).getTime() <= Date.now()) {
-      await client
-        .from('browser_session_challenges')
-        .update({ access_token: null, refresh_token: null, status: 'expired' })
-        .eq('id', challengeId);
+      await this.clearChallengeTokens(challengeId, 'expired');
       throw new GoneException('El código venció. Generá uno nuevo en la computadora.');
     }
 
@@ -142,11 +148,10 @@ export class BrowserSessionService {
       return { status: 'expired' };
     }
 
-    if (new Date(row.expires_at).getTime() <= Date.now() && row.status === 'pending') {
-      await client
-        .from('browser_session_challenges')
-        .update({ status: 'expired' })
-        .eq('id', challengeId);
+    const expired = new Date(row.expires_at).getTime() <= Date.now();
+    if (expired) {
+      // Approved-but-unpolled challenges must not keep tokens after TTL.
+      await this.clearChallengeTokens(challengeId, 'expired');
       return { status: 'expired' };
     }
 
@@ -186,6 +191,21 @@ export class BrowserSessionService {
     };
   }
 
+  private async clearChallengeTokens(
+    challengeId: string,
+    status: 'expired' | 'consumed',
+  ): Promise<void> {
+    const client = this.supabaseService.getServiceRoleClient();
+    await client
+      .from('browser_session_challenges')
+      .update({
+        access_token: null,
+        refresh_token: null,
+        status,
+      })
+      .eq('id', challengeId);
+  }
+
   private async assertActiveOrganization(accessToken: string, organizationId: string): Promise<void> {
     const client = this.supabaseService.createUserClient(accessToken);
     const { data, error } = await client.rpc('get_owner_dashboard', {
@@ -201,7 +221,9 @@ export class BrowserSessionService {
     const client = this.supabaseService.getServiceRoleClient();
     const { data, error } = await client
       .from('browser_session_challenges')
-      .select('id, poll_secret_hash, status, expires_at, user_id, organization_id, access_token, refresh_token')
+      .select(
+        'id, poll_secret_hash, status, expires_at, user_id, organization_id, access_token, refresh_token, device_user_agent, device_ip',
+      )
       .eq('id', challengeId)
       .maybeSingle();
 
@@ -222,4 +244,12 @@ function secretsMatch(left: string, right: string): boolean {
   const b = Buffer.from(right);
   if (a.length !== b.length) return false;
   return timingSafeEqual(a, b);
+}
+
+function truncateDeviceField(value: string | null | undefined, max = 128): string | null {
+  const trimmed = value?.trim();
+  if (!trimmed) {
+    return null;
+  }
+  return trimmed.slice(0, max);
 }

@@ -3,6 +3,11 @@ import { createHmac, randomInt, timingSafeEqual } from 'node:crypto';
 
 import { resolveOtpPepper } from '../../auth/otp-pepper.util';
 import { SupabaseService } from '../../supabase/supabase.service';
+import {
+  assertAuthOtpIdentityUnlocked,
+  claimAuthOtpAttempt,
+  otpClaimFailureMessage,
+} from './auth-otp-attempt.util';
 import { normalizeWhatsAppRecipient } from './auth-phone.util';
 
 interface MetaSendResponse {
@@ -13,7 +18,6 @@ interface MetaSendResponse {
 }
 
 const OTP_RESEND_COOLDOWN_MS = 45_000;
-const OTP_MAX_ATTEMPTS = 5;
 const OTP_TTL_MS = 10 * 60 * 1000;
 
 export type AuthOtpPurpose = 'login' | 'link';
@@ -28,12 +32,19 @@ export class PlatformWhatsAppAuthService {
   ): Promise<void> {
     await this.assertResendAllowed(phoneE164, purpose);
 
+    const client = this.supabaseService.getServiceRoleClient();
+    await assertAuthOtpIdentityUnlocked({
+      channel: 'whatsapp',
+      client,
+      phoneE164,
+      purpose,
+    });
+
     const code = String(randomInt(100_000, 1_000_000));
     const codeHash = this.hashOtp(code);
     const now = new Date();
     const expiresAt = new Date(now.getTime() + OTP_TTL_MS).toISOString();
 
-    const client = this.supabaseService.getServiceRoleClient();
     const { error } = await client.from('auth_otp_challenges').insert({
       channel: 'whatsapp',
       phone_e164: phoneE164,
@@ -61,50 +72,30 @@ export class PlatformWhatsAppAuthService {
   }): Promise<boolean> {
     const purpose = params.purpose ?? 'login';
     const client = this.supabaseService.getServiceRoleClient();
-    const { data, error } = await client
-      .from('auth_otp_challenges')
-      .select('id, code_hash, expires_at, attempts, consumed_at')
-      .eq('phone_e164', params.phoneE164)
-      .eq('channel', 'whatsapp')
-      .eq('purpose', purpose)
-      .is('consumed_at', null)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle<{
-        attempts: number;
-        code_hash: string;
-        consumed_at: string | null;
-        expires_at: string;
-        id: string;
-      }>();
+    const claim = await claimAuthOtpAttempt({
+      channel: 'whatsapp',
+      client,
+      phoneE164: params.phoneE164,
+      purpose,
+    });
 
-    if (error) {
-      console.error(`[auth-otp] Failed to load WhatsApp OTP challenge: ${error.message}`);
-      throw new Error('No se pudo verificar el código. Intentá de nuevo.');
-    }
-
-    if (!data) {
+    if (!claim.ok) {
+      const message = otpClaimFailureMessage(claim.reason);
+      if (message) {
+        throw new Error(message);
+      }
       return false;
     }
 
-    if (data.attempts >= OTP_MAX_ATTEMPTS) {
-      throw new Error('Demasiados intentos. Pedí un código nuevo.');
-    }
-
-    if (new Date(data.expires_at).getTime() < Date.now()) {
-      throw new Error('El código expiró. Pedí uno nuevo.');
-    }
-
     const submittedHash = this.hashOtp(params.code.trim());
-    const isValid = this.equalHexDigests(submittedHash, data.code_hash);
+    const isValid = this.equalHexDigests(submittedHash, claim.codeHash);
 
-    await client
-      .from('auth_otp_challenges')
-      .update({
-        attempts: data.attempts + 1,
-        consumed_at: isValid ? new Date().toISOString() : data.consumed_at,
-      })
-      .eq('id', data.id);
+    if (isValid) {
+      await client
+        .from('auth_otp_challenges')
+        .update({ consumed_at: new Date().toISOString() })
+        .eq('id', claim.id);
+    }
 
     return isValid;
   }

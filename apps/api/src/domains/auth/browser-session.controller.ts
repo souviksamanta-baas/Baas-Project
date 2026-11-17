@@ -58,8 +58,13 @@ export class BrowserSessionController {
   @Post()
   @HttpCode(200)
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
-  create(): Promise<BrowserSessionCreateResult> {
-    return this.browserSessions.create();
+  create(@Req() request: AuthenticatedRequest): Promise<BrowserSessionCreateResult> {
+    const forwarded = request.headers['x-forwarded-for'];
+    const forwardedIp = Array.isArray(forwarded) ? forwarded[0] : forwarded?.split(',')[0];
+    return this.browserSessions.create({
+      ip: (forwardedIp || request.ip || null)?.toString().trim() || null,
+      userAgent: request.headers['user-agent'] ?? null,
+    });
   }
 
   @Public()

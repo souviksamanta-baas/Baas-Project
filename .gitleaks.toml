@@ -1,0 +1,12 @@
+# Secret scanner config for CI (mitigation 16).
+# Placeholder env templates are allowlisted; real secrets must never be committed.
+
+title = "Nexolia baas-mvp"
+
+[allowlist]
+description = "Example env templates and fixtures"
+paths = [
+  '''(.*?)(\.example)$''',
+  '''^\.env\.example$''',
+  '''(^|/)(.*)\.example$''',
+]

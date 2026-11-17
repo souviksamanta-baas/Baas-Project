@@ -8,7 +8,11 @@ import {
   Optional,
 } from '@nestjs/common';
 
-import { assertOrgMembership, resolveAuthUser } from '../../auth/request-auth.helper';
+import {
+  assertManagerOrAboveRole,
+  assertOrgMembership,
+  resolveAuthUser,
+} from '../../auth/request-auth.helper';
 import { SupabaseService } from '../../supabase/supabase.service';
 import { ArcaAuthService } from '../arca/arca-auth.service';
 import { ArcaConnectionService } from '../arca/arca-connection.service';
@@ -83,15 +87,32 @@ export class InvoiceService {
     input: IssueInvoiceInput;
   }): Promise<IssuedInvoiceResult> {
     const user = await resolveAuthUser(this.supabaseService, params.authorizationHeader);
-    await assertOrgMembership({
+    const role = await assertOrgMembership({
       organizationId: params.input.organizationId,
       supabaseService: this.supabaseService,
       userId: user.id,
     });
+    assertManagerOrAboveRole(role);
 
     if (!params.input.lines.length) {
       throw new BadRequestException('La factura necesita al menos un ítem.');
     }
+
+    for (const line of params.input.lines) {
+      if (!Number.isFinite(line.unitPriceCents) || line.unitPriceCents < 0) {
+        throw new BadRequestException('El precio unitario no puede ser negativo.');
+      }
+      if (![0, 10.5, 21, 27].includes(line.ivaRate)) {
+        throw new BadRequestException('Alícuota de IVA no permitida.');
+      }
+    }
+
+    await this.assertBillingReferencesInOrganization({
+      contactId: params.input.contactId,
+      organizationId: params.input.organizationId,
+      relatedInvoiceId: params.input.relatedInvoiceId,
+      sellQuoteId: params.input.sellQuoteId,
+    });
 
     const account = await this.connection.requireConnectedAccount(params.input.organizationId);
     const voucherType =
@@ -554,6 +575,60 @@ export class InvoiceService {
     throw new BadRequestException(
       'No se pudo asignar un número de comprobante libre. Revisá facturas pendientes.',
     );
+  }
+
+  private async assertBillingReferencesInOrganization(params: {
+    contactId?: string | null;
+    organizationId: string;
+    relatedInvoiceId?: string | null;
+    sellQuoteId?: string | null;
+  }): Promise<void> {
+    const client = this.supabaseService.getServiceRoleClient();
+
+    if (params.sellQuoteId) {
+      const { data, error } = await client
+        .from('sell_quotes')
+        .select('id')
+        .eq('id', params.sellQuoteId)
+        .eq('organization_id', params.organizationId)
+        .maybeSingle<{ id: string }>();
+      if (error) {
+        throw new BadRequestException(error.message);
+      }
+      if (!data) {
+        throw new BadRequestException('El presupuesto no pertenece a esta organización.');
+      }
+    }
+
+    if (params.contactId) {
+      const { data, error } = await client
+        .from('contacts')
+        .select('id')
+        .eq('id', params.contactId)
+        .eq('organization_id', params.organizationId)
+        .maybeSingle<{ id: string }>();
+      if (error) {
+        throw new BadRequestException(error.message);
+      }
+      if (!data) {
+        throw new BadRequestException('El contacto no pertenece a esta organización.');
+      }
+    }
+
+    if (params.relatedInvoiceId) {
+      const { data, error } = await client
+        .from('invoices')
+        .select('id')
+        .eq('id', params.relatedInvoiceId)
+        .eq('organization_id', params.organizationId)
+        .maybeSingle<{ id: string }>();
+      if (error) {
+        throw new BadRequestException(error.message);
+      }
+      if (!data) {
+        throw new BadRequestException('La factura relacionada no pertenece a esta organización.');
+      }
+    }
   }
 
   private async findInvoiceForQuote(params: {

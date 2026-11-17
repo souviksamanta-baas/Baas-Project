@@ -43,6 +43,13 @@ npm run ci:verify
 Any failing lint, migration validation, RLS coverage validation, typecheck, test,
 API build, or Expo config validation step fails CI.
 
+Additional security jobs:
+
+- `dependency-audit` runs `npm run audit:ci` (`npm audit --omit=dev`).
+- `secret-scan` runs gitleaks with `.gitleaks.toml` (allowlists `*.example`).
+
+Third-party GitHub Actions are pinned to full commit SHAs (with version comments).
+
 The default `npm test` run excludes E2E specs (`**/*.e2e.spec.ts`). Layer A API/webhook
 E2E runs separately via `npm run test:e2e`. Full pre-release regression:
 
@@ -92,8 +99,9 @@ scripts/validate-rls-coverage.mjs
 
 The root `validate:rls` script checks that:
 
-- `supabase/tests/rls_cross_tenant.sql` references every MVP tenant table.
-- Migrations enable and force Row Level Security for each tenant table.
+- Every `public` table created in migrations enables **and forces** RLS.
+- `supabase/tests/rls_cross_tenant.sql` references every inventoried tenant and
+  service-only table (including `app_startup_samples`).
 - Service-role-only tables are explicitly revoked from `anon` and
   `authenticated`.
 - The RLS test includes cross-tenant Tenant A and Tenant B assertions.
@@ -125,7 +133,7 @@ supabase start --exclude studio,imgproxy,edge-runtime,logflare,vector,realtime
 npm run test:e2e
 ```
 
-The job uses `continue-on-error: true` while the suite matures. Current specs are
+E2E failures fail the workflow (no `continue-on-error`). Current specs are
 mock-based and do not require a live Supabase instance. Local Supabase is started for
 future integration coverage.
 
@@ -141,7 +149,23 @@ supabase db push --dry-run
 ```
 
 Manual workflow runs can deploy migrations when `deploy_migrations` is set to
-`true`:
+`true`. That path runs in the dedicated `supabase-migrate-deploy` job, which
+targets the GitHub Environment `supabase-production`.
+
+### GitHub UI required (Environment reviewers)
+
+Create and lock down the Environment before the first real deploy:
+
+1. Repo **Settings → Environments → New environment** named `supabase-production`.
+2. Enable **Required reviewers** and add at least one trusted reviewer.
+3. Optionally restrict the environment to the `main` branch.
+4. Move or duplicate `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD`, and
+   `SUPABASE_PROJECT_REF` onto that Environment (or keep repository-level secrets
+   if the environment is allowed to inherit them).
+
+Until the Environment exists with reviewers, `workflow_dispatch` deploys that
+request `deploy_migrations=true` will wait for approval or fail Environment
+resolution.
 
 ```bash
 supabase link --project-ref "$SUPABASE_PROJECT_REF"

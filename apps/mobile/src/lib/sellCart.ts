@@ -1,6 +1,7 @@
 import type { Product } from '../types/products';
 import { getAppStorageItem, removeAppStorageItem, setAppStorageItem } from './appStorage';
 import { postCashAutoQuietly } from './cashPostings';
+import { formatEsArDecimal, formatEsArInteger } from './formatCurrency';
 import { supabase } from './supabase';
 
 const QUOTES_STORAGE_KEY = 'baas_sell_quotes_v1';
@@ -14,6 +15,7 @@ export type SellCartLine = {
   productId: string;
   quantity: number;
   soldByWeight: boolean;
+  unitCostCents: number;
   unitPriceCents: number;
   weightGramsInput: string | null;
 };
@@ -81,6 +83,12 @@ export function isSoldByWeight(product: Product): boolean {
   return unit === 'kg' && product.parentProductId == null;
 }
 
+function productUnitCostCents(product: Product): number {
+  const value = product.metadata?.precio_costo_cents;
+  const cents = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(cents) && cents > 0 ? Math.round(cents) : 0;
+}
+
 export function createCartLineFromProduct(product: Product): SellCartLine {
   const soldByWeight = isSoldByWeight(product);
 
@@ -90,6 +98,7 @@ export function createCartLineFromProduct(product: Product): SellCartLine {
     productId: product.id,
     quantity: soldByWeight ? 1 : 1,
     soldByWeight,
+    unitCostCents: productUnitCostCents(product),
     unitPriceCents: product.unitPriceCents,
     weightGramsInput: null,
   };
@@ -163,13 +172,7 @@ export function computeSaleTotalCents(
 }
 
 export function formatCurrency(cents: number): string {
-  const amount = cents / 100;
-  const formatted = amount.toLocaleString('es-AR', {
-    maximumFractionDigits: 2,
-    minimumFractionDigits: 2,
-  });
-
-  return `$${formatted}`;
+  return `$${formatEsArDecimal(cents / 100)}`;
 }
 
 export function formatSignedCurrency(cents: number): string {
@@ -224,6 +227,7 @@ export function mergeCartLine(cart: SellCartLine[], line: SellCartLine): SellCar
   next[existingIndex] = {
     ...existing,
     quantity: existing.soldByWeight ? 1 : mergedQuantity,
+    unitCostCents: line.unitCostCents > 0 ? line.unitCostCents : existing.unitCostCents || 0,
     unitPriceCents: line.unitPriceCents,
     weightGramsInput: existing.soldByWeight ? String(mergedQuantity) : existing.weightGramsInput,
   };
@@ -477,7 +481,7 @@ export async function updateSellQuote(
     void postCashAutoQuietly({
       amountCents: totalCents,
       businessCenterId,
-      concept: `Venta ${quoteId}`,
+      concept: `Venta #${quoteId}`,
       entryDate: (quote.updatedAt || quote.createdAt || new Date().toISOString()).slice(0, 10),
       entryType: 'ingreso',
       organizationId,
@@ -497,10 +501,7 @@ async function emitQuoteAcceptedNotification(params: {
 }): Promise<void> {
   try {
     const { emitNotificationEvent } = await import('../api/notifications');
-    const amount = (params.totalCents / 100).toLocaleString('es-AR', {
-      maximumFractionDigits: 0,
-      minimumFractionDigits: 0,
-    });
+    const amount = formatEsArInteger(params.totalCents / 100);
     await emitNotificationEvent({
       body: `Presupuesto ${params.quoteId} aceptado por $${amount}`,
       businessCenterId: params.businessCenterId,

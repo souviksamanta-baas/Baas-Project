@@ -1141,7 +1141,7 @@ function MobileMorePixel(props: { controls: InicioStyleControls }): ReactElement
     '--inicio-tagline-size': `${props.controls.taglineSize}px`,
   } as CSSProperties;
   const groups = [
-    { title: 'Operación', rows: [['box', 'Inventario', 'Stock, productos y movimientos'], ['bill', 'Facturación', 'Comprobantes y cobros'], ['cart', 'Compras y proveedores', 'Órdenes y abastecimiento'], ['cash', 'Caja', 'Ingresos, egresos y cierre']] },
+    { title: 'Operación', rows: [['box', 'Inventario', 'Stock, productos y movimientos'], ['bill', 'Facturación', 'Comprobantes y cobros'], ['cart', 'Compras y proveedores', 'Órdenes y abastecimiento'], ['cash', 'Caja', 'Ingresos, gastos y cierre']] },
     { title: 'Crecimiento', rows: [['megaphone', 'Marketing', 'Promociones, campañas y posteos'], ['users', 'Portal del cliente', 'Catálogo, reservas y seguimiento'], ['bot', 'Automatizaciones', 'Mensajes, reglas y acciones']] },
     { title: 'Configuración', rows: [['user', 'Mi cuenta', 'Perfil, rol y sucursal'], ['puzzle', 'Integraciones', 'WhatsApp, Instagram y Email'], ['help', 'Ayuda y soporte', 'Guías y asistencia']] },
   ];
@@ -2200,7 +2200,7 @@ function MoreScreen(props: { compact?: boolean }): ReactElement {
           ['Inventario', 'Stock, productos y movimientos'],
           ['Facturacion', 'Comprobantes y cobros'],
           ['Compras y proveedores', 'Ordenes y abastecimiento'],
-          ['Caja', 'Ingresos, egresos y cierre'],
+          ['Caja', 'Ingresos, gastos y cierre'],
         ]}
       />
       <MenuSection

@@ -105,9 +105,22 @@ export function isOwnerOrCoOwner(role: OrganizationMemberRole): boolean {
   return role === 'owner' || role === 'co_owner';
 }
 
+/** Dueño, co-dueño o administrador — can mutate cash/ledger and issue fiscal invoices. */
+export function isManagerOrAbove(role: OrganizationMemberRole): boolean {
+  return role === 'owner' || role === 'co_owner' || role === 'manager';
+}
+
 export function assertOwnerOrCoOwnerRole(role: OrganizationMemberRole): void {
   if (!isOwnerOrCoOwner(role)) {
     throw new ForbiddenException('Solo el dueño o un co-dueño puede realizar esta acción.');
+  }
+}
+
+export function assertManagerOrAboveRole(role: OrganizationMemberRole): void {
+  if (!isManagerOrAbove(role)) {
+    throw new ForbiddenException(
+      'Solo el dueño, un co-dueño o un administrador puede realizar esta acción.',
+    );
   }
 }
 

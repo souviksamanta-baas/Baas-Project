@@ -101,7 +101,7 @@ Turnos / citas / agenda. Only available when the org has the \`appointments\` fe
 Fuzzy product search by name/SKU from the owner utterance.
 
 ### cash_day
-Today's cash ledger balances (ingresos/egresos/saldo) for the active center.
+Today's cash ledger balances (ingresos/gastos/saldo) for the active center.
 
 ### cash_report
 Monday→today cash range report.

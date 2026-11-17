@@ -119,7 +119,7 @@ export function CashMovementsEmpty(props: {
       </View>
       <Text style={styles.emptyTitle}>Sin movimientos</Text>
       <Text style={styles.emptyBody}>
-        {props.message ?? 'Todavía no hay ingresos ni egresos en este período.'}
+        {props.message ?? 'Todavía no hay ingresos ni gastos en este período.'}
       </Text>
     </View>
   );

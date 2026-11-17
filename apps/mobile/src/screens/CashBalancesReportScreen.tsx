@@ -205,7 +205,7 @@ export function CashBalancesReportScreen(props: {
         <div class="summary">
           <div><strong>Saldo inicial:</strong> ${escapeHtml(formatCurrency(report.openingCents))}</div>
           <div><strong>Ingresos del período:</strong> ${escapeHtml(formatCurrency(report.ingresosCents))}</div>
-          <div><strong>Egresos del período:</strong> ${escapeHtml(formatCurrency(report.egresosCents))}</div>
+          <div><strong>Gastos del período:</strong> ${escapeHtml(formatCurrency(report.egresosCents))}</div>
           <div><strong>Saldo final:</strong> ${escapeHtml(formatCurrency(report.closingCents))}</div>
         </div>
         <table>
@@ -214,7 +214,7 @@ export function CashBalancesReportScreen(props: {
               <th>Fecha</th>
               <th>Concepto</th>
               <th style="text-align:right">Ingresos</th>
-              <th style="text-align:right">Egresos</th>
+              <th style="text-align:right">Gastos</th>
               <th style="text-align:right">Saldo</th>
             </tr>
           </thead>
@@ -233,7 +233,7 @@ export function CashBalancesReportScreen(props: {
     if (!report) {
       return;
     }
-    const header = 'Fecha;Concepto;Ingresos;Egresos;Saldo';
+    const header = 'Fecha;Concepto;Ingresos;Gastos;Saldo';
     const lines: string[] = [];
     for (const day of report.days) {
       lines.push(
@@ -255,7 +255,7 @@ export function CashBalancesReportScreen(props: {
       'Resumen;;;;',
       `Saldo inicial;${(report.openingCents / 100).toFixed(2)};;;`,
       `Ingresos;${(report.ingresosCents / 100).toFixed(2)};;;`,
-      `Egresos;${(report.egresosCents / 100).toFixed(2)};;;`,
+      `Gastos;${(report.egresosCents / 100).toFixed(2)};;;`,
       `Saldo final;${(report.closingCents / 100).toFixed(2)};;;`,
     ];
     const csv = `\uFEFF${summary.join('\n')}\n\n${header}\n${lines.join('\n')}`;
@@ -409,7 +409,7 @@ export function CashBalancesReportScreen(props: {
             <Card style={styles.summaryCard}>
               <SummaryRow label="Saldo inicial" value={formatCurrency(report.openingCents)} />
               <SummaryRow label="Ingresos del período" value={formatCurrency(report.ingresosCents)} />
-              <SummaryRow label="Egresos del período" value={formatCurrency(report.egresosCents)} />
+              <SummaryRow label="Gastos del período" value={formatCurrency(report.egresosCents)} />
               <SummaryRow label="Saldo final" value={formatCurrency(report.closingCents)} />
             </Card>
 

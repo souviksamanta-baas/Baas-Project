@@ -74,12 +74,21 @@ export const envValidationSchema = Joi.object({
   NEXOLIA_AUTH_OTP_TEMPLATE_LANGUAGE: Joi.string().trim().optional().allow(''),
   NEXOLIA_AUTH_OTP_TEMPLATE_NAME: Joi.string().trim().optional().allow(''),
   RESEND_API_KEY: Joi.string().trim().optional().allow(''),
-  APP_REVIEW_DEMO_EMAIL: Joi.string().trim().email().optional().allow(''),
-  APP_REVIEW_DEMO_OTP: Joi.string()
-    .trim()
-    .pattern(/^\d{6}$/)
-    .optional()
-    .allow(''),
+  // Fail closed in production: App Store review demo login must be unset.
+  APP_REVIEW_DEMO_EMAIL: Joi.when('NODE_ENV', {
+    is: 'production',
+    then: Joi.string().trim().max(0).optional().allow(''),
+    otherwise: Joi.string().trim().email().optional().allow(''),
+  }),
+  APP_REVIEW_DEMO_OTP: Joi.when('NODE_ENV', {
+    is: 'production',
+    then: Joi.string().trim().max(0).optional().allow(''),
+    otherwise: Joi.string()
+      .trim()
+      .pattern(/^\d{6}$/)
+      .optional()
+      .allow(''),
+  }),
   OPENAI_API_KEY: Joi.string().trim().optional().allow(''),
   OPENAI_ADMIN_KEY: Joi.string().trim().optional().allow(''),
   ARCA_ENV: Joi.string().trim().valid('homologacion', 'production').optional().allow(''),

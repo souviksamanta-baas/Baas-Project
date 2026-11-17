@@ -27,9 +27,23 @@ export class ArcaSoapClient {
     if (flag === 'false' || flag === '0') {
       return false;
     }
-    // Default mock when no platform cert configured.
     const cert = (this.configService.get<string>('ARCA_PLATFORM_CERT_PEM') ?? '').trim();
-    return !cert;
+    if (cert) {
+      return false;
+    }
+    // Fail closed in production: missing cert must not silently issue mock CAEs.
+    const nodeEnv = (
+      this.configService.get<string>('NODE_ENV') ??
+      process.env.NODE_ENV ??
+      ''
+    )
+      .trim()
+      .toLowerCase();
+    if (nodeEnv === 'production') {
+      return false;
+    }
+    // Dev convenience only when ARCA_MOCK is unset and cert is absent.
+    return true;
   }
 
   resolveEnvironment(preferred?: ArcaEnvironment): ArcaEnvironment {

@@ -29,4 +29,15 @@ describe('SupabaseService', () => {
     expect(service.hasServiceRoleConfig()).toBe(true);
     expect(service.getServiceRoleClient()).toBe(service.getServiceRoleClient());
   });
+
+  it('refuses user clients when the anon key is unset', () => {
+    process.env.SUPABASE_URL = 'https://example.supabase.co';
+    delete process.env.SUPABASE_ANON_KEY;
+
+    const service = new SupabaseService();
+
+    expect(() => service.createUserClient('access-token')).toThrow(
+      'Missing SUPABASE_URL or SUPABASE_ANON_KEY for user-scoped Supabase client',
+    );
+  });
 });
