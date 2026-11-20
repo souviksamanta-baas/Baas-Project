@@ -96,9 +96,11 @@ export class BrowserSessionService {
   ): Promise<{ status: 'approved' }> {
     const client = this.supabaseService.getServiceRoleClient();
     const row = await this.loadChallenge(challengeId);
-    if (organizationId) {
-      await this.assertActiveOrganization(accessToken, organizationId);
-    }
+    // The phone may still point at a business that was paused since it was
+    // selected. Open the computer in the business that is actually active.
+    const pinnedOrganizationId = organizationId
+      ? await this.resolveActiveOrganization(accessToken, organizationId)
+      : null;
 
     if (row.status === 'approved' || row.status === 'consumed') {
       throw new ConflictException('Este código ya fue usado.');
@@ -119,7 +121,7 @@ export class BrowserSessionService {
       .from('browser_session_challenges')
       .update({
         access_token: session.accessToken,
-        organization_id: organizationId,
+        organization_id: pinnedOrganizationId,
         refresh_token: session.refreshToken,
         status: 'approved',
         user_id: userId,
@@ -206,15 +208,26 @@ export class BrowserSessionService {
       .eq('id', challengeId);
   }
 
-  private async assertActiveOrganization(accessToken: string, organizationId: string): Promise<void> {
+  /**
+   * Returns the business the computer should open. That is the requested one when it is
+   * active; otherwise the active business the same RPC picks for the phone (it skips paused
+   * and archived businesses). Throws when the user has no active business left.
+   */
+  private async resolveActiveOrganization(accessToken: string, organizationId: string): Promise<string> {
     const client = this.supabaseService.createUserClient(accessToken);
     const { data, error } = await client.rpc('get_owner_dashboard', {
       p_organization_id: organizationId,
     });
-    const resolved = (data as { organization?: { id?: string } | null } | null)?.organization?.id;
-    if (error || resolved !== organizationId) {
-      throw new BadRequestException('Ese negocio no está activo en tu celular.');
+    if (error) {
+      throw new BadRequestException('No pudimos verificar tu negocio. Intentá de nuevo.');
     }
+    const resolved = (data as { organization?: { id?: string } | null } | null)?.organization?.id;
+    if (!resolved) {
+      throw new BadRequestException(
+        'Todos tus negocios están pausados. Activá uno en Nexolia para usar la computadora.',
+      );
+    }
+    return resolved;
   }
 
   private async loadChallenge(challengeId: string): Promise<ChallengeRow> {
