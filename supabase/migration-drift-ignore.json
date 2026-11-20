@@ -1,0 +1,8 @@
+{
+  "_comment": "Repo migrations that are verified to be applied to production under a different name or as part of another migration. Only add an entry after confirming the objects exist remotely.",
+  "applied_under_other_name": [
+    { "name": "arca_fiscal_foundation", "verified": "2026-11-19", "note": "arca_accounts, invoices and invoice_issuance_locks exist remotely" },
+    { "name": "auth_otp_email_channel", "verified": "2026-11-19", "note": "Applied as auth_otp_challenges_email_channel" },
+    { "name": "nexolia_staff_invites", "verified": "2026-11-19", "note": "Applied as nexolia_staff_invites_and_bootstrap" }
+  ]
+}

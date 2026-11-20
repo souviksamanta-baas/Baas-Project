@@ -135,7 +135,7 @@ npm run test:e2e
 
 E2E failures fail the workflow (no `continue-on-error`). Current specs are
 mock-based and do not require a live Supabase instance. Local Supabase is started for
-future integration coverage.
+future integration coverage. The `e2e` job runs on every pull request and push to `main`.
 
 ## Remote Migration Behavior
 
@@ -151,6 +151,18 @@ supabase db push --dry-run
 Manual workflow runs can deploy migrations when `deploy_migrations` is set to
 `true`. That path runs in the dedicated `supabase-migrate-deploy` job, which
 targets the GitHub Environment `supabase-production`.
+
+### Migration drift check
+
+Pushes to `main` also run `npm run check:migration-drift`. It reads
+`supabase_migrations.schema_migrations` through the Supabase Management API
+(`SUPABASE_ACCESS_TOKEN`, `SUPABASE_PROJECT_REF`) and fails if a file in
+`supabase/migrations` is not applied remotely. Files are matched by migration
+name, not version, because migrations applied outside `supabase db push` get
+the apply time as version. Migrations that were applied under a different name
+go in `supabase/migration-drift-ignore.json` after confirming the objects exist.
+Run it locally with the same two variables, or offline with
+`--from-json applied.json`.
 
 ### GitHub UI required (Environment reviewers)
 

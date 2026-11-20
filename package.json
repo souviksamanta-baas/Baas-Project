@@ -49,6 +49,7 @@
     "typecheck": "npm run typecheck -w @baas/api && npm run typecheck -w @baas/mobile && npm run typecheck -w @baas/ui-mockups",
     "validate:migrations": "node scripts/validate-migrations.mjs",
     "validate:rls": "node scripts/validate-rls-coverage.mjs",
+    "check:migration-drift": "node scripts/check-migration-drift.mjs",
     "validate:mobile": "expo config apps/mobile --type public",
     "build:android:preview": "npm run build:android:preview -w @baas/mobile",
     "build:android:production": "npm run build:android:production -w @baas/mobile",
