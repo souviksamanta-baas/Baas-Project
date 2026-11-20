@@ -50,6 +50,8 @@ export const envValidationSchema = Joi.object({
   BAAS_WEBHOOK_RATE_LIMIT_TTL_MS: Joi.number().integer().min(1000).default(60_000),
   NODE_ENV: Joi.string().valid('development', 'test', 'production').default('development'),
   PORT: Joi.number().port().optional(),
+  // Used for user-scoped Supabase clients (e.g. QR approval). Required in production.
+  SUPABASE_ANON_KEY: productionSecret,
   SUPABASE_SERVICE_ROLE_KEY: productionSecret,
   SUPABASE_URL: Joi.when('NODE_ENV', {
     is: 'production',

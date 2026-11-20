@@ -18,6 +18,7 @@ describe('API config validation', () => {
 
     expect(error?.message).toContain('SUPABASE_URL');
     expect(error?.message).toContain('SUPABASE_SERVICE_ROLE_KEY');
+    expect(error?.message).toContain('SUPABASE_ANON_KEY');
     expect(error?.message).toContain('WHATSAPP_APP_SECRET');
     expect(error?.message).toContain('WHATSAPP_VERIFY_TOKEN');
     expect(error?.message).toContain('BAAS_TASKS_JOB_SECRET');
